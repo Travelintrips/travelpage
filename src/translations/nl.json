@@ -1,0 +1,79 @@
+{
+  "navbar": {
+    "signIn": "Inloggen",
+    "signOut": "Uitloggen",
+    "myAccount": "Mijn Account",
+    "adminPanel": "Beheerderspaneel"
+  },
+  "hero": {
+    "title": "Premium Autoverhuurservice",
+    "description": "Ervaar de vrijheid van de weg met onze uitgebreide vloot voertuigen. Boek vandaag nog uw perfecte rit en geniet van zorgeloos reizen.",
+    "browseCars": "Auto's Bekijken",
+    "bookNow": "Nu Boeken"
+  },
+  "auth": {
+    "readyToBook": "Klaar om Uw Rit te Boeken?",
+    "signInDescription": "Log in of maak een account aan om uw perfecte voertuig te boeken. Geniet van exclusieve voordelen, snellere afhandeling en gepersonaliseerde aanbevelingen."
+  },
+  "features": {
+    "wideSelection": "Ruime Selectie Voertuigen",
+    "wideSelectionDesc": "Van zuinige auto's tot luxe SUV's, vind het perfecte voertuig voor uw behoeften.",
+    "flexibleBooking": "Flexibele Boekingsopties",
+    "flexibleBookingDesc": "Kies uw ophaal- en inleverdatums met ons gebruiksvriendelijke boekingssysteem.",
+    "multiplePayment": "Meerdere Betaalmethoden",
+    "multiplePaymentDesc": "Betaal met contant geld, bankoverschrijving of credit/debitkaarten voor uw gemak."
+  },
+  "booking": {
+    "title": "Boek Uw Perfecte Rit",
+    "description": "Selecteer uit onze premium vloot voertuigen en pas uw huurervaring aan.",
+    "selectVehicle": "Selecteer Voertuig",
+    "bookingDetails": "Boekingsdetails",
+    "inspection": "Inspectie",
+    "payment": "Betaling"
+  },
+  "payment": {
+    "details": "Betalingsdetails",
+    "summary": "Boekingsoverzicht",
+    "vehicle": "Voertuig:",
+    "bookingId": "Boekings-ID:",
+    "totalAmount": "Totaalbedrag:",
+    "selectMethod": "Selecteer Betaalmethode",
+    "card": "Credit/Debitkaart",
+    "bank": "Bankoverschrijving",
+    "cash": "Contant",
+    "selectBank": "Selecteer Bank",
+    "selectCardType": "Selecteer Kaarttype",
+    "options": "Betalingsopties",
+    "fullPayment": "Volledige Betaling",
+    "partialPayment": "Gedeeltelijke Betaling (Aanbetaling)",
+    "paymentAmount": "Betalingsbedrag (Rp)",
+    "remainingBalance": "Resterend Saldo:",
+    "backToInspection": "Terug naar Inspectie",
+    "completePayment": "Betaling Voltooien"
+  },
+  "whyChoose": {
+    "title": "Waarom Kiezen voor Onze Service",
+    "premiumVehicles": "Premium Voertuigen",
+    "premiumVehiclesDesc": "Onze vloot omvat de nieuwste modellen met eersteklas functies en comfort.",
+    "flexibleBooking": "Flexibel Boeken",
+    "flexibleBookingDesc": "Eenvoudig boekingsproces met opties om uw reservering te wijzigen of te annuleren.",
+    "securePayments": "Veilige Betalingen",
+    "securePaymentsDesc": "Meerdere betalingsopties met veilige verwerking en transparante prijzen."
+  },
+  "footer": {
+    "allRightsReserved": "Alle rechten voorbehouden."
+  },
+  "language": {
+    "select": "Selecteer Taal",
+    "en": "Engels",
+    "id": "Indonesisch",
+    "fr": "Frans",
+    "nl": "Nederlands",
+    "ru": "Russisch",
+    "zh": "Chinees"
+  },
+  "currency": {
+    "code": "EUR",
+    "symbol": "€"
+  }
+}

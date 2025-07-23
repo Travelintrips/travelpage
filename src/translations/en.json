@@ -1,0 +1,145 @@
+{
+  "brand": "Travelintrips",
+  "common": {
+    "back": "Back",
+    "search": "Search",
+    "book": "Book",
+    "cancel": "Cancel",
+    "confirm": "Confirm"
+  },
+  "navbar": {
+    "signIn": "Sign In",
+    "signOut": "Sign Out",
+    "myAccount": "My Account",
+    "adminPanel": "Admin Panel"
+  },
+  "hero": {
+    "title": "Premium Car Rental Service",
+    "description": "Experience the freedom of the road with our extensive fleet of vehicles. Book your perfect ride today and enjoy hassle-free travel.",
+    "browseCars": "Browse Cars",
+    "bookNow": "Book Now",
+    "airportTransfer": "Airport Transfer"
+  },
+  "auth": {
+    "readyToBook": "Ready to Book Your Ride?",
+    "signInDescription": "Sign in or create an account to start booking your perfect vehicle. Enjoy exclusive benefits, faster checkout, and personalized recommendations."
+  },
+  "features": {
+    "wideSelection": "Wide Selection of Vehicles",
+    "wideSelectionDesc": "From economy cars to luxury SUVs, find the perfect vehicle for your needs.",
+    "flexibleBooking": "Flexible Booking Options",
+    "flexibleBookingDesc": "Choose your pickup and return dates with our easy-to-use booking system.",
+    "multiplePayment": "Multiple Payment Methods",
+    "multiplePaymentDesc": "Pay with cash, bank transfer, or credit/debit cards for your convenience."
+  },
+  "booking": {
+    "title": "Book Your Perfect Ride",
+    "description": "Select from our premium fleet of vehicles and customize your rental experience.",
+    "selectVehicle": "Select Vehicle",
+    "bookingDetails": "Booking Details",
+    "inspection": "Inspection",
+    "payment": "Payment"
+  },
+  "payment": {
+    "details": "Payment Details",
+    "summary": "Booking Summary",
+    "vehicle": "Vehicle:",
+    "bookingId": "Booking ID:",
+    "totalAmount": "Total Amount:",
+    "selectMethod": "Select Payment Method",
+    "card": "Credit/Debit Card",
+    "bank": "Bank Transfer",
+    "cash": "Cash",
+    "selectBank": "Select Bank",
+    "selectCardType": "Select Card Type",
+    "options": "Payment Options",
+    "fullPayment": "Full Payment",
+    "partialPayment": "Partial Payment (Deposit)",
+    "paymentAmount": "Payment Amount (Rp)",
+    "remainingBalance": "Remaining Balance:",
+    "backToInspection": "Back to Inspection",
+    "completePayment": "Complete Payment"
+  },
+  "airportTransfer": {
+    "title": "Airport transfers made",
+    "subtitle": "surprisingly easy and enjoyable!",
+    "bookingTitle": "Book your airport taxi transfer. Worldwide.",
+    "from": "From: Airport, hotel, station, port, address...",
+    "to": "To: Airport, hotel, station, port, address...",
+    "search": "Search",
+    "roundTrip": "Round trip",
+    "freeCancellation": "Free cancellation",
+    "flightTracking": "Flight tracking",
+    "support": "24/7 customer support",
+    "arranged": "ARRANGED IN A MINUTE",
+    "bookSteps": {
+      "title": "Book an airport transfer",
+      "subtitle": "in 3 easy steps",
+      "step1": {
+        "title": "Schedule in advance",
+        "description": "Schedule a time and pick up location to bring you to your destination."
+      },
+      "step2": {
+        "title": "Vehicle options",
+        "description": "Choose a car type and options to make your trip enjoyable."
+      },
+      "step3": {
+        "title": "Pay and relax",
+        "description": "No hidden costs. Pay via trusted partners. No worries, we have a cancellation policy."
+      }
+    }
+  },
+  "vehicleSelector": {
+    "searchPlaceholder": "Search vehicles...",
+    "priceRange": "Price Range (Rp)",
+    "vehicleType": "Vehicle Type",
+    "allTypes": "All Types",
+    "sedan": "Sedan",
+    "suv": "SUV",
+    "luxury": "Luxury",
+    "loading": "Loading vehicles...",
+    "noVehicles": "No vehicles found",
+    "adjustFilters": "Try adjusting your filters or search term",
+    "available": "Available",
+    "unavailable": "Unavailable",
+    "seats": "Seats",
+    "perDay": "per day",
+    "select": "Select",
+    "more": "more"
+  },
+  "whyChoose": {
+    "title": "Why Choose Our Service",
+    "premiumVehicles": "Premium Vehicles",
+    "premiumVehiclesDesc": "Our fleet includes the latest models with top-notch features and comfort.",
+    "flexibleBooking": "Flexible Booking",
+    "flexibleBookingDesc": "Easy booking process with options to modify or cancel your reservation.",
+    "securePayments": "Secure Payments",
+    "securePaymentsDesc": "Multiple payment options with secure processing and transparent pricing."
+  },
+  "footer": {
+    "allRightsReserved": "All rights reserved-By Travelintrips"
+  },
+  "language": {
+    "select": "Select Language",
+    "en": "English",
+    "id": "Indonesian",
+    "fr": "French",
+    "nl": "Dutch",
+    "ru": "Russian",
+    "zh": "Chinese"
+  },
+  "currency": {
+    "code": "USD",
+    "symbol": "$"
+  },
+  "airportTransfer": {
+    "oneWay": "One-way",
+    "multiCity": "Multi-city",
+    "swap": "SWAP",
+    "departure": "Departure",
+    "return": "Return",
+    "passengers": "Passengers",
+    "class": "Class",
+    "searchFlights": "Search Flights"
+  }
+}

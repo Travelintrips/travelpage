@@ -1,0 +1,32 @@
+-- Add missing columns to the staff table
+ALTER TABLE public.staff
+ADD COLUMN IF NOT EXISTS first_name TEXT,
+ADD COLUMN IF NOT EXISTS last_name TEXT,
+ADD COLUMN IF NOT EXISTS ktp_number TEXT,
+ADD COLUMN IF NOT EXISTS relative_phone TEXT,
+ADD COLUMN IF NOT EXISTS ktp_address TEXT,
+ADD COLUMN IF NOT EXISTS tempat_lahir TEXT,
+ADD COLUMN IF NOT EXISTS tanggal_lahir TEXT,
+ADD COLUMN IF NOT EXISTS agama TEXT,
+ADD COLUMN IF NOT EXISTS suku TEXT,
+ADD COLUMN IF NOT EXISTS sim_number TEXT,
+ADD COLUMN IF NOT EXISTS ktp_url TEXT,
+ADD COLUMN IF NOT EXISTS sim_url TEXT,
+ADD COLUMN IF NOT EXISTS kk_url TEXT,
+ADD COLUMN IF NOT EXISTS skck_url TEXT;
+
+-- Add missing columns to the users table
+ALTER TABLE public.users
+ADD COLUMN IF NOT EXISTS address TEXT,
+ADD COLUMN IF NOT EXISTS agama TEXT,
+ADD COLUMN IF NOT EXISTS suku TEXT,
+ADD COLUMN IF NOT EXISTS tanggal_lahir TEXT,
+ADD COLUMN IF NOT EXISTS tempat_lahir TEXT,
+ADD COLUMN IF NOT EXISTS ktp_url TEXT,
+ADD COLUMN IF NOT EXISTS sim_url TEXT,
+ADD COLUMN IF NOT EXISTS kk_url TEXT,
+ADD COLUMN IF NOT EXISTS skck_url TEXT;
+
+-- Add these tables to realtime publication
+ALTER PUBLICATION supabase_realtime ADD TABLE staff;
+ALTER PUBLICATION supabase_realtime ADD TABLE users;

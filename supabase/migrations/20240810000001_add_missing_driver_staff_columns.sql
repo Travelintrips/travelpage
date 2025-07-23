@@ -1,0 +1,36 @@
+-- Add missing columns to drivers table
+ALTER TABLE IF EXISTS drivers
+ADD COLUMN IF NOT EXISTS first_name TEXT,
+ADD COLUMN IF NOT EXISTS last_name TEXT,
+ADD COLUMN IF NOT EXISTS address TEXT,
+ADD COLUMN IF NOT EXISTS birth_place TEXT,
+ADD COLUMN IF NOT EXISTS birth_date DATE,
+ADD COLUMN IF NOT EXISTS religion TEXT,
+ADD COLUMN IF NOT EXISTS license_number TEXT,
+ADD COLUMN IF NOT EXISTS license_expiry DATE,
+ADD COLUMN IF NOT EXISTS reference_phone TEXT,
+ADD COLUMN IF NOT EXISTS ktp_url TEXT,
+ADD COLUMN IF NOT EXISTS sim_url TEXT,
+ADD COLUMN IF NOT EXISTS skck_url TEXT,
+ADD COLUMN IF NOT EXISTS kk_url TEXT,
+ADD COLUMN IF NOT EXISTS stnk_url TEXT,
+ADD COLUMN IF NOT EXISTS color TEXT,
+ADD COLUMN IF NOT EXISTS license_plate TEXT,
+ADD COLUMN IF NOT EXISTS make TEXT,
+ADD COLUMN IF NOT EXISTS model TEXT,
+ADD COLUMN IF NOT EXISTS year INTEGER,
+ADD COLUMN IF NOT EXISTS vehicle_type TEXT,
+ADD COLUMN IF NOT EXISTS category TEXT,
+ADD COLUMN IF NOT EXISTS seats INTEGER,
+ADD COLUMN IF NOT EXISTS transmission TEXT,
+ADD COLUMN IF NOT EXISTS fuel_type TEXT;
+
+-- Add missing columns to staff table
+ALTER TABLE IF EXISTS staff
+ADD COLUMN IF NOT EXISTS department TEXT,
+ADD COLUMN IF NOT EXISTS position TEXT,
+ADD COLUMN IF NOT EXISTS employee_id TEXT,
+ADD COLUMN IF NOT EXISTS id_card_url TEXT;
+
+-- Note: Realtime publication is already enabled for all tables in this project
+-- No need to explicitly add tables to the publication

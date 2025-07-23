@@ -1,0 +1,79 @@
+{
+  "navbar": {
+    "signIn": "Se Connecter",
+    "signOut": "Se Déconnecter",
+    "myAccount": "Mon Compte",
+    "adminPanel": "Panneau d'Administration"
+  },
+  "hero": {
+    "title": "Service de Location de Voitures Premium",
+    "description": "Découvrez la liberté de la route avec notre vaste flotte de véhicules. Réservez votre véhicule idéal aujourd'hui et profitez d'un voyage sans tracas.",
+    "browseCars": "Parcourir les Voitures",
+    "bookNow": "Réserver Maintenant"
+  },
+  "auth": {
+    "readyToBook": "Prêt à Réserver Votre Véhicule?",
+    "signInDescription": "Connectez-vous ou créez un compte pour commencer à réserver votre véhicule parfait. Profitez d'avantages exclusifs, d'un paiement plus rapide et de recommandations personnalisées."
+  },
+  "features": {
+    "wideSelection": "Large Sélection de Véhicules",
+    "wideSelectionDesc": "Des voitures économiques aux SUV de luxe, trouvez le véhicule parfait pour vos besoins.",
+    "flexibleBooking": "Options de Réservation Flexibles",
+    "flexibleBookingDesc": "Choisissez vos dates de prise en charge et de retour avec notre système de réservation facile à utiliser.",
+    "multiplePayment": "Plusieurs Méthodes de Paiement",
+    "multiplePaymentDesc": "Payez en espèces, par virement bancaire ou par cartes de crédit/débit pour votre commodité."
+  },
+  "booking": {
+    "title": "Réservez Votre Véhicule Idéal",
+    "description": "Sélectionnez parmi notre flotte de véhicules premium et personnalisez votre expérience de location.",
+    "selectVehicle": "Sélectionner un Véhicule",
+    "bookingDetails": "Détails de la Réservation",
+    "inspection": "Inspection",
+    "payment": "Paiement"
+  },
+  "payment": {
+    "details": "Détails du Paiement",
+    "summary": "Résumé de la Réservation",
+    "vehicle": "Véhicule:",
+    "bookingId": "ID de Réservation:",
+    "totalAmount": "Montant Total:",
+    "selectMethod": "Sélectionner la Méthode de Paiement",
+    "card": "Carte de Crédit/Débit",
+    "bank": "Virement Bancaire",
+    "cash": "Espèces",
+    "selectBank": "Sélectionner la Banque",
+    "selectCardType": "Sélectionner le Type de Carte",
+    "options": "Options de Paiement",
+    "fullPayment": "Paiement Complet",
+    "partialPayment": "Paiement Partiel (Acompte)",
+    "paymentAmount": "Montant du Paiement (Rp)",
+    "remainingBalance": "Solde Restant:",
+    "backToInspection": "Retour à l'Inspection",
+    "completePayment": "Finaliser le Paiement"
+  },
+  "whyChoose": {
+    "title": "Pourquoi Choisir Notre Service",
+    "premiumVehicles": "Véhicules Premium",
+    "premiumVehiclesDesc": "Notre flotte comprend les derniers modèles avec des caractéristiques et un confort de premier ordre.",
+    "flexibleBooking": "Réservation Flexible",
+    "flexibleBookingDesc": "Processus de réservation facile avec des options pour modifier ou annuler votre réservation.",
+    "securePayments": "Paiements Sécurisés",
+    "securePaymentsDesc": "Plusieurs options de paiement avec un traitement sécurisé et des prix transparents."
+  },
+  "footer": {
+    "allRightsReserved": "Tous droits réservés."
+  },
+  "language": {
+    "select": "Sélectionner la Langue",
+    "en": "Anglais",
+    "id": "Indonésien",
+    "fr": "Français",
+    "nl": "Néerlandais",
+    "ru": "Russe",
+    "zh": "Chinois"
+  },
+  "currency": {
+    "code": "EUR",
+    "symbol": "€"
+  }
+}

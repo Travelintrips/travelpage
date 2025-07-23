@@ -1,0 +1,98 @@
+{
+  "brand": "汽车租赁",
+  "navbar": {
+    "signIn": "登录",
+    "signOut": "登出",
+    "myAccount": "我的账户",
+    "adminPanel": "管理员面板"
+  },
+  "hero": {
+    "title": "高级汽车租赁服务",
+    "description": "体验我们广泛车队带来的道路自由。今天预订您的完美座驾，享受无忧旅行。",
+    "browseCars": "浏览汽车",
+    "bookNow": "立即预订"
+  },
+  "auth": {
+    "readyToBook": "准备预订您的座驾？",
+    "signInDescription": "登录或创建账户开始预订您的完美车辆。享受专属福利、更快结账和个性化推荐。"
+  },
+  "features": {
+    "wideSelection": "广泛的车辆选择",
+    "wideSelectionDesc": "从经济型汽车到豪华SUV，找到满足您需求的完美车辆。",
+    "flexibleBooking": "灵活的预订选项",
+    "flexibleBookingDesc": "使用我们易于使用的预订系统选择您的取车和还车日期。",
+    "multiplePayment": "多种支付方式",
+    "multiplePaymentDesc": "为您的便利提供现金、银行转账或信用卡/借记卡支付。"
+  },
+  "booking": {
+    "title": "预订您的完美座驾",
+    "description": "从我们的高级车队中选择并定制您的租车体验。",
+    "selectVehicle": "选择车辆",
+    "bookingDetails": "预订详情",
+    "inspection": "检查",
+    "payment": "支付"
+  },
+  "payment": {
+    "details": "支付详情",
+    "summary": "预订摘要",
+    "vehicle": "车辆：",
+    "bookingId": "预订ID：",
+    "totalAmount": "总金额：",
+    "selectMethod": "选择支付方式",
+    "card": "信用卡/借记卡",
+    "bank": "银行转账",
+    "cash": "现金",
+    "selectBank": "选择银行",
+    "selectCardType": "选择卡类型",
+    "options": "支付选项",
+    "fullPayment": "全额支付",
+    "partialPayment": "部分支付（押金）",
+    "paymentAmount": "支付金额（印尼盾）",
+    "remainingBalance": "剩余余额：",
+    "backToInspection": "返回检查",
+    "completePayment": "完成支付"
+  },
+  "vehicleSelector": {
+    "searchPlaceholder": "搜索车辆...",
+    "priceRange": "价格范围（印尼盾）",
+    "vehicleType": "车辆类型",
+    "allTypes": "所有类型",
+    "sedan": "轿车",
+    "suv": "SUV",
+    "luxury": "豪华车",
+    "loading": "正在加载车辆...",
+    "noVehicles": "未找到车辆",
+    "adjustFilters": "请尝试调整您的筛选条件或搜索词",
+    "available": "可用",
+    "unavailable": "不可用",
+    "seats": "座位",
+    "perDay": "每天",
+    "select": "选择",
+    "more": "更多"
+  },
+  "whyChoose": {
+    "title": "为什么选择我们的服务",
+    "premiumVehicles": "高级车辆",
+    "premiumVehiclesDesc": "我们的车队包括具有顶级功能和舒适性的最新车型。",
+    "flexibleBooking": "灵活预订",
+    "flexibleBookingDesc": "简单的预订流程，可选择修改或取消您的预订。",
+    "securePayments": "安全支付",
+    "securePaymentsDesc": "多种支付选项，安全处理和透明定价。"
+  },
+  "footer": {
+    "allRightsReserved": "版权所有。"
+  },
+  "language": {
+    "select": "选择语言",
+    "en": "英语",
+    "id": "印尼语",
+    "fr": "法语",
+    "nl": "荷兰语",
+    "ru": "俄语",
+    "zh": "中文"
+  },
+  "currency": {
+    "code": "CNY",
+    "symbol": "¥"
+  }
+}

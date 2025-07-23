@@ -1,0 +1,117 @@
+{
+  "brand": "Travelintrips",
+  "common": {
+    "back": "Kembali",
+    "search": "Cari",
+    "book": "Pesan",
+    "cancel": "Batal",
+    "confirm": "Konfirmasi"
+  },
+  "navbar": {
+    "signIn": "Masuk",
+    "signOut": "Keluar",
+    "myAccount": "Akun Saya",
+    "adminPanel": "Panel Admin"
+  },
+  "hero": {
+    "title": "Layanan Rental Mobil Premium",
+    "description": "Rasakan kebebasan di jalan dengan armada kendaraan kami yang luas. Pesan kendaraan sempurna Anda hari ini dan nikmati perjalanan tanpa hambatan.",
+    "browseCars": "Lihat Mobil",
+    "bookNow": "Pesan Sekarang",
+    "airportTransfer": "Transfer Bandara"
+  },
+  "auth": {
+    "readyToBook": "Siap Memesan Kendaraan Anda?",
+    "signInDescription": "Masuk atau buat akun untuk mulai memesan kendaraan sempurna Anda. Nikmati manfaat eksklusif, checkout lebih cepat, dan rekomendasi yang dipersonalisasi."
+  },
+  "features": {
+    "wideSelection": "Pilihan Kendaraan yang Luas",
+    "wideSelectionDesc": "Dari mobil ekonomis hingga SUV mewah, temukan kendaraan sempurna untuk kebutuhan Anda.",
+    "flexibleBooking": "Opsi Pemesanan Fleksibel",
+    "flexibleBookingDesc": "Pilih tanggal pengambilan dan pengembalian dengan sistem pemesanan kami yang mudah digunakan.",
+    "multiplePayment": "Berbagai Metode Pembayaran",
+    "multiplePaymentDesc": "Bayar dengan tunai, transfer bank, atau kartu kredit/debit untuk kenyamanan Anda."
+  },
+  "booking": {
+    "title": "Pesan Kendaraan Sempurna Anda",
+    "description": "Pilih dari armada kendaraan premium kami dan sesuaikan pengalaman rental Anda.",
+    "selectVehicle": "Pilih Kendaraan",
+    "bookingDetails": "Detail Pemesanan",
+    "inspection": "Inspeksi",
+    "payment": "Pembayaran"
+  },
+  "payment": {
+    "details": "Detail Pembayaran",
+    "summary": "Ringkasan Pemesanan",
+    "vehicle": "Kendaraan:",
+    "bookingId": "ID Pemesanan:",
+    "totalAmount": "Jumlah Total:",
+    "selectMethod": "Pilih Metode Pembayaran",
+    "card": "Kartu Kredit/Debit",
+    "bank": "Transfer Bank",
+    "cash": "Tunai",
+    "selectBank": "Pilih Bank",
+    "selectCardType": "Pilih Jenis Kartu",
+    "options": "Opsi Pembayaran",
+    "fullPayment": "Pembayaran Penuh",
+    "partialPayment": "Pembayaran Sebagian (Deposit)",
+    "paymentAmount": "Jumlah Pembayaran (Rp)",
+    "remainingBalance": "Sisa Saldo:",
+    "backToInspection": "Kembali ke Inspeksi",
+    "completePayment": "Selesaikan Pembayaran"
+  },
+  "airportTransfer": {
+    "title": "Transfer bandara menjadi",
+    "subtitle": "mudah dan menyenangkan!",
+    "bookingTitle": "Pesan taksi transfer bandara Anda. Di seluruh dunia.",
+    "from": "Dari: Bandara, hotel, stasiun, pelabuhan, alamat...",
+    "to": "Ke: Bandara, hotel, stasiun, pelabuhan, alamat...",
+    "search": "Cari",
+    "roundTrip": "Pulang pergi",
+    "freeCancellation": "Pembatalan gratis",
+    "flightTracking": "Pelacakan penerbangan",
+    "support": "Dukungan pelanggan 24/7",
+    "arranged": "DIATUR DALAM SATU MENIT",
+    "bookSteps": {
+      "title": "Pesan transfer bandara",
+      "subtitle": "dalam 3 langkah mudah",
+      "step1": {
+        "title": "Jadwalkan di awal",
+        "description": "Jadwalkan waktu dan lokasi penjemputan untuk membawa Anda ke tujuan."
+      },
+      "step2": {
+        "title": "Pilihan kendaraan",
+        "description": "Pilih jenis mobil dan opsi untuk membuat perjalanan Anda menyenangkan."
+      },
+      "step3": {
+        "title": "Bayar dan santai",
+        "description": "Tidak ada biaya tersembunyi. Bayar melalui mitra tepercaya. Jangan khawatir, kami memiliki kebijakan pembatalan."
+      }
+    }
+  },
+  "whyChoose": {
+    "title": "Mengapa Memilih Layanan Kami",
+    "premiumVehicles": "Kendaraan Premium",
+    "premiumVehiclesDesc": "Armada kami mencakup model terbaru dengan fitur dan kenyamanan terbaik.",
+    "flexibleBooking": "Pemesanan Fleksibel",
+    "flexibleBookingDesc": "Proses pemesanan mudah dengan opsi untuk mengubah atau membatalkan reservasi Anda.",
+    "securePayments": "Pembayaran Aman",
+    "securePaymentsDesc": "Berbagai opsi pembayaran dengan pemrosesan yang aman dan harga transparan."
+  },
+  "footer": {
+    "allRightsReserved": "Hak Cipta Dilindungi."
+  },
+  "language": {
+    "select": "Pilih Bahasa",
+    "en": "Inggris",
+    "id": "Indonesia",
+    "fr": "Prancis",
+    "nl": "Belanda",
+    "ru": "Rusia",
+    "zh": "Mandarin"
+  },
+  "currency": {
+    "code": "IDR",
+    "symbol": "Rp"
+  }
+}
