@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 
-interface Vehicle {
+export interface Vehicle {
   id: string;
   name: string;
   type: "sedan" | "suv" | "truck" | "luxury";
@@ -331,13 +331,15 @@ export function useVehicleData(modelNameParam?: string) {
   }, [hasInitialLoad, isFetching, carModels.length, error]);
 
   const refetchVehicleData = () => {
-    console.log("[useVehicleData] Triggering refetch...");
-    if (!isFetching) {
-      setFetchAttempted(false);
-      setShouldRefetch((prev) => prev + 1);
-    } else {
+    if (isFetching) {
       console.log("[useVehicleData] Skipping refetch - already fetching");
+      return false; // Return false to indicate refetch was skipped
     }
+
+    console.log("[useVehicleData] Triggering refetch...");
+    setFetchAttempted(false);
+    setShouldRefetch((prev) => prev + 1);
+    return true; // Return true to indicate refetch was initiated
   };
 
   return {

@@ -103,7 +103,7 @@ const PreRentalInspectionForm: React.FC<PreRentalInspectionFormProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [checklistItems, setChecklistItems] = useState<ChecklistItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [formSchema, setFormSchema] = useState<any>(defaultFormSchema);
+  const [formSchema, setFormSchema] = useState(defaultFormSchema);
   const [inspectionDate] = useState<Date>(new Date());
   const [inspectorName, setInspectorName] = useState<string>("");
   const [itemPhotos, setItemPhotos] = useState<Record<string, File[]>>({});
@@ -144,7 +144,8 @@ const PreRentalInspectionForm: React.FC<PreRentalInspectionFormProps> = ({
 
         // Create dynamic form schema based on checklist items
         if (transformedData.length > 0) {
-          setFormSchema(createFormSchema(transformedData));
+          const dynamicSchema = createFormSchema(transformedData);
+          setFormSchema(dynamicSchema);
         }
 
         // Initialize item photos state

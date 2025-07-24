@@ -45,7 +45,7 @@ const StaffForm: React.FC<StaffFormProps> = ({
 
       <FormField
         control={control}
-        name="roleId"
+        name="role"
         render={({ field }) => (
           <FormItem>
             <FormLabel>Pilih Role</FormLabel>

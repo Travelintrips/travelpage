@@ -519,7 +519,7 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({
         console.log("User created:", authData.user.id);
 
         // Insert user into users table with role_id
-        const userInsertData = {
+        const userInsertData: any = {
           id: authData.user.id,
           email: authData.user.email,
           full_name: data.name,
@@ -550,7 +550,7 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({
         console.log("User inserted into users table with role_id:", roleId);
 
         // Insert customer record with user_id and role_id
-        const customerInsertData = {
+        const customerInsertData: any = {
           id: authData.user.id,
           user_id: authData.user.id,
           full_name: data.name,

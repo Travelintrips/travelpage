@@ -25,7 +25,7 @@ interface AuthContextType {
   ensureSessionReady: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const AuthContext = createContext<AuthContextType | null>(null);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
@@ -39,6 +39,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [isSessionReady, setIsSessionReady] = useState(false);
   const initializationRef = useRef(false);
   const sessionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [contextReady, setContextReady] = useState(false);
 
   const initializeSession = useCallback(async () => {
     if (initializationRef.current) {
@@ -50,6 +51,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     setIsLoading(true);
     setIsSessionReady(false);
 
+    // Prevent flickering by batching state updates
+    const batchedStateUpdate = (updates: any) => {
+      Object.keys(updates).forEach((key) => {
+        if (key === "session") setSession(updates[key]);
+        if (key === "user") setUser(updates[key]);
+        if (key === "role") setRole(updates[key]);
+        if (key === "isLoading") setIsLoading(updates[key]);
+        if (key === "isHydrated") setIsHydrated(updates[key]);
+        if (key === "isSessionReady") setIsSessionReady(updates[key]);
+      });
+    };
+
     try {
       console.log("[AuthContext] Starting session initialization...");
 
@@ -58,10 +71,74 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         clearTimeout(sessionTimeoutRef.current);
       }
 
+      // Check if we're in a production environment without proper Supabase config
+      const isProductionWithoutSupabase =
+        typeof window !== "undefined" &&
+        window.location.hostname !== "localhost" &&
+        (!import.meta.env.VITE_SUPABASE_URL ||
+          import.meta.env.VITE_SUPABASE_URL === "" ||
+          import.meta.env.VITE_SUPABASE_URL.includes("placeholder"));
+
+      if (isProductionWithoutSupabase) {
+        console.warn(
+          "[AuthContext] Production environment detected without proper Supabase configuration",
+        );
+        // Try to restore from localStorage immediately
+        const storedUser = localStorage.getItem("auth_user");
+        const storedUserId = localStorage.getItem("userId");
+
+        if (storedUser && storedUserId) {
+          try {
+            const userData = JSON.parse(storedUser);
+            console.log(
+              "[AuthContext] Restoring session from localStorage in production",
+            );
+
+            setUser({
+              id: userData.id,
+              email: userData.email,
+              user_metadata: {
+                name: userData.name || "User",
+                role: userData.role || "Customer",
+                phone: userData.phone || "",
+              },
+            });
+            setRole(userData.role || "Customer");
+            setSession({
+              user: userData,
+              access_token: "production_fallback",
+            });
+
+            setIsLoading(false);
+            setIsHydrated(true);
+            setIsSessionReady(true);
+            initializationRef.current = false;
+            return;
+          } catch (parseError) {
+            console.warn(
+              "[AuthContext] Error parsing stored user in production:",
+              parseError,
+            );
+          }
+        }
+
+        // No stored session, set as unauthenticated - batch updates to prevent flickering
+        batchedStateUpdate({
+          session: null,
+          user: null,
+          role: null,
+          isLoading: false,
+          isHydrated: true,
+          isSessionReady: true,
+        });
+        initializationRef.current = false;
+        return;
+      }
+
       // Get current session from Supabase with timeout
       const sessionPromise = supabase.auth.getSession();
       const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error("Session check timeout")), 5000);
+        setTimeout(() => reject(new Error("Session check timeout")), 3000);
       });
 
       const { data, error } = (await Promise.race([
@@ -126,10 +203,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
             setRole(null);
           }
         } else {
-          // Clear everything if no valid session
-          setSession(null);
-          setUser(null);
-          setRole(null);
+          // Clear everything if no valid session - batch updates to prevent flickering
+          batchedStateUpdate({
+            session: null,
+            user: null,
+            role: null,
+          });
 
           // Clear localStorage if session is invalid
           localStorage.removeItem("auth_user");
@@ -143,8 +222,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         console.log(
           "[AuthContext] Valid Supabase session found, updating state",
         );
-        setSession(data.session);
-        setUser(data.session.user);
+        // Batch initial session updates to prevent flickering
+        const sessionUpdates: any = {
+          session: data.session,
+          user: data.session.user,
+        };
 
         // Get user role from database first, then fallback to metadata
         let userRole = "Customer";
@@ -271,8 +353,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           }
         }
 
-        // Set the role in state after determining it
-        setRole(userRole);
+        // Set the role in state after determining it - add to batch update
+        sessionUpdates.role = userRole;
+
+        // Apply all session updates at once to prevent flickering
+        batchedStateUpdate(sessionUpdates);
 
         // Update localStorage with fresh session data
         const userData = {
@@ -323,50 +408,51 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     } catch (err) {
       console.error("[AuthContext] Error during session initialization:", err);
 
-      // Only use localStorage as absolute fallback when offline
-      if (navigator.onLine === false) {
-        const storedUser = localStorage.getItem("auth_user");
-        if (storedUser) {
-          try {
-            const userData = JSON.parse(storedUser);
-            console.log(
-              "[AuthContext] Using localStorage fallback (error + offline)",
-            );
+      // Enhanced fallback for production environments
+      const storedUser = localStorage.getItem("auth_user");
+      const storedUserId = localStorage.getItem("userId");
 
-            setUser({
-              id: userData.id,
-              email: userData.email,
-              user_metadata: {
-                name: userData.name,
-                role: userData.role || "Customer",
-                phone: userData.phone || "",
-              },
-            });
-            setRole(userData.role || "Customer");
-            setSession({
-              user: userData,
-              access_token: "offline_mode",
-            });
-          } catch (parseError) {
-            console.warn(
-              "[AuthContext] Error parsing stored user in error fallback:",
-              parseError,
-            );
-            setSession(null);
-            setUser(null);
-            setRole(null);
-          }
+      if (storedUser && storedUserId) {
+        try {
+          const userData = JSON.parse(storedUser);
+          console.log("[AuthContext] Using localStorage fallback after error");
+
+          setUser({
+            id: userData.id,
+            email: userData.email,
+            user_metadata: {
+              name: userData.name,
+              role: userData.role || "Customer",
+              phone: userData.phone || "",
+            },
+          });
+          setRole(userData.role || "Customer");
+          setSession({
+            user: userData,
+            access_token: "fallback_mode",
+          });
+        } catch (parseError) {
+          console.warn(
+            "[AuthContext] Error parsing stored user in error fallback:",
+            parseError,
+          );
+          setSession(null);
+          setUser(null);
+          setRole(null);
         }
       } else {
-        // Clear everything if online but failed
+        // Clear everything if no fallback available
         setSession(null);
         setUser(null);
         setRole(null);
       }
     } finally {
-      setIsLoading(false);
-      setIsHydrated(true);
-      setIsSessionReady(true);
+      // Final batch update to prevent flickering
+      batchedStateUpdate({
+        isLoading: false,
+        isHydrated: true,
+        isSessionReady: true,
+      });
       initializationRef.current = false;
       console.log("[AuthContext] Session initialization completed");
     }
@@ -1300,15 +1386,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     ensureSessionReady,
   };
 
+  // Set context ready after first render to prevent null context issues
+  useEffect(() => {
+    setContextReady(true);
+  }, []);
+
+  // Don't render children until context is ready to prevent null context errors
+  if (!contextReady) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
+
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export const useAuth = (): AuthContextType => {
   const context = useContext(AuthContext);
-  if (!context) {
-    // Provide a fallback context instead of throwing an error
+
+  // Enhanced error handling for null context
+  if (context === null || context === undefined) {
     console.warn(
-      "useAuth called outside of AuthProvider, providing fallback context",
+      "useAuth called with null/undefined context, providing fallback context",
     );
     return {
       isAuthenticated: false,
@@ -1333,5 +1434,35 @@ export const useAuth = (): AuthContextType => {
       },
     };
   }
+
+  // Additional safety check for context properties
+  if (typeof context !== "object") {
+    console.warn(
+      "useAuth context is not an object, providing fallback context",
+    );
+    return {
+      isAuthenticated: false,
+      userRole: null,
+      userId: null,
+      userEmail: null,
+      userName: null,
+      userPhone: null,
+      isAdmin: false,
+      isLoading: false,
+      isHydrated: true,
+      isCheckingSession: false,
+      isSessionReady: true,
+      signOut: async () => {
+        console.warn("signOut called from fallback context");
+      },
+      forceRefreshSession: async () => {
+        console.warn("forceRefreshSession called from fallback context");
+      },
+      ensureSessionReady: async () => {
+        console.warn("ensureSessionReady called from fallback context");
+      },
+    };
+  }
+
   return context;
 };

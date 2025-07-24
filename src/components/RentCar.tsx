@@ -26,29 +26,9 @@ import { useTranslation } from "react-i18next";
 import { supabase } from "@/lib/supabase";
 import { Badge } from "./ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
-import { useVehicleData } from "@/hooks/useVehicleData";
+import { useVehicleData, Vehicle } from "@/hooks/useVehicleData";
 import { useForceLogoutRedirect } from "@/hooks/useForceLogoutRedirect";
 import AuthRequiredModal from "./auth/AuthRequiredModal";
-
-interface Vehicle {
-  id: string | number;
-  model: string;
-  name?: string;
-  type?: "sedan" | "suv" | "truck" | "luxury";
-  price: number;
-  image?: string;
-  seats?: number;
-  transmission?: "automatic" | "manual";
-  fuelType?: "petrol" | "diesel" | "electric" | "hybrid";
-  available?: boolean;
-  features?: string[];
-  make: string;
-  year?: number;
-  license_plate?: string;
-  color?: string;
-  vehicle_type_id?: number;
-  vehicle_type_name?: string;
-}
 
 const RentCar = () => {
   const navigate = useNavigate();
@@ -188,6 +168,24 @@ const RentCar = () => {
       const userData = event.detail;
 
       if (userData && userData.id && userData.email) {
+        const now = Date.now();
+        const REFETCH_COOLDOWN = 5000; // 5 second cooldown between refetches
+
+        // Check if we should skip this refetch due to cooldown or existing fetch
+        if (now - lastRefetchTime < REFETCH_COOLDOWN) {
+          console.log(
+            "[RentCar] Skipping session restore refetch - cooldown active",
+          );
+          return;
+        }
+
+        if (isLoadingModels) {
+          console.log(
+            "[RentCar] Skipping session restore refetch - already loading",
+          );
+          return;
+        }
+
         console.log(
           "[RentCar] Valid session restored, triggering vehicle refetch",
         );
@@ -198,11 +196,17 @@ const RentCar = () => {
         // Trigger vehicle data refetch after a short delay
         setTimeout(() => {
           if (refetchVehicleData) {
-            console.log(
-              "[RentCar] Refetching vehicle data after session restore",
-            );
-            refetchVehicleData();
-            setLastRefetchTime(Date.now());
+            const refetchStarted = refetchVehicleData();
+            if (refetchStarted) {
+              console.log(
+                "[RentCar] Refetching vehicle data after session restore",
+              );
+              setLastRefetchTime(Date.now());
+            } else {
+              console.log(
+                "[RentCar] Session restore refetch skipped - already in progress",
+              );
+            }
           }
         }, 500);
       }
@@ -715,24 +719,8 @@ const RentCar = () => {
                       disabled={!vehicle.available}
                       onClick={() => {
                         if (vehicle.available) {
-                          handleSelectVehicle({
-                            id: vehicle.id,
-                            model: vehicle.model,
-                            name: vehicle.name,
-                            price: vehicle.price,
-                            image: vehicle.image,
-                            seats: vehicle.seats,
-                            transmission: vehicle.transmission,
-                            fuelType: vehicle.fuelType,
-                            available: vehicle.available,
-                            features: vehicle.features,
-                            make: vehicle.make,
-                            year: vehicle.year,
-                            license_plate: vehicle.license_plate,
-                            color: vehicle.color,
-                            vehicle_type_id: vehicle.vehicle_type_id,
-                            vehicle_type_name: vehicle.vehicle_type_name,
-                          });
+                          // Use the vehicle directly since it's already the correct Vehicle type from useVehicleData
+                          handleSelectVehicle(vehicle);
                         }
                       }}
                     >
@@ -850,7 +838,7 @@ const RentCar = () => {
                 </TabsContent>
                 <TabsContent value="booking" className="mt-6">
                   <BookingForm
-                    selectedVehicle={selectedVehicle}
+                    selectedVehicle={selectedVehicle as any}
                     onBookingComplete={handleBookingComplete}
                   />
                 </TabsContent>

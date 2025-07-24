@@ -430,7 +430,7 @@ export default function BookingManagement() {
       // Verify the update was successful
       const { data: updatedBooking, error: verifyError } = await supabase
         .from("bookings")
-        .select("id, bookings_status")
+        .select("id, status")
         .eq("id", booking.id)
         .single();
 
@@ -448,12 +448,12 @@ export default function BookingManagement() {
       // Update local state immediately to reflect changes
       setBookings((prevBookings) =>
         prevBookings.map((b) =>
-          b.id === booking.id ? { ...b, bookings_status: "confirmed" } : b,
+          b.id === booking.id ? { ...b, status: "confirmed" } : b,
         ),
       );
       setFilteredBookings((prevBookings) =>
         prevBookings.map((b) =>
-          b.id === booking.id ? { ...b, bookings_status: "confirmed" } : b,
+          b.id === booking.id ? { ...b, status: "confirmed" } : b,
         ),
       );
 
@@ -974,7 +974,7 @@ export default function BookingManagement() {
                   </p>
                   <p>
                     <span className="font-medium">Booking Status:</span>{" "}
-                    {currentBooking.booking_status}
+                    {currentBooking.status}
                   </p>
                   {currentBooking.pickup_time && (
                     <p>

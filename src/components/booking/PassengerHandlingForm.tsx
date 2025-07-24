@@ -60,19 +60,21 @@ const PassengerHandlingForm = () => {
 
     // Add to cart
     addToCart({
-      type: "passenger",
-      transactionCode: `PSG-${uuidv4().substring(0, 8)}`,
-      date: data.date,
-      sellingPrice: data.sellingPrice,
-      basicPrice: data.basicPrice,
-      feeSales: data.feeSales || 0,
-      profit: profit,
+      item_type: "passenger_handling",
+      service_name: `${data.serviceName} - ${data.location}`,
+      price: data.sellingPrice,
+      quantity: 1,
       details: {
+        transactionCode: `PSG-${uuidv4().substring(0, 8)}`,
+        date: data.date,
         serviceName: data.serviceName,
         location: data.location,
         passengerCount: data.passengerCount,
+        basicPrice: data.basicPrice,
+        feeSales: data.feeSales || 0,
+        profit: profit,
+        notes: data.notes,
       },
-      notes: data.notes,
     });
 
     // Reset form
@@ -222,9 +224,10 @@ const PassengerHandlingForm = () => {
 
               try {
                 await addToCart({
-                  item_type: "airport_transfer",
+                  item_type: "passenger_handling",
                   service_name: `${formData.serviceName} - ${formData.location}`,
                   price: formData.sellingPrice,
+                  quantity: 1,
                   details: {
                     serviceName: formData.serviceName,
                     location: formData.location,

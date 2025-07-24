@@ -33,14 +33,13 @@ const BookingTabs: React.FC<BookingTabsProps> = ({ selectedVehicleId }) => {
   const handleInspectionComplete = (data: any) => {
     console.log("Inspection completed:", data);
     setInspectionData(data);
-    // Force the active tab to change
     setTimeout(() => {
       setActiveTab("payment");
     }, 100);
   };
 
-  const handlePaymentComplete = (data: any) => {
-    console.log("Payment completed:", data);
+  const handlePaymentComplete = () => {
+    console.log("Payment completed");
     // Navigate to confirmation or dashboard
     window.location.href = "/dashboard";
   };
@@ -96,7 +95,26 @@ const BookingTabs: React.FC<BookingTabsProps> = ({ selectedVehicleId }) => {
             <CardContent className="pt-6">
               <BookingForm
                 selectedVehicle={
-                  selectedVehicleId ? { id: selectedVehicleId } : undefined
+                  selectedVehicleId
+                    ? {
+                        id: selectedVehicleId,
+                        make: "Toyota",
+                        model: "Avanza",
+                        price: 350000,
+                        year: 2022,
+                        category: "MPV",
+                        image:
+                          "https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?w=800&q=80",
+                        license_plate: "B 1234 ABC",
+                        seats: 7,
+                        transmission: "automatic",
+                        fuel_type: "petrol",
+                        available: true,
+                        features: ["AC", "Power Steering"],
+                        isWithDriver: false,
+                        assignedDriver: undefined,
+                      }
+                    : undefined
                 }
                 onBookingComplete={handleBookingComplete}
               />
@@ -112,6 +130,7 @@ const BookingTabs: React.FC<BookingTabsProps> = ({ selectedVehicleId }) => {
                   vehicleId={bookingData.vehicleId}
                   bookingId={bookingData.bookingId}
                   onComplete={handleInspectionComplete}
+                  onCancel={() => setActiveTab("select-vehicle")}
                 />
               ) : (
                 <div className="text-center py-8">

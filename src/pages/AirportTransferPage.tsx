@@ -9,6 +9,12 @@ import { useShoppingCart } from "@/hooks/useShoppingCart";
 import AuthRequiredModal from "@/components/auth/AuthRequiredModal";
 import { v4 as uuidv4 } from "uuid";
 
+// Google Maps libraries array - defined outside component to prevent re-creation on every render
+const GOOGLE_MAPS_LIBRARIES: "places"[] = ["places"];
+
+// Memoize the Google Maps API key to prevent unnecessary re-renders
+const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+
 // UI Components
 import { ArrowRightCircle, UserCheck, CarFront } from "lucide-react";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -3929,8 +3935,8 @@ export default function AirportTransferPage() {
   return (
     <TooltipProvider>
       <LoadScriptNext
-        googleMapsApiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY}
-        libraries={["places"]}
+        googleMapsApiKey={GOOGLE_MAPS_API_KEY}
+        libraries={GOOGLE_MAPS_LIBRARIES}
       >
         <AirportTransferPageContent />
       </LoadScriptNext>

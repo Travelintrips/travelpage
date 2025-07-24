@@ -97,6 +97,12 @@ const AuthForm: React.FC<AuthFormProps> = ({
       !!authData.session,
     );
 
+    // Prevent multiple rapid calls that cause flickering
+    if (isSubmitting) {
+      console.log("🚫 Login already in progress, preventing duplicate call");
+      return;
+    }
+
     const user = authData.user;
     const userMeta = user?.user_metadata || {};
     console.log("📋 User metadata:", userMeta);
@@ -218,12 +224,15 @@ const AuthForm: React.FC<AuthFormProps> = ({
     localStorage.setItem("auth_user", JSON.stringify(userDataObj));
     console.log("✅ User logged in successfully with fresh data:", userDataObj);
 
-    if (onAuthStateChange) {
-      console.log("🔄 Calling onAuthStateChange(true)...");
-      onAuthStateChange(true);
-    } else {
-      console.log("⚠️ No onAuthStateChange handler provided");
-    }
+    // Debounce auth state change to prevent flickering
+    setTimeout(() => {
+      if (onAuthStateChange) {
+        console.log("🔄 Calling onAuthStateChange(true)...");
+        onAuthStateChange(true);
+      } else {
+        console.log("⚠️ No onAuthStateChange handler provided");
+      }
+    }, 100);
   };
 
   const [loginError, setLoginError] = useState<string | null>(null);
@@ -545,6 +554,8 @@ const AuthForm: React.FC<AuthFormProps> = ({
           ktpUrl: "",
           licenseUrl: "",
           idCardUrl: "",
+          kkUrl: "", // ✅ tambahkan
+          stnkUrl: "", // ✅ tambahkan
         };
 
         const needsUpload =

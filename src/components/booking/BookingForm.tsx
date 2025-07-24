@@ -119,7 +119,7 @@ const BookingForm: React.FC<BookingFormProps> = ({
   const [isLoadingVehicles, setIsLoadingVehicles] = useState(false);
 
   // Default vehicle if none is selected
-  const defaultVehicle = {
+  const defaultVehicle: Vehicle = {
     id: 1, // Changed from string "1" to number 1
     make: "Toyota",
     model: "Avanza",
@@ -128,6 +128,14 @@ const BookingForm: React.FC<BookingFormProps> = ({
     price: 350000,
     image:
       "https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?w=800&q=80",
+    license_plate: "B 1234 ABC",
+    seats: 7,
+    transmission: "automatic",
+    fuel_type: "petrol",
+    available: true,
+    features: ["AC", "Power Steering"],
+    isWithDriver: false,
+    assignedDriver: undefined,
   };
 
   // Use selected vehicle or default
@@ -168,7 +176,7 @@ const BookingForm: React.FC<BookingFormProps> = ({
         );
 
         // Create an array of sample vehicles
-        const sampleVehicles = [
+        const sampleVehicles: Vehicle[] = [
           defaultVehicle,
           {
             id: 2, // Changed from string "2" to number 2
@@ -179,6 +187,14 @@ const BookingForm: React.FC<BookingFormProps> = ({
             price: 450000,
             image:
               "https://images.unsplash.com/photo-1568844293986-ca9c5c1bc2e8?w=800&q=80",
+            license_plate: "B 5678 DEF",
+            seats: 5,
+            transmission: "automatic",
+            fuel_type: "petrol",
+            available: true,
+            features: ["AC", "Power Steering", "ABS"],
+            isWithDriver: false,
+            assignedDriver: undefined,
           },
           {
             id: 3, // Changed from string "3" to number 3
@@ -189,6 +205,14 @@ const BookingForm: React.FC<BookingFormProps> = ({
             price: 380000,
             image:
               "https://images.unsplash.com/photo-1619767886558-efdc259cde1a?w=800&q=80",
+            license_plate: "B 9012 GHI",
+            seats: 7,
+            transmission: "manual",
+            fuel_type: "petrol",
+            available: true,
+            features: ["AC", "Power Steering"],
+            isWithDriver: false,
+            assignedDriver: undefined,
           },
         ];
 

@@ -34,8 +34,9 @@ const UserDropdown = () => {
 
   const navigate = useNavigate();
 
-  // Show loading only for a brief moment with timeout
+  // Show loading only for a brief moment with timeout - reduced to minimize flickering
   const [showLoading, setShowLoading] = React.useState(true);
+  const [isStable, setIsStable] = React.useState(false);
 
   // Consistent userName resolution - prioritize AuthContext over localStorage
   const userName = React.useMemo(() => {
@@ -69,14 +70,17 @@ const UserDropdown = () => {
 
   React.useEffect(() => {
     if (isLoading) {
-      // Set a timeout to stop showing loading after 3 seconds
+      // Reduced timeout to minimize flickering
       const timeout = setTimeout(() => {
         setShowLoading(false);
-      }, 3000);
+        setIsStable(true);
+      }, 1000);
 
       return () => clearTimeout(timeout);
     } else {
       setShowLoading(false);
+      // Add small delay for stability
+      setTimeout(() => setIsStable(true), 200);
     }
   }, [isLoading]);
 
@@ -85,14 +89,14 @@ const UserDropdown = () => {
     return null;
   }
 
-  // Show loading state
-  if (isLoading && showLoading) {
+  // Show loading state - only if not stable to prevent flickering
+  if (isLoading && showLoading && !isStable) {
     return (
       <Button
         variant="ghost"
         className="flex items-center gap-2 text-white opacity-70"
       >
-        Loading...
+        <div className="animate-pulse w-16 h-4 bg-white/20 rounded"></div>
       </Button>
     );
   }

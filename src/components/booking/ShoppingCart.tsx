@@ -137,6 +137,7 @@ const ShoppingCart: React.FC<ShoppingCartProps> = () => {
               item_id: booking.id.toString(),
               service_name: serviceName,
               price: booking.total_amount,
+              quantity: 1,
               details: {
                 start_date: booking.start_date,
                 end_date: booking.end_date,

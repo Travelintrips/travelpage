@@ -46,6 +46,7 @@ interface Booking {
   start_date: string;
   end_date: string;
   total_amount: number;
+  booking_status?: string;
   payment_status: string;
   status: string;
   created_at: string;

@@ -27,6 +27,12 @@ const BookingsPage = () => {
       isHydrated,
     });
 
+    // Prevent rapid successive calls that cause flickering
+    if (isCheckingAuth) {
+      console.log("[BookingsPage] Auth check already in progress, skipping");
+      return;
+    }
+
     // Clear any existing timeout
     if (authCheckTimeoutRef.current) {
       clearTimeout(authCheckTimeoutRef.current);
@@ -78,7 +84,7 @@ const BookingsPage = () => {
           );
 
           // Wait a bit for the restore to take effect
-          await new Promise((resolve) => setTimeout(resolve, 300));
+          await new Promise((resolve) => setTimeout(resolve, 200));
         }
       } catch (error) {
         console.warn("[BookingsPage] Error parsing stored user data:", error);
@@ -96,7 +102,7 @@ const BookingsPage = () => {
       }
     }
 
-    // Set timeout to prevent infinite loading
+    // Set timeout to prevent infinite loading - reduced timeout for production
     const timeout = setTimeout(() => {
       console.log(
         "[BookingsPage] Auth check timeout reached, stopping loading",
@@ -107,7 +113,7 @@ const BookingsPage = () => {
       if (!isAuthenticated && !userId && !storedUser) {
         setShowAuthModal(true);
       }
-    }, 5000); // 5 second timeout
+    }, 3000); // Reduced to 3 second timeout
 
     authCheckTimeoutRef.current = timeout;
 
@@ -119,11 +125,11 @@ const BookingsPage = () => {
         authCheckTimeoutRef.current = null;
       }
     } else if (!storedUser && !isAuthenticated) {
-      // Only show auth modal if no stored data and not authenticated
+      // Only show auth modal if no stored data and not authenticated - reduced delay
       setTimeout(() => {
         setIsCheckingAuth(false);
         setShowAuthModal(true);
-      }, 1000);
+      }, 500);
     }
   }, [isAuthenticated, userId, isSessionReady, ensureSessionReady, isHydrated]);
 

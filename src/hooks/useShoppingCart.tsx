@@ -13,12 +13,14 @@ export interface CartItem {
   quantity: number;
   details?: any;
   created_at?: string;
+  status?: string;
 }
 
 interface ShoppingCartContextType {
   cartItems: CartItem[];
   isLoading: boolean;
   totalAmount: number;
+  cartCount: number;
   addToCart: (
     item: Omit<CartItem, "id" | "user_id" | "created_at">,
   ) => Promise<{ success: boolean; error?: string }>;
@@ -26,6 +28,8 @@ interface ShoppingCartContextType {
   clearCart: () => Promise<void>;
   reloadCart: () => void;
   isTabRecentlyActivated: boolean;
+  checkout: () => Promise<void>;
+  refetchCartData: () => Promise<void>;
 }
 
 const ShoppingCartContext = createContext<ShoppingCartContextType | undefined>(
@@ -178,10 +182,20 @@ export function ShoppingCartProvider({
     };
   }, [userId]);
 
+  const checkout = async () => {
+    // Placeholder checkout function
+    console.log("Checkout function called");
+  };
+
+  const refetchCartData = async () => {
+    await loadCartItems();
+  };
+
   const value: ShoppingCartContextType = {
     cartItems,
     isLoading,
     totalAmount,
+    cartCount: cartItems.length,
     addToCart,
     removeFromCart,
     clearCart,
@@ -189,6 +203,8 @@ export function ShoppingCartProvider({
       setCartLoaded(false);
     },
     isTabRecentlyActivated,
+    checkout,
+    refetchCartData,
   };
 
   return (

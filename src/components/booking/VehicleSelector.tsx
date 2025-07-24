@@ -33,27 +33,12 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useTranslation } from "react-i18next";
+import { Vehicle } from "@/hooks/useVehicleData";
 
 interface VehicleType {
   id: number;
   name: string;
   created_at?: string;
-}
-
-interface Vehicle {
-  id: string;
-  name: string;
-  type: "sedan" | "suv" | "truck" | "luxury";
-  price: number;
-  image: string;
-  seats: number;
-  transmission: "automatic" | "manual";
-  fuelType: "petrol" | "diesel" | "electric" | "hybrid";
-  available: boolean;
-  features: string[];
-  vehicle_type_id?: number;
-  vehicle_type_name?: string;
-  license_plate?: string;
 }
 
 interface VehicleSelectorProps {

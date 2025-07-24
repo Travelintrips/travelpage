@@ -34,6 +34,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "@/components/ui/use-toast";
 
 import { useShoppingCart } from "@/hooks/useShoppingCart";
 
@@ -438,7 +439,6 @@ const BookingForm = ({
 
     // Show toast if available
     try {
-      const { toast } = await import("@/components/ui/use-toast");
       if (typeof toast === "function") {
         toast(connectingToast);
       } else {

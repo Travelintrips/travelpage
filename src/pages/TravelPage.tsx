@@ -1626,19 +1626,27 @@ const TravelPageContent = () => {
     }
   }, [isAuthenticated]);
 
-  // 🎯 BLOCKING GUARD: Prevent rendering until session is hydrated
+  // 🎯 BLOCKING GUARD: Prevent rendering until session is hydrated with timeout
   // This is placed AFTER all hooks to maintain consistent hook order
-  if (!isHydrated || isLoading) {
+  const [loadingTimeout, setLoadingTimeout] = React.useState(false);
+
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setLoadingTimeout(true);
+    }, 1500); // Reduced timeout to minimize flickering
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Reduce loading screen time to minimize flickering
+  if ((!isHydrated || isLoading) && !loadingTimeout) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center max-w-md mx-auto p-6">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-green-500 mx-auto mb-6"></div>
-          <h2 className="text-xl font-semibold text-gray-800 mb-2">
-            Loading session...
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-500 mx-auto mb-4"></div>
+          <h2 className="text-lg font-semibold text-gray-800 mb-2">
+            Loading...
           </h2>
-          <p className="text-sm text-gray-600 mb-4">
-            Please wait while we restore your session
-          </p>
         </div>
       </div>
     );

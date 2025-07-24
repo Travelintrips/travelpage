@@ -60,19 +60,21 @@ const FlightBookingForm = () => {
 
     // Add to cart
     addToCart({
-      type: "flight",
-      transactionCode: `FLT-${uuidv4().substring(0, 8)}`,
-      date: data.date,
-      sellingPrice: data.sellingPrice,
-      basicPrice: data.basicPrice,
-      feeSales: data.feeSales || 0,
-      profit: profit,
+      item_type: "flight",
+      service_name: `${data.airline} - ${data.route}`,
+      price: data.sellingPrice,
+      quantity: 1,
       details: {
+        transactionCode: `FLT-${uuidv4().substring(0, 8)}`,
+        date: data.date,
         airline: data.airline,
         route: data.route,
         passengerCount: data.passengerCount,
+        basicPrice: data.basicPrice,
+        feeSales: data.feeSales || 0,
+        profit: profit,
+        notes: data.notes,
       },
-      notes: data.notes,
     });
 
     // Reset form
@@ -222,9 +224,10 @@ const FlightBookingForm = () => {
 
               try {
                 await addToCart({
-                  item_type: "airport_transfer", // Using airport_transfer as closest match
+                  item_type: "flight",
                   service_name: `${formData.airline} - ${formData.route}`,
                   price: formData.sellingPrice,
+                  quantity: 1,
                   details: {
                     airline: formData.airline,
                     route: formData.route,

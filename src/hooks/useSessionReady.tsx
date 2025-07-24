@@ -37,7 +37,7 @@ export const useSessionReady = () => {
    * Useful for booking operations that require valid session
    */
   const waitForSessionReady = useCallback(
-    async (timeoutMs: number = 10000): Promise<boolean> => {
+    async (timeoutMs: number = 5000): Promise<boolean> => {
       if (sessionReady) {
         return true;
       }
@@ -61,13 +61,16 @@ export const useSessionReady = () => {
           }
         }
 
-        console.warn("[useSessionReady] Session ready timeout reached");
-        return false;
+        console.warn(
+          "[useSessionReady] Session ready timeout reached, forcing ready state",
+        );
+        // Force ready state after timeout to prevent infinite loading
+        setIsWaitingForSession(false);
+        return isHydrated; // Return true if at least hydrated
       } catch (error) {
         console.error("[useSessionReady] Error waiting for session:", error);
-        return false;
-      } finally {
         setIsWaitingForSession(false);
+        return isHydrated; // Return true if at least hydrated
       }
     },
     [sessionReady, ensureSessionReady, isHydrated, isSessionReady, isLoading],
