@@ -169,6 +169,7 @@ const BookingForm = ({
     userEmail,
     userName,
     userPhone,
+    isSessionReady,
     ensureSessionReady,
   } = authContext;
   const [step, setStep] = useState<number>(0);
