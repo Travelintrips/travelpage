@@ -73,30 +73,20 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
-interface Vehicle {
-  id: string | number; // Allow both string and number for compatibility
-  make: string;
-  model: string;
-  year?: number;
-  type?: "sedan" | "suv" | "truck" | "luxury";
-  category?: string;
-  price: number;
-  image?: string;
-  license_plate?: string;
-  seats?: number;
-  transmission?: "automatic" | "manual";
-  fuel_type?: "petrol" | "diesel" | "electric" | "hybrid";
-  available?: boolean;
-  features?: string[];
+import { Vehicle } from "@/hooks/useVehicleData";
+
+interface BookingVehicle extends Vehicle {
   isWithDriver?: boolean;
   assignedDriver?: {
     id: string;
     name: string;
   };
+  category?: string;
+  fuel_type?: "petrol" | "diesel" | "electric" | "hybrid";
 }
 
 interface BookingFormProps {
-  selectedVehicle?: Vehicle | null;
+  selectedVehicle?: BookingVehicle | null;
   onBookingComplete?: (bookingData: any) => void;
 }
 
@@ -115,23 +105,25 @@ const BookingForm: React.FC<BookingFormProps> = ({
   const [availableDrivers, setAvailableDrivers] = useState([]);
   const [isLoadingDrivers, setIsLoadingDrivers] = useState(false);
 
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [vehicles, setVehicles] = useState<BookingVehicle[]>([]);
   const [isLoadingVehicles, setIsLoadingVehicles] = useState(false);
 
   // Default vehicle if none is selected
-  const defaultVehicle: Vehicle = {
-    id: 1, // Changed from string "1" to number 1
+  const defaultVehicle: BookingVehicle = {
+    id: "1",
+    name: "Toyota Avanza",
+    type: "sedan",
     make: "Toyota",
     model: "Avanza",
     year: 2022,
-    category: "MPV",
     price: 350000,
+    category: "MPV",
     image:
       "https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?w=800&q=80",
     license_plate: "B 1234 ABC",
     seats: 7,
     transmission: "automatic",
-    fuel_type: "petrol",
+    fuelType: "petrol",
     available: true,
     features: ["AC", "Power Steering"],
     isWithDriver: false,
@@ -176,39 +168,43 @@ const BookingForm: React.FC<BookingFormProps> = ({
         );
 
         // Create an array of sample vehicles
-        const sampleVehicles: Vehicle[] = [
+        const sampleVehicles: BookingVehicle[] = [
           defaultVehicle,
           {
-            id: 2, // Changed from string "2" to number 2
+            id: "2",
+            name: "Honda CR-V",
+            type: "suv",
             make: "Honda",
             model: "CR-V",
             year: 2023,
-            category: "SUV",
             price: 450000,
+            category: "SUV",
             image:
               "https://images.unsplash.com/photo-1568844293986-ca9c5c1bc2e8?w=800&q=80",
             license_plate: "B 5678 DEF",
             seats: 5,
             transmission: "automatic",
-            fuel_type: "petrol",
+            fuelType: "petrol",
             available: true,
             features: ["AC", "Power Steering", "ABS"],
             isWithDriver: false,
             assignedDriver: undefined,
           },
           {
-            id: 3, // Changed from string "3" to number 3
+            id: "3",
+            name: "Mitsubishi Xpander",
+            type: "sedan",
             make: "Mitsubishi",
             model: "Xpander",
             year: 2022,
-            category: "MPV",
             price: 380000,
+            category: "MPV",
             image:
               "https://images.unsplash.com/photo-1619767886558-efdc259cde1a?w=800&q=80",
             license_plate: "B 9012 GHI",
             seats: 7,
             transmission: "manual",
-            fuel_type: "petrol",
+            fuelType: "petrol",
             available: true,
             features: ["AC", "Power Steering"],
             isWithDriver: false,

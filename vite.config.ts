@@ -9,17 +9,32 @@ export default defineConfig({
   optimizeDeps: {
     entries: ["src/main.tsx", "src/tempobook/**/*"],
     force: true,
+    exclude: [
+      "react-hook-form",
+      "framer-motion",
+      "@radix-ui/react-select",
+      "@radix-ui/react-alert-dialog",
+      "@radix-ui/react-switch",
+      "@radix-ui/react-tooltip",
+      "@radix-ui/react-popover",
+      "@radix-ui/react-progress",
+    ],
   },
+
   plugins: [react(), tempo()],
   resolve: {
     preserveSymlinks: true,
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      // Fix for React DOM import issues with Radix UI
+      "react-dom": "react-dom",
     },
   },
   define: {
     global: "globalThis",
     "process.env.NODE_DEBUG": "false",
+    // Fix for React 18 compatibility with Radix UI
+    __REACT_DEVTOOLS_GLOBAL_HOOK__: JSON.stringify({ isDisabled: true }),
     // Enhanced environment variable handling for Vercel
     "import.meta.env.VITE_SUPABASE_URL": JSON.stringify(
       process.env.VITE_SUPABASE_URL ||

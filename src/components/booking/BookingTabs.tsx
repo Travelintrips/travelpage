@@ -98,6 +98,8 @@ const BookingTabs: React.FC<BookingTabsProps> = ({ selectedVehicleId }) => {
                   selectedVehicleId
                     ? {
                         id: selectedVehicleId,
+                        name: "Toyota Avanza",
+                        type: "sedan",
                         make: "Toyota",
                         model: "Avanza",
                         price: 350000,
@@ -108,7 +110,7 @@ const BookingTabs: React.FC<BookingTabsProps> = ({ selectedVehicleId }) => {
                         license_plate: "B 1234 ABC",
                         seats: 7,
                         transmission: "automatic",
-                        fuel_type: "petrol",
+                        fuelType: "petrol",
                         available: true,
                         features: ["AC", "Power Steering"],
                         isWithDriver: false,

@@ -838,7 +838,7 @@ const RentCar = () => {
                 </TabsContent>
                 <TabsContent value="booking" className="mt-6">
                   <BookingForm
-                    selectedVehicle={selectedVehicle as any}
+                    selectedVehicle={selectedVehicle}
                     onBookingComplete={handleBookingComplete}
                   />
                 </TabsContent>

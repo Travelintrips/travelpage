@@ -51,16 +51,16 @@ const StaffForm: React.FC<StaffFormProps> = ({
             <FormLabel>Pilih Role</FormLabel>
             <Select
               onValueChange={(val) => {
-                field.onChange(parseInt(val));
                 const roleName = {
-                  4: "Staff",
-                  5: "Staff Traffic",
-                  6: "Staff Admin",
-                  7: "Staff Trips",
-                  8: "Dispatcher",
-                  9: "Pengawas",
-                }[parseInt(val)];
-                setValue("role", roleName || "Staff"); // ✅ Set sekaligus role name
+                  "4": "Staff",
+                  "5": "Staff Traffic",
+                  "6": "Staff Admin",
+                  "7": "Staff Trips",
+                  "8": "Dispatcher",
+                  "9": "Pengawas",
+                }[val];
+                setValue("role", roleName || "Staff");
+                field.onChange(roleName || "Staff");
               }}
               value={String(field.value || "")}
             >
@@ -70,12 +70,12 @@ const StaffForm: React.FC<StaffFormProps> = ({
                 </SelectTrigger>
               </FormControl>
               <SelectContent>
-                <SelectItem value="4">Staff</SelectItem>
-                <SelectItem value="5">Staff Traffic</SelectItem>
-                <SelectItem value="6">Staff Admin</SelectItem>
-                <SelectItem value="7">Staff Trips</SelectItem>
-                <SelectItem value="8">Dispatcher</SelectItem>
-                <SelectItem value="9">Pengawas</SelectItem>
+                <SelectItem value="Staff">Staff</SelectItem>
+                <SelectItem value="Staff Traffic">Staff Traffic</SelectItem>
+                <SelectItem value="Staff Admin">Staff Admin</SelectItem>
+                <SelectItem value="Staff Trips">Staff Trips</SelectItem>
+                <SelectItem value="Dispatcher">Dispatcher</SelectItem>
+                <SelectItem value="Pengawas">Pengawas</SelectItem>
               </SelectContent>
             </Select>
             <FormMessage />

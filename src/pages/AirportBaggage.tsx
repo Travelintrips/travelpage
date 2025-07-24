@@ -386,42 +386,42 @@ const AirportBaggage = ({
   const baggageOptions: BaggageSizeOption[] = useMemo(
     () => [
       {
-        id: "small",
+        id: "e1a2fe9c-99ee-488e-a377-ed0aaf5120fa",
         size: "Small",
         price: baggagePrices.small_price || 0,
         icon: <Package className="h-12 w-12" />,
         description: "Ideal for small bags, backpacks, or personal items",
       },
       {
-        id: "medium",
+        id: "e1a2fe9c-99ee-488e-a377-ed0aaf5120fa",
         size: "Medium",
         price: baggagePrices.medium_price || 0,
         icon: <PackageOpen className="h-12 w-12" />,
         description: "Perfect for carry-on luggage or medium-sized bags",
       },
       {
-        id: "large",
+        id: "e1a2fe9c-99ee-488e-a377-ed0aaf5120fa",
         size: "Large",
         price: baggagePrices.large_price || 0,
         icon: <Luggage className="h-12 w-12" />,
         description: "Best for large suitcases or multiple items",
       },
       {
-        id: "extra_large",
+        id: "ee1a2fe9c-99ee-488e-a377-ed0aaf5120fa",
         size: "Extra Large",
         price: baggagePrices.extra_large_price || 0,
         icon: <Boxes className="h-12 w-12" />,
         description: "Best for Extra large suitcases or multiple items",
       },
       {
-        id: "electronic",
+        id: "e1a2fe9c-99ee-488e-a377-ed0aaf5120fa",
         size: "Electronics",
         price: baggagePrices.electronic_price || 0,
         icon: <JoinedIcon className="h-12 w-12" />,
         description: "Best for Goods Electronic Laptop,Keyboards,Guitar,Camera",
       },
       {
-        id: "surfingboard",
+        id: "e1a2fe9c-99ee-488e-a377-ed0aaf5120fa",
         size: "Surfing Board",
         price: baggagePrices.surfingboard_price || 0,
         icon: <SurfingIcon className="h-12 w-12" />,
@@ -429,7 +429,7 @@ const AirportBaggage = ({
           "Best for Long or wide items such as surfboards or sporting gear.",
       },
       {
-        id: "wheelchair",
+        id: "e1a2fe9c-99ee-488e-a377-ed0aaf5120fa",
         size: "Wheel Chair",
         price: baggagePrices.wheelchair_price || 0,
         icon: <WheelchairIcon />,
@@ -437,7 +437,7 @@ const AirportBaggage = ({
           "Best for Manual or foldable wheelchairs and mobility aids.",
       },
       {
-        id: "stickgolf",
+        id: "e1a2fe9c-99ee-488e-a377-ed0aaf5120fa",
         size: "Stick Golf",
         price: baggagePrices.stickgolf_price || 0,
         icon: <GolfIcon className="h-12 w-12" />,
