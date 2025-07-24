@@ -139,7 +139,6 @@ const BookingForm = ({
       isLoading: false,
       isHydrated: true,
       isCheckingSession: false,
-      isSessionReady: true,
       signOut: async () => {
         console.warn("signOut called from fallback auth context");
         try {
@@ -163,15 +162,8 @@ const BookingForm = ({
     };
   }
 
-  const {
-    isAuthenticated,
-    userId,
-    userEmail,
-    userName,
-    userPhone,
-    isSessionReady,
-    ensureSessionReady,
-  } = authContext;
+  const { isAuthenticated, userId, userEmail, userName, userPhone } =
+    authContext;
   const [step, setStep] = useState<number>(0);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [durationType, setDurationType] = useState<"hours" | "days">("hours");
@@ -461,7 +453,7 @@ const BookingForm = ({
               isReady: true,
               userId: currentStoredUserId,
               userEmail: currentStoredUserEmail,
-              userData,
+              userData: userData,
             };
           }
         } catch (parseError) {
