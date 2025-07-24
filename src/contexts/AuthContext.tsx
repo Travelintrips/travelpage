@@ -47,6 +47,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       return;
     }
 
+    // Add additional guard to prevent rapid re-initialization
+    const lastInitTime = sessionStorage.getItem("lastSessionInit");
+    const now = Date.now();
+    if (lastInitTime && now - parseInt(lastInitTime) < 1000) {
+      console.log("[AuthContext] Session initialization throttled");
+      return;
+    }
+    sessionStorage.setItem("lastSessionInit", now.toString());
+
     initializationRef.current = true;
     setIsLoading(true);
     setIsSessionReady(false);
@@ -664,9 +673,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     // Initialize session on mount
     initializeSession();
 
-    // Set up auth state change listener with error handling
+    // Set up auth state change listener with error handling and loop prevention
+    let lastAuthStateChangeTime = 0;
+    const AUTH_STATE_THROTTLE = 1000; // 1 second throttle
+
     const { data: listener } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        const now = Date.now();
+        if (now - lastAuthStateChangeTime < AUTH_STATE_THROTTLE) {
+          console.log(`[AuthContext] Auth state change throttled: ${event}`);
+          return;
+        }
+        lastAuthStateChangeTime = now;
+
         console.log(`[AuthContext] Auth state changed: ${event}`);
 
         // CRITICAL: Block all auth state changes during staff creation
@@ -806,7 +825,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         }
 
         if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
-          if (session?.user) {
+          if (session?.user && isHydrated) {
             // Check if this is an admin creating a staff account
             const currentUserId = user?.id;
             const newUserId = session.user.id;
@@ -988,10 +1007,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
               }
             }
 
-            setSession(session);
-            setUser(session.user);
-            setRole(session.user?.user_metadata?.role || "Customer");
-            setIsSessionReady(true);
+            // Only update state if there's an actual change to prevent loops
+            if (
+              session.user.id !== user?.id ||
+              session.user.email !== user?.email
+            ) {
+              setSession(session);
+              setUser(session.user);
+              setRole(session.user?.user_metadata?.role || "Customer");
+              setIsSessionReady(true);
+            }
 
             // Update localStorage with fresh data
             const userData = {
@@ -1111,11 +1136,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       },
     );
 
-    // Enhanced visibility change listener with admin session protection
+    // Enhanced visibility change listener with admin session protection and throttling
+    let lastVisibilityChangeTime = 0;
+    const VISIBILITY_THROTTLE = 2000; // 2 second throttle
+
     const handleVisibilityChange = async () => {
+      const now = Date.now();
+      if (now - lastVisibilityChangeTime < VISIBILITY_THROTTLE) {
+        console.log("[AuthContext] Visibility change throttled");
+        return;
+      }
+      lastVisibilityChangeTime = now;
+
       if (
         document.visibilityState === "visible" &&
-        !initializationRef.current
+        !initializationRef.current &&
+        isHydrated
       ) {
         console.log(
           "[AuthContext] Tab became visible, checking session state...",
@@ -1333,9 +1369,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     };
   }, [initializeSession, isHydrated, user?.id]);
 
-  // Handle force session restore events from other components
+  // Handle force session restore events from other components with throttling
   useEffect(() => {
+    let lastForceRestoreTime = 0;
+    const FORCE_RESTORE_THROTTLE = 2000; // 2 second throttle
+
     const handleForceSessionRestore = async (event: CustomEvent) => {
+      const now = Date.now();
+      if (now - lastForceRestoreTime < FORCE_RESTORE_THROTTLE) {
+        console.log("[AuthContext] Force session restore throttled");
+        return;
+      }
+      lastForceRestoreTime = now;
+
       console.log(
         "[AuthContext] Force session restore event received:",
         event.detail,
@@ -1346,7 +1392,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         userData &&
         userData.id &&
         userData.email &&
-        !initializationRef.current
+        !initializationRef.current &&
+        isHydrated
       ) {
         console.log("[AuthContext] Processing force session restore...");
         await initializeSession();
@@ -1364,7 +1411,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         handleForceSessionRestore as EventListener,
       );
     };
-  }, [initializeSession]);
+  }, [initializeSession, isHydrated]);
 
   const value: AuthContextType = {
     isAuthenticated: !!session && !!user,

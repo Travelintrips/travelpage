@@ -132,14 +132,19 @@ function AppContent() {
   useEffect(() => {
     let recoveryTimeout: NodeJS.Timeout;
     let lastRecoveryTime = 0;
-    const RECOVERY_COOLDOWN = 1000; // Reduced cooldown for faster recovery
+    const RECOVERY_COOLDOWN = 3000; // Increased cooldown to prevent loops
+    let isRecovering = false; // Add recovery guard
 
     const recoverSession = async () => {
       const now = Date.now();
-      if (now - lastRecoveryTime < RECOVERY_COOLDOWN) {
-        console.log("[App] Recovery cooldown active, skipping");
+      if (now - lastRecoveryTime < RECOVERY_COOLDOWN || isRecovering) {
+        console.log(
+          "[App] Recovery cooldown active or already recovering, skipping",
+        );
         return;
       }
+
+      isRecovering = true;
 
       // Check for loggedOut flag to prevent redirect loops
       const loggedOut = sessionStorage.getItem("loggedOut");
@@ -249,11 +254,22 @@ function AppContent() {
       }
 
       console.log("[App] No valid session found during recovery");
+      isRecovering = false; // Reset recovery guard
     };
 
-    // Enhanced visibility change handler with immediate session rehydration
+    // Enhanced visibility change handler with immediate session rehydration and throttling
+    let lastVisibilityTime = 0;
+    const VISIBILITY_THROTTLE = 5000; // 5 second throttle for visibility changes
+
     const handleVisibilityChange = async () => {
-      if (document.visibilityState === "visible") {
+      const now = Date.now();
+      if (now - lastVisibilityTime < VISIBILITY_THROTTLE) {
+        console.log("[App] Visibility change throttled");
+        return;
+      }
+      lastVisibilityTime = now;
+
+      if (document.visibilityState === "visible" && isHydrated) {
         console.log(
           "[App] Tab became visible, triggering immediate session rehydration",
         );
@@ -264,7 +280,7 @@ function AppContent() {
         // Immediate session check - prioritize fresh Supabase data
         const needsRecovery = !isAuthenticated || !userId || !userRole;
 
-        if (needsRecovery) {
+        if (needsRecovery && !isRecovering) {
           console.log(
             "[App] Session state incomplete, triggering immediate recovery",
             { isAuthenticated, userId: !!userId, userRole: !!userRole },
@@ -286,16 +302,20 @@ function AppContent() {
           }
         }
 
-        // Debounced additional recovery for safety
+        // Debounced additional recovery for safety with guard check
         recoveryTimeout = setTimeout(async () => {
-          // Final check if we still don't have valid auth state
-          if (!isAuthenticated || !userRole || !userId) {
+          // Final check if we still don't have valid auth state and not already recovering
+          if (
+            (!isAuthenticated || !userRole || !userId) &&
+            !isRecovering &&
+            isHydrated
+          ) {
             console.log(
               "[App] Final auth state check failed, attempting recovery",
             );
             await recoverSession();
           }
-        }, 200); // Reduced timeout for faster recovery
+        }, 1000); // Increased timeout to prevent rapid recovery attempts
       }
     };
 
@@ -339,8 +359,9 @@ function AppContent() {
         handleForceSessionReady as EventListener,
       );
       if (recoveryTimeout) clearTimeout(recoveryTimeout);
+      isRecovering = false; // Reset recovery guard on cleanup
     };
-  }, [isAuthenticated, isLoading, userRole, userId]);
+  }, [isAuthenticated, isLoading, userRole, userId, isHydrated]);
 
   // Role-based redirects
   useEffect(() => {
