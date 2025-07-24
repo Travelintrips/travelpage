@@ -60,6 +60,7 @@ import ActivitiesPage from "./pages/ActivitiesPage";
 import HandlingPage from "./pages/HandlingPage";
 import HandlingBookingManagement from "./components/admin/HandlingBookingManagement";
 import HandlingServicesManagement from "./components/admin/HandlingServicesManagement";
+import TransportasiPage from "./pages/TransportasiPage";
 
 declare global {
   interface Window {
@@ -563,6 +564,7 @@ function AppContent() {
           <Route path="/bus-travel" element={<BusPage />} />
           <Route path="/things-to-do" element={<ActivitiesPage />} />
           <Route path="/handling" element={<HandlingPage />} />
+          <Route path="/transportasi" element={<TransportasiPage />} />
           <Route
             path="/new-booking"
             element={

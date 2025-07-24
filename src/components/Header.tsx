@@ -6,7 +6,13 @@ import { useShoppingCart } from "@/hooks/useShoppingCart";
 import UserDropdown from "./UserDropdown";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
-import { ShoppingCart as CartIcon } from "lucide-react";
+import { ShoppingCart as CartIcon, Truck, ChevronDown } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "./ui/dropdown-menu";
 
 const Header = () => {
   const { isAuthenticated, isLoading } = useAuth();
@@ -74,6 +80,16 @@ const Header = () => {
             </Link>
             <Link to="/corporates" className="hover:text-green-200">
               For Corporates
+            </Link>
+            {/* Transportasi Link */}
+            <Link to="/transportasi" className="hover:text-green-200">
+              <Button
+                variant="ghost"
+                className="text-white hover:text-green-200 flex items-center"
+              >
+                <Truck className="h-4 w-4 mr-2" />
+                Transportasi
+              </Button>
             </Link>
             {/* Show auth-dependent UI when authenticated */}
             {mounted && showAuthenticatedUI && (

@@ -45,7 +45,14 @@ import {
   Headphones,
   ShoppingCart,
   HandHeart,
+  Truck,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import AuthForm from "@/components/auth/AuthForm";
 import UserDropdown from "@/components/UserDropdown";
 import ShoppingCartComponent from "@/components/booking/ShoppingCart";
@@ -582,25 +589,16 @@ const MobileMenu = ({
           >
             <Bus className="h-5 w-5 mr-3" /> Bus & Travel
           </Button>
+          {/* Transportasi Link */}
           <Button
             variant="ghost"
             className="w-full justify-start text-lg py-3"
             onClick={() => {
               setMobileMenuOpen(false);
-              handleTravelOptionClick("Airport Transfer");
+              navigate("/transportasi");
             }}
           >
-            <MapPin className="h-5 w-5 mr-3" /> Airport Transfer
-          </Button>
-          <Button
-            variant="ghost"
-            className="w-full justify-start text-lg py-3"
-            onClick={() => {
-              setMobileMenuOpen(false);
-              handleTravelOptionClick("Car Rental");
-            }}
-          >
-            <Car className="h-5 w-5 mr-3" /> Car Rental
+            <Car className="h-5 w-5 mr-3" /> Transportasi
           </Button>
           <Button
             variant="ghost"
@@ -1824,12 +1822,12 @@ const TravelPageContent = () => {
                   <span>Bus</span>
                 </TabsTrigger>
                 <TabsTrigger
-                  value="airport"
+                  value="transportasi"
                   className="data-[state=active]:bg-green-500 data-[state=active]:text-white flex items-center gap-1 text-white"
-                  onClick={() => handleTravelOptionClick("Airport Transfer")}
+                  onClick={() => navigate("/transportasi")}
                 >
-                  <MapPin className="h-5 w-5 mr-2" />
-                  <span>Airport</span>
+                  <Car className="h-5 w-5 mr-2" />
+                  <span>Transportasi</span>
                 </TabsTrigger>
                 <TabsTrigger
                   value="baggage"
@@ -1847,14 +1845,7 @@ const TravelPageContent = () => {
                   <HandHeart className="h-5 w-5 mr-2" />
                   <span>Handling</span>
                 </TabsTrigger>
-                <TabsTrigger
-                  value="car"
-                  className="data-[state=active]:bg-green-500 data-[state=active]:text-white flex items-center gap-1 text-white"
-                  onClick={() => handleTravelOptionClick("Car Rental")}
-                >
-                  <Car className="h-5 w-5 mr-2" />
-                  <span>Car</span>
-                </TabsTrigger>
+
                 <TabsTrigger
                   value="activities"
                   className="data-[state=active]:bg-green-500 data-[state=active]:text-white flex items-center gap-1 text-white"
@@ -1914,15 +1905,16 @@ const TravelPageContent = () => {
           </button>
         </div>
         <div className="grid grid-cols-4 gap-2 px-2 pb-4">
+          {/* Transportasi Link for Mobile */}
           <button
             onClick={() => {
-              setActiveTab("airport");
-              handleTravelOptionClick("Airport Transfer");
+              setActiveTab("transportasi");
+              navigate("/transportasi");
             }}
-            className={`flex flex-col items-center justify-center p-2 ${activeTab === "airport" ? "text-green-500" : "text-gray-700"}`}
+            className={`flex flex-col items-center justify-center p-2 ${activeTab === "transportasi" ? "text-green-500" : "text-gray-700"}`}
           >
-            <MapPin className="h-6 w-6 mb-1" />
-            <span className="text-xs font-medium">Airport</span>
+            <Car className="h-6 w-6 mb-1" />
+            <span className="text-xs font-medium">Transportasi</span>
           </button>
           <button
             onClick={() => {
@@ -1947,17 +1939,6 @@ const TravelPageContent = () => {
           >
             <HandHeart className="h-6 w-6 mb-1" />
             <span className="text-xs font-medium">Handling</span>
-          </button>
-
-          <button
-            onClick={() => {
-              setActiveTab("car");
-              handleTravelOptionClick("Car Rental");
-            }}
-            className={`flex flex-col items-center justify-center p-2 ${activeTab === "car" ? "text-green-500" : "text-gray-700"}`}
-          >
-            <Car className="h-6 w-6 mb-1" />
-            <span className="text-xs font-medium">Car</span>
           </button>
           <button
             onClick={() => {
