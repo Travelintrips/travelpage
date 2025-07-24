@@ -457,16 +457,14 @@ const AirportBaggage = ({
     [],
   );
 
-  // 🎯 GUARD: Show loading state until component is initialized AND session is ready
-  if (!isHydrated || !isInitialized) {
+  // Show loading state only during initialization, not session checks
+  if (!isInitialized) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center max-w-md mx-auto p-6">
           <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500 mx-auto mb-6"></div>
           <h2 className="text-xl font-semibold text-gray-800 mb-2">
-            {!isHydrated
-              ? "Loading session..."
-              : "Initializing baggage service..."}
+            Initializing baggage service...
           </h2>
           <p className="text-sm text-gray-600 mb-4">
             Please wait while we prepare the booking system

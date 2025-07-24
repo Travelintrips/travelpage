@@ -120,31 +120,8 @@ const BookingForm = ({
     isLoading: cartLoading,
   } = shoppingCartContext;
 
-  // 🎯 GUARD: Prevent rendering until session is ready
-  const { isHydrated, isLoading, isSessionReady } = useAuth();
-
-  if (!isHydrated || isLoading || !isSessionReady) {
-    return (
-      <Card className="w-full max-w-lg mx-auto bg-white">
-        <CardContent className="p-6">
-          <div className="animate-pulse flex flex-col items-center justify-center py-10">
-            <div className="h-4 bg-gray-200 rounded w-3/4 mb-4"></div>
-            <div className="h-4 bg-gray-200 rounded w-1/2"></div>
-            <p className="text-sm text-muted-foreground mt-4">
-              {!isSessionReady ? "Preparing session..." : "Loading session..."}
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  // Effect to trigger refetch/reinit when session is ready
-  useEffect(() => {
-    if (!isSessionReady) return;
-    // Session is ready, can initialize booking-specific logic here
-    console.log("[BookingForm] Session ready, initializing booking form");
-  }, [isSessionReady]);
+  // Get auth context - render immediately, don't block on session state
+  const { isHydrated, isLoading } = useAuth();
   // Safely get auth context with error handling
   let authContext;
   try {
@@ -422,7 +399,7 @@ const BookingForm = ({
     const storedUserId = localStorage.getItem("userId");
     const storedUserEmail = localStorage.getItem("userEmail");
 
-    if (isSessionReady && storedUserId && storedUserEmail) {
+    if (isHydrated && storedUserId && storedUserEmail) {
       console.log("[BookingForm] Session already ready with valid user data");
       return {
         isReady: true,
@@ -467,7 +444,7 @@ const BookingForm = ({
 
       // Enhanced validation: session ready AND valid user data exists
       if (
-        isSessionReady &&
+        isHydrated &&
         currentStoredUserId &&
         currentStoredUserEmail &&
         currentStoredUser
@@ -606,7 +583,6 @@ const BookingForm = ({
       userEmail,
       userName,
       isHydrated,
-      isSessionReady,
     });
     console.log("[BookingForm] Form Data:", data);
 
@@ -614,7 +590,7 @@ const BookingForm = ({
     const storedUserId = localStorage.getItem("userId");
     const storedUserEmail = localStorage.getItem("userEmail");
 
-    if (!isSessionReady || !storedUserId || !storedUserEmail) {
+    if (!isHydrated || !storedUserId || !storedUserEmail) {
       console.warn(
         "[BookingForm] Session not ready or missing user data, waiting...",
       );
@@ -640,9 +616,9 @@ const BookingForm = ({
     const finalUserId = localStorage.getItem("userId");
     const finalUserEmail = localStorage.getItem("userEmail");
 
-    if (!isSessionReady || !finalUserId || !finalUserEmail) {
+    if (!isHydrated || !finalUserId || !finalUserEmail) {
       console.error("[BookingForm] Final session validation failed", {
-        isSessionReady,
+        isHydrated,
         finalUserId: !!finalUserId,
         finalUserEmail: !!finalUserEmail,
       });
@@ -1943,16 +1919,14 @@ const BookingForm = ({
     }
   }, [isAuthenticated, userId, setValue, watch]);
 
-  // Wait for session to be ready before loading data with validation
+  // Initialize form data when component mounts
   useEffect(() => {
-    if (!isSessionReady) {
-      console.log("[BookingFormBag] Waiting for session to be ready...");
+    if (!isHydrated) {
+      console.log("[BookingFormBag] Waiting for hydration...");
       return;
     }
 
-    console.log(
-      "[BookingFormBag] Session ready, initializing form with validation",
-    );
+    console.log("[BookingFormBag] Component hydrated, initializing form");
 
     // Auto-fill form fields from multiple sources with priority order
     const fillFormData = async () => {
@@ -2020,7 +1994,7 @@ const BookingForm = ({
       setDateTimeDaysTouched(true);
     }
   }, [
-    isSessionReady,
+    isHydrated,
     initialTime,
     setValue,
     isAuthenticated,
@@ -2036,7 +2010,7 @@ const BookingForm = ({
   useEffect(() => {
     let visibilityTimeout: NodeJS.Timeout;
     let lastVisibilityTime = 0;
-    const VISIBILITY_THROTTLE = 15000; // Increased throttle to prevent conflicts
+    const VISIBILITY_THROTTLE = 30000; // Increased throttle to prevent conflicts
 
     const handleVisibilityChange = async () => {
       if (document.visibilityState === "visible") {
@@ -2088,7 +2062,7 @@ const BookingForm = ({
           );
           restoreFormDraft();
           setAuthStateReady(true); // Assume auth is ready after delay
-        }, 3000); // Wait for AuthContext to finish session restoration
+        }, 5000); // Wait for AuthContext to finish session restoration
       }
     };
 
