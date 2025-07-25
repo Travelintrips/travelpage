@@ -47,6 +47,9 @@ const BaggageSizeSelector = ({
   };
 
   const handleSizeSelect = (size: string, price: number) => {
+    console.log("[BaggageSizeSelector] handleSizeSelect:", size, price);
+    console.log("[BaggageSizeSelector] Size type:", typeof size);
+    console.log("[BaggageSizeSelector] Is electronic?", size === "electronic");
     setBookingData({ ...bookingData, size, price });
     setShowForm(true);
     onSelectSize(size, price);
@@ -64,23 +67,59 @@ const BaggageSizeSelector = ({
     {
       id: "small",
       size: "Small",
-      price: 70000,
+      price: 75000,
       icon: <Package className="h-12 w-12" />,
       description: "Ideal for small bags, backpacks, or personal items",
     },
     {
       id: "medium",
       size: "Medium",
-      price: 90000,
+      price: 80000,
       icon: <PackageOpen className="h-12 w-12" />,
       description: "Perfect for carry-on luggage or medium-sized bags",
     },
     {
       id: "large",
       size: "Large",
-      price: 120000,
+      price: 90000,
       icon: <Luggage className="h-12 w-12" />,
       description: "Best for large suitcases or multiple items",
+    },
+    {
+      id: "extra_large",
+      size: "Extra Large",
+      price: 100000,
+      icon: <Package className="h-12 w-12" />,
+      description: "Best for Extra large suitcases or multiple items",
+    },
+    {
+      id: "electronic",
+      size: "Electronic",
+      price: 90000,
+      icon: <Package className="h-12 w-12" />,
+      description: "For electronic devices like laptops, cameras, keyboards",
+    },
+    {
+      id: "surfingboard",
+      size: "Surfing Board",
+      price: 100000,
+      icon: <Package className="h-12 w-12" />,
+      description:
+        "Best for Long or wide items such as surfboards or sporting gear.",
+    },
+    {
+      id: "wheelchair",
+      size: "Wheel Chair",
+      price: 60000,
+      icon: <Package className="h-12 w-12" />,
+      description: "Best for Manual or foldable wheelchairs and mobility aids.",
+    },
+    {
+      id: "stickgolf",
+      size: "Stick Golf",
+      price: 120000,
+      icon: <Package className="h-12 w-12" />,
+      description: "Best for Golf bags or long-shaped sports equipment.",
     },
   ];
   const navigate = useNavigate();
@@ -144,7 +183,7 @@ const BaggageSizeSelector = ({
                       <h2 className="text-2xl font-bold text-center mb-8">
                         Select Your Baggage Size
                       </h2>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 max-w-7xl mx-auto">
                         {baggageOptions.map((option) => (
                           <Card
                             key={option.id}
@@ -195,7 +234,15 @@ const BaggageSizeSelector = ({
                       </h2>
                       <BookingForm
                         selectedSize={
-                          bookingData.size as "small" | "medium" | "large"
+                          bookingData.size as
+                            | "small"
+                            | "medium"
+                            | "large"
+                            | "extra_large"
+                            | "electronic"
+                            | "surfingboard"
+                            | "wheelchair"
+                            | "stickgolf"
                         }
                         onComplete={handleBookingComplete}
                         onCancel={() => setShowForm(false)}

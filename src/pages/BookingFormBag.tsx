@@ -40,6 +40,12 @@ import { useShoppingCart } from "@/hooks/useShoppingCart";
 
 // Create a function to generate the form schema based on selectedSize
 const createFormSchema = (selectedSize: string) => {
+  console.log(
+    "[createFormSchema] selectedSize:",
+    selectedSize,
+    "isElectronic:",
+    selectedSize === "electronic",
+  );
   return z.object({
     name: z.string().min(2, { message: "Name must be at least 2 characters" }),
     email: z.string().email({ message: "Please enter a valid email address" }),
@@ -48,9 +54,7 @@ const createFormSchema = (selectedSize: string) => {
       .min(8, { message: "Phone number must be at least 8 characters" }),
     itemName:
       selectedSize === "electronic"
-        ? z
-            .string()
-            .min(1, { message: "Item name is required for electronic items" })
+        ? z.string().min(1, { message: "Item name is required" })
         : z.string().optional(),
     flightNumber: z.string().optional(),
     airport: z.string({ required_error: "Please select an airport" }),
@@ -112,6 +116,7 @@ const BookingForm = ({
   initialTime,
   prefilledData,
 }: BookingFormProps) => {
+  console.log("[BookingForm] selectedSize:", selectedSize, typeof selectedSize);
   // Safely get shopping cart context with error handling
   const shoppingCartContext = useShoppingCart();
   const {
@@ -1307,7 +1312,14 @@ const BookingForm = ({
             )}
           </div>
 
-          {selectedSize === "electronic" && (
+          {(() => {
+            console.log(
+              "[BookingForm] Checking electronic condition:",
+              selectedSize,
+              selectedSize === "electronic",
+            );
+            return selectedSize === "electronic";
+          })() && (
             <div className="grid gap-2">
               <Label htmlFor="itemName">Item Name</Label>
               <Input
@@ -1617,7 +1629,25 @@ const BookingForm = ({
             <h3 className="font-medium mb-2">Booking Summary</h3>
             <div className="grid grid-cols-2 gap-2 text-sm">
               <div>Baggage Size/Items:</div>
-              <div className="font-medium capitalize">{selectedSize}</div>
+              <div className="font-medium capitalize">
+                {selectedSize === "small"
+                  ? "Small"
+                  : selectedSize === "medium"
+                    ? "Medium"
+                    : selectedSize === "large"
+                      ? "Large"
+                      : selectedSize === "extra_large"
+                        ? "Extra Large"
+                        : selectedSize === "electronic"
+                          ? "Electronic"
+                          : selectedSize === "surfingboard"
+                            ? "Surfing Board"
+                            : selectedSize === "wheelchair"
+                              ? "Wheel Chair"
+                              : selectedSize === "stickgolf"
+                                ? "Stick Golf"
+                                : selectedSize}
+              </div>
 
               <div>Name:</div>
               <div className="font-medium">{watch("name")}</div>
