@@ -68,7 +68,7 @@ const PriceBaggage = () => {
         setSurfingPrice(Number(price.surfingboard_price) || 0);
         setStickgolfPrice(Number(price.stickgolf_price) || 0);
         setPriceId(price.id);
-        console.log("Fetched baggage price:", price);
+        console.log("Fetched baggage price3:", price);
       } else {
         await createInitialPriceRecord();
       }
