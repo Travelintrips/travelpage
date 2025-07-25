@@ -110,19 +110,6 @@ const PriceBaggage = () => {
       }
 
       if (data && data.length > 0) {
-<<<<<<< HEAD
-        const price = data[0];
-        setSmallPrice(Number(price.small_price) || 0);
-        setMediumPrice(Number(price.medium_price) || 0);
-        setLargePrice(Number(price.large_price) || 0);
-        setExtraLargePrice(Number(price.extra_large_price) || 0);
-        setElectronicPrice(Number(price.electronic_price) || 0);
-        setWheelchairPrice(Number(price.wheelchair_price) || 0);
-        setSurfingPrice(Number(price.surfingboard_price) || 0);
-        setStickgolfPrice(Number(price.stickgolf_price) || 0);
-        setPriceId(price.id);
-        console.log("Fetched baggage price3:", price);
-=======
         console.log("Fetched baggage prices from database:", data);
 
         // Initialize state with default values
@@ -137,30 +124,26 @@ const PriceBaggage = () => {
           stickgolf: { baggage_prices: 0 },
         };
 
-        // Map each row to the corresponding baggage type based on baggage_size column
+        // Map each row to the corresponding baggage type
         data.forEach((record: BaggagePrice) => {
           const baggageType = record.baggage_size;
-          console.log(
-            `Processing record: ${baggageType} = ${record.baggage_prices}`,
-          );
-
           if (pricesState[baggageType]) {
             pricesState[baggageType] = {
               id: record.id,
               baggage_prices: Number(record.baggage_prices) || 0,
             };
-            console.log(
-              `Mapped ${baggageType} to price: ${pricesState[baggageType].baggage_prices}`,
-            );
-          } else {
-            console.warn(`Unknown baggage type: ${baggageType}`);
           }
         });
 
         console.log("Final mapped baggage prices to state:", pricesState);
+
+        // Log each baggage type and its price for debugging
+        Object.entries(pricesState).forEach(([type, data]) => {
+          console.log(`${type}: ${data.baggage_prices}`);
+        });
+
         setBaggagePrices(pricesState);
         setIsDataLoaded(true);
->>>>>>> 40616bc (25/07/2025)
       } else {
         console.log("No data found, creating initial records");
         await createInitialPriceRecord();
