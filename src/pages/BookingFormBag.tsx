@@ -355,14 +355,14 @@ const BookingForm = ({
 
     // Default price map that matches database values
     const priceMap = {
-      small: 75000,
+      small: 70000,
       medium: 80000,
       large: 90000,
       extra_large: 100000,
       electronic: 90000,
       surfingboard: 100000,
-      wheelchair: 60000,
-      stickgolf: 120000,
+      wheelchair: 110000,
+      stickgolf: 110000,
     };
 
     // Fallback to default price map

@@ -29,6 +29,26 @@ const isValidUUID = (uuid: string): boolean => {
   return uuidRegex.test(uuid);
 };
 
+// Function to validate baggage_size
+const validateBaggageSize = (
+  size: string | null | undefined,
+): string | null => {
+  const allowedSizes = [
+    "small",
+    "medium",
+    "large",
+    "extra_large",
+    "electronic",
+    "surfingboard",
+    "wheelchair",
+    "stickgolf",
+  ];
+  if (typeof size === "string" && allowedSizes.includes(size.toLowerCase())) {
+    return size.toLowerCase();
+  }
+  return null;
+};
+
 const CheckoutPage: React.FC = () => {
   const navigate = useNavigate();
   const {
@@ -464,6 +484,205 @@ const CheckoutPage: React.FC = () => {
             }
           }
 
+          // Get baggage size from multiple possible sources, but exclude UUIDs
+          let baggageSizeValue = null;
+
+          // First try parsedDetails.baggage_size (this should be the primary source)
+          if (
+            parsedDetails.baggage_size &&
+            typeof parsedDetails.baggage_size === "string" &&
+            parsedDetails.baggage_size.trim() !== "" &&
+            !isValidUUID(parsedDetails.baggage_size)
+          ) {
+            baggageSizeValue = parsedDetails.baggage_size;
+            console.log(
+              "[CheckoutPage] Using baggage_size from parsedDetails:",
+              baggageSizeValue,
+            );
+          }
+          // Then try item.details?.baggage_size
+          else if (
+            item.details?.baggage_size &&
+            typeof item.details.baggage_size === "string" &&
+            item.details.baggage_size.trim() !== "" &&
+            !isValidUUID(item.details.baggage_size)
+          ) {
+            baggageSizeValue = item.details.baggage_size;
+            console.log(
+              "[CheckoutPage] Using baggage_size from item.details:",
+              baggageSizeValue,
+            );
+          }
+          // Only use item_id if it's not a UUID (which it usually is)
+          else if (
+            item.item_id &&
+            typeof item.item_id === "string" &&
+            item.item_id.trim() !== "" &&
+            !isValidUUID(item.item_id)
+          ) {
+            baggageSizeValue = item.item_id;
+            console.log(
+              "[CheckoutPage] Using item_id as baggage_size:",
+              baggageSizeValue,
+            );
+          }
+
+          console.log("[CheckoutPage] Baggage size validation:", {
+            parsedDetailsBaggageSize: parsedDetails.baggage_size,
+            itemDetailsBaggageSize: item.details?.baggage_size,
+            itemId: item.item_id,
+            finalBaggageSizeValue: baggageSizeValue,
+            serviceName: item.service_name,
+          });
+
+          let validatedBaggageSize = null;
+          let fallbackSize = null;
+
+          // Only attempt validation if we have a non-null, non-empty value
+          if (
+            baggageSizeValue &&
+            typeof baggageSizeValue === "string" &&
+            baggageSizeValue.trim() !== ""
+          ) {
+            validatedBaggageSize = validateBaggageSize(baggageSizeValue);
+            console.log("[CheckoutPage] Validation result:", {
+              input: baggageSizeValue,
+              output: validatedBaggageSize,
+            });
+          } else {
+            console.log("[CheckoutPage] No valid baggage size value found:", {
+              baggageSizeValue,
+              type: typeof baggageSizeValue,
+            });
+          }
+
+          // If validation failed or no size found, try to extract from service name
+          if (!validatedBaggageSize) {
+            console.warn(
+              "[CheckoutPage] Baggage size validation failed, trying fallback:",
+              {
+                originalValue: baggageSizeValue,
+                validatedResult: validatedBaggageSize,
+                serviceName: item.service_name,
+                hasServiceName: !!item.service_name,
+              },
+            );
+
+            // Try to extract size from service name
+            if (
+              item.service_name &&
+              typeof item.service_name === "string" &&
+              item.service_name.trim() !== ""
+            ) {
+              const serviceName = item.service_name.toLowerCase().trim();
+
+              // Check for specific size keywords in order of specificity
+              if (
+                serviceName.includes("extra large") ||
+                serviceName.includes("extra_large")
+              ) {
+                fallbackSize = "extra_large";
+              } else if (
+                serviceName.includes("large") &&
+                !serviceName.includes("extra")
+              ) {
+                fallbackSize = "large";
+              } else if (serviceName.includes("medium")) {
+                fallbackSize = "medium";
+              } else if (serviceName.includes("small")) {
+                fallbackSize = "small";
+              } else if (serviceName.includes("electronic")) {
+                fallbackSize = "electronic";
+              } else if (
+                serviceName.includes("surfing") ||
+                serviceName.includes("surfboard")
+              ) {
+                fallbackSize = "surfingboard";
+              } else if (
+                serviceName.includes("wheel") ||
+                serviceName.includes("chair")
+              ) {
+                fallbackSize = "wheelchair";
+              } else if (
+                serviceName.includes("golf") ||
+                serviceName.includes("stick")
+              ) {
+                fallbackSize = "stickgolf";
+              } else if (serviceName.includes("unknown")) {
+                // If service name contains "unknown", default to medium
+                fallbackSize = "medium";
+                console.warn(
+                  "[CheckoutPage] Service name contains 'unknown', defaulting to medium size",
+                );
+              }
+
+              // Additional mapping for common size variations
+              if (!fallbackSize) {
+                if (serviceName.includes("stick_golf")) {
+                  fallbackSize = "stickgolf";
+                } else if (serviceName.includes("wheel_chair")) {
+                  fallbackSize = "wheelchair";
+                } else if (serviceName.includes("surfing_board")) {
+                  fallbackSize = "surfingboard";
+                }
+              }
+
+              console.log("[CheckoutPage] Fallback size extraction:", {
+                serviceName: item.service_name,
+                normalizedServiceName: serviceName,
+                extractedSize: fallbackSize,
+              });
+            } else {
+              console.warn(
+                "[CheckoutPage] No valid service name available for fallback extraction",
+                { serviceName: item.service_name },
+              );
+            }
+
+            if (fallbackSize) {
+              console.warn(
+                "[CheckoutPage] Using fallback baggage size:",
+                fallbackSize,
+                "from service name:",
+                item.service_name,
+              );
+              validatedBaggageSize = fallbackSize;
+            } else {
+              // As a last resort, default to medium size
+              console.warn(
+                "[CheckoutPage] Cannot determine baggage size from any source, defaulting to medium for item:",
+                item.service_name,
+              );
+              validatedBaggageSize = "medium";
+
+              toast({
+                title: "Baggage size defaulted",
+                description: `Baggage item "${item.service_name}" size was set to medium. Please contact support if this is incorrect.`,
+                variant: "default",
+              });
+            }
+          }
+
+          // Ensure start_date is never null by providing fallback values
+          const startDate =
+            parsedDetails.start_date || item.details?.start_date;
+          const endDate = parsedDetails.end_date || item.details?.end_date;
+          const startTime =
+            parsedDetails.start_time || item.details?.start_time || "09:00";
+
+          // If start_date is still null, use current date as fallback
+          const finalStartDate =
+            startDate || new Date().toISOString().split("T")[0];
+          const finalEndDate = endDate || finalStartDate; // Use start date as end date if not provided
+
+          console.log("[CheckoutPage] Baggage booking date validation:", {
+            originalStartDate: parsedDetails.start_date,
+            itemDetailsStartDate: item.details?.start_date,
+            finalStartDate,
+            finalEndDate,
+            startTime,
+          });
+
           const bookingData = {
             booking_id: bookingId,
             customer_name: customerData.name,
@@ -471,23 +690,28 @@ const CheckoutPage: React.FC = () => {
             customer_email: customerData.email,
             item_name: parsedDetails.item_name || null,
             flight_number: parsedDetails.flight_number || "-",
-            baggage_size:
-              parsedDetails.baggage_size || item.details?.baggage_size,
+            baggage_size: validatedBaggageSize || "medium",
             price: item.price,
-            duration: parsedDetails.duration || item.details?.duration,
+            duration: parsedDetails.duration || item.details?.duration || 1,
             storage_location:
               parsedDetails.storage_location ||
               item.details?.storage_location ||
               "Terminal 1, Level 1",
-            start_date: parsedDetails.start_date || item.details?.start_date,
-            end_date: parsedDetails.end_date || item.details?.end_date,
-            start_time: parsedDetails.start_time || item.details?.start_time,
+            start_date: finalStartDate,
+            end_date: finalEndDate,
+            start_time: startTime,
             end_time: "",
-            airport: parsedDetails.airport || item.details?.airport,
-            terminal: parsedDetails.terminal || item.details?.terminal,
+            airport:
+              parsedDetails.airport ||
+              item.details?.airport ||
+              "Soekarno-Hatta International Airport",
+            terminal:
+              parsedDetails.terminal || item.details?.terminal || "Terminal 1",
             duration_type:
-              parsedDetails.duration_type || item.details?.duration_type,
-            hours: parsedDetails.hours || item.details?.hours,
+              parsedDetails.duration_type ||
+              item.details?.duration_type ||
+              "hours",
+            hours: parsedDetails.hours || item.details?.hours || 1,
             status: "confirmed",
             customer_id: validUserId, // Will be null if userId is not a valid UUID
             payment_id: paymentId,

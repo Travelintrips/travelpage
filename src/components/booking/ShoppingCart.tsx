@@ -38,6 +38,26 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { useNavigate } from "react-router-dom";
 
+// Function to validate baggage_size
+const validateBaggageSize = (
+  size: string | null | undefined,
+): string | null => {
+  const allowedSizes = [
+    "small",
+    "medium",
+    "large",
+    "extra_large",
+    "electronic",
+    "surfingboard",
+    "wheelchair",
+    "stickgolf",
+  ];
+  if (typeof size === "string" && allowedSizes.includes(size.toLowerCase())) {
+    return size.toLowerCase();
+  }
+  return null;
+};
+
 interface ShoppingCartProps {}
 
 const ShoppingCart: React.FC<ShoppingCartProps> = () => {
@@ -614,15 +634,52 @@ const ShoppingCart: React.FC<ShoppingCartProps> = () => {
                                       )}
 
                                       {/* Baggage Information */}
-                                      {parsedDetails.baggage_size && (
+                                      {(parsedDetails.baggage_size ||
+                                        parsedDetails.baggage_size_display) && (
                                         <p className="text-sm text-gray-600">
                                           <span className="font-medium">
                                             Baggage Size:
                                           </span>{" "}
-                                          {parsedDetails.baggage_size
-                                            .charAt(0)
-                                            .toUpperCase() +
-                                            parsedDetails.baggage_size.slice(1)}
+                                          {(() => {
+                                            // First try to use the display name if available
+                                            if (
+                                              parsedDetails.baggage_size_display
+                                            ) {
+                                              return parsedDetails.baggage_size_display;
+                                            }
+
+                                            // Then try to validate and format the baggage_size
+                                            const validatedSize =
+                                              validateBaggageSize(
+                                                parsedDetails.baggage_size,
+                                              );
+                                            if (validatedSize) {
+                                              // Create proper display names
+                                              const displayNames = {
+                                                small: "Small",
+                                                medium: "Medium",
+                                                large: "Large",
+                                                extra_large: "Extra Large",
+                                                electronic: "Electronic",
+                                                surfingboard: "Surfing Board",
+                                                wheelchair: "Wheel Chair",
+                                                stickgolf: "Stick Golf",
+                                              };
+                                              return (
+                                                displayNames[validatedSize] ||
+                                                validatedSize
+                                                  .charAt(0)
+                                                  .toUpperCase() +
+                                                  validatedSize.slice(1)
+                                              );
+                                            } else {
+                                              console.warn(
+                                                "Invalid baggage size in cart:",
+                                                parsedDetails.baggage_size,
+                                              );
+                                              return "Invalid Size";
+                                            }
+                                          })()}
                                         </p>
                                       )}
                                       {parsedDetails.item_name && (

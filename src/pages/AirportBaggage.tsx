@@ -36,7 +36,7 @@ interface AirportBaggageProps {
   selectedSize?: string;
 }
 
-// Default prices to use as fallback
+// Default prices to use as fallback - updated to match database values
 const DEFAULT_PRICES = {
   small_price: 70000,
   medium_price: 80000,
@@ -230,8 +230,35 @@ const AirportBaggage = ({
   );
 
   const handleBookingComplete = useCallback(
-    (data) => {
+    async (data) => {
       console.log("📋 Booking completed with data:", data);
+
+      // Define baggage options locally to avoid initialization issues
+      const localBaggageOptions = [
+        { id: "baggage-small", size: "Small" },
+        { id: "baggage-medium", size: "Medium" },
+        { id: "baggage-large", size: "Large" },
+        { id: "baggage-extra-large", size: "Extra Large" },
+        { id: "baggage-electronics", size: "Electronics" },
+        { id: "baggage-surfing-board", size: "Surfing Board" },
+        { id: "baggage-wheelchair", size: "Wheel Chair" },
+        { id: "baggage-stick-golf", size: "Stick Golf" },
+      ];
+
+      // Find the selected baggage option to get the size name
+      const selectedOption = localBaggageOptions.find(
+        (option) => option.id === bookingData.size,
+      );
+      const baggageSizeName = selectedOption
+        ? selectedOption.size.toLowerCase().replace(" ", "_")
+        : "medium";
+
+      // 🎯 REMOVED: Cart addition is now handled by BookingFormBag.tsx to prevent duplicates
+      // The BookingFormBag component will handle adding items to cart with proper validation
+      console.log(
+        "[AirportBaggage] Cart addition will be handled by BookingFormBag component",
+      );
+
       setBookingData((prev) => ({
         ...prev,
         ...data,
@@ -249,6 +276,10 @@ const AirportBaggage = ({
       userId,
       persistentStorageLocation,
       getOrCreateStorageLocation,
+      bookingData.size,
+      bookingData.price,
+      addToCart,
+      toast,
     ],
   );
 
@@ -308,6 +339,9 @@ const AirportBaggage = ({
             parseFloat(priceData.stickgolf_price) ||
             DEFAULT_PRICES.stickgolf_price,
         };
+
+        console.log("💰 Database price data received:", priceData);
+        console.log("💰 Final validated baggage prices:", parsedPrices);
 
         console.log("💰 Final validated baggage prices:", parsedPrices);
         setBaggagePrices(parsedPrices);
@@ -386,42 +420,42 @@ const AirportBaggage = ({
   const baggageOptions: BaggageSizeOption[] = useMemo(
     () => [
       {
-        id: "e1a2fe9c-99ee-488e-a377-ed0aaf5120fa",
+        id: "baggage-small",
         size: "Small",
         price: baggagePrices.small_price || 0,
         icon: <Package className="h-12 w-12" />,
         description: "Ideal for small bags, backpacks, or personal items",
       },
       {
-        id: "e1a2fe9c-99ee-488e-a377-ed0aaf5120fa",
+        id: "baggage-medium",
         size: "Medium",
         price: baggagePrices.medium_price || 0,
         icon: <PackageOpen className="h-12 w-12" />,
         description: "Perfect for carry-on luggage or medium-sized bags",
       },
       {
-        id: "e1a2fe9c-99ee-488e-a377-ed0aaf5120fa",
+        id: "baggage-large",
         size: "Large",
         price: baggagePrices.large_price || 0,
         icon: <Luggage className="h-12 w-12" />,
         description: "Best for large suitcases or multiple items",
       },
       {
-        id: "ee1a2fe9c-99ee-488e-a377-ed0aaf5120fa",
+        id: "baggage-extra-large",
         size: "Extra Large",
         price: baggagePrices.extra_large_price || 0,
         icon: <Boxes className="h-12 w-12" />,
         description: "Best for Extra large suitcases or multiple items",
       },
       {
-        id: "e1a2fe9c-99ee-488e-a377-ed0aaf5120fa",
+        id: "baggage-electronics",
         size: "Electronics",
         price: baggagePrices.electronic_price || 0,
         icon: <JoinedIcon className="h-12 w-12" />,
         description: "Best for Goods Electronic Laptop,Keyboards,Guitar,Camera",
       },
       {
-        id: "e1a2fe9c-99ee-488e-a377-ed0aaf5120fa",
+        id: "baggage-surfing-board",
         size: "Surfing Board",
         price: baggagePrices.surfingboard_price || 0,
         icon: <SurfingIcon className="h-12 w-12" />,
@@ -429,7 +463,7 @@ const AirportBaggage = ({
           "Best for Long or wide items such as surfboards or sporting gear.",
       },
       {
-        id: "e1a2fe9c-99ee-488e-a377-ed0aaf5120fa",
+        id: "baggage-wheelchair",
         size: "Wheel Chair",
         price: baggagePrices.wheelchair_price || 0,
         icon: <WheelchairIcon />,
@@ -437,7 +471,7 @@ const AirportBaggage = ({
           "Best for Manual or foldable wheelchairs and mobility aids.",
       },
       {
-        id: "e1a2fe9c-99ee-488e-a377-ed0aaf5120fa",
+        id: "baggage-stick-golf",
         size: "Stick Golf",
         price: baggagePrices.stickgolf_price || 0,
         icon: <GolfIcon className="h-12 w-12" />,
@@ -600,26 +634,48 @@ const AirportBaggage = ({
                         Complete Your Booking
                       </h2>
                       <BookingForm
-                        selectedSize={
-                          bookingData.size as
-                            | "small"
-                            | "medium"
-                            | "large"
-                            | "extra_large"
-                            | "electronic"
-                            | "surfingboard"
-                            | "wheelchair"
-                            | "stickgolf"
-                        }
+                        selectedSize={(() => {
+                          // Convert baggage option ID to the expected format
+                          const sizeMap = {
+                            "baggage-small": "small",
+                            "baggage-medium": "medium",
+                            "baggage-large": "large",
+                            "baggage-extra-large": "extra_large",
+                            "baggage-electronics": "electronic",
+                            "baggage-surfing-board": "surfingboard",
+                            "baggage-wheelchair": "wheelchair",
+                            "baggage-stick-golf": "stickgolf",
+                          };
+                          return (
+                            sizeMap[bookingData.size as keyof typeof sizeMap] ||
+                            "small"
+                          );
+                        })()}
                         baggagePrices={{
-                          small: baggagePrices.small_price || 0,
-                          medium: baggagePrices.medium_price || 0,
-                          large: baggagePrices.large_price || 0,
-                          extra_large: baggagePrices.extra_large_price || 0,
-                          electronic: baggagePrices.electronic_price || 0,
-                          surfingboard: baggagePrices.surfingboard_price || 0,
-                          wheelchair: baggagePrices.wheelchair_price || 0,
-                          stickgolf: baggagePrices.stickgolf_price || 0,
+                          small:
+                            baggagePrices.small_price ||
+                            DEFAULT_PRICES.small_price,
+                          medium:
+                            baggagePrices.medium_price ||
+                            DEFAULT_PRICES.medium_price,
+                          large:
+                            baggagePrices.large_price ||
+                            DEFAULT_PRICES.large_price,
+                          extra_large:
+                            baggagePrices.extra_large_price ||
+                            DEFAULT_PRICES.extra_large_price,
+                          electronic:
+                            baggagePrices.electronic_price ||
+                            DEFAULT_PRICES.electronic_price,
+                          surfingboard:
+                            baggagePrices.surfingboard_price ||
+                            DEFAULT_PRICES.surfingboard_price,
+                          wheelchair:
+                            baggagePrices.wheelchair_price ||
+                            DEFAULT_PRICES.wheelchair_price,
+                          stickgolf:
+                            baggagePrices.stickgolf_price ||
+                            DEFAULT_PRICES.stickgolf_price,
                         }}
                         onComplete={handleBookingComplete}
                         onCancel={() => setShowForm(false)}
@@ -775,9 +831,47 @@ const AirportBaggage = ({
                     <div>
                       <p className="text-sm text-gray-500">Baggage Size</p>
                       <p className="font-medium">
-                        {baggageOptions.find(
-                          (opt) => opt.id === bookingData.size,
-                        )?.size || ""}
+                        {(() => {
+                          const localBaggageOptions = [
+                            {
+                              id: "baggage-small",
+                              size: "Small",
+                            },
+                            {
+                              id: "baggage-medium",
+                              size: "Medium",
+                            },
+                            {
+                              id: "baggage-large",
+                              size: "Large",
+                            },
+                            {
+                              id: "baggage-extra-large",
+                              size: "Extra Large",
+                            },
+                            {
+                              id: "baggage-electronics",
+                              size: "Electronics",
+                            },
+                            {
+                              id: "baggage-surfing-board",
+                              size: "Surfing Board",
+                            },
+                            {
+                              id: "baggage-wheelchair",
+                              size: "Wheel Chair",
+                            },
+                            {
+                              id: "baggage-stick-golf",
+                              size: "Stick Golf",
+                            },
+                          ];
+                          return (
+                            localBaggageOptions.find(
+                              (opt) => opt.id === bookingData.size,
+                            )?.size || ""
+                          );
+                        })()}
                       </p>
                     </div>
                     <div>

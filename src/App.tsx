@@ -515,14 +515,7 @@ function AppContent() {
         <Routes>
           {/* Public routes - no authentication required */}
           <Route path="/" element={<TravelPage />} />
-          <Route
-            path="/baggage"
-            element={
-              <Suspense fallback={<div>Loading baggage page...</div>}>
-                <AirportBaggage />
-              </Suspense>
-            }
-          />
+          <Route path="/baggage" element={<AirportBaggage />} />
 
           <Route
             path="/airport-preview/:previewCode"
