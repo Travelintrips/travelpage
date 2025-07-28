@@ -789,6 +789,7 @@ const BookingForm = ({
         service_name: serviceName,
         price: calculateTotalPrice(),
         quantity: 1,
+        booking_id: currentBookingCode, // Add booking_id at the top level for the shopping_cart table
         details: {
           customer_name: data.name,
           customer_phone: data.phone,
@@ -815,6 +816,7 @@ const BookingForm = ({
           duration_type: durationType,
           hours: durationType === "hours" ? data.hours : null,
           booking_code: currentBookingCode, // Add the persistent booking code to details
+          booking_id: currentBookingCode, // Add booking_id in details for compatibility
         },
       };
 
@@ -893,58 +895,15 @@ const BookingForm = ({
 
       console.log("[BookingForm] Successfully added item to cart");
 
-      console.log("[BookingForm] Calling onComplete callback...");
-      if (onComplete) {
-        const completionData = {
-          name: data.name,
-          phone: data.phone,
-          email: data.email,
-          itemName:
-            selectedSize === "electronic" ? data.itemName || "" : undefined,
-          flightNumber: data.flightNumber || "-",
-          baggageSize: serviceName.replace("Baggage Storage - ", ""),
-          price: calculateTotalPrice(),
-          duration: calculatedDuration,
-          storageLocation:
-            localStorage.getItem("baggage_storage_location") ||
-            "Terminal 1, Level 1",
-          startDate:
-            durationType === "hours"
-              ? data.startDate_Hours
-              : data.startDate_Days,
-          endDate:
-            durationType === "hours" ? data.startDate_Hours : data.endDate_Days,
-          startTime:
-            durationType === "hours"
-              ? data.startTime_Hours
-              : data.startTime_Days,
-          endTime: "",
-          airport: airports.find((a) => a.id === data.airport)?.name,
-          terminal: terminalsByAirport[data.airport]?.find(
-            (t) => t.id === data.terminal,
-          )?.name,
-          durationType: durationType,
-          hours: durationType === "hours" ? data.hours : undefined,
-          bookingCode: getBookingCode(), // Add persistent booking code
-          // Add callback to clear form when modal is closed
-          onModalClose: clearFormAfterSuccess,
-        };
+      console.log(
+        "[BookingForm] Successfully added to cart, redirecting to cart page...",
+      );
 
-        console.log("[BookingForm] Completion data:", completionData);
-        try {
-          onComplete(completionData);
-          console.log(
-            "[BookingForm] onComplete callback executed successfully",
-          );
-        } catch (callbackError) {
-          console.error(
-            "[BookingForm] Error in onComplete callback:",
-            callbackError,
-          );
-        }
-      } else {
-        console.warn("[BookingForm] No onComplete callback provided");
-      }
+      // Clear form after successful booking
+      clearFormAfterSuccess();
+
+      // Redirect directly to cart page
+      window.location.href = "/cart";
     } catch (error) {
       console.error("[BookingForm] Error in booking submission:", error);
       alert(

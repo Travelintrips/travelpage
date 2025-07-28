@@ -487,7 +487,7 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({
       if (data.role === "Customer") {
         console.log("Registering customer with role_id:", roleId);
 
-        // Sign up the user
+        // Sign up the user - ALWAYS set role as Customer for new registrations
         const { data: authData, error: authError } = await supabase.auth.signUp(
           {
             email: data.email,
@@ -495,8 +495,8 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({
             options: {
               data: {
                 full_name: data.name,
-                role: data.role,
-                role_id: roleId.toString(),
+                role: "Customer", // FORCE Customer role for all new registrations
+                role_id: "1", // Customer role_id is always 1
                 phone: data.phone,
               },
             },

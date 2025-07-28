@@ -269,7 +269,8 @@ const AirportBaggage = ({
           persistentStorageLocation ||
           getOrCreateStorageLocation(),
       }));
-      setShowReceipt(true);
+      // 🎯 REMOVED: No longer showing receipt modal - user will be redirected to cart
+      // setShowReceipt(true);
     },
     [
       isAuthenticated,

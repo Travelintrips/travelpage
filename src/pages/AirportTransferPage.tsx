@@ -201,6 +201,10 @@ function AirportTransferPageContent() {
   // State to track if both pickup and dropoff locations are selected
   const [locationsSelected, setLocationsSelected] = useState<boolean>(false);
 
+  // State to track if route has been calculated to prevent recalculation
+  // This fixes the pricing inconsistency issue where distance would change between steps
+  const [routeCalculated, setRouteCalculated] = useState<boolean>(false);
+
   // Fetch available vehicles with drivers for instant booking
   const fetchAvailableVehiclesWithDrivers = async (vehicleType: string) => {
     if (!vehicleType) return;
@@ -737,7 +741,7 @@ function AirportTransferPageContent() {
     fetchVehicleTypes();
   }, [isSessionReady]);
 
-  // Calculate route distance and duration
+  // Calculate route distance and duration - only once when locations are set
   useEffect(() => {
     // Reset distance and duration when addresses change
     if (formData.fromAddress === "" || formData.toAddress === "") {
@@ -747,23 +751,43 @@ function AirportTransferPageContent() {
         distance: 0,
         duration: 0,
       }));
+      setRouteCalculated(false); // Reset route calculation state
       return;
     }
 
-    // Only calculate if we have valid coordinates and addresses
+    // Only calculate if we have valid coordinates and addresses AND route hasn't been calculated
     if (
       formData.fromLocation[0] !== 0 &&
       formData.toLocation[0] !== 0 &&
       formData.fromAddress &&
-      formData.toAddress
+      formData.toAddress &&
+      !routeCalculated &&
+      formData.distance === 0 // Only calculate if distance is not already set
     ) {
-      console.log(`🗺️ Calculating route for:`, {
+      console.log(`🗺️ INITIAL ROUTE CALCULATION:`, {
         from: formData.fromAddress,
         to: formData.toAddress,
         fromCoords: formData.fromLocation,
         toCoords: formData.toLocation,
+        currentDistance: formData.distance,
+        routeCalculated,
+        timestamp: new Date().toISOString(),
       });
       getRouteDetails(formData.fromLocation, formData.toLocation);
+    } else {
+      console.log(`🚫 SKIPPING ROUTE CALCULATION:`, {
+        hasFromLocation: formData.fromLocation[0] !== 0,
+        hasToLocation: formData.toLocation[0] !== 0,
+        hasFromAddress: !!formData.fromAddress,
+        hasToAddress: !!formData.toAddress,
+        routeCalculated,
+        currentDistance: formData.distance,
+        reason: routeCalculated
+          ? "Already calculated"
+          : formData.distance > 0
+            ? "Distance already set"
+            : "Missing data",
+      });
     }
   }, [
     formData.fromLocation,
@@ -1381,7 +1405,7 @@ function AirportTransferPageContent() {
     return finalPrice;
   }
 
-  // Get route details using OSRM
+  // Get route details using OSRM - only calculate once
   async function getRouteDetails(
     from: [number, number] | null,
     to: [number, number] | null,
@@ -1401,6 +1425,16 @@ function AirportTransferPageContent() {
       return;
     }
 
+    // Skip calculation if route has already been calculated
+    if (routeCalculated || formData.distance > 0) {
+      console.log("🔄 Route already calculated, skipping:", {
+        existingDistance: formData.distance,
+        existingDuration: formData.duration,
+        routeCalculated,
+      });
+      return;
+    }
+
     // Check if coordinates are the same (very close locations)
     const isSameLocation =
       Math.abs(fromLat - toLat) < 0.0001 && Math.abs(fromLng - toLng) < 0.0001;
@@ -1412,6 +1446,7 @@ function AirportTransferPageContent() {
         distance: 0.1, // 100 meters minimum
         duration: 1, // 1 minute minimum
       }));
+      setRouteCalculated(true);
       return;
     }
 
@@ -1429,19 +1464,37 @@ function AirportTransferPageContent() {
           Math.ceil(data.routes[0].duration / 60),
         ); // convert to minutes, minimum 1
 
-        console.log(`🛣️ Route calculated:`, {
+        console.log(`✅ ROUTE CALCULATION SUCCESS:`, {
           rawDistance: data.routes[0].distance,
           distanceKm: distanceKm,
           rawDuration: data.routes[0].duration,
           durationMin: durationMin,
           source: "OSRM",
+          fromCoords: [fromLat, fromLng],
+          toCoords: [toLat, toLng],
+          timestamp: new Date().toISOString(),
         });
 
-        setFormData((prev) => ({
-          ...prev,
-          distance: distanceKm,
-          duration: durationMin,
-        }));
+        setFormData((prev) => {
+          console.log(`📊 SETTING ROUTE DATA:`, {
+            previousDistance: prev.distance,
+            newDistance: distanceKm,
+            previousDuration: prev.duration,
+            newDuration: durationMin,
+            timestamp: new Date().toISOString(),
+          });
+          return {
+            ...prev,
+            distance: distanceKm,
+            duration: durationMin,
+          };
+        });
+
+        // CRITICAL: Mark route as calculated to prevent recalculation
+        setRouteCalculated(true);
+        console.log(
+          `🔒 ROUTE MARKED AS CALCULATED - No more calculations allowed`,
+        );
       } else {
         console.warn("No route found from OSRM");
         // Set default values instead of showing error
@@ -1463,6 +1516,9 @@ function AirportTransferPageContent() {
           distance: directDistance,
           duration: Math.ceil(directDistance * 2), // Rough estimate: 30km/h average speed
         }));
+
+        // Mark route as calculated
+        setRouteCalculated(true);
       }
     } catch (err) {
       console.error("Error calling OSRM:", err);
@@ -1927,82 +1983,123 @@ function AirportTransferPageContent() {
           }));
         }
 
-        // Handle geocoding with timeout and error handling
-        const geocodeWithTimeout = async (address: string, timeout = 10000) => {
-          return Promise.race([
-            geocodeAddress(address),
-            new Promise<null>((_, reject) =>
-              setTimeout(() => reject(new Error("Geocoding timeout")), timeout),
-            ),
-          ]);
-        };
+        // CRITICAL: Only geocode and calculate route if not already done
+        if (formData.distance === 0 && !routeCalculated) {
+          console.log(`🔍 GEOCODING AND ROUTE CALCULATION NEEDED:`, {
+            currentDistance: formData.distance,
+            routeCalculated,
+            fromAddress: formData.fromAddress,
+            toAddress: formData.toAddress,
+            timestamp: new Date().toISOString(),
+          });
 
-        // Geocode addresses if needed
-        let fromCoords = formData.fromLocation;
-        let toCoords = formData.toLocation;
-
-        try {
-          if (!fromCoords || fromCoords[0] === 0) {
-            const coords = await geocodeWithTimeout(formData.fromAddress);
-            if (coords) {
-              fromCoords = coords;
-              setFormData((prev) => ({ ...prev, fromLocation: coords }));
-            }
-          }
-
-          if (!toCoords || toCoords[0] === 0) {
-            const coords = await geocodeWithTimeout(formData.toAddress);
-            if (coords) {
-              toCoords = coords;
-              setFormData((prev) => ({ ...prev, toLocation: coords }));
-            }
-          }
-        } catch (geocodeError) {
-          console.warn(
-            "Geocoding failed, using default coordinates:",
-            geocodeError,
-          );
-          // Use Jakarta coordinates as fallback
-          if (!fromCoords || fromCoords[0] === 0) {
-            fromCoords = [-6.2, 106.8];
-          }
-          if (!toCoords || toCoords[0] === 0) {
-            toCoords = [-6.2, 106.8];
-          }
-        }
-
-        // Calculate route with timeout
-        if (fromCoords && toCoords) {
-          try {
-            await Promise.race([
-              getRouteDetails(fromCoords, toCoords),
-              new Promise((_, reject) =>
+          // Handle geocoding with timeout and error handling
+          const geocodeWithTimeout = async (
+            address: string,
+            timeout = 10000,
+          ) => {
+            return Promise.race([
+              geocodeAddress(address),
+              new Promise<null>((_, reject) =>
                 setTimeout(
-                  () => reject(new Error("Route calculation timeout")),
-                  15000,
+                  () => reject(new Error("Geocoding timeout")),
+                  timeout,
                 ),
               ),
             ]);
+          };
 
-            setFormData((prev) => ({
-              ...prev,
-              fromLocation: fromCoords,
-              toLocation: toCoords,
-            }));
+          // Geocode addresses if needed
+          let fromCoords = formData.fromLocation;
+          let toCoords = formData.toLocation;
 
-            setLocationsSelected(true);
-          } catch (routeError) {
-            console.warn("Route calculation failed:", routeError);
-            // Set default values
-            setFormData((prev) => ({
-              ...prev,
-              fromLocation: fromCoords,
-              toLocation: toCoords,
-              distance: 10, // Default 10km
-              duration: 30, // Default 30 minutes
-            }));
-            setLocationsSelected(true);
+          try {
+            if (!fromCoords || fromCoords[0] === 0) {
+              const coords = await geocodeWithTimeout(formData.fromAddress);
+              if (coords) {
+                fromCoords = coords;
+              }
+            }
+
+            if (!toCoords || toCoords[0] === 0) {
+              const coords = await geocodeWithTimeout(formData.toAddress);
+              if (coords) {
+                toCoords = coords;
+              }
+            }
+          } catch (geocodeError) {
+            console.warn(
+              "Geocoding failed, using existing coordinates:",
+              geocodeError,
+            );
+            // Keep existing coordinates if geocoding fails
+            if (!fromCoords || fromCoords[0] === 0) {
+              fromCoords =
+                formData.fromLocation[0] !== 0
+                  ? formData.fromLocation
+                  : [-6.2, 106.8];
+            }
+            if (!toCoords || toCoords[0] === 0) {
+              toCoords =
+                formData.toLocation[0] !== 0
+                  ? formData.toLocation
+                  : [-6.2, 106.8];
+            }
           }
+
+          // Calculate route with timeout - only if distance is 0 and route not calculated
+          if (fromCoords && toCoords) {
+            try {
+              await Promise.race([
+                getRouteDetails(fromCoords, toCoords),
+                new Promise((_, reject) =>
+                  setTimeout(
+                    () => reject(new Error("Route calculation timeout")),
+                    15000,
+                  ),
+                ),
+              ]);
+
+              setFormData((prev) => ({
+                ...prev,
+                fromLocation: fromCoords,
+                toLocation: toCoords,
+              }));
+
+              setLocationsSelected(true);
+            } catch (routeError) {
+              console.warn("Route calculation failed:", routeError);
+              // Set default values only if we don't have existing distance
+              const defaultDistance =
+                formData.distance > 0 ? formData.distance : 10;
+              const defaultDuration =
+                formData.duration > 0 ? formData.duration : 30;
+
+              setFormData((prev) => ({
+                ...prev,
+                fromLocation: fromCoords,
+                toLocation: toCoords,
+                distance: defaultDistance,
+                duration: defaultDuration,
+              }));
+              setLocationsSelected(true);
+              setRouteCalculated(true); // Mark as calculated even if failed
+            }
+          }
+        } else {
+          // If distance is already calculated, just set locations selected
+          setLocationsSelected(true);
+          console.log(
+            "✅ DISTANCE ALREADY CALCULATED - SKIPPING ROUTE CALCULATION:",
+            {
+              distance: formData.distance,
+              duration: formData.duration,
+              routeCalculated,
+              reason:
+                "Route already calculated, preventing duplicate calculation",
+              timestamp: new Date().toISOString(),
+            },
+          );
         }
 
         // Move to next step (skip driver search)
@@ -2485,18 +2582,48 @@ Please prepare for the trip!`;
       formData.toAddress.trim() !== ""
     ) {
       setLocationsSelected(true);
-      // Trigger route calculation
-      if (formData.fromLocation[0] !== 0 && formData.toLocation[0] !== 0) {
+      // CRITICAL: Only trigger route calculation if not already calculated
+      if (
+        formData.fromLocation[0] !== 0 &&
+        formData.toLocation[0] !== 0 &&
+        !routeCalculated &&
+        formData.distance === 0
+      ) {
+        console.log("🗺️ TRIGGERING ROUTE CALCULATION FROM LOCATIONS EFFECT:", {
+          fromAddress: formData.fromAddress,
+          toAddress: formData.toAddress,
+          fromLocation: formData.fromLocation,
+          toLocation: formData.toLocation,
+          routeCalculated,
+          currentDistance: formData.distance,
+          timestamp: new Date().toISOString(),
+        });
         getRouteDetails(formData.fromLocation, formData.toLocation);
+      } else {
+        console.log("🚫 SKIPPING ROUTE CALCULATION FROM LOCATIONS EFFECT:", {
+          hasFromLocation: formData.fromLocation[0] !== 0,
+          hasToLocation: formData.toLocation[0] !== 0,
+          routeCalculated,
+          currentDistance: formData.distance,
+          reason: routeCalculated
+            ? "Already calculated"
+            : formData.distance > 0
+              ? "Distance already set"
+              : "Missing coordinates",
+          timestamp: new Date().toISOString(),
+        });
       }
     } else {
       setLocationsSelected(false);
+      setRouteCalculated(false); // Reset when locations are cleared
+      console.log("🔄 LOCATIONS CLEARED - Resetting route calculation state");
     }
   }, [
     formData.fromAddress,
     formData.toAddress,
     formData.fromLocation,
     formData.toLocation,
+    routeCalculated,
   ]);
 
   // Step 1: Location and Schedule
@@ -3009,6 +3136,21 @@ Please prepare for the trip!`;
 
                               setSelectedVehicleDriver(vehicleData);
 
+                              // CRITICAL: Lock the distance and duration to prevent recalculation
+                              const currentDistance =
+                                formData.distance > 0 ? formData.distance : 8.3;
+                              const currentDuration =
+                                formData.duration > 0 ? formData.duration : 10;
+
+                              console.log(`🔒 LOCKING DISTANCE AND DURATION:`, {
+                                selectedVehicle: `${vehicle.make} ${vehicle.model}`,
+                                driver: vehicle.driver_name,
+                                lockedDistance: currentDistance,
+                                lockedDuration: currentDuration,
+                                calculatedPrice,
+                                timestamp: new Date().toISOString(),
+                              });
+
                               setFormData((prev) => ({
                                 ...prev,
                                 driverId: vehicle.uuid, // ✅ Use driver UUID instead of vehicle ID
@@ -3022,7 +3164,16 @@ Please prepare for the trip!`;
                                 basicPrice: vehicle.basic_price,
                                 surcharge: vehicle.surcharge,
                                 price: calculatedPrice,
+                                // CRITICAL: Lock distance and duration to prevent changes
+                                distance: currentDistance,
+                                duration: currentDuration,
                               }));
+
+                              // CRITICAL: Mark route as calculated to prevent recalculation
+                              setRouteCalculated(true);
+                              console.log(
+                                `🛑 ROUTE LOCKED - Distance: ${currentDistance}km, Duration: ${currentDuration}min`,
+                              );
 
                               console.log(
                                 `💰 Selected vehicle driver pricing updated:`,

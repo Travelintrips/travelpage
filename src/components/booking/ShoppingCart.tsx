@@ -599,15 +599,21 @@ const ShoppingCart: React.FC<ShoppingCartProps> = () => {
 
                                   return (
                                     <div className="mt-3 space-y-1">
-                                      {/* Customer Information */}
-                                      {parsedDetails.booking_id && (
+                                      {/* Booking ID - Priority display */}
+                                      {(parsedDetails.booking_code ||
+                                        parsedDetails.booking_id) && (
                                         <p className="text-sm text-gray-600">
                                           <span className="font-medium">
                                             Booking ID:
                                           </span>{" "}
-                                          {parsedDetails.booking_id}
+                                          <span className="font-mono text-blue-600">
+                                            {parsedDetails.booking_code ||
+                                              parsedDetails.booking_id}
+                                          </span>
                                         </p>
                                       )}
+
+                                      {/* Customer Information */}
                                       {parsedDetails.customer_name && (
                                         <p className="text-sm text-gray-600">
                                           <span className="font-medium">
@@ -1005,6 +1011,20 @@ const ShoppingCart: React.FC<ShoppingCartProps> = () => {
 
                                   return (
                                     <div className="mt-3 space-y-1">
+                                      {/* Booking ID - Priority display */}
+                                      {(parsedDetails.bookingId ||
+                                        parsedDetails.booking_id) && (
+                                        <p className="text-sm text-gray-600">
+                                          <span className="font-medium">
+                                            Booking ID:
+                                          </span>{" "}
+                                          <span className="font-mono text-blue-600">
+                                            {parsedDetails.bookingId ||
+                                              parsedDetails.booking_id}
+                                          </span>
+                                        </p>
+                                      )}
+
                                       {/* Customer Information - Priority display */}
                                       {parsedDetails.customerName && (
                                         <p className="text-sm text-gray-600">
@@ -1028,6 +1048,24 @@ const ShoppingCart: React.FC<ShoppingCartProps> = () => {
                                             Phone:
                                           </span>{" "}
                                           {parsedDetails.customerPhone}
+                                        </p>
+                                      )}
+
+                                      {parsedDetails.travelType && (
+                                        <p className="text-sm text-gray-600">
+                                          <span className="font-medium">
+                                            Travel Type:
+                                          </span>{" "}
+                                          {parsedDetails.travelType}
+                                        </p>
+                                      )}
+
+                                      {parsedDetails.pickupArea && (
+                                        <p className="text-sm text-gray-600">
+                                          <span className="font-medium">
+                                            Pickup Area:
+                                          </span>{" "}
+                                          {parsedDetails.pickupArea}
                                         </p>
                                       )}
 
@@ -1079,6 +1117,15 @@ const ShoppingCart: React.FC<ShoppingCartProps> = () => {
                                             Time:
                                           </span>{" "}
                                           {parsedDetails.pickupTime}
+                                        </p>
+                                      )}
+
+                                      {parsedDetails.additionalNotes && (
+                                        <p className="text-sm text-gray-600">
+                                          <span className="font-medium">
+                                            Notes:
+                                          </span>{" "}
+                                          {parsedDetails.additionalNotes}
                                         </p>
                                       )}
                                     </div>

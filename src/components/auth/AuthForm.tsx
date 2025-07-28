@@ -530,7 +530,8 @@ const AuthForm: React.FC<AuthFormProps> = ({
             data: {
               full_name: data.name || "",
               phone_number: data.phone || "",
-              role: "Customer",
+              role: "Customer", // ALWAYS Customer for new registrations
+              role_id: "1", // Customer role_id is always 1
               selfie_url: selfieUrl, // ✅ simpan hasil upload selfie
             },
           },

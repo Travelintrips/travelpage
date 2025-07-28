@@ -28,7 +28,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
-import { Pencil, Trash2, UserPlus, Shield } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Pencil, Trash2, UserPlus, Shield, Search, Filter } from "lucide-react";
 
 interface User {
   id: string;
@@ -36,6 +38,16 @@ interface User {
   full_name: string;
   role_id: number;
   role: { role_name: string };
+  phone_number?: string;
+  staff?: {
+    phone?: string;
+    reference_phone?: string;
+    selfie_url?: string;
+    ktp_url?: string;
+    sim_url?: string;
+    ethnicity?: string;
+    religion?: string;
+  };
 }
 
 interface Role {
@@ -49,6 +61,7 @@ interface UserManagementProps {
 
 export default function UserManagement(props: UserManagementProps = {}) {
   const [users, setUsers] = useState<User[]>([]);
+  const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isOpen, setIsOpen] = useState(false);
@@ -58,6 +71,48 @@ export default function UserManagement(props: UserManagementProps = {}) {
   const [emailToPromote, setEmailToPromote] = useState("");
   const [isStaffTripsDialogOpen, setIsStaffTripsDialogOpen] = useState(false);
   const [emailToStaffTrips, setEmailToStaffTrips] = useState("diva@gmail.com");
+
+  // Helper function to get image URL from Supabase Storage
+  const getImageUrl = (
+    path: string | null | undefined,
+    bucket: string = "selfies",
+  ): string | null => {
+    if (!path) return null;
+
+    try {
+      // If the path is already a full URL, return it directly
+      if (path.startsWith("http://") || path.startsWith("https://")) {
+        return path;
+      }
+
+      // Clean the path - remove any leading slashes or bucket names
+      let cleanPath = path.trim();
+      if (cleanPath.startsWith("/")) {
+        cleanPath = cleanPath.substring(1);
+      }
+      if (cleanPath.startsWith(`${bucket}/`)) {
+        cleanPath = cleanPath.substring(`${bucket}/`.length);
+      }
+
+      // Generate public URL from Supabase Storage
+      const { data } = supabase.storage.from(bucket).getPublicUrl(cleanPath);
+      console.log(
+        `Generated URL for ${path} in bucket ${bucket}:`,
+        data.publicUrl,
+      );
+      return data.publicUrl;
+    } catch (error) {
+      console.error(`Error getting image URL for ${path}:`, error);
+      return null;
+    }
+  };
+
+  // Filter states
+  const [searchTerm, setSearchTerm] = useState("");
+  const [roleFilter, setRoleFilter] = useState("");
+  const [ethnicityFilter, setEthnicityFilter] = useState("");
+  const [religionFilter, setReligionFilter] = useState("");
+
   const { toast } = useToast();
 
   // Form state
@@ -71,35 +126,152 @@ export default function UserManagement(props: UserManagementProps = {}) {
     fetchRoles();
   }, []);
 
+  // Filter effect
+  useEffect(() => {
+    let filtered = users;
+
+    // Search filter
+    if (searchTerm) {
+      filtered = filtered.filter(
+        (user) =>
+          user.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          user.staff?.phone?.includes(searchTerm) ||
+          user.staff?.reference_phone?.includes(searchTerm),
+      );
+    }
+
+    // Role filter
+    if (roleFilter && roleFilter !== "all") {
+      filtered = filtered.filter(
+        (user) => user.role_id.toString() === roleFilter,
+      );
+    }
+
+    // Ethnicity filter
+    if (ethnicityFilter) {
+      filtered = filtered.filter(
+        (user) =>
+          user.staff?.ethnicity?.toLowerCase() ===
+          ethnicityFilter.toLowerCase(),
+      );
+    }
+
+    // Religion filter
+    if (religionFilter) {
+      filtered = filtered.filter(
+        (user) =>
+          user.staff?.religion?.toLowerCase() === religionFilter.toLowerCase(),
+      );
+    }
+
+    setFilteredUsers(filtered);
+  }, [users, searchTerm, roleFilter, ethnicityFilter, religionFilter]);
+
   const fetchUsers = async () => {
     try {
       setIsLoading(true);
 
-      const { data, error } = await supabase
-        .from("users")
+      // First, let's try to fetch from staff table directly since it has more complete data
+      const { data: staffData, error: staffError } = await supabase
+        .from("staff")
         .select(
           `
         id,
         email,
         full_name,
+        name,
         role_id,
-        role:roles(role_name)
+        phone,
+        relative_phone,
+        selfie_url,
+        ktp_url,
+        ethnicity,
+        religion,
+        user_id
       `,
-        )
-        .in("role_id", [4, 5, 6, 7]); // ✅ BUKAN role.role_name lagi, tapi role_id langsung
+        );
 
-      if (error) {
-        console.error("Error fetching users:", error.message);
-        throw new Error("Failed to fetch staff users");
+      if (staffError) {
+        console.error("Error fetching staff:", staffError.message);
+        // Fallback to users table if staff table fails
+        const { data: usersData, error: usersError } = await supabase
+          .from("users")
+          .select(
+            `
+          id,
+          email,
+          full_name,
+          role_id,
+          phone_number,
+          selfie_url,
+          ktp_url,
+          sim_url,
+          ethnicity,
+          religion
+        `,
+          )
+          .in("role_id", [4, 5, 6, 7]);
+
+        if (usersError) {
+          throw new Error("Failed to fetch users data");
+        }
+
+        // Transform users data to match expected format
+        const transformedUsers = (usersData || []).map((user) => ({
+          ...user,
+          staff: {
+            phone: user.phone_number,
+            reference_phone: null,
+            selfie_url: user.selfie_url,
+            ktp_url: user.ktp_url,
+            sim_url: user.sim_url,
+            ethnicity: user.ethnicity,
+            religion: user.religion,
+          },
+        }));
+
+        setUsers(transformedUsers);
+        setFilteredUsers(transformedUsers);
+        return;
       }
 
-      setUsers(data || []);
+      // Get roles data for role names
+      const { data: rolesData } = await supabase
+        .from("roles")
+        .select("role_id, role_name");
+
+      // Transform staff data to match expected format and add role names
+      const transformedStaff = (staffData || []).map((staff) => {
+        const role = rolesData?.find((r) => r.role_id === staff.role_id);
+        return {
+          id: staff.user_id || staff.id,
+          email: staff.email,
+          full_name: staff.full_name || staff.name,
+          role_id: staff.role_id,
+          phone_number: staff.phone,
+          role: role ? { role_name: role.role_name } : null,
+          staff: {
+            phone: staff.phone,
+            reference_phone: staff.relative_phone,
+            selfie_url: staff.selfie_url,
+            ktp_url: staff.ktp_url,
+            sim_url: null, // Not available in staff table
+            ethnicity: staff.ethnicity,
+            religion: staff.religion,
+          },
+        };
+      });
+
+      console.log("Fetched staff data:", transformedStaff);
+      setUsers(transformedStaff);
+      setFilteredUsers(transformedStaff);
     } catch (error) {
       console.error("Error fetching users:", error);
       toast({
         variant: "destructive",
         title: "Error fetching users",
-        description: error.message,
+        description: error.message || "Failed to fetch staff data",
       });
     } finally {
       setIsLoading(false);
@@ -522,50 +694,269 @@ export default function UserManagement(props: UserManagementProps = {}) {
         </div>
       </div>
 
+      {/* Filter Section */}
+      <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+        <div className="flex items-center gap-2 mb-4">
+          <Filter className="h-4 w-4" />
+          <h3 className="text-lg font-semibold">Filter Staff</h3>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Input
+              placeholder="Search by name, email, or phone..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+          <Select
+            value={roleFilter || undefined}
+            onValueChange={(value) => setRoleFilter(value || "")}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Filter by role" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Roles</SelectItem>
+              {roles
+                .filter((role) =>
+                  [
+                    "Staff",
+                    "Staff Trips",
+                    "Staff Admin",
+                    "Staff Traffic",
+                    "Dispatcher",
+                    "Pengawas",
+                  ].includes(role.role_name),
+                )
+                .map((role) => (
+                  <SelectItem
+                    key={role.role_id}
+                    value={role.role_id.toString()}
+                  >
+                    {role.role_name}
+                  </SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
+          <Input
+            placeholder="Filter by ethnicity"
+            value={ethnicityFilter}
+            onChange={(e) => setEthnicityFilter(e.target.value)}
+          />
+          <Input
+            placeholder="Filter by religion"
+            value={religionFilter}
+            onChange={(e) => setReligionFilter(e.target.value)}
+          />
+        </div>
+        {(searchTerm || roleFilter || ethnicityFilter || religionFilter) && (
+          <div className="mt-4 flex items-center gap-2">
+            <span className="text-sm text-gray-600">Active filters:</span>
+            {searchTerm && (
+              <Badge
+                variant="secondary"
+                className="cursor-pointer"
+                onClick={() => setSearchTerm("")}
+              >
+                Search: {searchTerm} ×
+              </Badge>
+            )}
+            {roleFilter && roleFilter !== "all" && (
+              <Badge
+                variant="secondary"
+                className="cursor-pointer"
+                onClick={() => setRoleFilter("")}
+              >
+                Role:{" "}
+                {
+                  roles.find((r) => r.role_id.toString() === roleFilter)
+                    ?.role_name
+                }{" "}
+                ×
+              </Badge>
+            )}
+            {ethnicityFilter && (
+              <Badge
+                variant="secondary"
+                className="cursor-pointer"
+                onClick={() => setEthnicityFilter("")}
+              >
+                Ethnicity: {ethnicityFilter} ×
+              </Badge>
+            )}
+            {religionFilter && (
+              <Badge
+                variant="secondary"
+                className="cursor-pointer"
+                onClick={() => setReligionFilter("")}
+              >
+                Religion: {religionFilter} ×
+              </Badge>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setSearchTerm("");
+                setRoleFilter("");
+                setEthnicityFilter("");
+                setReligionFilter("");
+              }}
+            >
+              Clear all
+            </Button>
+          </div>
+        )}
+      </div>
+
       {isLoading ? (
         <div className="flex justify-center items-center h-64">
           <p>Loading staff members...</p>
         </div>
       ) : (
-        <Table>
-          <TableCaption>List of all staff members in the system</TableCaption>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>Role</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {users.map((user) => (
-              <TableRow key={user.id}>
-                <TableCell className="font-medium">{user.full_name}</TableCell>
-                <TableCell>{user.email}</TableCell>
-                <TableCell>
-                  {roles.find((role) => role.role_id === user.role_id)
-                    ?.role_name || "No Role"}
-                </TableCell>
-                <TableCell className="text-right">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleOpenDialog(user)}
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleDeleteUser(user.id)}
-                  >
-                    <Trash2 className="h-4 w-4 text-red-500" />
-                  </Button>
-                </TableCell>
+        <div className="overflow-x-auto">
+          <Table>
+            <TableCaption>
+              {filteredUsers.length} of {users.length} staff members shown
+            </TableCaption>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Photo</TableHead>
+                <TableHead>Name</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Phone</TableHead>
+                <TableHead>Family Phone</TableHead>
+                <TableHead>Role</TableHead>
+                <TableHead>Ethnicity</TableHead>
+                <TableHead>Religion</TableHead>
+                <TableHead>Documents</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {filteredUsers.map((user) => (
+                <TableRow key={user.id}>
+                  <TableCell>
+                    <Avatar className="h-10 w-10">
+                      <AvatarImage
+                        src={
+                          getImageUrl(user.staff?.selfie_url, "selfies") ||
+                          undefined
+                        }
+                        alt={user.full_name || "Staff"}
+                        className="object-cover"
+                        onError={(e) => {
+                          console.log(
+                            "Image failed to load:",
+                            e.currentTarget.src,
+                          );
+                          console.log("Original path:", user.staff?.selfie_url);
+                        }}
+                        onLoad={(e) => {
+                          console.log(
+                            "Image loaded successfully:",
+                            e.currentTarget.src,
+                          );
+                        }}
+                      />
+                      <AvatarFallback className="bg-gray-200 text-gray-600">
+                        {user.full_name
+                          ?.split(" ")
+                          .map((n) => n[0])
+                          .join("")
+                          .toUpperCase() || "S"}
+                      </AvatarFallback>
+                    </Avatar>
+                  </TableCell>
+                  <TableCell className="font-medium">
+                    {user.full_name}
+                  </TableCell>
+                  <TableCell>{user.email}</TableCell>
+                  <TableCell>
+                    {user.staff?.phone || user.phone_number || "-"}
+                  </TableCell>
+                  <TableCell>{user.staff?.reference_phone || "-"}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline">
+                      {roles.find((role) => role.role_id === user.role_id)
+                        ?.role_name || "No Role"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>{user.staff?.ethnicity || "-"}</TableCell>
+                  <TableCell>{user.staff?.religion || "-"}</TableCell>
+                  <TableCell>
+                    <div className="flex gap-1">
+                      {user.staff?.ktp_url && (
+                        <a
+                          href={
+                            getImageUrl(user.staff.ktp_url, "documents") || "#"
+                          }
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="hover:opacity-80"
+                        >
+                          <Badge
+                            variant="secondary"
+                            className="text-xs cursor-pointer hover:bg-blue-200 bg-blue-100 text-blue-800"
+                          >
+                            KTP
+                          </Badge>
+                        </a>
+                      )}
+                      {user.staff?.sim_url && (
+                        <a
+                          href={
+                            getImageUrl(user.staff.sim_url, "documents") || "#"
+                          }
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="hover:opacity-80"
+                        >
+                          <Badge
+                            variant="secondary"
+                            className="text-xs cursor-pointer hover:bg-green-200 bg-green-100 text-green-800"
+                          >
+                            SIM
+                          </Badge>
+                        </a>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleOpenDialog(user)}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDeleteUser(user.id)}
+                    >
+                      <Trash2 className="h-4 w-4 text-red-500" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+              {filteredUsers.length === 0 && (
+                <TableRow>
+                  <TableCell
+                    colSpan={10}
+                    className="text-center py-8 text-gray-500"
+                  >
+                    {users.length === 0
+                      ? "No staff members found"
+                      : "No staff members match the current filters"}
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
       )}
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>

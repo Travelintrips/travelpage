@@ -535,8 +535,8 @@ const CheckoutPage: React.FC = () => {
             serviceName: item.service_name,
           });
 
-          let validatedBaggageSize = null;
-          let fallbackSize = null;
+          // Determine the final baggage size through validation and fallback logic
+          let finalBaggageSize: string = "medium"; // Default fallback
 
           // Only attempt validation if we have a non-null, non-empty value
           if (
@@ -544,11 +544,15 @@ const CheckoutPage: React.FC = () => {
             typeof baggageSizeValue === "string" &&
             baggageSizeValue.trim() !== ""
           ) {
-            validatedBaggageSize = validateBaggageSize(baggageSizeValue);
+            const validatedSize = validateBaggageSize(baggageSizeValue);
             console.log("[CheckoutPage] Validation result:", {
               input: baggageSizeValue,
-              output: validatedBaggageSize,
+              output: validatedSize,
             });
+
+            if (validatedSize) {
+              finalBaggageSize = validatedSize;
+            }
           } else {
             console.log("[CheckoutPage] No valid baggage size value found:", {
               baggageSizeValue,
@@ -557,12 +561,11 @@ const CheckoutPage: React.FC = () => {
           }
 
           // If validation failed or no size found, try to extract from service name
-          if (!validatedBaggageSize) {
+          if (finalBaggageSize === "medium" && baggageSizeValue) {
             console.warn(
               "[CheckoutPage] Baggage size validation failed, trying fallback:",
               {
                 originalValue: baggageSizeValue,
-                validatedResult: validatedBaggageSize,
                 serviceName: item.service_name,
                 hasServiceName: !!item.service_name,
               },
@@ -575,63 +578,74 @@ const CheckoutPage: React.FC = () => {
               item.service_name.trim() !== ""
             ) {
               const serviceName = item.service_name.toLowerCase().trim();
+              let extractedSize: string | null = null;
 
               // Check for specific size keywords in order of specificity
               if (
                 serviceName.includes("extra large") ||
                 serviceName.includes("extra_large")
               ) {
-                fallbackSize = "extra_large";
+                extractedSize = "extra_large";
               } else if (
                 serviceName.includes("large") &&
                 !serviceName.includes("extra")
               ) {
-                fallbackSize = "large";
+                extractedSize = "large";
               } else if (serviceName.includes("medium")) {
-                fallbackSize = "medium";
+                extractedSize = "medium";
               } else if (serviceName.includes("small")) {
-                fallbackSize = "small";
+                extractedSize = "small";
               } else if (serviceName.includes("electronic")) {
-                fallbackSize = "electronic";
+                extractedSize = "electronic";
               } else if (
                 serviceName.includes("surfing") ||
                 serviceName.includes("surfboard")
               ) {
-                fallbackSize = "surfingboard";
+                extractedSize = "surfingboard";
               } else if (
                 serviceName.includes("wheel") ||
                 serviceName.includes("chair")
               ) {
-                fallbackSize = "wheelchair";
+                extractedSize = "wheelchair";
               } else if (
                 serviceName.includes("golf") ||
                 serviceName.includes("stick")
               ) {
-                fallbackSize = "stickgolf";
+                extractedSize = "stickgolf";
               } else if (serviceName.includes("unknown")) {
                 // If service name contains "unknown", default to medium
-                fallbackSize = "medium";
+                extractedSize = "medium";
                 console.warn(
                   "[CheckoutPage] Service name contains 'unknown', defaulting to medium size",
                 );
               }
 
               // Additional mapping for common size variations
-              if (!fallbackSize) {
+              if (!extractedSize) {
                 if (serviceName.includes("stick_golf")) {
-                  fallbackSize = "stickgolf";
+                  extractedSize = "stickgolf";
                 } else if (serviceName.includes("wheel_chair")) {
-                  fallbackSize = "wheelchair";
+                  extractedSize = "wheelchair";
                 } else if (serviceName.includes("surfing_board")) {
-                  fallbackSize = "surfingboard";
+                  extractedSize = "surfingboard";
                 }
               }
 
               console.log("[CheckoutPage] Fallback size extraction:", {
                 serviceName: item.service_name,
                 normalizedServiceName: serviceName,
-                extractedSize: fallbackSize,
+                extractedSize: extractedSize,
               });
+
+              if (extractedSize) {
+                console.warn(
+                  "[CheckoutPage] Using fallback baggage size:",
+                  extractedSize,
+                  "from service name:",
+                  item.service_name,
+                );
+                finalBaggageSize = extractedSize;
+              }
             } else {
               console.warn(
                 "[CheckoutPage] No valid service name available for fallback extraction",
@@ -639,21 +653,12 @@ const CheckoutPage: React.FC = () => {
               );
             }
 
-            if (fallbackSize) {
-              console.warn(
-                "[CheckoutPage] Using fallback baggage size:",
-                fallbackSize,
-                "from service name:",
-                item.service_name,
-              );
-              validatedBaggageSize = fallbackSize;
-            } else {
-              // As a last resort, default to medium size
+            // If still using default medium size after fallback attempt, show toast
+            if (finalBaggageSize === "medium" && baggageSizeValue) {
               console.warn(
                 "[CheckoutPage] Cannot determine baggage size from any source, defaulting to medium for item:",
                 item.service_name,
               );
-              validatedBaggageSize = "medium";
 
               toast({
                 title: "Baggage size defaulted",
@@ -690,7 +695,7 @@ const CheckoutPage: React.FC = () => {
             customer_email: customerData.email,
             item_name: parsedDetails.item_name || null,
             flight_number: parsedDetails.flight_number || "-",
-            baggage_size: validatedBaggageSize || "medium",
+            baggage_size: finalBaggageSize,
             price: item.price,
             duration: parsedDetails.duration || item.details?.duration || 1,
             storage_location:
@@ -715,6 +720,7 @@ const CheckoutPage: React.FC = () => {
             status: "confirmed",
             customer_id: validUserId, // Will be null if userId is not a valid UUID
             payment_id: paymentId,
+            payment_method: selectedPaymentMethod, // Add payment method to baggage booking
           };
 
           const { data: baggageBooking, error: baggageError } = await supabase
@@ -826,6 +832,136 @@ const CheckoutPage: React.FC = () => {
               // Don't throw error - continue with checkout process
             }
           }
+        } else if (item.item_type === "handling" && item.details) {
+          // Handle handling service bookings
+          let parsedDetails = item.details;
+          if (typeof item.details === "string") {
+            try {
+              parsedDetails = JSON.parse(item.details);
+            } catch (error) {
+              console.error("Error parsing handling details:", error);
+              parsedDetails = item.details;
+            }
+          }
+
+          // Use booking ID from cart details or generate new one
+          const handlingBookingId =
+            parsedDetails?.bookingId ||
+            parsedDetails?.booking_id ||
+            `${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 9)}`;
+
+          // Create handling booking
+          const handlingBookingData = {
+            id: uuidv4(),
+            booking_id: handlingBookingId, // Use the booking ID from cart details
+            user_id: validUserId, // Add user_id field
+            customer_name: customerData.name,
+            customer_email: customerData.email,
+            customer_phone: customerData.phone,
+            travel_type: parsedDetails?.travelType || "departure",
+            pickup_area: parsedDetails?.pickupArea || "Terminal 1",
+            category: parsedDetails?.category || "Individual",
+            passenger_area: parsedDetails?.passengerArea,
+            flight_number: parsedDetails?.flightNumber,
+            passengers: parsedDetails?.passengers || 1,
+            pickup_date:
+              parsedDetails?.pickupDate ||
+              new Date().toISOString().split("T")[0],
+            pickup_time: parsedDetails?.pickupTime || "09:00",
+            additional_notes: parsedDetails?.additionalNotes || "",
+            service_price: parsedDetails?.servicePrice || 0,
+            category_price: parsedDetails?.categoryPrice || 0,
+            total_price: item.price,
+            payment_method: selectedPaymentMethod, // Add payment_method field
+            status: "confirmed",
+            payment_id: paymentId,
+            created_at: new Date().toISOString(),
+          };
+
+          const { data: handlingBooking, error: handlingError } = await supabase
+            .from("handling_bookings")
+            .insert(handlingBookingData)
+            .select()
+            .single();
+
+          if (handlingError) {
+            console.error("❌ Error creating handling booking:", handlingError);
+            throw new Error(
+              `Failed to create handling booking: ${handlingError.message}`,
+            );
+          }
+
+          console.log("✅ Handling booking created:", handlingBooking.id);
+
+          // Link to payment_bookings table
+          await linkPaymentBooking(
+            paymentId,
+            handlingBooking.id.toString(),
+            "handling",
+          );
+        } else if (item.item_type === "passenger_handling" && item.details) {
+          // Handle passenger handling service bookings
+          let parsedDetails = item.details;
+          if (typeof item.details === "string") {
+            try {
+              parsedDetails = JSON.parse(item.details);
+            } catch (error) {
+              console.error("Error parsing passenger handling details:", error);
+              parsedDetails = item.details;
+            }
+          }
+
+          // Create passenger handling booking
+          const passengerHandlingData = {
+            id: uuidv4(),
+            customer_name: customerData.name,
+            customer_email: customerData.email,
+            customer_phone: customerData.phone,
+            service_name: parsedDetails?.serviceName || "Passenger Handling",
+            location: parsedDetails?.location || "Airport",
+            passenger_count: parsedDetails?.passengerCount || 1,
+            date: parsedDetails?.date || new Date().toISOString().split("T")[0],
+            basic_price: parsedDetails?.basicPrice || 0,
+            selling_price: item.price,
+            fee_sales: parsedDetails?.feeSales || 0,
+            profit: parsedDetails?.profit || 0,
+            notes: parsedDetails?.notes || "",
+            status: "confirmed",
+            customer_id: validUserId,
+            payment_id: paymentId,
+            created_at: new Date().toISOString(),
+          };
+
+          const {
+            data: passengerHandlingBooking,
+            error: passengerHandlingError,
+          } = await supabase
+            .from("passenger_handling_bookings")
+            .insert(passengerHandlingData)
+            .select()
+            .single();
+
+          if (passengerHandlingError) {
+            console.error(
+              "❌ Error creating passenger handling booking:",
+              passengerHandlingError,
+            );
+            throw new Error(
+              `Failed to create passenger handling booking: ${passengerHandlingError.message}`,
+            );
+          }
+
+          console.log(
+            "✅ Passenger handling booking created:",
+            passengerHandlingBooking.id,
+          );
+
+          // Link to payment_bookings table
+          await linkPaymentBooking(
+            paymentId,
+            passengerHandlingBooking.id.toString(),
+            "passenger_handling",
+          );
         } else if (item.item_type === "car" && item.details) {
           // Handle car rental bookings
           try {
@@ -1197,6 +1333,9 @@ const CheckoutPage: React.FC = () => {
                           {item.item_type === "airport_transfer" &&
                             "Airport Transfer"}
                           {item.item_type === "car" && "Car Rental"}
+                          {item.item_type === "handling" && "Handling Service"}
+                          {item.item_type === "passenger_handling" &&
+                            "Passenger Handling"}
                         </Badge>
                       </div>
                     ))}

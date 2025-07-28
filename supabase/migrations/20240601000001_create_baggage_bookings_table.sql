@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS baggage_bookings (
   hours INTEGER,
   status TEXT NOT NULL DEFAULT 'pending',
   customer_id UUID REFERENCES auth.users(id),
+  payment_method TEXT,
 
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()

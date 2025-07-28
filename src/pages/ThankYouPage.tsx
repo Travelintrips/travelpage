@@ -198,7 +198,7 @@ const ThankYouPage: React.FC = () => {
 
                 if (!handlingError && handlingBooking) {
                   allBookings.push({
-                    booking_id: handlingBooking.id,
+                    booking_id: handlingBooking.booking_id,
                     customer_name: handlingBooking.customer_name || "Guest",
                     customer_email: handlingBooking.customer_email || "",
                     customer_phone: handlingBooking.customer_phone || "",

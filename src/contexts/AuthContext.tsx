@@ -238,7 +238,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         };
 
         // Get user role from database first, then fallback to metadata
-        let userRole = "Customer";
+        let userRole = "Customer"; // ALWAYS default to Customer for new users
         let userName =
           data.session.user.user_metadata?.name ||
           data.session.user.email?.split("@")[0] ||
@@ -262,102 +262,129 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           );
           userRole = "Admin";
         } else {
-          // Try to get user data from database with timeout
-          try {
-            const userDataPromise = supabase
-              .from("users")
-              .select("full_name, phone, role_id, role:roles(role_name)")
-              .eq("id", data.session.user.id)
-              .single();
+          // CRITICAL: Only check for admin role if email contains admin or specific admin email
+          const isAdminEmail =
+            data.session.user.email?.includes("admin") ||
+            data.session.user.email === "divatranssoetta@gmail.com";
 
-            const dbTimeoutPromise = new Promise((_, reject) => {
-              setTimeout(
-                () => reject(new Error("Database fetch timeout")),
-                3000,
-              );
-            });
-
-            const { data: dbUserData } = (await Promise.race([
-              userDataPromise,
-              dbTimeoutPromise,
-            ])) as any;
-
-            if (dbUserData) {
-              if (dbUserData.full_name) userName = dbUserData.full_name;
-              if (dbUserData.phone) userPhone = dbUserData.phone;
-
-              // CRITICAL: Prioritize database role over metadata for consistency
-              if (dbUserData.role?.role_name) {
-                userRole = dbUserData.role.role_name;
-                console.log("[AuthContext] Using database role:", userRole);
-              } else if (dbUserData.role_name) {
-                userRole = dbUserData.role_name;
-                console.log("[AuthContext] Using direct role_name:", userRole);
-              } else {
-                // Only fallback to metadata if no database role found
-                userRole = data.session.user?.user_metadata?.role || "Customer";
-                console.log(
-                  "[AuthContext] Fallback to metadata role:",
-                  userRole,
-                );
-              }
-            } else {
-              // Fallback to metadata role if no database data
-              userRole = data.session.user?.user_metadata?.role || "Customer";
-              console.log(
-                "[AuthContext] No database data, using metadata role:",
-                userRole,
-              );
-            }
-          } catch (dbError) {
-            console.warn(
-              "[AuthContext] Error fetching user data from database:",
-              dbError,
-            );
-            // Fallback to metadata role
-            userRole = data.session.user?.user_metadata?.role || "Customer";
+          if (isAdminEmail) {
             console.log(
-              "[AuthContext] Database error, fallback to metadata role:",
-              userRole,
+              "[AuthContext] Admin email detected:",
+              data.session.user.email,
             );
-          }
-
-          // If still no role found, try to get from staff table
-          if (!userRole || userRole === "Customer") {
+            userRole = "Admin";
+          } else {
+            // For non-admin emails, try to get user data from database with timeout
             try {
-              const staffDataPromise = supabase
-                .from("staff")
-                .select("role")
+              const userDataPromise = supabase
+                .from("users")
+                .select("full_name, phone, role_id, role:roles(role_name)")
                 .eq("id", data.session.user.id)
-                .maybeSingle();
+                .single();
 
-              const staffTimeoutPromise = new Promise((_, reject) => {
+              const dbTimeoutPromise = new Promise((_, reject) => {
                 setTimeout(
-                  () => reject(new Error("Staff fetch timeout")),
+                  () => reject(new Error("Database fetch timeout")),
                   3000,
                 );
               });
 
-              const { data: staffData, error: staffError } =
-                (await Promise.race([
-                  staffDataPromise,
-                  staffTimeoutPromise,
-                ])) as any;
+              const { data: dbUserData } = (await Promise.race([
+                userDataPromise,
+                dbTimeoutPromise,
+              ])) as any;
 
-              if (!staffError && staffData && staffData.role) {
-                userRole = staffData.role;
-                console.log("[AuthContext] Found staff role:", userRole);
-              } else if (staffError) {
+              if (dbUserData) {
+                if (dbUserData.full_name) userName = dbUserData.full_name;
+                if (dbUserData.phone) userPhone = dbUserData.phone;
+
+                // CRITICAL: Only use database role if it exists and is not Admin (unless admin email)
+                if (
+                  dbUserData.role?.role_name &&
+                  dbUserData.role.role_name !== "Admin"
+                ) {
+                  userRole = dbUserData.role.role_name;
+                  console.log("[AuthContext] Using database role:", userRole);
+                } else if (
+                  dbUserData.role_name &&
+                  dbUserData.role_name !== "Admin"
+                ) {
+                  userRole = dbUserData.role_name;
+                  console.log(
+                    "[AuthContext] Using direct role_name:",
+                    userRole,
+                  );
+                } else {
+                  // Force Customer role for non-admin emails
+                  userRole = "Customer";
+                  console.log(
+                    "[AuthContext] Forcing Customer role for non-admin user:",
+                    userRole,
+                  );
+                }
+              } else {
+                // Force Customer role if no database data for non-admin emails
+                userRole = "Customer";
+                console.log(
+                  "[AuthContext] No database data, forcing Customer role:",
+                  userRole,
+                );
+              }
+            } catch (dbError) {
+              console.warn(
+                "[AuthContext] Error fetching user data from database:",
+                dbError,
+              );
+              // Force Customer role on database error for non-admin emails
+              userRole = "Customer";
+              console.log(
+                "[AuthContext] Database error, forcing Customer role:",
+                userRole,
+              );
+            }
+
+            // Only check staff table if user is not already determined to be Customer
+            if (userRole === "Customer") {
+              try {
+                const staffDataPromise = supabase
+                  .from("staff")
+                  .select("role")
+                  .eq("id", data.session.user.id)
+                  .maybeSingle();
+
+                const staffTimeoutPromise = new Promise((_, reject) => {
+                  setTimeout(
+                    () => reject(new Error("Staff fetch timeout")),
+                    3000,
+                  );
+                });
+
+                const { data: staffData, error: staffError } =
+                  (await Promise.race([
+                    staffDataPromise,
+                    staffTimeoutPromise,
+                  ])) as any;
+
+                if (
+                  !staffError &&
+                  staffData &&
+                  staffData.role &&
+                  staffData.role !== "Admin"
+                ) {
+                  userRole = staffData.role;
+                  console.log("[AuthContext] Found staff role:", userRole);
+                } else if (staffError) {
+                  console.warn(
+                    "[AuthContext] Error fetching staff data:",
+                    staffError,
+                  );
+                }
+              } catch (staffError) {
                 console.warn(
                   "[AuthContext] Error fetching staff data:",
                   staffError,
                 );
               }
-            } catch (staffError) {
-              console.warn(
-                "[AuthContext] Error fetching staff data:",
-                staffError,
-              );
             }
           }
         }

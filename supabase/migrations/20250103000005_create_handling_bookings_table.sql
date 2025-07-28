@@ -1,6 +1,7 @@
 -- Create handling_bookings table to store orders from the Handling page
 CREATE TABLE IF NOT EXISTS handling_bookings (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  booking_id VARCHAR(255) UNIQUE, -- Add booking_id column
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
   
   -- Customer Information
@@ -31,6 +32,10 @@ CREATE TABLE IF NOT EXISTS handling_bookings (
   service_price DECIMAL(12,2) DEFAULT 0,
   category_price DECIMAL(12,2) DEFAULT 0, -- Additional price per passenger for group bookings
   total_price DECIMAL(12,2) NOT NULL,
+  
+  -- Payment Information
+  payment_method VARCHAR(50), -- Add payment_method column
+  payment_id UUID REFERENCES payments(id) ON DELETE SET NULL,
   
   -- Booking Status
   status VARCHAR(50) DEFAULT 'pending', -- pending, confirmed, cancelled, completed

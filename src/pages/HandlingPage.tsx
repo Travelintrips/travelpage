@@ -80,6 +80,23 @@ const HandlingPage = () => {
   const [servicePrice, setServicePrice] = useState(0);
   const [categoryPrice, setCategoryPrice] = useState(0);
   const [totalPrice, setTotalPrice] = useState(0);
+  const [bookingId, setBookingId] = useState("");
+
+  // Generate booking ID with format HS-YYYYMMDD-HHMMSS-XXX
+  const generateBookingId = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+    const hours = String(now.getHours()).padStart(2, "0");
+    const minutes = String(now.getMinutes()).padStart(2, "0");
+    const seconds = String(now.getSeconds()).padStart(2, "0");
+    const random = Math.floor(Math.random() * 1000)
+      .toString()
+      .padStart(3, "0");
+
+    return `HS-${year}${month}${day}-${hours}${minutes}${seconds}-${random}`;
+  };
 
   // Dynamic location options based on category
   const locationOptions = {
@@ -304,13 +321,23 @@ const HandlingPage = () => {
     setIsLoading(true);
 
     try {
+      // Generate booking ID if not already generated
+      const currentBookingId = bookingId || generateBookingId();
+      if (!bookingId) {
+        setBookingId(currentBookingId);
+      }
+
       // Add to shopping cart
       await addToCart({
         item_type: "handling",
+        item_id: formData.category, // Use the selected category as item_id
         service_name: `Handling Service - ${formData.passengerArea}`,
         price: totalPrice || 150000, // Use calculated total price or fallback
         quantity: 1,
+        booking_id: currentBookingId, // Add booking_id at the top level for the shopping_cart table
         details: {
+          bookingId: currentBookingId,
+          booking_id: currentBookingId, // Add both formats for compatibility
           customerName: formData.name,
           customerEmail: formData.email,
           customerPhone: formData.phone,
@@ -1001,6 +1028,19 @@ const HandlingPage = () => {
                   <div className="flex justify-between">
                     <span className="text-gray-600">Telepon:</span>
                     <span className="font-medium">{formData.phone}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Booking ID */}
+              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                <h3 className="font-semibold text-blue-800 mb-3">Booking ID</h3>
+                <div className="text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-blue-700">ID Booking:</span>
+                    <span className="font-medium text-blue-800 font-mono">
+                      {bookingId || generateBookingId()}
+                    </span>
                   </div>
                 </div>
               </div>

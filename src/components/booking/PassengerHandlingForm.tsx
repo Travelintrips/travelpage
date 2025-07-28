@@ -58,6 +58,15 @@ const PassengerHandlingForm = () => {
     // Calculate profit
     const profit = data.sellingPrice - data.basicPrice - (data.feeSales || 0);
 
+    console.log("[PassengerHandlingForm] Submitting with data:", {
+      serviceName: data.serviceName,
+      location: data.location,
+      sellingPrice: data.sellingPrice,
+      basicPrice: data.basicPrice,
+      feeSales: data.feeSales,
+      profit: profit,
+    });
+
     // Add to cart
     addToCart({
       item_type: "passenger_handling",
@@ -221,6 +230,18 @@ const PassengerHandlingForm = () => {
                 formData.sellingPrice -
                 formData.basicPrice -
                 (formData.feeSales || 0);
+
+              console.log(
+                "[PassengerHandlingForm] Add to Cart clicked with data:",
+                {
+                  serviceName: formData.serviceName,
+                  location: formData.location,
+                  sellingPrice: formData.sellingPrice,
+                  basicPrice: formData.basicPrice,
+                  feeSales: formData.feeSales,
+                  profit: profit,
+                },
+              );
 
               try {
                 await addToCart({
