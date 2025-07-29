@@ -292,7 +292,7 @@ export default function StaffManagement() {
                 adminUserId: currentAdminUser.id,
                 phone: "", // Add phone field
                 address: "", // Add address field
-                referencePhone: "", // Add referencePhone field
+                familyphoneNumber: "", // Add referencePhone field
                 ktpNumber: "", // Add ktpNumber field
 
                 licenseExpiry: "", // Add licenseExpiry field

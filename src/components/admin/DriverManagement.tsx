@@ -62,7 +62,7 @@ interface Driver {
   created_at: string;
   name: string;
   email: string | null;
-  phone: string | null;
+  phone_number: string | null;
   license_number: string | null;
   license_expiry: string | null;
   account_status: string | null;
@@ -71,7 +71,7 @@ interface Driver {
   stnk_url: string | null;
   kk_url: string | null;
   stnk_expiry: string | null;
-  reference_phone: string | null;
+  family_phone_number: string | null;
   is_online: boolean | null;
 }
 
@@ -86,7 +86,7 @@ const DriverManagement = () => {
   const [formData, setFormData] = useState({
     name: "",
     email: "",
-    phone: "",
+    phone_number: "",
     license_number: "",
     license_expiry: "",
     account_status: "active",
@@ -95,7 +95,7 @@ const DriverManagement = () => {
     stnk_url: "",
     kk_url: "",
     stnk_expiry: "",
-    reference_phone: "",
+    family_phone_number: "",
     role_id: null,
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -182,11 +182,23 @@ const DriverManagement = () => {
     }
   };
 
+  // Utility: Convert empty strings to null for Supabase compatibility
+  const cleanDateFields = (data: any) => {
+    return {
+      ...data,
+      license_expiry: data.license_expiry === "" ? null : data.license_expiry,
+      stnk_expiry: data.stnk_expiry === "" ? null : data.stnk_expiry,
+    };
+  };
+
   const handleAddDriver = async () => {
     try {
+      // Clean the form data to convert empty date strings to null
+      const cleanedFormData = cleanDateFields(formData);
+
       const { data, error } = await supabase
         .from("drivers")
-        .insert([formData])
+        .insert([cleanedFormData])
         .select();
 
       if (error) throw error;
@@ -199,7 +211,7 @@ const DriverManagement = () => {
       setFormData({
         name: "",
         email: "",
-        phone: "",
+        phone_number: "",
         license_number: "",
         license_expiry: "",
         account_status: "active",
@@ -208,7 +220,7 @@ const DriverManagement = () => {
         stnk_url: "",
         kk_url: "",
         stnk_expiry: "",
-        reference_phone: "",
+        family_phone_number: "",
         role_id: null,
       });
     } catch (error) {
@@ -298,7 +310,7 @@ const DriverManagement = () => {
       setFormData({
         name: "",
         email: "",
-        phone: "",
+        phone_number: "",
         license_number: "",
         license_expiry: "",
         account_status: "active",
@@ -307,7 +319,7 @@ const DriverManagement = () => {
         stnk_url: "",
         kk_url: "",
         stnk_expiry: "",
-        reference_phone: "",
+        family_phone_number: "",
         role_id: cleanedFormData.role_id || null,
       });
 
@@ -350,7 +362,7 @@ const DriverManagement = () => {
     setFormData({
       name: driver.name,
       email: driver.email || "",
-      phone: driver.phone || "",
+      phone_number: driver.phone_number || "",
       license_number: driver.license_number || "",
       license_expiry: driver.license_expiry || "",
       account_status: driver.account_status || "active",
@@ -359,7 +371,7 @@ const DriverManagement = () => {
       stnk_url: driver.stnk_url || "",
       kk_url: driver.kk_url || "",
       stnk_expiry: driver.stnk_expiry || "",
-      reference_phone: driver.reference_phone || "",
+      family_phone_number: driver.family_phone_number || "",
       role_id: null,
     });
     setIsSubmitting(false);
@@ -375,7 +387,7 @@ const DriverManagement = () => {
     (driver) =>
       driver.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (driver.email?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
-      (driver.phone || "").includes(searchTerm) ||
+      (driver.phone_number || "").includes(searchTerm) ||
       (driver.license_number?.toLowerCase() || "").includes(
         searchTerm.toLowerCase(),
       ),
@@ -455,9 +467,9 @@ const DriverManagement = () => {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">Driver Management</h1>
-        <Button onClick={() => setIsAddDialogOpen(true)}>
+        {/*   <Button onClick={() => setIsAddDialogOpen(true)}>
           <Plus className="h-4 w-4 mr-2" /> Add Driver
-        </Button>
+        </Button>*/}
       </div>
 
       <Card>
@@ -491,10 +503,10 @@ const DriverManagement = () => {
                   <TableHead>Name</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Phone</TableHead>
-                  <TableHead>License Number</TableHead>
+                  <TableHead>SIM Number</TableHead>
                   <TableHead>License Expiry</TableHead>
                   <TableHead>STNK Expiry</TableHead>
-                  <TableHead>Reference Phone</TableHead>
+                  <TableHead>Family Phone</TableHead>
                   <TableHead>Documents</TableHead>
                   <TableHead>Account Status</TableHead>
                   <TableHead>Driver Status</TableHead>
@@ -516,11 +528,11 @@ const DriverManagement = () => {
                         {driver.name}
                       </TableCell>
                       <TableCell>{driver.email}</TableCell>
-                      <TableCell>{driver.phone}</TableCell>
+                      <TableCell>{driver.phone_number}</TableCell>
                       <TableCell>{driver.license_number}</TableCell>
                       <TableCell>{driver.license_expiry}</TableCell>
                       <TableCell>{driver.stnk_expiry}</TableCell>
-                      <TableCell>{driver.reference_phone}</TableCell>
+                      <TableCell>{driver.family_phone_number}</TableCell>
                       <TableCell>
                         <div className="flex space-x-2">
                           {driver.selfie_url && (
@@ -639,7 +651,7 @@ const DriverManagement = () => {
       </Card>
 
       {/* Add Driver Dialog */}
-      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+      {/*    <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add New Driver</DialogTitle>
@@ -782,6 +794,7 @@ const DriverManagement = () => {
               </Select>
             </div>
           </div>
+         
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
               Cancel
@@ -789,7 +802,7 @@ const DriverManagement = () => {
             <Button onClick={handleAddDriver}>Add Driver</Button>
           </DialogFooter>
         </DialogContent>
-      </Dialog>
+      </Dialog>*/}
 
       {/* Edit Driver Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
@@ -849,32 +862,32 @@ const DriverManagement = () => {
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="edit-phone" className="text-right">
+              <Label htmlFor="edit-phone_number" className="text-right">
                 Phone
               </Label>
               <Input
-                id="edit-phone"
+                id="edit-phone_number"
                 name="phone"
-                value={formData.phone}
+                value={formData.phone_number}
                 onChange={handleInputChange}
                 className="col-span-3"
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="edit-reference_phone" className="text-right">
-                Reference Phone
+              <Label htmlFor="edit-family_phone_number" className="text-right">
+                Family Phone
               </Label>
               <Input
-                id="edit-reference_phone"
-                name="reference_phone"
-                value={formData.reference_phone}
+                id="edit-family_phone_number"
+                name="family_phone_number"
+                value={formData.family_phone_number}
                 onChange={handleInputChange}
                 className="col-span-3"
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="edit-license_number" className="text-right">
-                License Number
+                Sim Number
               </Label>
               <Input
                 id="edit-license_number"

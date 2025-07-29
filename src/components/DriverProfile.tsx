@@ -159,7 +159,7 @@ const DriverProfile: React.FC = () => {
                   <h3 className="text-lg font-semibold">License Information</h3>
                   <div className="space-y-2">
                     <p>
-                      <span className="font-medium">License Number:</span>{" "}
+                      <span className="font-medium">SIM Number:</span>{" "}
                       {driverData.license_number}
                     </p>
                     <p>

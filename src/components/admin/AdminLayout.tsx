@@ -135,6 +135,17 @@ const AdminLayout = () => {
                   </Link>
                 )}
 
+                {/* Dispatcher Menu - Show for all roles except Staff Trips and Staff Traffic */}
+                {userRole !== "Staff Trips" && userRole !== "Staff Traffic" && (
+                  <Link
+                    to="/admin/dispatcher"
+                    className={`flex items-center p-3 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/dispatcher") ? "bg-white/20 font-medium text-white" : "text-white/80"} ${!sidebarOpen && "justify-center"}`}
+                  >
+                    <Users className="h-5 w-5 text-white" />
+                    {sidebarOpen && <span className="ml-3">Dispatcher</span>}
+                  </Link>
+                )}
+
                 {/* 4. Bookings - Show for Staff Traffic */}
                 <Link
                   to="/admin/bookings"

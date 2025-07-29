@@ -183,7 +183,7 @@ export default function UserManagement(props: UserManagementProps = {}) {
         name,
         role_id,
         phone,
-        relative_phone,
+        family_phone_number,
         selfie_url,
         ktp_url,
         ethnicity,
@@ -194,6 +194,11 @@ export default function UserManagement(props: UserManagementProps = {}) {
 
       if (staffError) {
         console.error("Error fetching staff:", staffError.message);
+        // Get roles data for filtering
+        const { data: rolesData } = await supabase
+          .from("roles")
+          .select("role_id, role_name");
+
         // Fallback to users table if staff table fails
         const { data: usersData, error: usersError } = await supabase
           .from("users")
@@ -204,6 +209,8 @@ export default function UserManagement(props: UserManagementProps = {}) {
           full_name,
           role_id,
           phone_number,
+         
+          family_phone_number,
           selfie_url,
           ktp_url,
           sim_url,
@@ -217,19 +224,26 @@ export default function UserManagement(props: UserManagementProps = {}) {
           throw new Error("Failed to fetch users data");
         }
 
-        // Transform users data to match expected format
-        const transformedUsers = (usersData || []).map((user) => ({
-          ...user,
-          staff: {
-            phone: user.phone_number,
-            reference_phone: null,
-            selfie_url: user.selfie_url,
-            ktp_url: user.ktp_url,
-            sim_url: user.sim_url,
-            ethnicity: user.ethnicity,
-            religion: user.religion,
-          },
-        }));
+        // Transform users data to match expected format and filter out Dispatcher role
+        const transformedUsers = (usersData || [])
+          .map((user) => ({
+            ...user,
+            staff: {
+              phone: user.phone_number,
+              family_phone_number: null,
+              selfie_url: user.selfie_url,
+              ktp_url: user.ktp_url,
+              sim_url: user.sim_url,
+              ethnicity: user.ethnicity,
+              religion: user.religion,
+            },
+          }))
+          .filter((user) => {
+            // Get role data to check role name
+            const role = rolesData?.find((r) => r.role_id === user.role_id);
+            // Exclude users with "Dispatcher" role from Staff Admin menu
+            return role?.role_name !== "Dispatcher";
+          });
 
         setUsers(transformedUsers);
         setFilteredUsers(transformedUsers);
@@ -242,26 +256,31 @@ export default function UserManagement(props: UserManagementProps = {}) {
         .select("role_id, role_name");
 
       // Transform staff data to match expected format and add role names
-      const transformedStaff = (staffData || []).map((staff) => {
-        const role = rolesData?.find((r) => r.role_id === staff.role_id);
-        return {
-          id: staff.user_id || staff.id,
-          email: staff.email,
-          full_name: staff.full_name || staff.name,
-          role_id: staff.role_id,
-          phone_number: staff.phone,
-          role: role ? { role_name: role.role_name } : null,
-          staff: {
-            phone: staff.phone,
-            reference_phone: staff.relative_phone,
-            selfie_url: staff.selfie_url,
-            ktp_url: staff.ktp_url,
-            sim_url: null, // Not available in staff table
-            ethnicity: staff.ethnicity,
-            religion: staff.religion,
-          },
-        };
-      });
+      const transformedStaff = (staffData || [])
+        .map((staff) => {
+          const role = rolesData?.find((r) => r.role_id === staff.role_id);
+          return {
+            id: staff.user_id || staff.id,
+            email: staff.email,
+            full_name: staff.full_name || staff.name,
+            role_id: staff.role_id,
+            phone_number: staff.phone,
+            role: role ? { role_name: role.role_name } : null,
+            staff: {
+              phone: staff.phone,
+              family_phone_number: staff.family_phone_number,
+              selfie_url: staff.selfie_url,
+              ktp_url: staff.ktp_url,
+              sim_url: null, // Not available in staff table
+              ethnicity: staff.ethnicity,
+              religion: staff.religion,
+            },
+          };
+        })
+        .filter((staff) => {
+          // Exclude users with "Dispatcher" role from Staff Admin menu
+          return staff.role?.role_name !== "Dispatcher";
+        });
 
       console.log("Fetched staff data:", transformedStaff);
       setUsers(transformedStaff);
@@ -877,7 +896,9 @@ export default function UserManagement(props: UserManagementProps = {}) {
                   <TableCell>
                     {user.staff?.phone || user.phone_number || "-"}
                   </TableCell>
-                  <TableCell>{user.staff?.reference_phone || "-"}</TableCell>
+                  <TableCell>
+                    {user.staff?.family_phone_number || "-"}
+                  </TableCell>
                   <TableCell>
                     <Badge variant="outline">
                       {roles.find((role) => role.role_id === user.role_id)

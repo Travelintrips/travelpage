@@ -60,6 +60,7 @@ import ActivitiesPage from "./pages/ActivitiesPage";
 import HandlingPage from "./pages/HandlingPage";
 import HandlingBookingManagement from "./components/admin/HandlingBookingManagement";
 import HandlingServicesManagement from "./components/admin/HandlingServicesManagement";
+import DispatcherPage from "./components/admin/DispatcherPage";
 import TransportasiPage from "./pages/TransportasiPage";
 
 declare global {
@@ -621,6 +622,7 @@ function AppContent() {
               element={<AirportTransferManagement />}
             />
             <Route path="api-settings" element={<ApiSettings />} />
+            <Route path="dispatcher" element={<DispatcherPage />} />
             <Route path="price-km" element={<PriceKMManagement />} />
             <Route
               path="payment-methods"
