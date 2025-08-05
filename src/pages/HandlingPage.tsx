@@ -44,7 +44,7 @@ const HandlingPage = () => {
   const navigate = useNavigate();
   const { addToCart } = useShoppingCart();
   const { toast } = useToast();
-  const { userName, userEmail, userPhone, isAuthenticated } = useAuth();
+  const { userName, userEmail, userPhone, userId, isAuthenticated } = useAuth();
   const [showAuthModal, setShowAuthModal] = useState(false);
 
   const [formData, setFormData] = useState({
@@ -293,36 +293,94 @@ const HandlingPage = () => {
   const fetchPrices = async (category: string) => {
     try {
       if (category) {
-        // Map category to ID based on your requirements
-        let categoryId;
+        // Map category to match database values
+        let dbCategory;
+        let dbTerminal;
+
         switch (category) {
           case "International - Individual":
-            categoryId = 1;
+            dbCategory = "Individual";
+            dbTerminal = "International";
             break;
           case "Domestik - Individual":
-            categoryId = 2;
+            dbCategory = "Individual";
+            dbTerminal = "Domestik";
             break;
           case "Handling Group":
-            categoryId = 3; // Use International - Group pricing as default
+            dbCategory = "Group";
+            dbTerminal = "International"; // Default to International for Group
             break;
           default:
-            categoryId = null;
+            dbCategory = null;
+            dbTerminal = null;
         }
 
-        if (categoryId) {
-          const { data: categoryData, error: categoryError } = await supabase
-            .from("airport_handling_services")
-            .select("sell_price, additional")
-            .eq("id", categoryId);
+        if (dbCategory && dbTerminal) {
+          // For International - Individual, fetch prices for all trip types
+          if (category === "International - Individual") {
+            const tripTypes = [
+              "arrival",
+              "departure",
+              "arrival_departure",
+              "transit",
+            ];
 
-          if (categoryError) {
-            console.error("Error fetching category price:", categoryError);
+            const { data: categoryData, error: categoryError } = await supabase
+              .from("airport_handling_services")
+              .select("sell_price, additional, trip_type")
+              .eq("category", dbCategory)
+              .eq("terminal", dbTerminal)
+              .in("trip_type", tripTypes);
+
+            if (categoryError) {
+              console.error("Error fetching category price:", categoryError);
+            } else {
+              // Use the first available price or default to arrival
+              const firstResult =
+                categoryData && categoryData.length > 0
+                  ? categoryData[0]
+                  : null;
+              setServicePrice(firstResult?.sell_price || 0);
+              setCategoryPrice(firstResult?.additional || 0);
+
+              console.log("Fetched prices from database:", {
+                category: dbCategory,
+                terminal: dbTerminal,
+                available_trip_types: categoryData?.map(
+                  (item) => item.trip_type,
+                ),
+                sell_price: firstResult?.sell_price,
+                additional: firstResult?.additional,
+              });
+            }
           } else {
-            // Handle array result - take first item if exists
-            const firstResult =
-              categoryData && categoryData.length > 0 ? categoryData[0] : null;
-            setServicePrice(firstResult?.sell_price || 0);
-            setCategoryPrice(firstResult?.additional || 0);
+            // For other categories, use the original logic
+            const { data: categoryData, error: categoryError } = await supabase
+              .from("airport_handling_services")
+              .select("sell_price, additional")
+              .eq("category", dbCategory)
+              .eq("terminal", dbTerminal)
+              .eq("trip_type", "one way") // Default trip type
+              .limit(1);
+
+            if (categoryError) {
+              console.error("Error fetching category price:", categoryError);
+            } else {
+              // Handle array result - take first item if exists
+              const firstResult =
+                categoryData && categoryData.length > 0
+                  ? categoryData[0]
+                  : null;
+              setServicePrice(firstResult?.sell_price || 0);
+              setCategoryPrice(firstResult?.additional || 0);
+
+              console.log("Fetched prices from database:", {
+                category: dbCategory,
+                terminal: dbTerminal,
+                sell_price: firstResult?.sell_price,
+                additional: firstResult?.additional,
+              });
+            }
           }
         }
       }
@@ -358,6 +416,7 @@ const HandlingPage = () => {
       const { data: handlingBooking, error: handlingError } = await supabase
         .from("handling_bookings")
         .insert({
+          user_id: userId, // Add user_id from AuthContext
           code_booking: currentBookingId, // Text-based booking code goes to code_booking
           customer_name: formData.name,
           company_name: formData.companyName || null,
