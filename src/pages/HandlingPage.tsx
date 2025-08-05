@@ -38,12 +38,14 @@ import { useShoppingCart } from "@/hooks/useShoppingCart";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
+import AuthRequiredModal from "@/components/auth/AuthRequiredModal";
 
 const HandlingPage = () => {
   const navigate = useNavigate();
   const { addToCart } = useShoppingCart();
   const { toast } = useToast();
-  const { userName, userEmail, userPhone } = useAuth();
+  const { userName, userEmail, userPhone, isAuthenticated } = useAuth();
+  const [showAuthModal, setShowAuthModal] = useState(false);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -592,7 +594,13 @@ const HandlingPage = () => {
                         ? "border-2 border-green-500 shadow-md"
                         : "border border-gray-200"
                     }`}
-                    onClick={() => handleInputChange("category", category.id)}
+                    onClick={() => {
+                      if (!isAuthenticated) {
+                        setShowAuthModal(true);
+                        return;
+                      }
+                      handleInputChange("category", category.id);
+                    }}
                   >
                     <CardContent className="flex flex-col items-center justify-center p-6">
                       <div
@@ -623,6 +631,10 @@ const HandlingPage = () => {
                         }`}
                         onClick={(e) => {
                           e.stopPropagation();
+                          if (!isAuthenticated) {
+                            setShowAuthModal(true);
+                            return;
+                          }
                           handleInputChange("category", category.id);
                         }}
                       >
@@ -1308,6 +1320,14 @@ const HandlingPage = () => {
             </ul>
           </CardContent>
         </Card>
+
+        {/* Auth Required Modal */}
+        <AuthRequiredModal
+          isOpen={showAuthModal}
+          onClose={() => setShowAuthModal(false)}
+          title="Authentication Required"
+          message="Please Sign in or Register to access"
+        />
       </div>
     </div>
   );

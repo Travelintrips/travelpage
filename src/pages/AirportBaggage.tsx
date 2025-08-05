@@ -209,6 +209,12 @@ const AirportBaggage = ({
 
   const handleSizeSelect = useCallback(
     (size: string, price: number) => {
+      // Check if user is authenticated
+      if (!isAuthenticated) {
+        setShowAuthModal(true);
+        return;
+      }
+
       const now = new Date();
       const hours = String(now.getHours()).padStart(2, "0");
       const minutes = String(now.getMinutes()).padStart(2, "0");
@@ -226,7 +232,7 @@ const AirportBaggage = ({
       setShowForm(true);
       onSelectSize(size, price);
     },
-    [getOrCreateStorageLocation, onSelectSize],
+    [isAuthenticated, getOrCreateStorageLocation, onSelectSize],
   );
 
   const handleBookingComplete = useCallback(
@@ -586,9 +592,13 @@ const AirportBaggage = ({
                                 ? "border-2 border-blue-500 shadow-md"
                                 : "border border-gray-200"
                             }`}
-                            onClick={() =>
-                              handleSizeSelect(option.id, option.price)
-                            }
+                            onClick={() => {
+                              if (!isAuthenticated) {
+                                setShowAuthModal(true);
+                                return;
+                              }
+                              handleSizeSelect(option.id, option.price);
+                            }}
                           >
                             <CardContent className="flex flex-col items-center justify-center p-6">
                               <div
@@ -616,9 +626,13 @@ const AirportBaggage = ({
                                     : "outline"
                                 }
                                 className="w-full"
-                                onClick={() =>
-                                  handleSizeSelect(option.id, option.price)
-                                }
+                                onClick={() => {
+                                  if (!isAuthenticated) {
+                                    setShowAuthModal(true);
+                                    return;
+                                  }
+                                  handleSizeSelect(option.id, option.price);
+                                }}
                               >
                                 {bookingData.size === option.id
                                   ? "Selected"
@@ -1029,6 +1043,14 @@ const AirportBaggage = ({
               </div>
             </div>
           )}
+
+          {/* Authentication Required Modal */}
+          <AuthRequiredModal
+            isOpen={showAuthModal}
+            onClose={() => setShowAuthModal(false)}
+            title="Authentication Required"
+            message="Please Sign in or Register to access baggage storage service"
+          />
         </div>
       </div>
     </div>
