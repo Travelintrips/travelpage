@@ -359,18 +359,132 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
 
       if (paymentError) throw paymentError;
 
-      // Handle gateway payments
-      if (selectedPaymentMethod.type === "gateway") {
-        // For gateway payments, redirect to payment provider
+      // Handle Paylabs payment gateway
+      if (
+        selectedPaymentMethod.provider === "paylabs" &&
+        selectedPaymentMethod.type === "gateway"
+      ) {
+        try {
+          // Get Paylabs configuration
+          const { data: paylabsConfig, error: configError } = await supabase
+            .from("paylabs_config")
+            .select("*")
+            .eq("mode", selectedPaymentMethod.mode || "sandbox")
+            .single();
+
+          if (configError || !paylabsConfig) {
+            throw new Error(
+              "Paylabs configuration not found. Please contact support.",
+            );
+          }
+
+          // Prepare Paylabs API request
+          const paylabsEndpoint =
+            paylabsConfig.mode === "production"
+              ? "https://api.paylabs.co.id/payment"
+              : "https://sandbox-api.paylabs.io/payment";
+
+          const paylabsPayload = {
+            order_id: `INV-${paymentRecord.id}`,
+            amount: values.amount,
+            payment_method: selectedPaymentMethod.payment_code || "bni_va",
+            customer: {
+              name: bookingSummary.customer_name || "Customer",
+              email: "customer@example.com", // You might want to get this from booking data
+            },
+          };
+
+          console.log("Sending request to Paylabs:", {
+            endpoint: paylabsEndpoint,
+            payload: paylabsPayload,
+          });
+
+          // Make request to Paylabs API
+          const paylabsResponse = await fetch(paylabsEndpoint, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${paylabsConfig.public_key}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(paylabsPayload),
+          });
+
+          if (!paylabsResponse.ok) {
+            const errorText = await paylabsResponse.text();
+            console.error("Paylabs API error:", {
+              status: paylabsResponse.status,
+              statusText: paylabsResponse.statusText,
+              body: errorText,
+            });
+            throw new Error(
+              `Paylabs API error: ${paylabsResponse.status} - ${errorText}`,
+            );
+          }
+
+          const paylabsData = await paylabsResponse.json();
+          console.log("Paylabs response:", paylabsData);
+
+          // Update payment record with Paylabs response data
+          const updateData: any = {
+            paylabs_transaction_id:
+              paylabsData.transaction_id || paylabsData.id,
+            status: "pending",
+            updated_at: new Date().toISOString(),
+          };
+
+          if (paylabsData.va_number) {
+            updateData.va_number = paylabsData.va_number;
+          }
+          if (paylabsData.payment_url) {
+            updateData.payment_url = paylabsData.payment_url;
+          }
+
+          const { error: updateError } = await supabase
+            .from("payments")
+            .update(updateData)
+            .eq("id", paymentRecord.id);
+
+          if (updateError) {
+            console.error(
+              "Error updating payment with Paylabs data:",
+              updateError,
+            );
+          }
+
+          // Show success message with payment details
+          toast({
+            title: "Payment Created Successfully",
+            description: paylabsData.va_number
+              ? `Virtual Account: ${paylabsData.va_number}`
+              : "Payment has been created. Please complete the payment.",
+            variant: "default",
+          });
+
+          // Redirect to thank you page with payment details
+          setTimeout(() => {
+            if (onPaymentComplete) {
+              onPaymentComplete();
+            } else {
+              navigate(`/thank-you/${paymentRecord.id}`);
+            }
+          }, 2000);
+        } catch (paylabsError) {
+          console.error("Paylabs integration error:", paylabsError);
+          toast({
+            title: "Payment Gateway Error",
+            description: `Failed to process payment through Paylabs: ${paylabsError.message}`,
+            variant: "destructive",
+          });
+          return;
+        }
+      } else if (selectedPaymentMethod.type === "gateway") {
+        // Handle other gateway payments
         if (selectedPaymentMethod.provider && selectedPaymentMethod.api_key) {
-          // Here you would typically redirect to the payment gateway
-          // For now, we'll show a success message
           toast({
             title: "Redirecting to Payment Gateway",
             description: `You will be redirected to ${selectedPaymentMethod.provider} to complete your payment.`,
           });
 
-          // Simulate redirect delay
           setTimeout(() => {
             window.open(
               `https://${selectedPaymentMethod.provider?.toLowerCase()}.com/payment`,
@@ -378,29 +492,28 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
             );
           }, 2000);
         }
+      } else {
+        // Handle manual payments
+        setPaymentSuccess(true);
+        toast({
+          title: "Payment Initiated",
+          description:
+            "Your payment is being processed. Please wait for confirmation.",
+          variant: "default",
+        });
+
+        // Reset form
+        form.reset();
+
+        // Redirect after success
+        setTimeout(() => {
+          if (onPaymentComplete) {
+            onPaymentComplete();
+          } else {
+            navigate("/bookings");
+          }
+        }, 3000);
       }
-
-      setPaymentSuccess(true);
-      toast({
-        title: "Payment Initiated",
-        description:
-          selectedPaymentMethod.type === "manual"
-            ? "Your payment is being processed. Please wait for confirmation."
-            : "You will be redirected to complete the payment.",
-        variant: "default",
-      });
-
-      // Reset form
-      form.reset();
-
-      // Redirect after success
-      setTimeout(() => {
-        if (onPaymentComplete) {
-          onPaymentComplete();
-        } else {
-          navigate("/bookings");
-        }
-      }, 3000);
     } catch (error) {
       console.error("Payment submission error:", error);
       toast({

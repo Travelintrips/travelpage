@@ -637,7 +637,17 @@ const AirportBaggage = ({
                       <BookingForm
                         selectedSize={(() => {
                           // Convert baggage option ID to the expected format
-                          const sizeMap = {
+                          const sizeMap: Record<
+                            string,
+                            | "small"
+                            | "medium"
+                            | "large"
+                            | "extra_large"
+                            | "electronic"
+                            | "surfingboard"
+                            | "wheelchair"
+                            | "stickgolf"
+                          > = {
                             "baggage-small": "small",
                             "baggage-medium": "medium",
                             "baggage-large": "large",

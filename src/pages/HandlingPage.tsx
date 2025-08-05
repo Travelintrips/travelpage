@@ -29,6 +29,9 @@ import {
   Plane,
   Navigation,
   FileText,
+  Globe,
+  Users,
+  Building,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useShoppingCart } from "@/hooks/useShoppingCart";
@@ -44,6 +47,7 @@ const HandlingPage = () => {
 
   const [formData, setFormData] = useState({
     name: "",
+    companyName: "",
     email: "",
     phone: "",
     passengerArea: "",
@@ -51,10 +55,11 @@ const HandlingPage = () => {
     category: "",
     pickDate: new Date(),
     pickTime: "09:00",
-    passengers: 4, // Only used for Group categories
+    passengers: 1, // Only used for Group categories
     flightNumber: "",
-    travelType: "Arrival",
+    travelTypes: [] as string[], // Changed from single string to array
     pickupArea: "",
+    dropoffArea: "", // Added dropoff area field
     additionalNotes: "",
   });
 
@@ -136,7 +141,7 @@ const HandlingPage = () => {
         "Terminal 3 – Domestik Departure Area",
       ],
     },
-    "International - Group": {
+    "Handling Group": {
       passengerAreas: [
         "Terminal 2F – International Arrival Hall",
         "Terminal 3 – International Arrival (Gate G6 / Area Umum)",
@@ -144,18 +149,6 @@ const HandlingPage = () => {
         "Terminal 3 – International Departure (Check-in & Imigrasi)",
         "Terminal 2F – International Transfer Desk",
         "Terminal 3 – International Transfer Area",
-      ],
-      pickupAreas: [
-        "Terminal 2F – International Arrival Hall",
-        "Terminal 3 – International Arrival (Gate G6 / Area Umum)",
-        "Terminal 2F – International Departure Check-in",
-        "Terminal 3 – International Departure (Check-in & Imigrasi)",
-        "Terminal 2F – International Transfer Desk",
-        "Terminal 3 – International Transfer Area",
-      ],
-    },
-    "Domestik - Group": {
-      passengerAreas: [
         "Terminal 2D – Domestik Arrival Hall",
         "Terminal 2E – Domestik Arrival Hall",
         "Terminal 3 – Domestik Arrival Hall",
@@ -164,6 +157,12 @@ const HandlingPage = () => {
         "Terminal 3 – Domestik Departure Area",
       ],
       pickupAreas: [
+        "Terminal 2F – International Arrival Hall",
+        "Terminal 3 – International Arrival (Gate G6 / Area Umum)",
+        "Terminal 2F – International Departure Check-in",
+        "Terminal 3 – International Departure (Check-in & Imigrasi)",
+        "Terminal 2F – International Transfer Desk",
+        "Terminal 3 – International Transfer Area",
         "Terminal 2D – Domestik Arrival Hall",
         "Terminal 2E – Domestik Arrival Hall",
         "Terminal 3 – Domestik Arrival Hall",
@@ -195,11 +194,39 @@ const HandlingPage = () => {
     { value: "Transit", label: "Transit" },
   ];
 
+  const handleTravelTypeChange = (value: string, checked: boolean) => {
+    setFormData((prev) => {
+      const newTravelTypes = checked
+        ? [...prev.travelTypes, value]
+        : prev.travelTypes.filter((type) => type !== value);
+      return {
+        ...prev,
+        travelTypes: newTravelTypes,
+      };
+    });
+  };
+
   const categories = [
-    "International - Individual",
-    "Domestik - Individual",
-    "International - Group",
-    "Domestik - Group",
+    {
+      id: "International - Individual",
+      title: "International - Individual",
+      icon: <Globe className="h-12 w-12" />,
+      description:
+        "Layanan handling untuk penerbangan internasional perorangan",
+    },
+    {
+      id: "Domestik - Individual",
+      title: "Domestik - Individual",
+      icon: <Building className="h-12 w-12" />,
+      description: "Layanan handling untuk penerbangan domestik perorangan",
+    },
+    {
+      id: "Handling Group",
+      title: "Handling Group",
+      icon: <Users className="h-12 w-12" />,
+      description:
+        "Layanan handling grup untuk penerbangan domestik maupun internasional",
+    },
   ];
 
   const timeSlots = [
@@ -249,6 +276,7 @@ const HandlingPage = () => {
       if (field === "category") {
         newData.passengerArea = "";
         newData.pickupArea = "";
+        newData.dropoffArea = "";
       }
 
       return newData;
@@ -272,11 +300,8 @@ const HandlingPage = () => {
           case "Domestik - Individual":
             categoryId = 2;
             break;
-          case "International - Group":
-            categoryId = 3;
-            break;
-          case "Domestik - Group":
-            categoryId = 4;
+          case "Handling Group":
+            categoryId = 3; // Use International - Group pricing as default
             break;
           default:
             categoryId = null;
@@ -306,7 +331,7 @@ const HandlingPage = () => {
 
   // Calculate total price whenever service price, category price, or passengers change
   useEffect(() => {
-    if (formData.category.includes("Group")) {
+    if (formData.category === "Handling Group") {
       // For group bookings: sell_price + (additional * passengers)
       const totalGroupPrice =
         servicePrice + categoryPrice * formData.passengers;
@@ -327,31 +352,72 @@ const HandlingPage = () => {
         setBookingId(currentBookingId);
       }
 
-      // Add to shopping cart
+      // First, insert the handling booking into the handling_bookings table
+      const { data: handlingBooking, error: handlingError } = await supabase
+        .from("handling_bookings")
+        .insert({
+          code_booking: currentBookingId, // Text-based booking code goes to code_booking
+          customer_name: formData.name,
+          company_name: formData.companyName || null,
+          customer_email: formData.email,
+          customer_phone: formData.phone,
+          passenger_area: formData.passengerArea,
+          category: formData.category,
+          // Only include passengers for Group categories
+          ...(formData.category === "Handling Group" && {
+            passengers: formData.passengers,
+          }),
+          pickup_date: format(formData.pickDate, "yyyy-MM-dd"),
+          pickup_time: formData.pickTime,
+          flight_number: formData.flightNumber,
+          travel_type: formData.travelTypes.join(", "), // Join array to string
+          pickup_area: formData.pickupArea,
+          dropoff_area: formData.dropoffArea,
+          additional_notes: formData.additionalNotes,
+          service_price: servicePrice,
+          category_price: categoryPrice,
+          total_price: totalPrice || 150000,
+          status: "pending",
+        })
+        .select()
+        .single();
+
+      if (handlingError) {
+        console.error("Error inserting handling booking:", handlingError);
+        throw new Error("Failed to create handling booking");
+      }
+
+      console.log("Handling booking created:", handlingBooking);
+
+      // Then add to shopping cart with reference to the handling booking
       await addToCart({
         item_type: "handling",
-        item_id: formData.category, // Use the selected category as item_id
+        item_id: handlingBooking.id, // Use the handling booking UUID as item_id
+        booking_id: handlingBooking.id, // UUID for booking_id field in shopping_cart (must be UUID type)
+        code_booking: currentBookingId, // Text-based booking code for code_booking field (must be text type)
         service_name: `Handling Service - ${formData.passengerArea}`,
         price: totalPrice || 150000, // Use calculated total price or fallback
         quantity: 1,
-        booking_id: currentBookingId, // Add booking_id at the top level for the shopping_cart table
         details: {
-          bookingId: currentBookingId,
-          booking_id: currentBookingId, // Add both formats for compatibility
+          bookingId: currentBookingId, // Text-based booking code for display
+          booking_id: handlingBooking.id, // UUID for compatibility with checkout processing
           customerName: formData.name,
+          companyName: formData.companyName,
           customerEmail: formData.email,
           customerPhone: formData.phone,
           passengerArea: formData.passengerArea,
           category: formData.category,
           // Only include passengers for Group categories
-          ...(formData.category.includes("Group") && {
+          ...(formData.category === "Handling Group" && {
             passengers: formData.passengers,
           }),
           pickupDate: format(formData.pickDate, "yyyy-MM-dd"),
           pickupTime: formData.pickTime,
           flightNumber: formData.flightNumber,
-          travelType: formData.travelType,
+          travelTypes: formData.travelTypes,
+          travelType: formData.travelTypes.join(", "), // Add single field for compatibility
           pickupArea: formData.pickupArea,
+          dropoffArea: formData.dropoffArea,
           additionalNotes: formData.additionalNotes,
           serviceType: "handling",
           servicePrice: servicePrice,
@@ -402,6 +468,14 @@ const HandlingPage = () => {
   };
 
   const handleContinueToSummary = () => {
+    // Dynamic validation based on travel types
+    const needsPickupArea =
+      formData.travelTypes.includes("Arrival") ||
+      formData.travelTypes.includes("Transit");
+    const needsDropoffArea =
+      formData.travelTypes.includes("Departure") ||
+      formData.travelTypes.includes("Transit");
+
     // Validate form
     if (
       !formData.name ||
@@ -410,11 +484,14 @@ const HandlingPage = () => {
       !formData.passengerArea ||
       !formData.category ||
       !formData.flightNumber ||
-      !formData.pickupArea
+      formData.travelTypes.length === 0 ||
+      (needsPickupArea && !formData.pickupArea) ||
+      (needsDropoffArea && !formData.dropoffArea)
     ) {
       toast({
         title: "Form tidak lengkap",
-        description: "Mohon lengkapi semua field yang diperlukan.",
+        description:
+          "Mohon lengkapi semua field yang diperlukan dan pilih minimal satu jenis perjalanan.",
         variant: "destructive",
       });
       return;
@@ -506,41 +583,55 @@ const HandlingPage = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {categories.map((category) => (
-                  <div
-                    key={category}
-                    className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
-                      formData.category === category
-                        ? "border-green-600 bg-green-50"
-                        : "border-gray-200 hover:border-green-300"
+                  <Card
+                    key={category.id}
+                    className={`cursor-pointer transition-all hover:shadow-lg ${
+                      formData.category === category.id
+                        ? "border-2 border-green-500 shadow-md"
+                        : "border border-gray-200"
                     }`}
-                    onClick={() => handleInputChange("category", category)}
+                    onClick={() => handleInputChange("category", category.id)}
                   >
-                    <div className="flex items-center space-x-3">
+                    <CardContent className="flex flex-col items-center justify-center p-6">
                       <div
-                        className={`w-4 h-4 rounded-full border-2 ${
-                          formData.category === category
-                            ? "border-green-600 bg-green-600"
-                            : "border-gray-300"
+                        className={`p-4 rounded-full mb-4 ${
+                          formData.category === category.id
+                            ? "bg-green-100 text-green-600"
+                            : "bg-gray-100 text-gray-600"
                         }`}
                       >
-                        {formData.category === category && (
-                          <div className="w-2 h-2 bg-white rounded-full m-0.5"></div>
-                        )}
+                        {category.icon}
                       </div>
-                      <div>
-                        <h3 className="font-medium text-gray-900">
-                          {category}
-                        </h3>
-                        <p className="text-sm text-gray-600">
-                          {category.includes("International")
-                            ? "Layanan untuk penerbangan internasional"
-                            : "Layanan untuk penerbangan domestik"}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
+                      <h3 className="text-lg font-semibold mb-2 text-center">
+                        {category.title}
+                      </h3>
+                      <p className="text-gray-500 text-center text-sm mb-4">
+                        {category.description}
+                      </p>
+                      <Button
+                        variant={
+                          formData.category === category.id
+                            ? "default"
+                            : "outline"
+                        }
+                        className={`w-full ${
+                          formData.category === category.id
+                            ? "bg-green-600 hover:bg-green-700"
+                            : "border-green-600 text-green-600 hover:bg-green-50"
+                        }`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleInputChange("category", category.id);
+                        }}
+                      >
+                        {formData.category === category.id
+                          ? "Selected"
+                          : "Select"}
+                      </Button>
+                    </CardContent>
+                  </Card>
                 ))}
               </div>
 
@@ -597,6 +688,23 @@ const HandlingPage = () => {
                   placeholder="Masukkan nama lengkap"
                   value={formData.name}
                   onChange={(e) => handleInputChange("name", e.target.value)}
+                  className="w-full"
+                />
+              </div>
+
+              {/* Company Name Field */}
+              <div className="space-y-2">
+                <label className="flex items-center text-sm font-medium text-gray-700">
+                  <User className="h-4 w-4 mr-2 text-green-600" />
+                  Nama Perusahaan
+                </label>
+                <Input
+                  type="text"
+                  placeholder="Masukkan nama perusahaan (opsional)"
+                  value={formData.companyName}
+                  onChange={(e) =>
+                    handleInputChange("companyName", e.target.value)
+                  }
                   className="w-full"
                 />
               </div>
@@ -686,19 +794,21 @@ const HandlingPage = () => {
                   <Navigation className="h-4 w-4 mr-2 text-green-600" />
                   Jenis Perjalanan
                 </label>
-                <RadioGroup
-                  value={formData.travelType}
-                  onValueChange={(value) =>
-                    handleInputChange("travelType", value)
-                  }
-                  className="flex flex-col space-y-2"
-                >
+                <div className="flex flex-col space-y-2">
                   {travelTypes.map((type) => (
                     <div
                       key={type.value}
                       className="flex items-center space-x-2"
                     >
-                      <RadioGroupItem value={type.value} id={type.value} />
+                      <input
+                        type="checkbox"
+                        id={type.value}
+                        checked={formData.travelTypes.includes(type.value)}
+                        onChange={(e) =>
+                          handleTravelTypeChange(type.value, e.target.checked)
+                        }
+                        className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
+                      />
                       <label
                         htmlFor={type.value}
                         className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
@@ -707,40 +817,79 @@ const HandlingPage = () => {
                       </label>
                     </div>
                   ))}
-                </RadioGroup>
+                </div>
               </div>
 
-              {/* Pickup Area Field */}
-              <div className="space-y-2">
-                <label className="flex items-center text-sm font-medium text-gray-700">
-                  <MapPin className="h-4 w-4 mr-2 text-green-600" />
-                  Area Lokasi Jemput
-                </label>
-                <Select
-                  value={formData.pickupArea}
-                  onValueChange={(value) =>
-                    handleInputChange("pickupArea", value)
-                  }
-                  disabled={!formData.category}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue
-                      placeholder={
-                        formData.category
-                          ? "Pilih area lokasi jemput"
-                          : "Pilih kategori terlebih dahulu"
-                      }
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {currentOptions.pickupAreas.map((area) => (
-                      <SelectItem key={area} value={area}>
-                        {area}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {/* Dynamic Location Fields based on Travel Types */}
+              {/* Pickup Area Field - Show for Arrival or Transit */}
+              {(formData.travelTypes.includes("Arrival") ||
+                formData.travelTypes.includes("Transit")) && (
+                <div className="space-y-2">
+                  <label className="flex items-center text-sm font-medium text-gray-700">
+                    <MapPin className="h-4 w-4 mr-2 text-green-600" />
+                    Lokasi Jemput
+                  </label>
+                  <Select
+                    value={formData.pickupArea}
+                    onValueChange={(value) =>
+                      handleInputChange("pickupArea", value)
+                    }
+                    disabled={!formData.category}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue
+                        placeholder={
+                          formData.category
+                            ? "Pilih lokasi jemput"
+                            : "Pilih kategori terlebih dahulu"
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {currentOptions.pickupAreas.map((area) => (
+                        <SelectItem key={area} value={area}>
+                          {area}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {/* Dropoff Area Field - Show for Departure or Transit */}
+              {(formData.travelTypes.includes("Departure") ||
+                formData.travelTypes.includes("Transit")) && (
+                <div className="space-y-2">
+                  <label className="flex items-center text-sm font-medium text-gray-700">
+                    <MapPin className="h-4 w-4 mr-2 text-green-600" />
+                    Lokasi Antar
+                  </label>
+                  <Select
+                    value={formData.dropoffArea}
+                    onValueChange={(value) =>
+                      handleInputChange("dropoffArea", value)
+                    }
+                    disabled={!formData.category}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue
+                        placeholder={
+                          formData.category
+                            ? "Pilih lokasi antar"
+                            : "Pilih kategori terlebih dahulu"
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {currentOptions.pickupAreas.map((area) => (
+                        <SelectItem key={area} value={area}>
+                          {area}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
               {/* Additional Notes Field */}
               <div className="space-y-2">
@@ -823,40 +972,34 @@ const HandlingPage = () => {
               )}
 
               {/* Passenger Field - Only show for Group categories */}
-              {(formData.category === "International - Group" ||
-                formData.category === "Domestik - Group") && (
+              {formData.category === "Handling Group" && (
                 <div className="space-y-2">
                   <label className="flex items-center text-sm font-medium text-gray-700">
                     <User className="h-4 w-4 mr-2 text-green-600" />
                     Jumlah Penumpang
                   </label>
-                  <Select
+                  <Input
+                    type="number"
+                    min="1"
+                    placeholder="Masukkan jumlah penumpang"
                     value={formData.passengers.toString()}
-                    onValueChange={(value) =>
-                      handleInputChange("passengers", parseInt(value))
-                    }
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Pilih jumlah penumpang" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Array.from({ length: 7 }, (_, i) => i + 4).map((num) => (
-                        <SelectItem key={num} value={num.toString()}>
-                          {num} Penumpang
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    onChange={(e) => {
+                      const value = parseInt(e.target.value) || 1;
+                      if (value >= 1) {
+                        handleInputChange("passengers", value);
+                      }
+                    }}
+                    className="w-full"
+                  />
                   <p className="text-xs text-gray-500">
-                    Minimum 4 penumpang. Biaya tambahan: Rp{" "}
+                    Minimum 1 penumpang. Biaya tambahan: Rp{" "}
                     {categoryPrice.toLocaleString()} per penumpang
                   </p>
                 </div>
               )}
 
               {/* Date and Time Fields for Group categories */}
-              {(formData.category === "International - Group" ||
-                formData.category === "Domestik - Group") && (
+              {formData.category === "Handling Group" && (
                 <>
                   {/* Pickup Date Field */}
                   <div className="space-y-2">
@@ -969,8 +1112,7 @@ const HandlingPage = () => {
                     <span className="text-gray-600">Kategori:</span>
                     <span className="font-medium">{formData.category}</span>
                   </div>
-                  {(formData.category === "International - Group" ||
-                    formData.category === "Domestik - Group") && (
+                  {formData.category === "Handling Group" && (
                     <div className="flex justify-between">
                       <span className="text-gray-600">Jumlah Penumpang:</span>
                       <span className="font-medium">
@@ -994,12 +1136,24 @@ const HandlingPage = () => {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Jenis Perjalanan:</span>
-                    <span className="font-medium">{formData.travelType}</span>
+                    <span className="font-medium">
+                      {formData.travelTypes.join(", ")}
+                    </span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Area Lokasi Jemput:</span>
-                    <span className="font-medium">{formData.pickupArea}</span>
-                  </div>
+                  {formData.pickupArea && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Lokasi Jemput:</span>
+                      <span className="font-medium">{formData.pickupArea}</span>
+                    </div>
+                  )}
+                  {formData.dropoffArea && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Lokasi Antar:</span>
+                      <span className="font-medium">
+                        {formData.dropoffArea}
+                      </span>
+                    </div>
+                  )}
                   {formData.additionalNotes && (
                     <div className="flex justify-between">
                       <span className="text-gray-600">Catatan Tambahan:</span>
@@ -1021,6 +1175,14 @@ const HandlingPage = () => {
                     <span className="text-gray-600">Nama:</span>
                     <span className="font-medium">{formData.name}</span>
                   </div>
+                  {formData.companyName && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Perusahaan:</span>
+                      <span className="font-medium">
+                        {formData.companyName}
+                      </span>
+                    </div>
+                  )}
                   <div className="flex justify-between">
                     <span className="text-gray-600">Email:</span>
                     <span className="font-medium">{formData.email}</span>
@@ -1061,37 +1223,38 @@ const HandlingPage = () => {
                       </span>
                     </div>
                   )}
-                  {formData.category.includes("Group") && categoryPrice > 0 && (
-                    <>
-                      <div className="flex justify-between">
-                        <span className="text-green-700">
-                          Biaya per Penumpang:
-                        </span>
-                        <span className="font-medium text-green-800">
-                          Rp {categoryPrice.toLocaleString()}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-green-700">
-                          Jumlah Penumpang:
-                        </span>
-                        <span className="font-medium text-green-800">
-                          {formData.passengers} orang
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-green-700">
-                          Subtotal Penumpang:
-                        </span>
-                        <span className="font-medium text-green-800">
-                          Rp{" "}
-                          {(
-                            categoryPrice * formData.passengers
-                          ).toLocaleString()}
-                        </span>
-                      </div>
-                    </>
-                  )}
+                  {formData.category === "Handling Group" &&
+                    categoryPrice > 0 && (
+                      <>
+                        <div className="flex justify-between">
+                          <span className="text-green-700">
+                            Biaya per Penumpang:
+                          </span>
+                          <span className="font-medium text-green-800">
+                            Rp {categoryPrice.toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-green-700">
+                            Jumlah Penumpang:
+                          </span>
+                          <span className="font-medium text-green-800">
+                            {formData.passengers} orang
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-green-700">
+                            Subtotal Penumpang:
+                          </span>
+                          <span className="font-medium text-green-800">
+                            Rp{" "}
+                            {(
+                              categoryPrice * formData.passengers
+                            ).toLocaleString()}
+                          </span>
+                        </div>
+                      </>
+                    )}
                   {totalPrice === 0 && (
                     <div className="flex justify-between">
                       <span className="text-green-700">Layanan Handling:</span>

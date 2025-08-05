@@ -158,8 +158,8 @@ export type Database = {
       airport_transfer: {
         Row: {
           airport_location: string | null
-          booking_code: string | null
-          booking_uuid: string | null
+          booking_id: string | null
+          code_booking: string | null
           created_at: string
           customer_id: string | null
           customer_name: string | null
@@ -188,8 +188,8 @@ export type Database = {
         }
         Insert: {
           airport_location?: string | null
-          booking_code?: string | null
-          booking_uuid?: string | null
+          booking_id?: string | null
+          code_booking?: string | null
           created_at?: string
           customer_id?: string | null
           customer_name?: string | null
@@ -218,8 +218,8 @@ export type Database = {
         }
         Update: {
           airport_location?: string | null
-          booking_code?: string | null
-          booking_uuid?: string | null
+          booking_id?: string | null
+          code_booking?: string | null
           created_at?: string
           customer_id?: string | null
           customer_name?: string | null
@@ -363,11 +363,40 @@ export type Database = {
           },
         ]
       }
+      auth_error_logs: {
+        Row: {
+          email: string | null
+          error_message: string | null
+          error_time: string | null
+          id: number
+          raw_user_meta_data: Json | null
+          user_id: string | null
+        }
+        Insert: {
+          email?: string | null
+          error_message?: string | null
+          error_time?: string | null
+          id?: never
+          raw_user_meta_data?: Json | null
+          user_id?: string | null
+        }
+        Update: {
+          email?: string | null
+          error_message?: string | null
+          error_time?: string | null
+          id?: never
+          raw_user_meta_data?: Json | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       baggage_booking: {
         Row: {
           airport: string
           baggage_size: string
-          booking_id: string
+          booking_date: string | null
+          booking_id: string | null
+          code_booking: string | null
           created_at: string | null
           customer_email: string
           customer_id: string | null
@@ -384,21 +413,26 @@ export type Database = {
           payment_id: string | null
           payment_method: string | null
           price: number
+          quantity: number | null
           start_date: string
           start_time: string | null
           status: string
           storage_location: string | null
           terminal: string
+          total_amount: number | null
           updated_at: string | null
+          user_id: string | null
         }
         Insert: {
           airport: string
           baggage_size: string
-          booking_id: string
+          booking_date?: string | null
+          booking_id?: string | null
+          code_booking?: string | null
           created_at?: string | null
           customer_email: string
           customer_id?: string | null
-          customer_name: string
+          customer_name?: string
           customer_phone: string
           duration: number
           duration_type: string
@@ -411,17 +445,22 @@ export type Database = {
           payment_id?: string | null
           payment_method?: string | null
           price: number
+          quantity?: number | null
           start_date: string
           start_time?: string | null
           status?: string
           storage_location?: string | null
           terminal: string
+          total_amount?: number | null
           updated_at?: string | null
+          user_id?: string | null
         }
         Update: {
           airport?: string
           baggage_size?: string
-          booking_id?: string
+          booking_date?: string | null
+          booking_id?: string | null
+          code_booking?: string | null
           created_at?: string | null
           customer_email?: string
           customer_id?: string | null
@@ -438,59 +477,53 @@ export type Database = {
           payment_id?: string | null
           payment_method?: string | null
           price?: number
+          quantity?: number | null
           start_date?: string
           start_time?: string | null
           status?: string
           storage_location?: string | null
           terminal?: string
+          total_amount?: number | null
           updated_at?: string | null
+          user_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "fk_payment_id"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "payments"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       baggage_price: {
         Row: {
+          baggage_prices: number | null
+          baggage_size: string
           created_at: string | null
-          electronic_price: number
-          extra_large_price: number
           id: string
-          large_price: number
-          medium_price: number
-          small_price: number
-          stickgolf_price: number
-          surfingboard_price: number
           updated_at: string | null
-          wheelchair_price: number
         }
         Insert: {
+          baggage_prices?: number | null
+          baggage_size: string
           created_at?: string | null
-          electronic_price?: number
-          extra_large_price?: number
           id?: string
-          large_price?: number
-          medium_price?: number
-          small_price?: number
-          stickgolf_price?: number
-          surfingboard_price?: number
           updated_at?: string | null
-          wheelchair_price?: number
         }
         Update: {
+          baggage_prices?: number | null
+          baggage_size?: string
           created_at?: string | null
-          electronic_price?: number
-          extra_large_price?: number
           id?: string
-          large_price?: number
-          medium_price?: number
-          small_price?: number
-          stickgolf_price?: number
-          surfingboard_price?: number
           updated_at?: string | null
-          wheelchair_price?: number
         }
         Relationships: []
       }
       booking_cars: {
         Row: {
+          amount: number | null
           basic_price: number | null
           car_type: string | null
           created_at: string
@@ -513,6 +546,7 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          amount?: number | null
           basic_price?: number | null
           car_type?: string | null
           created_at?: string
@@ -535,6 +569,7 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          amount?: number | null
           basic_price?: number | null
           car_type?: string | null
           created_at?: string
@@ -587,6 +622,9 @@ export type Database = {
           amount: number | null
           bank_account: string | null
           booking_date: string | null
+          booking_id: string | null
+          bookings_status: string | null
+          code_booking: string | null
           created_at: string | null
           customer_id: string | null
           DATE_PART: number | null
@@ -594,13 +632,15 @@ export type Database = {
           driver_id: string | null
           driver_name: string | null
           driver_option: string | null
+          drivers_id: string | null
           duration: number | null
           end_date: string | null
           id: string
-          kode_booking: string | null
+          journal_entry_id: string | null
           license_plate: string | null
           make: string | null
           model: string | null
+          name: string | null
           notes: string | null
           overdue: number | null
           paid_amount: number | null
@@ -610,7 +650,10 @@ export type Database = {
           payment_status: string | null
           pickup_time: string | null
           plate_number: string | null
+          price: number | null
+          quantity: number | null
           reference_number: string | null
+          remaining_payment: number | null
           remaining_payments: number | null
           return_time: string | null
           role_id: number | null
@@ -631,6 +674,9 @@ export type Database = {
           amount?: number | null
           bank_account?: string | null
           booking_date?: string | null
+          booking_id?: string | null
+          bookings_status?: string | null
+          code_booking?: string | null
           created_at?: string | null
           customer_id?: string | null
           DATE_PART?: number | null
@@ -638,13 +684,15 @@ export type Database = {
           driver_id?: string | null
           driver_name?: string | null
           driver_option?: string | null
+          drivers_id?: string | null
           duration?: number | null
           end_date?: string | null
           id?: string
-          kode_booking?: string | null
+          journal_entry_id?: string | null
           license_plate?: string | null
           make?: string | null
           model?: string | null
+          name?: string | null
           notes?: string | null
           overdue?: number | null
           paid_amount?: number | null
@@ -654,7 +702,10 @@ export type Database = {
           payment_status?: string | null
           pickup_time?: string | null
           plate_number?: string | null
+          price?: number | null
+          quantity?: number | null
           reference_number?: string | null
+          remaining_payment?: number | null
           remaining_payments?: number | null
           return_time?: string | null
           role_id?: number | null
@@ -675,6 +726,9 @@ export type Database = {
           amount?: number | null
           bank_account?: string | null
           booking_date?: string | null
+          booking_id?: string | null
+          bookings_status?: string | null
+          code_booking?: string | null
           created_at?: string | null
           customer_id?: string | null
           DATE_PART?: number | null
@@ -682,13 +736,15 @@ export type Database = {
           driver_id?: string | null
           driver_name?: string | null
           driver_option?: string | null
+          drivers_id?: string | null
           duration?: number | null
           end_date?: string | null
           id?: string
-          kode_booking?: string | null
+          journal_entry_id?: string | null
           license_plate?: string | null
           make?: string | null
           model?: string | null
+          name?: string | null
           notes?: string | null
           overdue?: number | null
           paid_amount?: number | null
@@ -698,7 +754,10 @@ export type Database = {
           payment_status?: string | null
           pickup_time?: string | null
           plate_number?: string | null
+          price?: number | null
+          quantity?: number | null
           reference_number?: string | null
+          remaining_payment?: number | null
           remaining_payments?: number | null
           return_time?: string | null
           role_id?: number | null
@@ -724,6 +783,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "fk_bookings_journal_entry"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "journal_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_bookings_journal_entry"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "journal_entries_with_bookings"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
             foreignKeyName: "fk_bookings_vehicle"
             columns: ["vehicle_id"]
             isOneToOne: false
@@ -745,6 +818,7 @@ export type Database = {
           jam_checkin: string | null
           jam_checkout: string | null
           jenis_kendaraan: string | null
+          journal_entry_id: string | null
           jumlah_hari: number | null
           jumlah_kamar: number | null
           jumlah_malam: number | null
@@ -758,6 +832,7 @@ export type Database = {
           nama_penumpang: string | null
           no_telepon: number | null
           nomor_plat: string | null
+          paid_amount: number | null
           payment_method: string | null
           price: number | null
           profit: number | null
@@ -770,6 +845,7 @@ export type Database = {
           tanggal_checkin: string | null
           tanggal_checkout: string | null
           total_amount: number | null
+          total_price: number | null
           tujuan: string | null
           type_unit: string | null
           user_id: string | null
@@ -786,6 +862,7 @@ export type Database = {
           jam_checkin?: string | null
           jam_checkout?: string | null
           jenis_kendaraan?: string | null
+          journal_entry_id?: string | null
           jumlah_hari?: number | null
           jumlah_kamar?: number | null
           jumlah_malam?: number | null
@@ -799,6 +876,7 @@ export type Database = {
           nama_penumpang?: string | null
           no_telepon?: number | null
           nomor_plat?: string | null
+          paid_amount?: number | null
           payment_method?: string | null
           price?: number | null
           profit?: number | null
@@ -811,6 +889,7 @@ export type Database = {
           tanggal_checkin?: string | null
           tanggal_checkout?: string | null
           total_amount?: number | null
+          total_price?: number | null
           tujuan?: string | null
           type_unit?: string | null
           user_id?: string | null
@@ -827,6 +906,7 @@ export type Database = {
           jam_checkin?: string | null
           jam_checkout?: string | null
           jenis_kendaraan?: string | null
+          journal_entry_id?: string | null
           jumlah_hari?: number | null
           jumlah_kamar?: number | null
           jumlah_malam?: number | null
@@ -840,6 +920,7 @@ export type Database = {
           nama_penumpang?: string | null
           no_telepon?: number | null
           nomor_plat?: string | null
+          paid_amount?: number | null
           payment_method?: string | null
           price?: number | null
           profit?: number | null
@@ -852,6 +933,7 @@ export type Database = {
           tanggal_checkin?: string | null
           tanggal_checkout?: string | null
           total_amount?: number | null
+          total_price?: number | null
           tujuan?: string | null
           type_unit?: string | null
           user_id?: string | null
@@ -899,6 +981,7 @@ export type Database = {
       chart_of_accounts: {
         Row: {
           account_code: string
+          account_id: string | null
           account_name: string
           account_type: string
           balance_total: number | null
@@ -916,10 +999,12 @@ export type Database = {
           parent_id: string | null
           total_credit: number | null
           total_debit: number | null
+          total_price: number | null
           updated_at: string
         }
         Insert: {
           account_code: string
+          account_id?: string | null
           account_name: string
           account_type: string
           balance_total?: number | null
@@ -937,10 +1022,12 @@ export type Database = {
           parent_id?: string | null
           total_credit?: number | null
           total_debit?: number | null
+          total_price?: number | null
           updated_at?: string
         }
         Update: {
           account_code?: string
+          account_id?: string | null
           account_name?: string
           account_type?: string
           balance_total?: number | null
@@ -958,6 +1045,7 @@ export type Database = {
           parent_id?: string | null
           total_credit?: number | null
           total_debit?: number | null
+          total_price?: number | null
           updated_at?: string
         }
         Relationships: [
@@ -1169,14 +1257,31 @@ export type Database = {
             referencedRelation: "payments"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "damages_payment_id_fkey"
-            columns: ["payment_id"]
-            isOneToOne: false
-            referencedRelation: "payments_with_journal_items"
-            referencedColumns: ["payment_id"]
-          },
         ]
+      }
+      debug_log: {
+        Row: {
+          created_at: string | null
+          data: Json | null
+          id: number
+          message: string | null
+          timestamp: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          data?: Json | null
+          id?: number
+          message?: string | null
+          timestamp?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          data?: Json | null
+          id?: number
+          message?: string | null
+          timestamp?: string | null
+        }
+        Relationships: []
       }
       divisions: {
         Row: {
@@ -1226,7 +1331,7 @@ export type Database = {
           email: string | null
           emergency_contact: string | null
           ethnicity: string | null
-          family_phone: string | null
+          family_phone_number: string | null
           first_name: string | null
           front_image_url: string | null
           fuel_type: string | null
@@ -1249,10 +1354,8 @@ export type Database = {
           nickname: string | null
           no_urut: number | null
           overdue_days: number | null
-          phone: string | null
-          phone_number: number | null
+          phone_number: string | null
           reference_phone: number | null
-          relative_phone: string | null
           religion: string | null
           role_id: number | null
           role_name: string | null
@@ -1273,6 +1376,7 @@ export type Database = {
           transmission: string | null
           type: string | null
           updated_at: string | null
+          user_id: string | null
           vehicle_brand: string | null
           vehicle_color: string | null
           vehicle_name: string | null
@@ -1301,7 +1405,7 @@ export type Database = {
           email?: string | null
           emergency_contact?: string | null
           ethnicity?: string | null
-          family_phone?: string | null
+          family_phone_number?: string | null
           first_name?: string | null
           front_image_url?: string | null
           fuel_type?: string | null
@@ -1324,10 +1428,8 @@ export type Database = {
           nickname?: string | null
           no_urut?: number | null
           overdue_days?: number | null
-          phone?: string | null
-          phone_number?: number | null
+          phone_number?: string | null
           reference_phone?: number | null
-          relative_phone?: string | null
           religion?: string | null
           role_id?: number | null
           role_name?: string | null
@@ -1348,6 +1450,7 @@ export type Database = {
           transmission?: string | null
           type?: string | null
           updated_at?: string | null
+          user_id?: string | null
           vehicle_brand?: string | null
           vehicle_color?: string | null
           vehicle_name?: string | null
@@ -1376,7 +1479,7 @@ export type Database = {
           email?: string | null
           emergency_contact?: string | null
           ethnicity?: string | null
-          family_phone?: string | null
+          family_phone_number?: string | null
           first_name?: string | null
           front_image_url?: string | null
           fuel_type?: string | null
@@ -1399,10 +1502,8 @@ export type Database = {
           nickname?: string | null
           no_urut?: number | null
           overdue_days?: number | null
-          phone?: string | null
-          phone_number?: number | null
+          phone_number?: string | null
           reference_phone?: number | null
-          relative_phone?: string | null
           religion?: string | null
           role_id?: number | null
           role_name?: string | null
@@ -1423,6 +1524,7 @@ export type Database = {
           transmission?: string | null
           type?: string | null
           updated_at?: string | null
+          user_id?: string | null
           vehicle_brand?: string | null
           vehicle_color?: string | null
           vehicle_name?: string | null
@@ -2174,14 +2276,18 @@ export type Database = {
       handling_bookings: {
         Row: {
           additional_notes: string | null
+          booking_date: string | null
           booking_id: string | null
           category: string
           category_price: number | null
+          code_booking: string | null
+          company_name: string | null
           created_at: string | null
           customer_email: string
           customer_id: string | null
           customer_name: string
           customer_phone: string
+          dropoff_area: string | null
           flight_number: string
           id: string
           passenger_area: string
@@ -2192,8 +2298,10 @@ export type Database = {
           pickup_date: string
           pickup_time: string
           price: string | null
+          quantity: number | null
           service_price: number | null
           status: string | null
+          total_amount: number | null
           total_price: number
           travel_type: string
           updated_at: string | null
@@ -2201,14 +2309,18 @@ export type Database = {
         }
         Insert: {
           additional_notes?: string | null
+          booking_date?: string | null
           booking_id?: string | null
           category: string
           category_price?: number | null
+          code_booking?: string | null
+          company_name?: string | null
           created_at?: string | null
           customer_email: string
           customer_id?: string | null
           customer_name: string
           customer_phone: string
+          dropoff_area?: string | null
           flight_number: string
           id?: string
           passenger_area: string
@@ -2219,8 +2331,10 @@ export type Database = {
           pickup_date: string
           pickup_time?: string
           price?: string | null
+          quantity?: number | null
           service_price?: number | null
           status?: string | null
+          total_amount?: number | null
           total_price: number
           travel_type?: string
           updated_at?: string | null
@@ -2228,14 +2342,18 @@ export type Database = {
         }
         Update: {
           additional_notes?: string | null
+          booking_date?: string | null
           booking_id?: string | null
           category?: string
           category_price?: number | null
+          code_booking?: string | null
+          company_name?: string | null
           created_at?: string | null
           customer_email?: string
           customer_id?: string | null
           customer_name?: string
           customer_phone?: string
+          dropoff_area?: string | null
           flight_number?: string
           id?: string
           passenger_area?: string
@@ -2246,14 +2364,105 @@ export type Database = {
           pickup_date?: string
           pickup_time?: string
           price?: string | null
+          quantity?: number | null
           service_price?: number | null
           status?: string | null
+          total_amount?: number | null
           total_price?: number
           travel_type?: string
           updated_at?: string | null
           user_id?: string | null
         }
         Relationships: []
+      }
+      handling_prices: {
+        Row: {
+          base_price: number
+          created_at: string | null
+          id: string
+          passenger_count: number
+          service_type: string
+        }
+        Insert: {
+          base_price: number
+          created_at?: string | null
+          id?: string
+          passenger_count: number
+          service_type: string
+        }
+        Update: {
+          base_price?: number
+          created_at?: string | null
+          id?: string
+          passenger_count?: number
+          service_type?: string
+        }
+        Relationships: []
+      }
+      handling_umroh_price: {
+        Row: {
+          created_at: string | null
+          id: string
+          penumpang: number | null
+          umroh_price: number
+          umroh_type: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          penumpang?: number | null
+          umroh_price: number
+          umroh_type: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          penumpang?: number | null
+          umroh_price?: number
+          umroh_type?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      histori_transaksi: {
+        Row: {
+          id: string
+          keterangan: string | null
+          kode_booking: string
+          nominal: number
+          saldo_akhir: number
+          trans_date: string | null
+          user_id: string | null
+        }
+        Insert: {
+          id?: string
+          keterangan?: string | null
+          kode_booking: string
+          nominal: number
+          saldo_akhir: number
+          trans_date?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          id?: string
+          keterangan?: string | null
+          kode_booking?: string
+          nominal?: number
+          saldo_akhir?: number
+          trans_date?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "histori_transaksi_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       hrd: {
         Row: {
@@ -2657,9 +2866,13 @@ export type Database = {
           id: string
           journal_entry_id: string | null
           jurnal_id: string | null
+          partner_id: string | null
           payment_id: string | null
+          reference: string | null
+          reference_code: string | null
           reference_id: string | null
           reference_number: string | null
+          services_id: string | null
           source_table: string | null
           status: string | null
           total_amount: number | null
@@ -2667,6 +2880,9 @@ export type Database = {
           total_debit: number | null
           transaction_date: string | null
           updated_at: string
+          user_id: string | null
+          vehicle_name: string | null
+          vehicle_type: string | null
         }
         Insert: {
           account_code?: string | null
@@ -2678,17 +2894,21 @@ export type Database = {
           bookings_id?: string | null
           created_at?: string
           credit?: number | null
-          date: string
+          date?: string
           debit?: number | null
-          description: string
+          description?: string
           entry_date?: string | null
           entry_type: string
           id?: string
           journal_entry_id?: string | null
           jurnal_id?: string | null
+          partner_id?: string | null
           payment_id?: string | null
+          reference?: string | null
+          reference_code?: string | null
           reference_id?: string | null
           reference_number?: string | null
+          services_id?: string | null
           source_table?: string | null
           status?: string | null
           total_amount?: number | null
@@ -2696,6 +2916,9 @@ export type Database = {
           total_debit?: number | null
           transaction_date?: string | null
           updated_at?: string
+          user_id?: string | null
+          vehicle_name?: string | null
+          vehicle_type?: string | null
         }
         Update: {
           account_code?: string | null
@@ -2715,9 +2938,13 @@ export type Database = {
           id?: string
           journal_entry_id?: string | null
           jurnal_id?: string | null
+          partner_id?: string | null
           payment_id?: string | null
+          reference?: string | null
+          reference_code?: string | null
           reference_id?: string | null
           reference_number?: string | null
+          services_id?: string | null
           source_table?: string | null
           status?: string | null
           total_amount?: number | null
@@ -2725,6 +2952,9 @@ export type Database = {
           total_debit?: number | null
           transaction_date?: string | null
           updated_at?: string
+          user_id?: string | null
+          vehicle_name?: string | null
+          vehicle_type?: string | null
         }
         Relationships: []
       }
@@ -2734,11 +2964,14 @@ export type Database = {
           account_id: string
           created_at: string
           credit: number | null
+          date: string | null
           debit: number | null
+          description: string | null
           id: string
           item_created_at: string | null
           journal_entry_id: string
           normal_balance: string | null
+          period: string | null
           updated_at: string
         }
         Insert: {
@@ -2746,11 +2979,14 @@ export type Database = {
           account_id: string
           created_at?: string
           credit?: number | null
+          date?: string | null
           debit?: number | null
+          description?: string | null
           id?: string
           item_created_at?: string | null
           journal_entry_id: string
           normal_balance?: string | null
+          period?: string | null
           updated_at?: string
         }
         Update: {
@@ -2758,11 +2994,14 @@ export type Database = {
           account_id?: string
           created_at?: string
           credit?: number | null
+          date?: string | null
           debit?: number | null
+          description?: string | null
           id?: string
           item_created_at?: string | null
           journal_entry_id?: string
           normal_balance?: string | null
+          period?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -2877,6 +3116,7 @@ export type Database = {
           account_code: string
           account_name: string
           closing_balance: number | null
+          ending_balance: number | null
           id: string
           item_created_at: string | null
           normal_balance: string | null
@@ -2889,6 +3129,7 @@ export type Database = {
           account_code: string
           account_name: string
           closing_balance?: number | null
+          ending_balance?: number | null
           id?: string
           item_created_at?: string | null
           normal_balance?: string | null
@@ -2901,6 +3142,7 @@ export type Database = {
           account_code?: string
           account_name?: string
           closing_balance?: number | null
+          ending_balance?: number | null
           id?: string
           item_created_at?: string | null
           normal_balance?: string | null
@@ -3049,13 +3291,6 @@ export type Database = {
             referencedRelation: "payments"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "notifications_payment_id_fkey"
-            columns: ["payment_id"]
-            isOneToOne: false
-            referencedRelation: "payments_with_journal_items"
-            referencedColumns: ["payment_id"]
-          },
         ]
       }
       partners: {
@@ -3079,10 +3314,41 @@ export type Database = {
         }
         Relationships: []
       }
+      paylabs_config: {
+        Row: {
+          created_at: string | null
+          id: string
+          merchant_id: string
+          mode: string
+          private_key: string
+          public_key: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          merchant_id: string
+          mode: string
+          private_key: string
+          public_key: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          merchant_id?: string
+          mode?: string
+          private_key?: string
+          public_key?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       payment_bookings: {
         Row: {
           booking_id: string
           booking_type: string | null
+          code_booking: string | null
           created_at: string | null
           id: string
           payment_id: string | null
@@ -3090,6 +3356,7 @@ export type Database = {
         Insert: {
           booking_id: string
           booking_type?: string | null
+          code_booking?: string | null
           created_at?: string | null
           id?: string
           payment_id?: string | null
@@ -3097,6 +3364,7 @@ export type Database = {
         Update: {
           booking_id?: string
           booking_type?: string | null
+          code_booking?: string | null
           created_at?: string | null
           id?: string
           payment_id?: string | null
@@ -3109,67 +3377,54 @@ export type Database = {
             referencedRelation: "payments"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "payment_bookings_payment_id_fkey"
-            columns: ["payment_id"]
-            isOneToOne: false
-            referencedRelation: "payments_with_journal_items"
-            referencedColumns: ["payment_id"]
-          },
         ]
       }
       payment_methods: {
         Row: {
           account_holder: string | null
           account_number: number | null
-          api_key: string | null
           bank_code: number | null
           bank_name: string | null
           branch: string | null
           created_at: string | null
           id: string
           is_active: boolean | null
-          merchant_id: string | null
+          mode: string | null
           name: string
-          private_key: string | null
+          payment_code: string | null
           provider: string | null
-          public_key: string | null
           swift_code: string | null
           type: string
         }
         Insert: {
           account_holder?: string | null
           account_number?: number | null
-          api_key?: string | null
           bank_code?: number | null
           bank_name?: string | null
           branch?: string | null
           created_at?: string | null
           id?: string
           is_active?: boolean | null
-          merchant_id?: string | null
+          mode?: string | null
           name: string
-          private_key?: string | null
+          payment_code?: string | null
           provider?: string | null
-          public_key?: string | null
           swift_code?: string | null
           type: string
         }
         Update: {
           account_holder?: string | null
           account_number?: number | null
-          api_key?: string | null
           bank_code?: number | null
           bank_name?: string | null
           branch?: string | null
           created_at?: string | null
           id?: string
           is_active?: boolean | null
-          merchant_id?: string | null
+          mode?: string | null
           name?: string
-          private_key?: string | null
+          payment_code?: string | null
           provider?: string | null
-          public_key?: string | null
           swift_code?: string | null
           type?: string
         }
@@ -3178,26 +3433,35 @@ export type Database = {
       payments: {
         Row: {
           amount: number | null
+          amount_paid: number | null
+          baggage_booking_id: string | null
+          bank: string | null
           bank_account_id: string | null
           bank_name: string | null
           booking_id: string | null
           booking_ids: string | null
+          bookings_status: string | null
+          code_booking: string | null
           created_at: string | null
+          driver_id: string | null
           due_date: string | null
+          handling_booking_id: string | null
           id: string
           is_damage_payment: boolean | null
           is_partial_payment: boolean | null
           journal_entry_id: string | null
-          kode_booking: string | null
           license_plate: string | null
           make: string | null
           model: string | null
           no_telepon: number | null
           notes: string | null
           paid_amount: number | null
+          paylabs_transaction_id: string | null
+          payment_date: string | null
           payment_method: string | null
           payment_method_id: string | null
           payment_status: string | null
+          payment_url: string | null
           plate_number: string | null
           remaining_payments: number | null
           status: string | null
@@ -3206,29 +3470,39 @@ export type Database = {
           transaction_reference: string | null
           transfer_reference: number | null
           user_id: string | null
+          va_number: string | null
         }
         Insert: {
           amount?: number | null
+          amount_paid?: number | null
+          baggage_booking_id?: string | null
+          bank?: string | null
           bank_account_id?: string | null
           bank_name?: string | null
           booking_id?: string | null
           booking_ids?: string | null
+          bookings_status?: string | null
+          code_booking?: string | null
           created_at?: string | null
+          driver_id?: string | null
           due_date?: string | null
+          handling_booking_id?: string | null
           id?: string
           is_damage_payment?: boolean | null
           is_partial_payment?: boolean | null
           journal_entry_id?: string | null
-          kode_booking?: string | null
           license_plate?: string | null
           make?: string | null
           model?: string | null
           no_telepon?: number | null
           notes?: string | null
           paid_amount?: number | null
+          paylabs_transaction_id?: string | null
+          payment_date?: string | null
           payment_method?: string | null
           payment_method_id?: string | null
           payment_status?: string | null
+          payment_url?: string | null
           plate_number?: string | null
           remaining_payments?: number | null
           status?: string | null
@@ -3237,29 +3511,39 @@ export type Database = {
           transaction_reference?: string | null
           transfer_reference?: number | null
           user_id?: string | null
+          va_number?: string | null
         }
         Update: {
           amount?: number | null
+          amount_paid?: number | null
+          baggage_booking_id?: string | null
+          bank?: string | null
           bank_account_id?: string | null
           bank_name?: string | null
           booking_id?: string | null
           booking_ids?: string | null
+          bookings_status?: string | null
+          code_booking?: string | null
           created_at?: string | null
+          driver_id?: string | null
           due_date?: string | null
+          handling_booking_id?: string | null
           id?: string
           is_damage_payment?: boolean | null
           is_partial_payment?: boolean | null
           journal_entry_id?: string | null
-          kode_booking?: string | null
           license_plate?: string | null
           make?: string | null
           model?: string | null
           no_telepon?: number | null
           notes?: string | null
           paid_amount?: number | null
+          paylabs_transaction_id?: string | null
+          payment_date?: string | null
           payment_method?: string | null
           payment_method_id?: string | null
           payment_status?: string | null
+          payment_url?: string | null
           plate_number?: string | null
           remaining_payments?: number | null
           status?: string | null
@@ -3268,35 +3552,29 @@ export type Database = {
           transaction_reference?: string | null
           transfer_reference?: number | null
           user_id?: string | null
+          va_number?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "fk_booking"
+            foreignKeyName: "fk_baggage_booking_id"
+            columns: ["baggage_booking_id"]
+            isOneToOne: false
+            referencedRelation: "baggage_booking"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_booking_id"
             columns: ["booking_id"]
             isOneToOne: false
             referencedRelation: "bookings"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "fk_booking"
-            columns: ["booking_id"]
-            isOneToOne: false
-            referencedRelation: "journal_entries_with_bookings"
             referencedColumns: ["booking_id"]
           },
           {
-            foreignKeyName: "payments_journal_entry_id_fkey"
-            columns: ["journal_entry_id"]
+            foreignKeyName: "fk_handling_booking_id"
+            columns: ["handling_booking_id"]
             isOneToOne: false
-            referencedRelation: "journal_entries"
+            referencedRelation: "handling_bookings"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "payments_journal_entry_id_fkey"
-            columns: ["journal_entry_id"]
-            isOneToOne: false
-            referencedRelation: "journal_entries_with_bookings"
-            referencedColumns: ["journal_entry_id"]
           },
         ]
       }
@@ -3450,6 +3728,50 @@ export type Database = {
         }
         Relationships: []
       }
+      profit_loss_reports: {
+        Row: {
+          created_at: string | null
+          generated_by: string | null
+          id: string
+          net_profit: number
+          period_end: string
+          period_start: string
+          report_date: string
+          total_expenses: number
+          total_revenue: number
+        }
+        Insert: {
+          created_at?: string | null
+          generated_by?: string | null
+          id?: string
+          net_profit?: number
+          period_end: string
+          period_start: string
+          report_date: string
+          total_expenses?: number
+          total_revenue?: number
+        }
+        Update: {
+          created_at?: string | null
+          generated_by?: string | null
+          id?: string
+          net_profit?: number
+          period_end?: string
+          period_start?: string
+          report_date?: string
+          total_expenses?: number
+          total_revenue?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profit_loss_reports_generated_by_fkey"
+            columns: ["generated_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       remaining_payments: {
         Row: {
           booking_id: string | null
@@ -3499,13 +3821,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "payments"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "fk_remaining_to_payments"
-            columns: ["payment_id"]
-            isOneToOne: false
-            referencedRelation: "payments_with_journal_items"
-            referencedColumns: ["payment_id"]
           },
         ]
       }
@@ -3661,38 +3976,56 @@ export type Database = {
       }
       shopping_cart: {
         Row: {
+          booking_id: string | null
+          code_booking: string | null
           created_at: string | null
           details: string | null
           id: string
           item_id: string | null
           item_type: string | null
+          jumlah_penumpang: number | null
           payment_status: string | null
           price: number | null
+          quantity: number
           service_name: string | null
+          shopping_cart: string | null
+          status: string | null
           status_cart: string | null
           user_id: string | null
         }
         Insert: {
+          booking_id?: string | null
+          code_booking?: string | null
           created_at?: string | null
           details?: string | null
           id?: string
           item_id?: string | null
           item_type?: string | null
+          jumlah_penumpang?: number | null
           payment_status?: string | null
           price?: number | null
+          quantity?: number
           service_name?: string | null
+          shopping_cart?: string | null
+          status?: string | null
           status_cart?: string | null
           user_id?: string | null
         }
         Update: {
+          booking_id?: string | null
+          code_booking?: string | null
           created_at?: string | null
           details?: string | null
           id?: string
           item_id?: string | null
           item_type?: string | null
+          jumlah_penumpang?: number | null
           payment_status?: string | null
           price?: number | null
+          quantity?: number
           service_name?: string | null
+          shopping_cart?: string | null
+          status?: string | null
           status_cart?: string | null
           user_id?: string | null
         }
@@ -3734,6 +4067,7 @@ export type Database = {
           email: string
           employee_id: string | null
           ethnicity: string | null
+          family_phone_number: string | null
           first_name: string | null
           full_name: string | null
           id: string
@@ -3742,16 +4076,15 @@ export type Database = {
           ktp_number: string | null
           ktp_url: string | null
           last_name: string | null
+          license_number: string | null
           name: string
-          nickname: string | null
           phone: string
           position: string | null
-          relative_phone: string | null
           religion: string | null
           role: string | null
           role_id: number | null
           selfie_url: string | null
-          sim_number: string | null
+          sim_url: string | null
           skck_url: string | null
           tanggal_lahir: string | null
           tempat_lahir: string | null
@@ -3766,6 +4099,7 @@ export type Database = {
           email: string
           employee_id?: string | null
           ethnicity?: string | null
+          family_phone_number?: string | null
           first_name?: string | null
           full_name?: string | null
           id: string
@@ -3774,16 +4108,15 @@ export type Database = {
           ktp_number?: string | null
           ktp_url?: string | null
           last_name?: string | null
+          license_number?: string | null
           name: string
-          nickname?: string | null
           phone: string
           position?: string | null
-          relative_phone?: string | null
           religion?: string | null
           role?: string | null
           role_id?: number | null
           selfie_url?: string | null
-          sim_number?: string | null
+          sim_url?: string | null
           skck_url?: string | null
           tanggal_lahir?: string | null
           tempat_lahir?: string | null
@@ -3798,6 +4131,7 @@ export type Database = {
           email?: string
           employee_id?: string | null
           ethnicity?: string | null
+          family_phone_number?: string | null
           first_name?: string | null
           full_name?: string | null
           id?: string
@@ -3806,16 +4140,15 @@ export type Database = {
           ktp_number?: string | null
           ktp_url?: string | null
           last_name?: string | null
+          license_number?: string | null
           name?: string
-          nickname?: string | null
           phone?: string
           position?: string | null
-          relative_phone?: string | null
           religion?: string | null
           role?: string | null
           role_id?: number | null
           selfie_url?: string | null
-          sim_number?: string | null
+          sim_url?: string | null
           skck_url?: string | null
           tanggal_lahir?: string | null
           tempat_lahir?: string | null
@@ -3857,38 +4190,179 @@ export type Database = {
         Row: {
           account_code: string
           account_id: string | null
+          account_name: string | null
+          account_type: string | null
           amount: number
+          balance: number | null
           created_at: string | null
+          credit: number | null
+          credit_balance: number | null
+          debit: number | null
+          debit_balance: number | null
           id: string
+          net_balance: number | null
           period: string
           period_end: string | null
           period_start: string | null
           total_amount: number | null
+          total_credit: number | null
+          total_debit: number | null
           updated_at: string | null
         }
         Insert: {
           account_code: string
           account_id?: string | null
+          account_name?: string | null
+          account_type?: string | null
           amount?: number
+          balance?: number | null
           created_at?: string | null
+          credit?: number | null
+          credit_balance?: number | null
+          debit?: number | null
+          debit_balance?: number | null
           id?: string
-          period: string
+          net_balance?: number | null
+          period?: string
           period_end?: string | null
           period_start?: string | null
           total_amount?: number | null
+          total_credit?: number | null
+          total_debit?: number | null
           updated_at?: string | null
         }
         Update: {
           account_code?: string
           account_id?: string | null
+          account_name?: string | null
+          account_type?: string | null
           amount?: number
+          balance?: number | null
           created_at?: string | null
+          credit?: number | null
+          credit_balance?: number | null
+          debit?: number | null
+          debit_balance?: number | null
           id?: string
+          net_balance?: number | null
           period?: string
           period_end?: string | null
           period_start?: string | null
           total_amount?: number | null
+          total_credit?: number | null
+          total_debit?: number | null
           updated_at?: string | null
+        }
+        Relationships: []
+      }
+      umrah_group: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
+      umroh_bookings: {
+        Row: {
+          additional_notes: string | null
+          booking_id: string
+          category: string
+          category_price: number | null
+          code_booking: string | null
+          created_at: string | null
+          customer_email: string
+          customer_name: string
+          customer_phone: string
+          dropoff_area: string | null
+          flight_number: string
+          group_size: number | null
+          id: string
+          passenger_area: string | null
+          payment_id: string | null
+          payment_method: string | null
+          payment_status: string | null
+          pickup_area: string | null
+          pickup_date: string
+          pickup_time: string
+          service_price: number
+          status: string | null
+          total_price: number
+          travel_type: string
+          umroh_package: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          additional_notes?: string | null
+          booking_id: string
+          category: string
+          category_price?: number | null
+          code_booking?: string | null
+          created_at?: string | null
+          customer_email: string
+          customer_name: string
+          customer_phone: string
+          dropoff_area?: string | null
+          flight_number: string
+          group_size?: number | null
+          id?: string
+          passenger_area?: string | null
+          payment_id?: string | null
+          payment_method?: string | null
+          payment_status?: string | null
+          pickup_area?: string | null
+          pickup_date: string
+          pickup_time: string
+          service_price: number
+          status?: string | null
+          total_price: number
+          travel_type: string
+          umroh_package?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          additional_notes?: string | null
+          booking_id?: string
+          category?: string
+          category_price?: number | null
+          code_booking?: string | null
+          created_at?: string | null
+          customer_email?: string
+          customer_name?: string
+          customer_phone?: string
+          dropoff_area?: string | null
+          flight_number?: string
+          group_size?: number | null
+          id?: string
+          passenger_area?: string | null
+          payment_id?: string | null
+          payment_method?: string | null
+          payment_status?: string | null
+          pickup_area?: string | null
+          pickup_date?: string
+          pickup_time?: string
+          service_price?: number
+          status?: string | null
+          total_price?: number
+          travel_type?: string
+          umroh_package?: string | null
+          updated_at?: string | null
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -3919,14 +4393,10 @@ export type Database = {
       users: {
         Row: {
           address: string | null
-          agama: string | null
-          alamat: string | null
           birth_date: string | null
           birth_place: string | null
           created_at: string | null
-          cv: string | null
           cv_url: string | null
-          date_of_birth: string | null
           department: string | null
           driver_type: string | null
           education: string | null
@@ -3936,9 +4406,7 @@ export type Database = {
           family_card_url: string | null
           family_phone_number: string | null
           first_name: string | null
-          foto_kk: string | null
           foto_ktp: string | null
-          foto_selfie: string | null
           fuel_type: string | null
           full_name: string | null
           id: string
@@ -3949,37 +4417,25 @@ export type Database = {
           ktp_url: string | null
           last_name: string | null
           license_expiry: string | null
-          license_number: string | null
+          license_number: number | null
           license_plate: string | null
           license_rate: number | null
+          nama_perusahaan: string | null
           phone: string | null
           phone_number: string | null
-          phone_number_referensi: string | null
-          place_of_birth: string | null
           position: string | null
-          reference_phone: string | null
-          relative_phone: string | null
-          relative_phone_number: string | null
           religion: string | null
           role: string | null
           role_id: number | null
-          role_name: string | null
           saldo: number | null
           selfie_photo_url: string | null
           selfie_url: string | null
-          sim_expiry_date: string | null
-          sim_number: number | null
           sim_url: string | null
           skck_url: string | null
           status: string | null
           stnk_url: string | null
-          suku: string | null
-          tanggal_lahir: string | null
-          tempat_lahir: string | null
           transmission: string | null
-          tribe: string | null
           updated_at: string | null
-          username: string | null
           vehicle_brand: string | null
           vehicle_category: string | null
           vehicle_color: string | null
@@ -3992,14 +4448,10 @@ export type Database = {
         }
         Insert: {
           address?: string | null
-          agama?: string | null
-          alamat?: string | null
           birth_date?: string | null
           birth_place?: string | null
           created_at?: string | null
-          cv?: string | null
           cv_url?: string | null
-          date_of_birth?: string | null
           department?: string | null
           driver_type?: string | null
           education?: string | null
@@ -4009,9 +4461,7 @@ export type Database = {
           family_card_url?: string | null
           family_phone_number?: string | null
           first_name?: string | null
-          foto_kk?: string | null
           foto_ktp?: string | null
-          foto_selfie?: string | null
           fuel_type?: string | null
           full_name?: string | null
           id: string
@@ -4022,37 +4472,25 @@ export type Database = {
           ktp_url?: string | null
           last_name?: string | null
           license_expiry?: string | null
-          license_number?: string | null
+          license_number?: number | null
           license_plate?: string | null
           license_rate?: number | null
+          nama_perusahaan?: string | null
           phone?: string | null
           phone_number?: string | null
-          phone_number_referensi?: string | null
-          place_of_birth?: string | null
           position?: string | null
-          reference_phone?: string | null
-          relative_phone?: string | null
-          relative_phone_number?: string | null
           religion?: string | null
           role?: string | null
           role_id?: number | null
-          role_name?: string | null
           saldo?: number | null
           selfie_photo_url?: string | null
           selfie_url?: string | null
-          sim_expiry_date?: string | null
-          sim_number?: number | null
           sim_url?: string | null
           skck_url?: string | null
           status?: string | null
           stnk_url?: string | null
-          suku?: string | null
-          tanggal_lahir?: string | null
-          tempat_lahir?: string | null
           transmission?: string | null
-          tribe?: string | null
           updated_at?: string | null
-          username?: string | null
           vehicle_brand?: string | null
           vehicle_category?: string | null
           vehicle_color?: string | null
@@ -4065,14 +4503,10 @@ export type Database = {
         }
         Update: {
           address?: string | null
-          agama?: string | null
-          alamat?: string | null
           birth_date?: string | null
           birth_place?: string | null
           created_at?: string | null
-          cv?: string | null
           cv_url?: string | null
-          date_of_birth?: string | null
           department?: string | null
           driver_type?: string | null
           education?: string | null
@@ -4082,9 +4516,7 @@ export type Database = {
           family_card_url?: string | null
           family_phone_number?: string | null
           first_name?: string | null
-          foto_kk?: string | null
           foto_ktp?: string | null
-          foto_selfie?: string | null
           fuel_type?: string | null
           full_name?: string | null
           id?: string
@@ -4095,37 +4527,25 @@ export type Database = {
           ktp_url?: string | null
           last_name?: string | null
           license_expiry?: string | null
-          license_number?: string | null
+          license_number?: number | null
           license_plate?: string | null
           license_rate?: number | null
+          nama_perusahaan?: string | null
           phone?: string | null
           phone_number?: string | null
-          phone_number_referensi?: string | null
-          place_of_birth?: string | null
           position?: string | null
-          reference_phone?: string | null
-          relative_phone?: string | null
-          relative_phone_number?: string | null
           religion?: string | null
           role?: string | null
           role_id?: number | null
-          role_name?: string | null
           saldo?: number | null
           selfie_photo_url?: string | null
           selfie_url?: string | null
-          sim_expiry_date?: string | null
-          sim_number?: number | null
           sim_url?: string | null
           skck_url?: string | null
           status?: string | null
           stnk_url?: string | null
-          suku?: string | null
-          tanggal_lahir?: string | null
-          tempat_lahir?: string | null
           transmission?: string | null
-          tribe?: string | null
           updated_at?: string | null
-          username?: string | null
           vehicle_brand?: string | null
           vehicle_category?: string | null
           vehicle_color?: string | null
@@ -4392,6 +4812,16 @@ export type Database = {
       }
     }
     Views: {
+      agent_monthly_summary: {
+        Row: {
+          bulan: string | null
+          harga_per_orang: number | null
+          total_penumpang: number | null
+          total_tagihan: number | null
+          user_id: string | null
+        }
+        Relationships: []
+      }
       bookings_trips_with_user: {
         Row: {
           additional_data: string | null
@@ -4434,6 +4864,12 @@ export type Database = {
           user_full_name: string | null
           user_id: string | null
           user_role: string | null
+        }
+        Relationships: []
+      }
+      general_ledger_with_running_balance: {
+        Row: {
+          running_balance: number | null
         }
         Relationships: []
       }
@@ -4522,14 +4958,8 @@ export type Database = {
       }
       journal_entry_items_with_ledger: {
         Row: {
-          account_code: string | null
-          account_description: string | null
           account_id: string | null
-          account_name: string | null
-          account_type: string | null
-          current_balance: number | null
           general_ledger_id: string | null
-          is_header: boolean | null
           item_created_at: string | null
           item_credit: number | null
           item_debit: number | null
@@ -4543,18 +4973,9 @@ export type Database = {
           ledger_description: string | null
           ledger_updated_at: string | null
           manual_entry: boolean | null
-          normal_balance: string | null
-          parent_id: string | null
           running_balance: number | null
         }
         Relationships: [
-          {
-            foreignKeyName: "chart_of_accounts_parent_id_fkey"
-            columns: ["parent_id"]
-            isOneToOne: false
-            referencedRelation: "chart_of_accounts"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "journal_entry_items_account_id_fkey"
             columns: ["account_id"]
@@ -4578,40 +4999,38 @@ export type Database = {
           },
         ]
       }
-      payments_with_journal_items: {
+      payment_debug_logs: {
         Row: {
-          account_id: string | null
-          credit: number | null
-          debit: number | null
-          journal_entry_id: string | null
-          payment_id: string | null
-          payment_status: string | null
-          total_amount: number | null
-          user_id: string | null
+          created_at: string | null
+          data: Json | null
+          id: number | null
+          message: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "journal_entry_items_account_id_fkey"
-            columns: ["account_id"]
-            isOneToOne: false
-            referencedRelation: "chart_of_accounts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "payments_journal_entry_id_fkey"
-            columns: ["journal_entry_id"]
-            isOneToOne: false
-            referencedRelation: "journal_entries"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "payments_journal_entry_id_fkey"
-            columns: ["journal_entry_id"]
-            isOneToOne: false
-            referencedRelation: "journal_entries_with_bookings"
-            referencedColumns: ["journal_entry_id"]
-          },
-        ]
+        Insert: {
+          created_at?: string | null
+          data?: Json | null
+          id?: number | null
+          message?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          data?: Json | null
+          id?: number | null
+          message?: string | null
+        }
+        Relationships: []
+      }
+      profit_loss_summary_view: {
+        Row: {
+          account_code: string | null
+          account_name: string | null
+          account_type: string | null
+          net_amount: number | null
+          period: string | null
+          total_credit: number | null
+          total_debit: number | null
+        }
+        Relationships: []
       }
       profit_loss_view: {
         Row: {
@@ -4632,58 +5051,39 @@ export type Database = {
           closing_balance: number | null
           credit: number | null
           debit: number | null
-          period: string | null
         }
-        Insert: {
-          account_code?: string | null
-          account_name?: string | null
-          closing_balance?: number | null
-          credit?: number | null
-          debit?: number | null
-          period?: string | null
-        }
-        Update: {
-          account_code?: string | null
-          account_name?: string | null
-          closing_balance?: number | null
-          credit?: number | null
-          debit?: number | null
-          period?: string | null
+        Relationships: []
+      }
+      view_total_kas: {
+        Row: {
+          account_code: string | null
+          account_name: string | null
+          total_balance: number | null
         }
         Relationships: []
       }
     }
     Functions: {
-      auto_create_journal_entries_if_missing: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
       auto_post_jurnal_from_mutasi: {
         Args: Record<PropertyKey, never>
         Returns: undefined
-      }
-      check_booking_journal_entries: {
-        Args: { p_booking_id: string }
-        Returns: {
-          has_entries: boolean
-          entry_count: number
-          journal_ids: string[]
-        }[]
       }
       close_period: {
         Args: { p_period: string }
         Returns: undefined
       }
-      create_journal_entry_for_booking: {
-        Args: { p_booking_id: string }
-        Returns: string
-      }
-      fix_missing_journal_entries: {
+      contoh_fungsi: {
         Args: Record<PropertyKey, never>
-        Returns: {
-          booking_id: string
-          status: string
-        }[]
+        Returns: undefined
+      }
+      create_general_ledger_entry: {
+        Args: {
+          p_account_id: string
+          p_debit: number
+          p_credit: number
+          p_description: string
+        }
+        Returns: undefined
       }
       generate_balance_sheet: {
         Args: { p_period: string }
@@ -4699,12 +5099,18 @@ export type Database = {
         Returns: undefined
       }
       generate_profit_loss: {
-        Args: { p_period: string }
-        Returns: {
-          total_income: number
-          total_expense: number
-          net_profit: number
-        }[]
+        Args:
+          | { p_period: string }
+          | {
+              p_start_date: string
+              p_end_date: string
+              p_generated_by?: string
+            }
+        Returns: undefined
+      }
+      get_account_id_from_service: {
+        Args: { service: string }
+        Returns: string
       }
       get_table_info: {
         Args: { table_name: string }
@@ -4720,6 +5126,17 @@ export type Database = {
           table_name: string
         }[]
       }
+      get_trial_balance_summary: {
+        Args: { p_period_start: string; p_period_end: string }
+        Returns: {
+          total_debit: number
+          total_credit: number
+          is_balanced: boolean
+          record_count: number
+          gl_total_debit: number
+          gl_total_credit: number
+        }[]
+      }
       my_function: {
         Args: Record<PropertyKey, never>
         Returns: undefined
@@ -4727,13 +5144,6 @@ export type Database = {
       populate_trial_balance: {
         Args: { p_period_start: string; p_period_end: string }
         Returns: undefined
-      }
-      process_all_existing_bookings: {
-        Args: Record<PropertyKey, never>
-        Returns: {
-          booking_id: string
-          status: string
-        }[]
       }
       process_journal_entry: {
         Args: { p_journal_entry_id: string }
@@ -4743,34 +5153,53 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
+      sync_trial_balance_with_gl: {
+        Args: { p_period_start: string; p_period_end: string }
+        Returns: {
+          synced_accounts: number
+          total_debit: number
+          total_credit: number
+        }[]
+      }
       test_user_insert: {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
+      update_account_balance: {
+        Args: {
+          p_account_id: string
+          p_debit_amount?: number
+          p_credit_amount?: number
+        }
+        Returns: boolean
+      }
       update_all_account_totals: {
         Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
-      update_baggage_booking_payment_methods: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
+        Returns: boolean
       }
       update_coa_balance: {
         Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
-      update_journal_entry_after_payment: {
-        Args: { p_booking_id: string }
         Returns: undefined
       }
       upsert_ledger_summaries: {
         Args: { payload: Json } | { payload: string }
         Returns: undefined
       }
+      upsert_trial_balance_for_period: {
+        Args: { p_period: string }
+        Returns: undefined
+      }
+      upsert_trial_balance_from_json: {
+        Args: { payload: Json }
+        Returns: undefined
+      }
+      upsert_trial_balance_from_ledger: {
+        Args: { payload: string }
+        Returns: undefined
+      }
       upsert_trial_balances: {
         Args:
-          | { p_account_code: string; p_period: string; p_amount: number }
-          | { payload: Json }
+          | { account_id: string; period: string; amount: number }
           | { payload: string }
         Returns: undefined
       }

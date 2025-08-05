@@ -2,7 +2,7 @@ import { supabase } from "./supabase";
 
 interface PaymentRequest {
   userId: string;
-  bookingId: string | number;
+  bookingId: string; // Text-based booking IDs
   amount: number;
   paymentMethod: string; // "cash", "bank", "card"
   transactionId?: string;
@@ -60,15 +60,13 @@ export async function processPayment(paymentData: PaymentRequest) {
           .from("payments")
           .insert({
             user_id: paymentData.userId,
-            booking_id: paymentData.bookingId.toString(),
+            booking_id: paymentData.bookingId, // Already a string
             amount: paymentData.amount,
             payment_method: paymentData.paymentMethod,
             status: "completed",
             transaction_id: paymentData.transactionId || null,
             bank_name: paymentData.bankName || null,
             is_partial_payment: paymentData.isPartialPayment || false,
-            // Remove is_damage_payment as it doesn't exist in the schema
-
             created_at: new Date().toISOString(),
           })
           .select()
@@ -145,10 +143,13 @@ export async function processPayment(paymentData: PaymentRequest) {
         JSON.stringify(edgeFunctionError),
       );
 
-      // Handle guest users with a special guest ID format
+      // For guest users, set user_id to null since they don't have a UUID
       let userId = paymentData.userId;
-      if (userId === "guest-user") {
-        userId = `guest-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
+      if (userId === "guest-user" || !userId) {
+        userId = null;
+      } else {
+        // Ensure userId is converted to string for TEXT column
+        userId = userId.toString();
       }
 
       // Direct database operation fallback
@@ -156,15 +157,14 @@ export async function processPayment(paymentData: PaymentRequest) {
       const { data: paymentRecord, error: paymentError } = await supabase
         .from("payments")
         .insert({
-          user_id: userId,
-          booking_id: paymentData.bookingId.toString(), // Ensure bookingId is a string
+          user_id: userId, // TEXT or null for guest users
+          booking_id: paymentData.bookingId, // Already a string
           amount: paymentData.amount,
           payment_method: paymentData.paymentMethod,
           status: "completed",
           transaction_id: paymentData.transactionId || null,
           bank_name: paymentData.bankName || null,
           is_partial_payment: paymentData.isPartialPayment || false,
-
           created_at: new Date().toISOString(),
         })
         .select()
@@ -249,12 +249,12 @@ function isValidUUID(uuid: string) {
   );
 }
 
-export async function getPaymentsByBookingId(bookingId: string | number) {
-  // Handle both UUID and numeric booking IDs
+export async function getPaymentsByBookingId(bookingId: string) {
+  // Handle text-based booking IDs
   const { data, error } = await supabase
     .from("payments")
     .select("*")
-    .eq("booking_id", bookingId.toString());
+    .eq("booking_id", bookingId);
 
   if (error) {
     console.error("Error fetching payments:", error);
@@ -281,7 +281,7 @@ export async function getPaymentsByUserId(userId: string) {
 
 export async function createPayment(paymentData: {
   userId: string;
-  bookingId: number;
+  bookingId: string; // Text-based booking IDs
   amount: number;
   paymentMethod: string;
   status?: string;
@@ -290,24 +290,26 @@ export async function createPayment(paymentData: {
   isPartialPayment?: boolean;
 }) {
   try {
-    // Handle guest users with a special guest ID format
+    // For guest users, set user_id to null since they don't have a UUID
     let userId = paymentData.userId;
-    if (userId === "guest-user") {
-      userId = `guest-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
+    if (userId === "guest-user" || !userId) {
+      userId = null;
+    } else {
+      // Ensure userId is converted to string for TEXT column
+      userId = userId.toString();
     }
 
     const { data, error } = await supabase
       .from("payments")
       .insert({
-        user_id: userId,
-        booking_id: paymentData.bookingId.toString(), // Ensure bookingId is a string
+        user_id: userId, // TEXT or null for guest users
+        booking_id: paymentData.bookingId, // Text-based booking IDs
         amount: paymentData.amount,
         payment_method: paymentData.paymentMethod,
         status: paymentData.status || "completed",
         transaction_id: paymentData.transactionId || null,
         bank_name: paymentData.bankName || null,
         is_partial_payment: paymentData.isPartialPayment || false,
-
         created_at: new Date().toISOString(),
       })
       .select();

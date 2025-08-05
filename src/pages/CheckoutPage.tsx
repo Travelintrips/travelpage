@@ -29,6 +29,14 @@ const isValidUUID = (uuid: string): boolean => {
   return uuidRegex.test(uuid);
 };
 
+// Function to validate text-based booking code format
+const isValidBookingCode = (code: string): boolean => {
+  if (!code || typeof code !== "string") return false;
+  // Check for patterns like "BG-1234567890-ABC" or "AT-1234567890-ABC"
+  const codeRegex = /^[A-Z]{2}-\d{10,}-[A-Z0-9]+$/;
+  return codeRegex.test(code);
+};
+
 // Function to validate baggage_size
 const validateBaggageSize = (
   size: string | null | undefined,
@@ -109,6 +117,33 @@ const CheckoutPage: React.FC = () => {
     return [];
   });
   const [isFetchingBanks, setIsFetchingBanks] = useState(false);
+  const [paylabsMethods, setPaylabsMethods] = useState<any[]>(() => {
+    // Try to restore from sessionStorage
+    const saved = sessionStorage.getItem("checkout-paylabs-methods");
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (error) {
+        console.error("Error parsing saved Paylabs methods data:", error);
+      }
+    }
+    return [];
+  });
+  const [isFetchingPaylabs, setIsFetchingPaylabs] = useState(false);
+  const [selectedPaylabsMethod, setSelectedPaylabsMethod] = useState<
+    any | null
+  >(() => {
+    // Try to restore from sessionStorage
+    const saved = sessionStorage.getItem("checkout-selected-paylabs-method");
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (error) {
+        console.error("Error parsing saved Paylabs method data:", error);
+      }
+    }
+    return null;
+  });
   const [customerData, setCustomerData] = useState(() => {
     // Try to restore from sessionStorage first
     const saved = sessionStorage.getItem("checkout-customer-data");
@@ -206,12 +241,17 @@ const CheckoutPage: React.FC = () => {
       setCustomerData(resetData);
       setSelectedPaymentMethod("");
       setSelectedBank(null);
+      setSelectedPaylabsMethod(null);
 
       // Clear sessionStorage
       sessionStorage.removeItem("checkout-customer-data");
       sessionStorage.removeItem("checkout-payment-method");
       sessionStorage.removeItem("checkout-selected-bank");
       sessionStorage.removeItem("checkout-manual-banks");
+      sessionStorage.removeItem("checkout-paylabs-methods");
+      sessionStorage.removeItem("checkout-selected-paylabs-method");
+      sessionStorage.removeItem("checkout-paylabs-methods");
+      sessionStorage.removeItem("checkout-selected-paylabs-method");
     };
 
     window.addEventListener("resetBookingForms", handleFormReset);
@@ -293,6 +333,53 @@ const CheckoutPage: React.FC = () => {
     }
   };
 
+  const fetchPaylabsPaymentMethods = async (force = false) => {
+    // Prevent multiple simultaneous fetches unless forced
+    if (isFetchingPaylabs && !force) {
+      console.log("💳 Already fetching Paylabs methods, skipping...");
+      return;
+    }
+
+    setIsFetchingPaylabs(true);
+    try {
+      console.log("💳 Fetching Paylabs payment methods...");
+      const { data, error } = await supabase
+        .from("payment_methods")
+        .select("*")
+        .eq("provider", "paylabs")
+        .eq("is_active", true)
+        .order("name", { ascending: true });
+
+      if (error) {
+        console.error("❌ Error fetching Paylabs payment methods:", error);
+        return;
+      }
+
+      console.log("✅ Fetched Paylabs methods:", data?.length || 0, "methods");
+      console.log("📋 Paylabs method details:", data);
+
+      // Always update state, even if data is empty
+      const paylabsData = data || [];
+      setPaylabsMethods(paylabsData);
+      // Save to sessionStorage
+      sessionStorage.setItem(
+        "checkout-paylabs-methods",
+        JSON.stringify(paylabsData),
+      );
+
+      // Force a re-render by updating a timestamp
+      console.log(
+        "🔄 Paylabs methods state updated at:",
+        new Date().toISOString(),
+      );
+    } catch (error) {
+      console.error("❌ Exception in fetchPaylabsPaymentMethods:", error);
+      // Don't clear existing methods on error, keep what we have
+    } finally {
+      setIsFetchingPaylabs(false);
+    }
+  };
+
   // Fetch manual payment methods when bank transfer is selected
   useEffect(() => {
     if (selectedPaymentMethod === "bank_transfer") {
@@ -302,6 +389,18 @@ const CheckoutPage: React.FC = () => {
       // Clear banks when other payment method is selected
       setManualBanks([]);
       setSelectedBank(null);
+    }
+  }, [selectedPaymentMethod]);
+
+  // Fetch Paylabs payment methods when Paylabs is selected
+  useEffect(() => {
+    if (selectedPaymentMethod === "paylabs") {
+      console.log("💳 Paylabs selected, fetching payment methods...");
+      fetchPaylabsPaymentMethods(true); // Force fetch when payment method changes
+    } else {
+      // Clear Paylabs methods when other payment method is selected
+      setPaylabsMethods([]);
+      setSelectedPaylabsMethod(null);
     }
   }, [selectedPaymentMethod]);
 
@@ -318,6 +417,14 @@ const CheckoutPage: React.FC = () => {
           fetchManualPaymentMethods(true);
         }, 100);
       }
+      if (!document.hidden && selectedPaymentMethod === "paylabs") {
+        console.log("🔄 Tab became visible, refetching Paylabs methods...");
+        // Reset loading state and refetch
+        setIsFetchingPaylabs(false);
+        timeoutId = setTimeout(() => {
+          fetchPaylabsPaymentMethods(true);
+        }, 100);
+      }
     };
 
     const handleFocus = () => {
@@ -327,6 +434,14 @@ const CheckoutPage: React.FC = () => {
         setIsFetchingBanks(false);
         timeoutId = setTimeout(() => {
           fetchManualPaymentMethods(true);
+        }, 100);
+      }
+      if (selectedPaymentMethod === "paylabs") {
+        console.log("🔄 Window focused, refetching Paylabs methods...");
+        // Reset loading state and refetch
+        setIsFetchingPaylabs(false);
+        timeoutId = setTimeout(() => {
+          fetchPaylabsPaymentMethods(true);
         }, 100);
       }
     };
@@ -343,6 +458,16 @@ const CheckoutPage: React.FC = () => {
       fetchManualPaymentMethods(true);
     }
 
+    // Also fetch on component mount if Paylabs is already selected
+    if (
+      selectedPaymentMethod === "paylabs" &&
+      paylabsMethods.length === 0 &&
+      !isFetchingPaylabs
+    ) {
+      console.log("🔄 Component mounted with Paylabs selected, fetching...");
+      fetchPaylabsPaymentMethods(true);
+    }
+
     // Add event listeners
     document.addEventListener("visibilitychange", handleVisibilityChange);
     window.addEventListener("focus", handleFocus);
@@ -355,7 +480,13 @@ const CheckoutPage: React.FC = () => {
         clearTimeout(timeoutId);
       }
     };
-  }, [selectedPaymentMethod, manualBanks.length, isFetchingBanks]);
+  }, [
+    selectedPaymentMethod,
+    manualBanks.length,
+    isFetchingBanks,
+    paylabsMethods.length,
+    isFetchingPaylabs,
+  ]);
 
   // Helper function to link payment with booking
   const linkPaymentBooking = async (
@@ -382,6 +513,147 @@ const CheckoutPage: React.FC = () => {
 
     console.log("✅ Successfully linked payment booking");
     return true;
+  };
+
+  // Function to calculate agent commission based on monthly passenger sales
+  const calculateAgentCommission = (passengerCount: number): number => {
+    if (passengerCount >= 1 && passengerCount <= 100) {
+      return 40000; // Rp40.000
+    } else if (passengerCount >= 101 && passengerCount <= 1000) {
+      return 35000; // Rp35.000
+    } else if (passengerCount >= 1001 && passengerCount <= 2500) {
+      return 30000; // Rp30.000
+    } else if (passengerCount >= 2501 && passengerCount <= 5000) {
+      return 25000; // Rp25.000
+    } else if (passengerCount >= 5001 && passengerCount <= 10000) {
+      return 23000; // Rp23.000
+    } else if (passengerCount > 10000) {
+      return 20000; // Rp20.000
+    }
+    return 0; // No commission for 0 passengers
+  };
+
+  // Function to get agent's monthly passenger sales
+  const getAgentMonthlyPassengerSales = async (
+    userId: string,
+  ): Promise<number> => {
+    try {
+      const currentDate = new Date();
+      const startOfMonth = new Date(
+        currentDate.getFullYear(),
+        currentDate.getMonth(),
+        1,
+      );
+      const endOfMonth = new Date(
+        currentDate.getFullYear(),
+        currentDate.getMonth() + 1,
+        0,
+      );
+
+      console.log("🔍 Fetching agent monthly passenger sales:", {
+        userId,
+        startOfMonth: startOfMonth.toISOString(),
+        endOfMonth: endOfMonth.toISOString(),
+      });
+
+      // Query handling_bookings for this month to count passengers
+      const { data: handlingBookings, error } = await supabase
+        .from("handling_bookings")
+        .select("passengers")
+        .eq("user_id", userId)
+        .gte("created_at", startOfMonth.toISOString())
+        .lte("created_at", endOfMonth.toISOString());
+
+      if (error) {
+        console.error("❌ Error fetching agent passenger sales:", error);
+        return 0;
+      }
+
+      // Sum up all passengers from handling bookings
+      const totalPassengers =
+        handlingBookings?.reduce((sum, booking) => {
+          return sum + (booking.passengers || 0);
+        }, 0) || 0;
+
+      console.log("✅ Agent monthly passenger sales:", {
+        userId,
+        totalBookings: handlingBookings?.length || 0,
+        totalPassengers,
+      });
+
+      return totalPassengers;
+    } catch (error) {
+      console.error("❌ Exception in getAgentMonthlyPassengerSales:", error);
+      return 0;
+    }
+  };
+
+  // Function to check if user is an agent and apply commission deduction
+  const applyAgentCommissionDeduction = async (
+    userId: string,
+  ): Promise<{
+    isAgent: boolean;
+    commissionDeduction: number;
+    totalPassengers: number;
+  }> => {
+    try {
+      console.log("🔍 Checking if user is an agent:", userId);
+
+      // Check user's role_id to identify if they are an agent
+      const { data: userData, error: userError } = await supabase
+        .from("users")
+        .select("role_id, role_name")
+        .eq("id", userId)
+        .single();
+
+      if (userError || !userData) {
+        console.log(
+          "❌ Error fetching user data or user not found:",
+          userError,
+        );
+        return { isAgent: false, commissionDeduction: 0, totalPassengers: 0 };
+      }
+
+      console.log("📋 User data:", {
+        userId,
+        role_id: userData.role_id,
+        role_name: userData.role_name,
+      });
+
+      // Check if user is an agent based on role_id or role_name
+      // Assuming agents have a specific role_id or role_name that identifies them as agents
+      // You may need to adjust this logic based on your specific role structure
+      const isAgent =
+        userData.role_name?.toLowerCase().includes("agent") ||
+        userData.role_id === 5 || // Assuming role_id 5 is for agents
+        userData.role_name?.toLowerCase().includes("sales");
+
+      if (!isAgent) {
+        console.log("ℹ️ User is not an agent, no commission deduction applied");
+        return { isAgent: false, commissionDeduction: 0, totalPassengers: 0 };
+      }
+
+      console.log(
+        "✅ User identified as agent, calculating commission deduction",
+      );
+
+      // Get agent's monthly passenger sales
+      const totalPassengers = await getAgentMonthlyPassengerSales(userId);
+
+      // Calculate commission deduction
+      const commissionDeduction = calculateAgentCommission(totalPassengers);
+
+      console.log("💰 Agent commission calculation:", {
+        userId,
+        totalPassengers,
+        commissionDeduction: formatCurrency(commissionDeduction),
+      });
+
+      return { isAgent: true, commissionDeduction, totalPassengers };
+    } catch (error) {
+      console.error("❌ Exception in applyAgentCommissionDeduction:", error);
+      return { isAgent: false, commissionDeduction: 0, totalPassengers: 0 };
+    }
   };
 
   const handlePayment = async () => {
@@ -413,45 +685,151 @@ const CheckoutPage: React.FC = () => {
       return;
     }
 
+    if (selectedPaymentMethod === "paylabs" && !selectedPaylabsMethod) {
+      toast({
+        title: "Select Paylabs method",
+        description: "Please select a Paylabs payment method.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsProcessingPayment(true);
     try {
       let paymentId = null;
+      let finalTotalAmount = totalAmount;
+      let agentCommissionInfo = {
+        isAgent: false,
+        commissionDeduction: 0,
+        totalPassengers: 0,
+      };
 
       console.log("💰 Creating payment for total amount:", totalAmount);
       console.log("🛒 Processing", cartItems.length, "cart items");
 
-      // Validate userId from auth context - CRITICAL for UUID type matching
-      const validUserId = userId && isValidUUID(userId) ? userId : null;
+      // Use userId as TEXT for the payments table
+      let userIdForPayment: string | null = null;
+      if (userId) {
+        // Convert userId to string for TEXT column
+        userIdForPayment = userId.toString();
 
-      console.log("💰 User ID validation:", {
+        // Check if user is an agent and apply commission deduction
+        agentCommissionInfo = await applyAgentCommissionDeduction(userId);
+
+        if (
+          agentCommissionInfo.isAgent &&
+          agentCommissionInfo.commissionDeduction > 0
+        ) {
+          finalTotalAmount = Math.max(
+            0,
+            totalAmount - agentCommissionInfo.commissionDeduction,
+          );
+
+          console.log("💸 Agent commission deduction applied:", {
+            originalAmount: formatCurrency(totalAmount),
+            commissionDeduction: formatCurrency(
+              agentCommissionInfo.commissionDeduction,
+            ),
+            finalAmount: formatCurrency(finalTotalAmount),
+            totalPassengers: agentCommissionInfo.totalPassengers,
+          });
+
+          // Show toast notification about commission deduction
+          toast({
+            title: "Agent Commission Applied",
+            description: `Commission deduction of ${formatCurrency(agentCommissionInfo.commissionDeduction)} applied based on ${agentCommissionInfo.totalPassengers} passengers sold this month.`,
+            variant: "default",
+          });
+        }
+      }
+
+      console.log("💰 User ID for payment:", {
         originalUserId: userId,
-        validUserId,
-        isValid: !!validUserId,
+        userIdForPayment,
         userIdType: typeof userId,
         userIdLength: userId?.length,
+        isAgent: agentCommissionInfo.isAgent,
+        commissionDeduction: agentCommissionInfo.commissionDeduction,
+        finalTotalAmount,
       });
 
+      // Determine payment type based on cart items
+      const hasBaggageItems = cartItems.some(
+        (item) => item.item_type === "baggage",
+      );
+      const hasHandlingItems = cartItems.some(
+        (item) => item.item_type === "handling",
+      );
+      const hasRegularItems = cartItems.some(
+        (item) => !["baggage", "handling"].includes(item.item_type),
+      );
+
+      // Initialize base payment data with final amount after commission deduction
       const paymentData: any = {
-        amount: totalAmount,
+        amount: finalTotalAmount,
         payment_method: selectedPaymentMethod,
         status: "pending",
         is_partial_payment: false,
         is_damage_payment: false,
+        user_id: userIdForPayment,
         created_at: new Date().toISOString(),
+        code_booking: null,
+        booking_id: null,
+        baggage_booking_id: null,
+        handling_booking_id: null,
       };
 
-      // Only add user_id if it's a valid UUID to prevent type mismatch
-      if (validUserId) {
-        paymentData.user_id = validUserId;
+      // Set booking ID and code based on item types
+      if (hasRegularItems && !hasBaggageItems && !hasHandlingItems) {
+        // Regular bookings only
+        const regularBookingId = uuidv4();
+        if (!isValidUUID(regularBookingId)) {
+          throw new Error(
+            "Failed to generate valid UUID for regular booking_id",
+          );
+        }
+        paymentData.booking_id = regularBookingId;
+        paymentData.code_booking = `REG-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+        console.log(
+          "💰 Generated payment for regular booking:",
+          regularBookingId,
+        );
+      } else if (hasBaggageItems && !hasHandlingItems && !hasRegularItems) {
+        // Baggage items only - will be set after baggage booking creation
+        const firstBaggageItem = cartItems.find(
+          (item) => item.item_type === "baggage",
+        );
+        if (firstBaggageItem && firstBaggageItem.code_booking) {
+          paymentData.code_booking = firstBaggageItem.code_booking;
+        }
+        console.log("💰 Payment prepared for baggage booking");
+      } else if (hasHandlingItems && !hasBaggageItems && !hasRegularItems) {
+        // Handling items only - will be set after handling booking creation
+        console.log("💰 Payment prepared for handling booking");
+      } else {
+        // Mixed items - use regular booking approach
+        const mixedBookingId = uuidv4();
+        if (!isValidUUID(mixedBookingId)) {
+          throw new Error("Failed to generate valid UUID for mixed booking_id");
+        }
+        paymentData.booking_id = mixedBookingId;
+        paymentData.code_booking = `MIX-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+        console.log("💰 Generated payment for mixed booking:", mixedBookingId);
       }
-      // If no valid UUID, leave user_id as null (which is allowed by schema)
 
-      console.log("💰 Payment data being inserted:", paymentData);
+      console.log("💰 Payment data being inserted:", {
+        ...paymentData,
+        booking_id_type: typeof paymentData.booking_id,
+        booking_id_is_uuid: paymentData.booking_id
+          ? isValidUUID(paymentData.booking_id)
+          : null,
+        baggage_booking_id_type: typeof paymentData.baggage_booking_id,
+      });
 
       const { data: payment, error: paymentError } = await supabase
         .from("payments")
         .insert(paymentData)
-        .select()
+        .select("id")
         .single();
 
       if (paymentError) {
@@ -471,7 +849,38 @@ const CheckoutPage: React.FC = () => {
         });
 
         if (item.item_type === "baggage" && item.details) {
-          const bookingId = `BG-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+          // Generate UUID for baggage booking (for database primary key)
+          const baggageBookingUUID = uuidv4();
+
+          // Validate the generated UUID
+          if (!isValidUUID(baggageBookingUUID)) {
+            console.error(
+              "❌ Failed to generate valid UUID for baggage booking:",
+              baggageBookingUUID,
+            );
+            throw new Error(
+              "Failed to generate valid UUID for baggage booking",
+            );
+          }
+
+          // Generate text-based booking code for display/reference
+          const bookingCode = `BG-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+          // Validate the generated booking code
+          if (!isValidBookingCode(bookingCode)) {
+            console.error(
+              "❌ Generated invalid booking code format:",
+              bookingCode,
+            );
+            throw new Error("Failed to generate valid booking code");
+          }
+
+          console.log("💼 Generated baggage booking identifiers:", {
+            uuid: baggageBookingUUID,
+            uuid_valid: isValidUUID(baggageBookingUUID),
+            code: bookingCode,
+            code_valid: isValidBookingCode(bookingCode),
+          });
 
           // Parse details if it's a JSON string, otherwise use as object
           let parsedDetails = item.details;
@@ -688,8 +1097,14 @@ const CheckoutPage: React.FC = () => {
             startTime,
           });
 
+          // Validate data before creating booking record
+          if (!isValidUUID(paymentId)) {
+            console.error("❌ Invalid payment_id UUID:", paymentId);
+            throw new Error("Invalid payment_id UUID for baggage booking");
+          }
+
           const bookingData = {
-            booking_id: bookingId,
+            id: baggageBookingUUID, // Use UUID for primary key
             customer_name: customerData.name,
             customer_phone: customerData.phone,
             customer_email: customerData.email,
@@ -718,10 +1133,29 @@ const CheckoutPage: React.FC = () => {
               "hours",
             hours: parsedDetails.hours || item.details?.hours || 1,
             status: "confirmed",
-            customer_id: validUserId, // Will be null if userId is not a valid UUID
-            payment_id: paymentId,
+            customer_id: userIdForPayment, // Use the same user ID as TEXT
+            payment_id: paymentId, // UUID from payment insert
             payment_method: selectedPaymentMethod, // Add payment method to baggage booking
+            code_booking: item.code_booking || bookingCode, // Use code_booking from cart item or generated code (TEXT)
           };
+
+          console.log("💼 Inserting baggage booking data:", {
+            id: bookingData.id,
+            id_type: typeof bookingData.id,
+            id_is_uuid: isValidUUID(bookingData.id),
+            payment_id: paymentId,
+            payment_id_type: typeof paymentId,
+            payment_id_is_uuid: isValidUUID(paymentId),
+            code_booking: bookingData.code_booking,
+            code_booking_type: typeof bookingData.code_booking,
+            code_booking_valid: bookingData.code_booking
+              ? isValidBookingCode(bookingData.code_booking)
+              : null,
+            customer_name: bookingData.customer_name,
+            baggage_size: bookingData.baggage_size,
+            start_date: bookingData.start_date,
+            end_date: bookingData.end_date,
+          });
 
           const { data: baggageBooking, error: baggageError } = await supabase
             .from("baggage_booking")
@@ -730,13 +1164,79 @@ const CheckoutPage: React.FC = () => {
             .single();
 
           if (baggageError) {
-            console.error("❌ Error saving baggage booking:", baggageError);
+            console.error("❌ Error saving baggage booking:", {
+              error: baggageError,
+              error_message: baggageError.message,
+              error_details: baggageError.details,
+              error_hint: baggageError.hint,
+              bookingData: {
+                id: bookingData.id,
+                payment_id: bookingData.payment_id,
+                code_booking: bookingData.code_booking,
+                customer_name: bookingData.customer_name,
+              },
+              paymentId: paymentId,
+              validation: {
+                id_is_uuid: isValidUUID(bookingData.id),
+                payment_id_is_uuid: isValidUUID(paymentId),
+                code_booking_valid: bookingData.code_booking
+                  ? isValidBookingCode(bookingData.code_booking)
+                  : null,
+              },
+            });
+
+            // Check for specific UUID syntax errors
+            if (
+              baggageError.message &&
+              baggageError.message.includes(
+                "invalid input syntax for type uuid",
+              )
+            ) {
+              throw new Error(
+                `UUID validation failed for baggage booking. Check payment_id (${paymentId}) is valid UUID.`,
+              );
+            }
+
             throw new Error(
               `Failed to save baggage booking: ${baggageError.message}`,
             );
           }
 
-          console.log("✅ Baggage booking created:", baggageBooking.id);
+          console.log("✅ Baggage booking created successfully:", {
+            id: baggageBooking.id,
+            id_type: typeof baggageBooking.id,
+            payment_id: baggageBooking.payment_id,
+            payment_id_type: typeof baggageBooking.payment_id,
+            code_booking: baggageBooking.code_booking,
+            code_booking_type: typeof baggageBooking.code_booking,
+            customer_name: baggageBooking.customer_name,
+          });
+
+          // Update payment with baggage_booking_id if this is a baggage-only payment
+          if (hasBaggageItems && !hasHandlingItems && !hasRegularItems) {
+            const { error: updatePaymentError } = await supabase
+              .from("payments")
+              .update({
+                baggage_booking_id: baggageBooking.id,
+                code_booking: baggageBooking.code_booking,
+              })
+              .eq("id", paymentId);
+
+            if (updatePaymentError) {
+              console.error(
+                "❌ Error updating payment with baggage_booking_id:",
+                updatePaymentError,
+              );
+              throw new Error(
+                `Failed to update payment with baggage_booking_id: ${updatePaymentError.message}`,
+              );
+            }
+
+            console.log(
+              "✅ Payment updated with baggage_booking_id:",
+              baggageBooking.id,
+            );
+          }
 
           // Link to payment_bookings table
           await linkPaymentBooking(
@@ -756,9 +1256,57 @@ const CheckoutPage: React.FC = () => {
             }
           }
 
+          // Generate UUID for airport transfer booking (for database primary key)
+          const transferBookingUUID = uuidv4();
+
+          // Validate the generated UUID
+          if (!isValidUUID(transferBookingUUID)) {
+            console.error(
+              "❌ Failed to generate valid UUID for airport transfer:",
+              transferBookingUUID,
+            );
+            throw new Error(
+              "Failed to generate valid UUID for airport transfer booking",
+            );
+          }
+
+          // Generate text-based booking code for display/reference
+          const transferBookingCode = `AT-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+          // Validate the generated booking code
+          if (!isValidBookingCode(transferBookingCode)) {
+            console.error(
+              "❌ Generated invalid booking code format:",
+              transferBookingCode,
+            );
+            throw new Error(
+              "Failed to generate valid booking code for airport transfer",
+            );
+          }
+
+          console.log("🚗 Generated airport transfer identifiers:", {
+            uuid: transferBookingUUID,
+            uuid_valid: isValidUUID(transferBookingUUID),
+            code: transferBookingCode,
+            code_valid: isValidBookingCode(transferBookingCode),
+          });
+
+          // Validate payment_id before creating booking record
+          if (!isValidUUID(paymentId)) {
+            console.error(
+              "❌ Invalid payment_id UUID for airport transfer:",
+              paymentId,
+            );
+            throw new Error(
+              "Invalid payment_id UUID for airport transfer booking",
+            );
+          }
+
           // Create airport transfer booking
           const transferBookingData = {
-            id: uuidv4(),
+            id: transferBookingUUID, // Use UUID for primary key
+            booking_id: paymentData.booking_id, // Use UUID from payment for foreign key relationship
+            code_booking: transferBookingCode, // Use text-based code for display/reference
             customer_name: customerData.name,
             phone: customerData.phone,
             pickup_location:
@@ -779,7 +1327,7 @@ const CheckoutPage: React.FC = () => {
               "09:00",
             price: item.price,
             status: "confirmed",
-            customer_id: validUserId, // Will be null if userId is not a valid UUID
+            customer_id: userIdForPayment, // Use the same user ID as TEXT
             // Add additional fields from details
             vehicle_name:
               parsedDetails?.vehicleType || parsedDetails?.vehicle_name || null,
@@ -799,10 +1347,33 @@ const CheckoutPage: React.FC = () => {
             .single();
 
           if (transferError) {
-            console.error(
-              "❌ Error creating airport transfer booking:",
-              transferError,
-            );
+            console.error("❌ Error creating airport transfer booking:", {
+              error: transferError,
+              error_message: transferError.message,
+              error_details: transferError.details,
+              error_hint: transferError.hint,
+              validation: {
+                id_is_uuid: isValidUUID(transferBookingData.id),
+                booking_id_is_uuid: isValidUUID(transferBookingData.booking_id),
+                payment_id_is_uuid: isValidUUID(paymentId),
+                code_booking_valid: isValidBookingCode(
+                  transferBookingData.code_booking,
+                ),
+              },
+            });
+
+            // Check for specific UUID syntax errors
+            if (
+              transferError.message &&
+              transferError.message.includes(
+                "invalid input syntax for type uuid",
+              )
+            ) {
+              throw new Error(
+                `UUID validation failed for airport transfer booking. Check booking_id (${transferBookingData.booking_id}) and payment_id (${paymentId}) are valid UUIDs.`,
+              );
+            }
+
             throw new Error(
               `Failed to create airport transfer booking: ${transferError.message}`,
             );
@@ -844,61 +1415,246 @@ const CheckoutPage: React.FC = () => {
             }
           }
 
-          // Use booking ID from cart details or generate new one
-          const handlingBookingId =
-            parsedDetails?.bookingId ||
-            parsedDetails?.booking_id ||
-            `${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 9)}`;
+          console.log("🤝 Processing handling service item:", {
+            item_id: item.item_id,
+            item_id_type: typeof item.item_id,
+            item_id_is_uuid: item.item_id ? isValidUUID(item.item_id) : false,
+            parsedDetails: parsedDetails,
+            bookingId: parsedDetails?.bookingId || parsedDetails?.booking_id,
+          });
 
-          // Create handling booking
-          const handlingBookingData = {
-            id: uuidv4(),
-            booking_id: handlingBookingId, // Use the booking ID from cart details
-            user_id: validUserId, // Add user_id field
-            customer_name: customerData.name,
-            customer_email: customerData.email,
-            customer_phone: customerData.phone,
-            travel_type: parsedDetails?.travelType || "departure",
-            pickup_area: parsedDetails?.pickupArea || "Terminal 1",
-            category: parsedDetails?.category || "Individual",
-            passenger_area: parsedDetails?.passengerArea,
-            flight_number: parsedDetails?.flightNumber,
-            passengers: parsedDetails?.passengers || 1,
-            pickup_date:
-              parsedDetails?.pickupDate ||
-              new Date().toISOString().split("T")[0],
-            pickup_time: parsedDetails?.pickupTime || "09:00",
-            additional_notes: parsedDetails?.additionalNotes || "",
-            service_price: parsedDetails?.servicePrice || 0,
-            category_price: parsedDetails?.categoryPrice || 0,
-            total_price: item.price,
-            payment_method: selectedPaymentMethod, // Add payment_method field
-            status: "confirmed",
-            payment_id: paymentId,
-            created_at: new Date().toISOString(),
-          };
+          // Check if this is an existing handling booking (has item_id as UUID) or new booking
+          if (item.item_id && isValidUUID(item.item_id)) {
+            // Update existing handling booking with payment information
+            const { data: handlingBookings, error: handlingBookingError } =
+              await supabase
+                .from("handling_bookings")
+                .update({
+                  payment_status: "paid",
+                  payment_id: paymentId,
+                  payment_method: selectedPaymentMethod,
+                })
+                .eq("id", item.item_id)
+                .select();
 
-          const { data: handlingBooking, error: handlingError } = await supabase
-            .from("handling_bookings")
-            .insert(handlingBookingData)
-            .select()
-            .single();
+            if (handlingBookingError) {
+              console.error(
+                "❌ Error updating handling booking:",
+                handlingBookingError,
+              );
+              // Log the error but continue processing other items
+              console.warn(
+                `⚠️ Continuing with other items despite handling booking error for ID: ${item.item_id}`,
+              );
+              continue;
+            }
 
-          if (handlingError) {
-            console.error("❌ Error creating handling booking:", handlingError);
-            throw new Error(
-              `Failed to create handling booking: ${handlingError.message}`,
+            // Check if any rows were updated
+            if (!handlingBookings || handlingBookings.length === 0) {
+              console.warn(
+                `⚠️ No handling booking found with ID: ${item.item_id}`,
+              );
+              // Continue processing other items instead of throwing error
+              continue;
+            }
+
+            const handlingBooking = handlingBookings[0];
+            console.log("✅ Handling booking updated:", handlingBooking.id);
+
+            // Update payment with handling_booking_id if this is a handling-only payment
+            if (hasHandlingItems && !hasBaggageItems && !hasRegularItems) {
+              const { error: updatePaymentError } = await supabase
+                .from("payments")
+                .update({
+                  handling_booking_id: handlingBooking.id,
+                  code_booking: handlingBooking.code_booking,
+                })
+                .eq("id", paymentId);
+
+              if (updatePaymentError) {
+                console.error(
+                  "❌ Error updating payment with handling_booking_id:",
+                  updatePaymentError,
+                );
+                throw new Error(
+                  `Failed to update payment with handling_booking_id: ${updatePaymentError.message}`,
+                );
+              }
+
+              console.log(
+                "✅ Payment updated with handling_booking_id:",
+                handlingBooking.id,
+              );
+            }
+
+            // Link to payment_bookings table using UUID
+            await linkPaymentBooking(
+              paymentId,
+              handlingBooking.id.toString(),
+              "handling",
+            );
+          } else {
+            // Create new handling booking
+            // Generate UUID for handling booking (for database primary key)
+            const handlingBookingUUID = uuidv4();
+
+            // Validate the generated UUID
+            if (!isValidUUID(handlingBookingUUID)) {
+              console.error(
+                "❌ Failed to generate valid UUID for handling booking:",
+                handlingBookingUUID,
+              );
+              throw new Error(
+                "Failed to generate valid UUID for handling booking",
+              );
+            }
+
+            // Use existing booking code from details or generate new one
+            const handlingBookingCode =
+              parsedDetails?.bookingId ||
+              item.code_booking ||
+              `HS-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+            // Validate the booking code format
+            if (!isValidBookingCode(handlingBookingCode)) {
+              console.error(
+                "❌ Invalid booking code format:",
+                handlingBookingCode,
+              );
+              throw new Error(
+                "Invalid booking code format for handling service",
+              );
+            }
+
+            console.log("🤝 Generated handling service identifiers:", {
+              uuid: handlingBookingUUID,
+              uuid_valid: isValidUUID(handlingBookingUUID),
+              code: handlingBookingCode,
+              code_valid: isValidBookingCode(handlingBookingCode),
+            });
+
+            // Validate payment_id before creating booking record
+            if (!isValidUUID(paymentId)) {
+              console.error(
+                "❌ Invalid payment_id UUID for handling booking:",
+                paymentId,
+              );
+              throw new Error("Invalid payment_id UUID for handling booking");
+            }
+
+            // Create handling booking
+            const handlingBookingData = {
+              id: handlingBookingUUID, // Use UUID for primary key
+              booking_id:
+                parsedDetails?.booking_id &&
+                isValidUUID(parsedDetails.booking_id)
+                  ? parsedDetails.booking_id
+                  : paymentData.booking_id, // Use UUID from details if valid, otherwise from payment
+              code_booking: handlingBookingCode, // Use text-based code for display/reference
+              user_id: userIdForPayment, // Add user_id field
+              customer_name: customerData.name,
+              customer_email: customerData.email,
+              customer_phone: customerData.phone,
+              travel_type:
+                parsedDetails?.travelType ||
+                parsedDetails?.travelTypes?.join(", ") ||
+                "departure",
+              pickup_area: parsedDetails?.pickupArea || "Terminal 1",
+              category: parsedDetails?.category || "Individual",
+              passenger_area: parsedDetails?.passengerArea,
+              flight_number: parsedDetails?.flightNumber,
+              passengers: parsedDetails?.passengers || 1,
+              pickup_date:
+                parsedDetails?.pickupDate ||
+                new Date().toISOString().split("T")[0],
+              pickup_time: parsedDetails?.pickupTime || "09:00",
+              additional_notes: parsedDetails?.additionalNotes || "",
+              service_price: parsedDetails?.servicePrice || 0,
+              category_price: parsedDetails?.categoryPrice || 0,
+              total_price: item.price,
+              payment_method: selectedPaymentMethod, // Add payment_method field
+              status: "confirmed",
+              payment_id: paymentId,
+              created_at: new Date().toISOString(),
+            };
+
+            const { data: handlingBooking, error: handlingError } =
+              await supabase
+                .from("handling_bookings")
+                .insert(handlingBookingData)
+                .select()
+                .single();
+
+            if (handlingError) {
+              console.error("❌ Error creating handling booking:", {
+                error: handlingError,
+                error_message: handlingError.message,
+                error_details: handlingError.details,
+                error_hint: handlingError.hint,
+                validation: {
+                  id_is_uuid: isValidUUID(handlingBookingData.id),
+                  booking_id_is_uuid: isValidUUID(
+                    handlingBookingData.booking_id,
+                  ),
+                  payment_id_is_uuid: isValidUUID(paymentId),
+                  code_booking_valid: isValidBookingCode(
+                    handlingBookingData.code_booking,
+                  ),
+                },
+              });
+
+              // Check for specific UUID syntax errors
+              if (
+                handlingError.message &&
+                handlingError.message.includes(
+                  "invalid input syntax for type uuid",
+                )
+              ) {
+                throw new Error(
+                  `UUID validation failed for handling booking. Check booking_id (${handlingBookingData.booking_id}) and payment_id (${paymentId}) are valid UUIDs.`,
+                );
+              }
+
+              throw new Error(
+                `Failed to create handling booking: ${handlingError.message}`,
+              );
+            }
+
+            console.log("✅ Handling booking created:", handlingBooking.id);
+
+            // Update payment with handling_booking_id if this is a handling-only payment
+            if (hasHandlingItems && !hasBaggageItems && !hasRegularItems) {
+              const { error: updatePaymentError } = await supabase
+                .from("payments")
+                .update({
+                  handling_booking_id: handlingBooking.id,
+                  code_booking: handlingBooking.code_booking,
+                })
+                .eq("id", paymentId);
+
+              if (updatePaymentError) {
+                console.error(
+                  "❌ Error updating payment with handling_booking_id:",
+                  updatePaymentError,
+                );
+                throw new Error(
+                  `Failed to update payment with handling_booking_id: ${updatePaymentError.message}`,
+                );
+              }
+
+              console.log(
+                "✅ Payment updated with handling_booking_id:",
+                handlingBooking.id,
+              );
+            }
+
+            // Link to payment_bookings table
+            await linkPaymentBooking(
+              paymentId,
+              handlingBooking.id.toString(),
+              "handling",
             );
           }
-
-          console.log("✅ Handling booking created:", handlingBooking.id);
-
-          // Link to payment_bookings table
-          await linkPaymentBooking(
-            paymentId,
-            handlingBooking.id.toString(),
-            "handling",
-          );
         } else if (item.item_type === "passenger_handling" && item.details) {
           // Handle passenger handling service bookings
           let parsedDetails = item.details;
@@ -911,9 +1667,57 @@ const CheckoutPage: React.FC = () => {
             }
           }
 
+          // Generate UUID for passenger handling booking (for database primary key)
+          const passengerHandlingUUID = uuidv4();
+
+          // Validate the generated UUID
+          if (!isValidUUID(passengerHandlingUUID)) {
+            console.error(
+              "❌ Failed to generate valid UUID for passenger handling:",
+              passengerHandlingUUID,
+            );
+            throw new Error(
+              "Failed to generate valid UUID for passenger handling booking",
+            );
+          }
+
+          // Generate text-based booking code for display/reference
+          const passengerHandlingCode = `PH-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+          // Validate the generated booking code
+          if (!isValidBookingCode(passengerHandlingCode)) {
+            console.error(
+              "❌ Generated invalid booking code format:",
+              passengerHandlingCode,
+            );
+            throw new Error(
+              "Failed to generate valid booking code for passenger handling",
+            );
+          }
+
+          console.log("👥 Generated passenger handling identifiers:", {
+            uuid: passengerHandlingUUID,
+            uuid_valid: isValidUUID(passengerHandlingUUID),
+            code: passengerHandlingCode,
+            code_valid: isValidBookingCode(passengerHandlingCode),
+          });
+
+          // Validate payment_id before creating booking record
+          if (!isValidUUID(paymentId)) {
+            console.error(
+              "❌ Invalid payment_id UUID for passenger handling:",
+              paymentId,
+            );
+            throw new Error(
+              "Invalid payment_id UUID for passenger handling booking",
+            );
+          }
+
           // Create passenger handling booking
           const passengerHandlingData = {
-            id: uuidv4(),
+            id: passengerHandlingUUID, // Use UUID for primary key
+            booking_id: paymentData.booking_id, // Use UUID from payment for foreign key relationship
+            code_booking: passengerHandlingCode, // Use text-based code for display/reference
             customer_name: customerData.name,
             customer_email: customerData.email,
             customer_phone: customerData.phone,
@@ -927,7 +1731,7 @@ const CheckoutPage: React.FC = () => {
             profit: parsedDetails?.profit || 0,
             notes: parsedDetails?.notes || "",
             status: "confirmed",
-            customer_id: validUserId,
+            customer_id: userIdForPayment,
             payment_id: paymentId,
             created_at: new Date().toISOString(),
           };
@@ -942,10 +1746,35 @@ const CheckoutPage: React.FC = () => {
             .single();
 
           if (passengerHandlingError) {
-            console.error(
-              "❌ Error creating passenger handling booking:",
-              passengerHandlingError,
-            );
+            console.error("❌ Error creating passenger handling booking:", {
+              error: passengerHandlingError,
+              error_message: passengerHandlingError.message,
+              error_details: passengerHandlingError.details,
+              error_hint: passengerHandlingError.hint,
+              validation: {
+                id_is_uuid: isValidUUID(passengerHandlingData.id),
+                booking_id_is_uuid: isValidUUID(
+                  passengerHandlingData.booking_id,
+                ),
+                payment_id_is_uuid: isValidUUID(paymentId),
+                code_booking_valid: isValidBookingCode(
+                  passengerHandlingData.code_booking,
+                ),
+              },
+            });
+
+            // Check for specific UUID syntax errors
+            if (
+              passengerHandlingError.message &&
+              passengerHandlingError.message.includes(
+                "invalid input syntax for type uuid",
+              )
+            ) {
+              throw new Error(
+                `UUID validation failed for passenger handling booking. Check booking_id (${passengerHandlingData.booking_id}) and payment_id (${paymentId}) are valid UUIDs.`,
+              );
+            }
+
             throw new Error(
               `Failed to create passenger handling booking: ${passengerHandlingError.message}`,
             );
@@ -999,8 +1828,12 @@ const CheckoutPage: React.FC = () => {
               const carBooking = carBookings[0];
               console.log("✅ Car booking updated:", carBooking.id);
 
-              // Link to payment_bookings table
-              await linkPaymentBooking(paymentId, carBooking.id, "car");
+              // Link to payment_bookings table using text-based booking ID
+              await linkPaymentBooking(
+                paymentId,
+                carBooking.id.toString(),
+                "car",
+              );
             } else {
               // Create new car rental booking
               let parsedDetails = item.details;
@@ -1014,7 +1847,7 @@ const CheckoutPage: React.FC = () => {
               }
 
               const bookingData = {
-                customer_id: validUserId, // Will be null if userId is not a valid UUID
+                customer_id: userIdForPayment, // Use the same user ID as TEXT
                 vehicle_id: parsedDetails?.vehicle_id || item.item_id || null,
                 total_amount: item.price,
                 start_date:
@@ -1110,12 +1943,15 @@ const CheckoutPage: React.FC = () => {
       setCustomerData(resetData);
       setSelectedPaymentMethod("");
       setSelectedBank(null);
+      setSelectedPaylabsMethod(null);
 
       // Clear sessionStorage
       sessionStorage.removeItem("checkout-customer-data");
       sessionStorage.removeItem("checkout-payment-method");
       sessionStorage.removeItem("checkout-selected-bank");
       sessionStorage.removeItem("checkout-manual-banks");
+      sessionStorage.removeItem("checkout-paylabs-methods");
+      sessionStorage.removeItem("checkout-selected-paylabs-method");
 
       // Dispatch event to reset any cached form states
       window.dispatchEvent(new CustomEvent("resetBookingForms"));
@@ -1373,18 +2209,29 @@ const CheckoutPage: React.FC = () => {
                             );
                             setSelectedPaymentMethod(method.id);
                             setSelectedBank(null); // Reset selected bank
+                            setSelectedPaylabsMethod(null); // Reset selected Paylabs method
                             // Save to sessionStorage
                             sessionStorage.setItem(
                               "checkout-payment-method",
                               method.id,
                             );
                             sessionStorage.removeItem("checkout-selected-bank");
+                            sessionStorage.removeItem(
+                              "checkout-selected-paylabs-method",
+                            );
                             // Immediately fetch payment methods for bank transfer
                             if (method.id === "bank_transfer") {
                               console.log(
                                 "🏦 Immediately fetching banks for bank transfer...",
                               );
                               fetchManualPaymentMethods(true);
+                            }
+                            // Immediately fetch payment methods for Paylabs
+                            if (method.id === "paylabs") {
+                              console.log(
+                                "💳 Immediately fetching methods for Paylabs...",
+                              );
+                              fetchPaylabsPaymentMethods(true);
                             }
                           }}
                         >
@@ -1502,6 +2349,100 @@ const CheckoutPage: React.FC = () => {
                       )}
                     </div>
                   )}
+
+                  {/* Paylabs Method Selection */}
+                  {selectedPaymentMethod === "paylabs" && (
+                    <div className="border rounded-lg p-4 mt-4 text-left">
+                      <h4 className="font-medium mb-3 text-center">
+                        Select Paylabs Payment Method
+                      </h4>
+                      {isFetchingPaylabs ? (
+                        <div className="text-center py-4">
+                          <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
+                          <p className="text-sm text-gray-500">
+                            Loading Paylabs methods...
+                          </p>
+                        </div>
+                      ) : paylabsMethods.length > 0 ? (
+                        <div className="space-y-2 max-h-48 overflow-y-auto">
+                          {paylabsMethods.map((method) => (
+                            <div
+                              key={method.id}
+                              className={`p-3 border rounded-md cursor-pointer transition-colors ${
+                                selectedPaylabsMethod?.id === method.id
+                                  ? "border-blue-500 bg-blue-50"
+                                  : "hover:bg-gray-50"
+                              }`}
+                              onClick={() => {
+                                console.log(
+                                  "💳 Paylabs method selected:",
+                                  method.name,
+                                );
+                                setSelectedPaylabsMethod(method);
+                                // Save to sessionStorage
+                                sessionStorage.setItem(
+                                  "checkout-selected-paylabs-method",
+                                  JSON.stringify(method),
+                                );
+                              }}
+                            >
+                              <div className="font-medium">{method.name}</div>
+                              {method.payment_code && (
+                                <div className="text-sm text-gray-600">
+                                  Code: {method.payment_code}
+                                </div>
+                              )}
+                              {selectedPaylabsMethod?.id === method.id && (
+                                <div className="mt-2 text-sm space-y-1">
+                                  <div className="text-green-600 font-medium">
+                                    ✓ Selected
+                                  </div>
+                                  {method.mode && (
+                                    <div>
+                                      <span className="font-medium">Mode:</span>{" "}
+                                      <span className="capitalize">
+                                        {method.mode}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-center py-4">
+                          <p className="text-gray-500 mb-2">
+                            No Paylabs payment methods configured.
+                          </p>
+                          <p className="text-sm text-gray-400 mb-2">
+                            Please contact administrator to configure Paylabs
+                            payment methods.
+                          </p>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              console.log(
+                                "🔄 Retry button clicked, refetching Paylabs methods...",
+                              );
+                              fetchPaylabsPaymentMethods(true);
+                            }}
+                            disabled={isFetchingPaylabs}
+                          >
+                            {isFetchingPaylabs ? (
+                              <>
+                                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                Loading...
+                              </>
+                            ) : (
+                              "Retry"
+                            )}
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1524,6 +2465,8 @@ const CheckoutPage: React.FC = () => {
                   !selectedPaymentMethod ||
                   (selectedPaymentMethod === "bank_transfer" &&
                     !selectedBank) ||
+                  (selectedPaymentMethod === "paylabs" &&
+                    !selectedPaylabsMethod) ||
                   isProcessingPayment
                 }
                 className="px-8"

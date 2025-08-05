@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS handling_bookings (
   
   -- Customer Information
   customer_name VARCHAR(255) NOT NULL,
+  company_name VARCHAR(255), -- Add company name field
   customer_email VARCHAR(255) NOT NULL,
   customer_phone VARCHAR(50) NOT NULL,
   
@@ -66,8 +67,17 @@ CREATE TRIGGER trigger_handling_bookings_updated_at
   FOR EACH ROW
   EXECUTE FUNCTION update_handling_bookings_updated_at();
 
--- Enable realtime for the table
-ALTER PUBLICATION supabase_realtime ADD TABLE handling_bookings;
+-- Enable realtime for the table (only if not already added)
+DO $
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables 
+    WHERE pubname = 'supabase_realtime' 
+    AND tablename = 'handling_bookings'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE handling_bookings;
+  END IF;
+END $;
 
 -- Add RLS policies (disabled by default as per instructions)
 -- Users can only see their own bookings

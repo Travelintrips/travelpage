@@ -14,7 +14,7 @@ const corsHeaders = {
 
 interface ProcessPaymentRequest {
   userId: string;
-  bookingId: number;
+  bookingId: string; // TEXT type in database
   amount: number;
   paymentMethod: string; // "Cash", "Bank Transfer", "Credit/Debit Card"
   bankName?: string;
@@ -23,17 +23,37 @@ interface ProcessPaymentRequest {
 }
 
 Deno.serve(async (req) => {
+  console.log(
+    "[ProcessPayment] Function invoked at:",
+    new Date().toISOString(),
+  );
+  console.log("[ProcessPayment] Request method:", req.method);
+  console.log(
+    "[ProcessPayment] Request headers:",
+    Object.fromEntries(req.headers.entries()),
+  );
+
   // This is needed if you're planning to invoke your function from a browser.
   if (req.method === "OPTIONS") {
+    console.log("[ProcessPayment] Handling OPTIONS request");
     return new Response("ok", { headers: corsHeaders });
   }
 
   try {
+    console.log("[ProcessPayment] Starting payment processing...");
+
     // Get environment variables
     const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_KEY") || "";
 
+    console.log("[ProcessPayment] Environment check:", {
+      hasSupabaseUrl: !!supabaseUrl,
+      hasServiceKey: !!supabaseServiceKey,
+      supabaseUrlLength: supabaseUrl.length,
+    });
+
     if (!supabaseUrl || !supabaseServiceKey) {
+      console.error("[ProcessPayment] Missing environment variables");
       throw new Error("Missing environment variables for Supabase connection");
     }
 
@@ -41,6 +61,13 @@ Deno.serve(async (req) => {
     const supabase = createClient<Database>(supabaseUrl, supabaseServiceKey);
 
     // Parse request body
+    console.log("[ProcessPayment] Parsing request body...");
+    const requestBody = await req.json();
+    console.log(
+      "[ProcessPayment] Request body received:",
+      JSON.stringify(requestBody, null, 2),
+    );
+
     const {
       userId,
       bookingId,
@@ -49,7 +76,24 @@ Deno.serve(async (req) => {
       bankName,
       isPartialPayment,
       isGuestBooking,
-    } = await req.json();
+    } = requestBody;
+
+    // CRITICAL: Ensure bookingId is always treated as string
+    const bookingIdString = String(bookingId);
+
+    console.log("[ProcessPayment] Extracted parameters:", {
+      userId: userId,
+      userIdType: typeof userId,
+      bookingId: bookingId,
+      bookingIdString: bookingIdString,
+      bookingIdType: typeof bookingId,
+      bookingIdStringType: typeof bookingIdString,
+      amount: amount,
+      paymentMethod: paymentMethod,
+      bankName: bankName,
+      isPartialPayment: isPartialPayment,
+      isGuestBooking: isGuestBooking,
+    });
 
     // Check if this is a guest booking to bypass journal entries
     const isGuest = isGuestBooking === true;
@@ -59,7 +103,7 @@ Deno.serve(async (req) => {
     }
 
     // Validate required fields - for guest bookings, userId might be null
-    if (!bookingId || !amount || !paymentMethod) {
+    if (!bookingIdString || !amount || !paymentMethod) {
       throw new Error(
         "Missing required fields: bookingId, amount, and paymentMethod are required",
       );
@@ -78,32 +122,56 @@ Deno.serve(async (req) => {
       finalUserId = `guest-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
     }
 
-    // Check if booking exists
+    // Check if booking exists - ensure bookingId is treated as text
+    console.log("[ProcessPayment] Checking if booking exists...");
+    console.log(
+      "[ProcessPayment] Looking for booking with ID:",
+      bookingIdString,
+    );
+
     const { data: bookingData, error: bookingError } = await supabase
       .from("bookings")
       .select("id, total_amount, payment_status")
-      .eq("id", bookingId)
+      .eq("id", bookingIdString)
       .single();
+
+    console.log("[ProcessPayment] Booking query result:", {
+      bookingData: bookingData,
+      bookingError: bookingError,
+    });
 
     if (bookingError || !bookingData) {
-      throw new Error(`Booking with ID ${bookingId} not found`);
+      throw new Error(`Booking with ID ${bookingIdString} not found`);
     }
 
-    // Create payment record
+    // Create payment record - ensure booking_id is text
+    console.log("[ProcessPayment] Creating payment record...");
+    const paymentInsertData = {
+      user_id: finalUserId,
+      booking_id: bookingIdString, // Use the string version
+      amount: amount,
+      payment_method: paymentMethod,
+      status: "completed",
+      created_at: new Date().toISOString(),
+      bank_name: bankName || null,
+      is_partial_payment: isPartialPayment || false,
+    };
+
+    console.log(
+      "[ProcessPayment] Payment insert data:",
+      JSON.stringify(paymentInsertData, null, 2),
+    );
+
     const { data: paymentData, error: paymentError } = await supabase
       .from("payments")
-      .insert({
-        user_id: finalUserId,
-        booking_id: bookingId,
-        amount: amount,
-        payment_method: paymentMethod,
-        status: "completed",
-        created_at: new Date().toISOString(),
-        bank_name: bankName || null,
-        is_partial_payment: isPartialPayment || false,
-      })
+      .insert(paymentInsertData)
       .select()
       .single();
+
+    console.log("[ProcessPayment] Payment creation result:", {
+      paymentData: paymentData,
+      paymentError: paymentError,
+    });
 
     if (paymentError) {
       throw new Error(
@@ -114,12 +182,22 @@ Deno.serve(async (req) => {
     // Determine payment status for booking
     let paymentStatus = "partial";
 
-    // Get total payments for this booking
+    // Get total payments for this booking - ensure booking_id is text
+    console.log(
+      "[ProcessPayment] Fetching total payments for booking:",
+      bookingIdString,
+    );
+
     const { data: totalPaymentsData, error: totalPaymentsError } =
       await supabase
         .from("payments")
         .select("amount")
-        .eq("booking_id", bookingId);
+        .eq("booking_id", bookingIdString);
+
+    console.log("[ProcessPayment] Total payments query result:", {
+      totalPaymentsData: totalPaymentsData,
+      totalPaymentsError: totalPaymentsError,
+    });
 
     if (totalPaymentsError) {
       throw new Error(
@@ -138,12 +216,23 @@ Deno.serve(async (req) => {
       paymentStatus = "paid";
     }
 
-    // Update booking payment status
+    // Update booking payment status - ensure id is text
+    console.log(
+      "[ProcessPayment] Updating booking payment status to:",
+      paymentStatus,
+    );
+    console.log("[ProcessPayment] Updating booking with ID:", bookingIdString);
+
     const { data: updatedBooking, error: updateError } = await supabase
       .from("bookings")
       .update({ payment_status: paymentStatus })
-      .eq("id", bookingId)
+      .eq("id", bookingIdString)
       .select();
+
+    console.log("[ProcessPayment] Booking update result:", {
+      updatedBooking: updatedBooking,
+      updateError: updateError,
+    });
 
     if (updateError) {
       throw new Error(
@@ -158,7 +247,7 @@ Deno.serve(async (req) => {
       );
 
       // Check for null values before inserting journal entries
-      if (!finalUserId || !bookingId) {
+      if (!finalUserId || !bookingIdString) {
         console.warn(
           "[ProcessPayment] Missing required data for journal entries, skipping",
         );
@@ -174,7 +263,7 @@ Deno.serve(async (req) => {
           const { error: journalError } = await supabase
             .from("journal_entries")
             .insert({
-              booking_id: bookingId,
+              booking_id: bookingIdString,
               user_id: finalUserId,
               amount: amount,
               type: "payment",
@@ -189,7 +278,7 @@ Deno.serve(async (req) => {
             .from("general_ledger")
             .insert({
               account_id: "some_account_id", // This would need to be provided
-              booking_id: bookingId,
+              booking_id: bookingIdString,
               user_id: finalUserId,
               amount: amount,
               type: "credit",
@@ -214,33 +303,45 @@ Deno.serve(async (req) => {
       );
     }
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        message: "Payment processed successfully",
-        data: {
-          payment: paymentData,
-          booking: updatedBooking,
-          totalPaid: totalPaid,
-          isGuestBooking: isGuest,
-        },
-      }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 200,
+    const successResponse = {
+      success: true,
+      message: "Payment processed successfully",
+      data: {
+        payment: paymentData,
+        booking: updatedBooking,
+        totalPaid: totalPaid,
+        isGuestBooking: isGuest,
       },
+    };
+
+    console.log(
+      "[ProcessPayment] Success! Returning response:",
+      JSON.stringify(successResponse, null, 2),
     );
+
+    return new Response(JSON.stringify(successResponse), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 200,
+    });
   } catch (error) {
-    console.error("[ProcessPayment] Error:", error);
-    return new Response(
-      JSON.stringify({
-        success: false,
-        message: error.message,
-      }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 400,
-      },
+    console.error("[ProcessPayment] Error occurred:", error);
+    console.error("[ProcessPayment] Error message:", error.message);
+    console.error("[ProcessPayment] Error stack:", error.stack);
+
+    const errorResponse = {
+      success: false,
+      message: error.message,
+      timestamp: new Date().toISOString(),
+    };
+
+    console.log(
+      "[ProcessPayment] Returning error response:",
+      JSON.stringify(errorResponse, null, 2),
     );
+
+    return new Response(JSON.stringify(errorResponse), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 400,
+    });
   }
 });

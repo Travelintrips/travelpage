@@ -15,6 +15,7 @@ import {
   Clock,
   Luggage,
   Car,
+  ExternalLink,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { formatCurrency } from "@/lib/utils";
@@ -26,6 +27,9 @@ interface PaymentDetails {
   status: string;
   created_at: string;
   user_id?: string;
+  va_number?: string;
+  payment_url?: string;
+  paylabs_transaction_id?: string;
 }
 
 interface BookingDetails {
@@ -636,6 +640,91 @@ const ThankYouPage: React.FC = () => {
                   </p>
                 </div>
               </div>
+
+              {/* Paylabs Payment Details */}
+              {(payment.payment_method === "Paylabs" ||
+                payment.va_number ||
+                payment.payment_url ||
+                payment.paylabs_transaction_id) && (
+                <>
+                  {payment.va_number && (
+                    <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                      <h4 className="font-medium text-blue-900 mb-2">
+                        Virtual Account Details
+                      </h4>
+                      <div className="space-y-2">
+                        <div>
+                          <p className="text-sm text-blue-700">
+                            Virtual Account Number
+                          </p>
+                          <p className="font-mono text-lg font-bold text-blue-900 select-all">
+                            {payment.va_number}
+                          </p>
+                        </div>
+                        <div className="bg-blue-100 p-3 rounded-md">
+                          <p className="text-xs text-blue-800 font-medium mb-1">
+                            Payment Instructions:
+                          </p>
+                          <ul className="text-xs text-blue-700 space-y-1">
+                            <li>
+                              • Transfer exactly{" "}
+                              {formatCurrency(payment.amount)} to the VA number
+                              above
+                            </li>
+                            <li>• Payment will be processed automatically</li>
+                            <li>• Keep your transfer receipt for reference</li>
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {payment.payment_url && (
+                    <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+                      <h4 className="font-medium text-green-900 mb-2">
+                        Complete Your Payment
+                      </h4>
+                      <div className="space-y-2">
+                        <a
+                          href={payment.payment_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition-colors"
+                        >
+                          Pay Now - {formatCurrency(payment.amount)}
+                          <ExternalLink className="h-4 w-4" />
+                        </a>
+                        <p className="text-xs text-green-600">
+                          Click the button above to complete your payment
+                          securely through Paylabs.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {payment.paylabs_transaction_id && (
+                    <div className="mt-2">
+                      <p className="text-sm text-gray-600">
+                        Paylabs Transaction ID
+                      </p>
+                      <p className="font-mono text-sm select-all">
+                        {payment.paylabs_transaction_id}
+                      </p>
+                    </div>
+                  )}
+
+                  {(payment.va_number || payment.payment_url) && (
+                    <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                      <p className="text-sm text-yellow-800">
+                        <strong>Important:</strong> Your booking is confirmed
+                        but payment is still pending. Please complete the
+                        payment using the details above to avoid cancellation.
+                      </p>
+                    </div>
+                  )}
+                </>
+              )}
+
               <div className="mt-4">
                 <Badge
                   variant={getStatusBadgeVariant(payment.status)}

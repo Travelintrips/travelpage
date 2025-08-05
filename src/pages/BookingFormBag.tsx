@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  useMemo,
+} from "react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -77,15 +83,7 @@ const createFormSchema = (selectedSize: string) => {
 type FormValues = z.infer<ReturnType<typeof createFormSchema>>;
 
 interface BookingFormProps {
-  selectedSize?:
-    | "small"
-    | "medium"
-    | "large"
-    | "extra_large"
-    | "electronic"
-    | "surfingboard"
-    | "wheelchair"
-    | "stickgolf";
+  selectedSize?: string;
   onComplete?: (data: any) => void;
   onCancel?: () => void;
   baggagePrices?: {
@@ -184,21 +182,14 @@ const BookingForm = ({
 
   // Generate a new unique booking code for each order
   const initializeBookingCode = useCallback(() => {
-    // Always generate a new booking code for each new order
-    // Don't restore from localStorage to ensure uniqueness
-
     // If already initialized for this session, return existing code
     if (isBookingCodeInitialized && bookingCode) {
-      console.log(
-        "[BookingForm] Booking code already initialized for this session:",
-        bookingCode,
-      );
       return bookingCode;
     }
 
     // Generate new unique booking code matching payment system format: BG-{timestamp}-{random}
-    const timestamp = Date.now().toString(); // Full timestamp
-    const randomPart = uuidv4().replace(/-/g, "").substring(0, 3).toUpperCase(); // 3 chars for consistency
+    const timestamp = Date.now().toString();
+    const randomPart = uuidv4().replace(/-/g, "").substring(0, 3).toUpperCase();
 
     const newBookingCode = `BG-${timestamp}-${randomPart}`;
 
@@ -209,11 +200,8 @@ const BookingForm = ({
     setBookingCode(newBookingCode);
     setIsBookingCodeInitialized(true);
 
-    // Don't store in localStorage to prevent reuse
-    // Each new form instance should get a fresh booking code
-
     return newBookingCode;
-  }, [bookingCode, isBookingCodeInitialized]);
+  }, []); // Remove dependencies to prevent loops
 
   // Get booking code function that always returns the same code
   const getBookingCode = useCallback(() => {
@@ -290,7 +278,10 @@ const BookingForm = ({
     ],
   };
 
-  const formSchema = createFormSchema(selectedSize);
+  const formSchema = useMemo(
+    () => createFormSchema(selectedSize),
+    [selectedSize],
+  );
 
   const {
     register,
@@ -783,13 +774,17 @@ const BookingForm = ({
 
       const currentBookingCode = getBookingCode(); // Get the persistent booking code
 
+      // Generate a proper UUID for the booking_id field in shopping_cart table (will be used for baggage_booking_id in payments)
+      const bookingUUID = uuidv4();
+
       const cartItem = {
         item_type: "baggage" as "airport_transfer" | "baggage" | "car",
         item_id: selectedSize,
         service_name: serviceName,
         price: calculateTotalPrice(),
         quantity: 1,
-        booking_id: currentBookingCode, // Add booking_id at the top level for the shopping_cart table
+        booking_id: bookingUUID, // UUID for baggage booking (will be used for baggage_booking_id in payments table)
+        code_booking: currentBookingCode, // Text-based booking code for display/reference (maps to code_booking column)
         details: {
           customer_name: data.name,
           customer_phone: data.phone,
@@ -815,8 +810,7 @@ const BookingForm = ({
           terminal: data.terminal,
           duration_type: durationType,
           hours: durationType === "hours" ? data.hours : null,
-          booking_code: currentBookingCode, // Add the persistent booking code to details
-          booking_id: currentBookingCode, // Add booking_id in details for compatibility
+          booking_code: currentBookingCode, // Keep the text-based booking code in details
         },
       };
 
@@ -1271,14 +1265,7 @@ const BookingForm = ({
             )}
           </div>
 
-          {(() => {
-            console.log(
-              "[BookingForm] Checking electronic condition:",
-              selectedSize,
-              selectedSize === "electronic",
-            );
-            return selectedSize === "electronic";
-          })() && (
+          {selectedSize === "electronic" && (
             <div className="grid gap-2">
               <Label htmlFor="itemName">Item Name</Label>
               <Input
@@ -1692,7 +1679,7 @@ const BookingForm = ({
                 })()}
               </div>
 
-              <div>Booking ID:</div>
+              <div>Code Booking:</div>
               <div className="font-medium font-mono text-blue-600">
                 {bookingCode || getBookingCode()}
               </div>
@@ -1770,10 +1757,11 @@ const BookingForm = ({
       console.log("[BookingForm] Reset flags detected, forcing fresh start");
       localStorage.removeItem("booking_form_draft");
       setStep(0);
-      // Force new booking code generation
-      setBookingCode(null);
-      setIsBookingCodeInitialized(false);
-      initializeBookingCode();
+      // Force new booking code generation only if not already initialized
+      if (!isBookingCodeInitialized) {
+        setBookingCode(null);
+        setIsBookingCodeInitialized(false);
+      }
       return;
     }
 
@@ -1785,10 +1773,6 @@ const BookingForm = ({
 
     if (isFreshStart) {
       localStorage.removeItem("booking_form_draft");
-      // Initialize booking code for new size if not already done
-      if (!isBookingCodeInitialized) {
-        initializeBookingCode();
-      }
       setStep(0);
     } else {
       // Check if this is a recently completed booking (step 2) - ALWAYS start fresh for step 2
@@ -1798,44 +1782,23 @@ const BookingForm = ({
         );
         localStorage.removeItem("booking_form_draft");
         setStep(0);
-        // Force new booking code generation
-        setBookingCode(null);
-        setIsBookingCodeInitialized(false);
-        initializeBookingCode();
       } else {
         // Only restore if it's not step 2 and not recently completed
         setStep(parsedDraft.step ?? 0);
-        // Don't restore booking code - always generate new unique one for each order
-        console.log(
-          "[BookingForm] Not restoring booking code from draft - will generate new unique one",
-        );
       }
     }
-  }, [
-    selectedSize,
-    isBookingCodeInitialized,
-    initializeBookingCode,
-    formJustCleared,
-  ]);
+  }, [selectedSize, formJustCleared]); // Removed problematic dependencies
 
-  // Initialize booking code on component mount - always generate new unique code
+  // Initialize booking code on component mount - generate once per component instance
   useEffect(() => {
-    // Always generate a new unique booking code when component mounts or selectedSize changes
-    console.log(
-      `[BookingForm] Component mounted or size changed to ${selectedSize}, generating new unique booking code`,
-    );
-
-    // Reset booking code state to force new generation
-    setBookingCode(null);
-    setIsBookingCodeInitialized(false);
-
-    // Generate new unique code
-    const code = initializeBookingCode();
-    console.log(
-      `[BookingForm] Generated new unique booking code for ${selectedSize}:`,
-      code,
-    );
-  }, [selectedSize]); // Only depend on selectedSize to ensure new code for each size selection
+    // Only initialize if not already done
+    if (!isBookingCodeInitialized) {
+      console.log(
+        `[BookingForm] Initializing booking code for ${selectedSize}`,
+      );
+      initializeBookingCode();
+    }
+  }, []); // Empty dependency array to run only once on mount
 
   // Function to fetch user profile data from database
   const fetchUserProfile = useCallback(async () => {

@@ -1,10 +1,11 @@
-import React, { Suspense, lazy, useState, useEffect } from "react";
+import React, { Suspense, useState, useEffect, useMemo } from "react";
 import ProfilePage from "./pages/ProfilePage";
 import BookingsPage from "./pages/BookingsPage";
 import ApiSettings from "./components/admin/ApiSettings";
 import PriceKMManagement from "./components/admin/PriceKMManagement";
 import PriceBaggage from "./components/admin/PriceBaggage";
 import PaymentMethodsManagement from "./components/admin/PaymentMethodsManagement";
+import PaylabsSettings from "./components/admin/PaylabsSettings";
 import BaggageBookingManagement from "./components/admin/BaggageBookingManagement";
 import ChartManagement from "./components/admin/ChartManagement";
 import { Toaster } from "@/components/ui/toaster";
@@ -17,8 +18,6 @@ import {
 } from "react-router-dom";
 import AirportTransferPreview from "./pages/AirportTransferPreview";
 import DamagePaymentForm from "./components/payment/DamagePaymentForm";
-// Import tempo routes conditionally
-let routes: any[] = [];
 import RentCar from "./components/RentCar";
 import TravelPage from "./pages/TravelPage";
 import ModelDetailPage from "./pages/ModelDetailPage";
@@ -61,6 +60,8 @@ import HandlingPage from "./pages/HandlingPage";
 import HandlingBookingManagement from "./components/admin/HandlingBookingManagement";
 import HandlingServicesManagement from "./components/admin/HandlingServicesManagement";
 import DispatcherPage from "./components/admin/DispatcherPage";
+import AgentManagement from "./components/admin/AgentManagement";
+import TopUpAgent from "./components/admin/TopUpAgent";
 import TransportasiPage from "./pages/TransportasiPage";
 
 declare global {
@@ -489,7 +490,7 @@ function AppContent() {
 
   // Move useRoutes call outside of JSX to prevent hooks order violation
   // Only call useRoutes when tempo routes are loaded and available
-  const tempoRoutes = React.useMemo(() => {
+  const tempoRoutes = useMemo(() => {
     if (
       !tempoRoutesLoaded ||
       !import.meta.env.VITE_TEMPO ||
@@ -623,11 +624,38 @@ function AppContent() {
             />
             <Route path="api-settings" element={<ApiSettings />} />
             <Route path="dispatcher" element={<DispatcherPage />} />
+            <Route path="data-agent" element={<AgentManagement />} />
+            <Route
+              path="booking-agent"
+              element={
+                <div className="p-8">
+                  <h1 className="text-2xl font-bold">
+                    Booking Agent Management
+                  </h1>
+                  <p className="text-gray-600 mt-4">
+                    Manage bookings created by agents
+                  </p>
+                </div>
+              }
+            />
+            <Route path="top-up-agent" element={<TopUpAgent />} />
+            <Route
+              path="history-top-up"
+              element={
+                <div className="p-8">
+                  <h1 className="text-2xl font-bold">History Top Up</h1>
+                  <p className="text-gray-600 mt-4">
+                    View top-up transaction history
+                  </p>
+                </div>
+              }
+            />
             <Route path="price-km" element={<PriceKMManagement />} />
             <Route
               path="payment-methods"
               element={<PaymentMethodsManagement />}
             />
+            <Route path="paylabs-settings" element={<PaylabsSettings />} />
             <Route
               path="baggage-booking"
               element={<BaggageBookingManagement />}

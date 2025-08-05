@@ -101,6 +101,7 @@ const PaymentMethodsManagement = () => {
       const { data, error } = await supabase
         .from("payment_methods")
         .select("*")
+        .eq("type", "manual")
         .order("created_at", { ascending: false });
 
       if (error) throw error;
