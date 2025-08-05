@@ -417,6 +417,7 @@ const HandlingPage = () => {
         .from("handling_bookings")
         .insert({
           user_id: userId, // Add user_id from AuthContext
+          booking_id: currentBookingId, // Text-based booking code goes to booking_id
           code_booking: currentBookingId, // Text-based booking code goes to code_booking
           customer_name: formData.name,
           company_name: formData.companyName || null,

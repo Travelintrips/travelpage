@@ -170,6 +170,11 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
           nameField: "customer_name",
           amountField: "sell_price",
         },
+        {
+          table: "handling_bookings",
+          nameField: "customer_name",
+          amountField: "total_price",
+        },
       ];
 
       let bookingData = null;
@@ -329,9 +334,14 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
         paymentError = result.error;
       } else {
         // For other booking types (bookings, booking_cars, etc.), use the payments table
-        // Only use booking_id for bookings table, use appropriate field for other tables
+        // Check if this is a handling booking to use the correct field
+        const isHandlingBooking =
+          bookingSummary.booking_type === "handling_bookings";
+
         const paymentData = {
-          booking_id: bookingId, // This should be a UUID string for bookings table
+          booking_id: isHandlingBooking ? null : bookingId, // Only use booking_id for non-handling bookings
+          handling_booking_id: isHandlingBooking ? bookingId : null, // Use handling_booking_id for handling bookings
+          code_booking: bookingId, // Always include code_booking
           amount: values.amount,
           payment_method: selectedPaymentMethod.name,
           bank_name:
