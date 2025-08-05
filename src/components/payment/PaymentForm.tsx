@@ -340,8 +340,10 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
 
         const paymentData = {
           booking_id: isHandlingBooking ? null : bookingId, // Only use booking_id for non-handling bookings
-          handling_booking_id: isHandlingBooking ? bookingId : null, // Use handling_booking_id for handling bookings
-          code_booking: bookingId, // Always include code_booking
+          handling_booking_id: isHandlingBooking ? bookingId : null, // Use handling_booking_id for handling bookings (UUID)
+          code_booking: isHandlingBooking
+            ? bookingSummary.details.code_booking
+            : bookingId, // Use code_booking from details for handling bookings
           amount: values.amount,
           payment_method: selectedPaymentMethod.name,
           bank_name:
