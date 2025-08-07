@@ -10,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
 import { Calendar } from "@/components/ui/calendar";
@@ -63,6 +64,7 @@ const HandlingPage = () => {
     pickupArea: "",
     dropoffArea: "", // Added dropoff area field
     additionalNotes: "",
+    additionalBaggage: 1, // New field for Porter service
   });
 
   // Auto-fill form with user data when available
@@ -83,7 +85,8 @@ const HandlingPage = () => {
   }, [userName, userEmail, userPhone]);
 
   const [isLoading, setIsLoading] = useState(false);
-  const [currentStep, setCurrentStep] = useState(1); // 1 = category selection, 2 = form, 3 = summary
+  const [currentStep, setCurrentStep] = useState(1); // 1 = menu selection, 2 = category selection, 3 = form, 4 = summary
+  const [selectedMenu, setSelectedMenu] = useState("personal"); // personal, porter, umroh
   const [servicePrice, setServicePrice] = useState(0);
   const [categoryPrice, setCategoryPrice] = useState(0);
   const [totalPrice, setTotalPrice] = useState(0);
@@ -103,6 +106,24 @@ const HandlingPage = () => {
       .padStart(3, "0");
 
     return `HS-${year}${month}${day}-${hours}${minutes}${seconds}-${random}`;
+  };
+
+  // Location options for Porter service - moved here to be available before getCurrentOptions
+  const porterLocationOptions = {
+    passengerAreas: [
+      "Terminal 2F – International Arrival Hall",
+      "Terminal 3 – International Arrival (Gate G6 / Area Umum)",
+      "Terminal 2F – International Departure Check-in",
+      "Terminal 3 – International Departure (Check-in & Imigrasi)",
+      "Terminal 2F – International Transfer Desk",
+      "Terminal 3 – International Transfer Area",
+      "Terminal 2D – Domestik Arrival Hall",
+      "Terminal 2E – Domestik Arrival Hall",
+      "Terminal 3 – Domestik Arrival Hall",
+      "Terminal 2D – Domestik Departure Check-in",
+      "Terminal 2E – Domestik Departure Check-in",
+      "Terminal 3 – Domestik Departure Area",
+    ],
   };
 
   // Dynamic location options based on category
@@ -180,6 +201,15 @@ const HandlingPage = () => {
     if (!formData.category) {
       return { passengerAreas: [], pickupAreas: [] };
     }
+
+    // Special handling for Porter Service
+    if (formData.category === "Porter Service") {
+      return {
+        passengerAreas: porterLocationOptions.passengerAreas,
+        pickupAreas: [],
+      };
+    }
+
     return (
       locationOptions[formData.category as keyof typeof locationOptions] || {
         passengerAreas: [],
@@ -208,24 +238,56 @@ const HandlingPage = () => {
     });
   };
 
-  const categories = [
+  const menuOptions = [
+    {
+      id: "personal",
+      title: "Personal Handling",
+      description:
+        "Layanan handling perorangan untuk penerbangan domestik dan internasional",
+    },
+    {
+      id: "porter",
+      title: "Porter",
+      description: "Layanan porter untuk membantu membawa bagasi",
+    },
+    {
+      id: "group",
+      title: "Handling Group",
+      description:
+        "Layanan handling grup untuk penerbangan domestik maupun internasional",
+    },
+  ];
+
+  const personalHandlingCategories = [
     {
       id: "International - Individual",
       title: "International - Individual",
-      icon: <Globe className="h-12 w-12" />,
+      icon: <Globe className="h-12 w-12 text-blue-500" />,
       description:
         "Layanan handling untuk penerbangan internasional perorangan",
     },
     {
       id: "Domestik - Individual",
       title: "Domestik - Individual",
-      icon: <Building className="h-12 w-12" />,
+      icon: <Building className="h-12 w-12 text-orange-500" />,
       description: "Layanan handling untuk penerbangan domestik perorangan",
     },
+  ];
+
+  const porterCategories = [
+    {
+      id: "Porter Service",
+      title: "Porter Service",
+      icon: <User className="h-12 w-12 text-purple-500" />,
+      description: "Layanan porter untuk membantu membawa bagasi di bandara",
+    },
+  ];
+
+  const groupCategories = [
     {
       id: "Handling Group",
       title: "Handling Group",
-      icon: <Users className="h-12 w-12" />,
+      icon: <Users className="h-12 w-12 text-green-500" />,
       description:
         "Layanan handling grup untuk penerbangan domestik maupun internasional",
     },
@@ -316,51 +378,15 @@ const HandlingPage = () => {
         }
 
         if (dbCategory && dbTerminal) {
-          // For International - Individual, fetch prices for all trip types
+          // For International - Individual, calculate price based on selected travel types
           if (category === "International - Individual") {
-            const tripTypes = [
-              "arrival",
-              "departure",
-              "arrival_departure",
-              "transit",
-            ];
-
-            const { data: categoryData, error: categoryError } = await supabase
-              .from("airport_handling_services")
-              .select("sell_price, additional, trip_type")
-              .eq("category", dbCategory)
-              .eq("terminal", dbTerminal)
-              .in("trip_type", tripTypes);
-
-            if (categoryError) {
-              console.error("Error fetching category price:", categoryError);
-            } else {
-              // Use the first available price or default to arrival
-              const firstResult =
-                categoryData && categoryData.length > 0
-                  ? categoryData[0]
-                  : null;
-              setServicePrice(firstResult?.sell_price || 0);
-              setCategoryPrice(firstResult?.additional || 0);
-
-              console.log("Fetched prices from database:", {
-                category: dbCategory,
-                terminal: dbTerminal,
-                available_trip_types: categoryData?.map(
-                  (item) => item.trip_type,
-                ),
-                sell_price: firstResult?.sell_price,
-                additional: firstResult?.additional,
-              });
-            }
+            calculateInternationalIndividualPrice();
           } else {
-            // For other categories, use the original logic
+            // Fetch base price for other categories
             const { data: categoryData, error: categoryError } = await supabase
               .from("airport_handling_services")
-              .select("sell_price, additional")
-              .eq("category", dbCategory)
-              .eq("terminal", dbTerminal)
-              .eq("trip_type", "one way") // Default trip type
+              .select("id, trip_type, basic_price")
+              .in("id", [1, 29, 32]) // ✅ filter ID tertentu
               .limit(1);
 
             if (categoryError) {
@@ -371,14 +397,15 @@ const HandlingPage = () => {
                 categoryData && categoryData.length > 0
                   ? categoryData[0]
                   : null;
-              setServicePrice(firstResult?.sell_price || 0);
-              setCategoryPrice(firstResult?.additional || 0);
+              setServicePrice(firstResult?.basic_price || 0);
+              setCategoryPrice(0); // No additional price for basic_price model
 
               console.log("Fetched prices from database:", {
                 category: dbCategory,
                 terminal: dbTerminal,
-                sell_price: firstResult?.sell_price,
-                additional: firstResult?.additional,
+                id: firstResult?.id,
+                trip_type: firstResult?.trip_type,
+                basic_price: firstResult?.basic_price,
               });
             }
           }
@@ -386,6 +413,69 @@ const HandlingPage = () => {
       }
     } catch (error) {
       console.error("Error fetching prices:", error);
+    }
+  };
+
+  // Function to calculate price for International - Individual based on travel types
+  const calculateInternationalIndividualPrice = async () => {
+    try {
+      let totalPrice = 0;
+      const selectedTypes = formData.travelTypes;
+
+      // Fetch prices for selected travel types
+      const pricePromises = [];
+
+      if (selectedTypes.includes("Arrival")) {
+        pricePromises.push(
+          supabase
+            .from("airport_handling_services")
+            .select("basic_price")
+            .eq("id", 1)
+            .single(),
+        );
+      }
+
+      if (selectedTypes.includes("Departure")) {
+        pricePromises.push(
+          supabase
+            .from("airport_handling_services")
+            .select("basic_price")
+            .eq("id", 29)
+            .single(),
+        );
+      }
+
+      if (selectedTypes.includes("Transit")) {
+        pricePromises.push(
+          supabase
+            .from("airport_handling_services")
+            .select("basic_price")
+            .eq("id", 32)
+            .single(),
+        );
+      }
+
+      // Wait for all price queries to complete
+      const results = await Promise.all(pricePromises);
+
+      // Sum up all the basic_price values
+      results.forEach((result) => {
+        if (result.data && !result.error) {
+          totalPrice += result.data.basic_price || 0;
+        }
+      });
+
+      setServicePrice(totalPrice);
+      setCategoryPrice(0);
+
+      console.log("Calculated International Individual price:", {
+        selectedTypes,
+        totalPrice,
+        results: results.map((r) => ({ data: r.data, error: r.error })),
+      });
+    } catch (error) {
+      console.error("Error calculating International Individual price:", error);
+      setServicePrice(0);
     }
   };
 
@@ -402,6 +492,16 @@ const HandlingPage = () => {
     }
   }, [servicePrice, categoryPrice, formData.passengers, formData.category]);
 
+  // Recalculate price when travel types change for International - Individual
+  useEffect(() => {
+    if (
+      formData.category === "International - Individual" &&
+      formData.travelTypes.length > 0
+    ) {
+      calculateInternationalIndividualPrice();
+    }
+  }, [formData.travelTypes, formData.category]);
+
   const handleBookNow = async () => {
     setIsLoading(true);
 
@@ -412,12 +512,16 @@ const HandlingPage = () => {
         setBookingId(currentBookingId);
       }
 
+      // Generate UUID for booking_id
+      const bookingUUID = crypto.randomUUID();
+
       // First, insert the handling booking into the handling_bookings table
       const { data: handlingBooking, error: handlingError } = await supabase
         .from("handling_bookings")
         .insert({
           user_id: userId, // Add user_id from AuthContext
-          code_booking: currentBookingId, // Text-based booking code goes to code_booking
+          booking_id: bookingUUID, // UUID for booking_id column
+          code_booking: currentBookingId, // Text-based booking code for code_booking column
           customer_name: formData.name,
           company_name: formData.companyName || null,
           customer_email: formData.email,
@@ -454,14 +558,16 @@ const HandlingPage = () => {
       await addToCart({
         item_type: "handling",
         item_id: handlingBooking.id, // Use the handling booking UUID as item_id
-        booking_id: handlingBooking.id, // UUID for booking_id field in shopping_cart (must be UUID type)
-        code_booking: currentBookingId, // Text-based booking code for code_booking field (must be text type)
+        booking_id: bookingUUID, // UUID for booking_id field in shopping_cart
+        code_booking: currentBookingId, // Text-based booking code for code_booking field
         service_name: `Handling Service - ${formData.passengerArea}`,
         price: totalPrice || 150000, // Use calculated total price or fallback
         quantity: 1,
         details: {
           bookingId: currentBookingId, // Text-based booking code for display
-          booking_id: handlingBooking.id, // UUID for compatibility with checkout processing
+          booking_id: bookingUUID, // UUID for compatibility with checkout processing
+          code_booking: currentBookingId, // Text-based booking code for payment processing
+          handling_booking_id: handlingBooking.id, // Reference to the handling booking record
           customerName: formData.name,
           companyName: formData.companyName,
           customerEmail: formData.email,
@@ -507,13 +613,19 @@ const HandlingPage = () => {
   };
 
   const handleBack = () => {
-    if (currentStep === 3) {
+    if (currentStep === 4) {
+      setCurrentStep(3);
+    } else if (currentStep === 3) {
       setCurrentStep(2);
     } else if (currentStep === 2) {
       setCurrentStep(1);
     } else {
       navigate("/");
     }
+  };
+
+  const handleContinueToCategory = () => {
+    setCurrentStep(2);
   };
 
   const handleContinueToForm = () => {
@@ -525,44 +637,63 @@ const HandlingPage = () => {
       });
       return;
     }
-    setCurrentStep(2);
+    setCurrentStep(3);
   };
 
   const handleContinueToSummary = () => {
-    // Dynamic validation based on travel types
-    const needsPickupArea =
-      formData.travelTypes.includes("Arrival") ||
-      formData.travelTypes.includes("Transit");
-    const needsDropoffArea =
-      formData.travelTypes.includes("Departure") ||
-      formData.travelTypes.includes("Transit");
+    // Different validation for Porter Service
+    if (formData.category === "Porter Service") {
+      // Validate form for Porter Service
+      if (
+        !formData.name ||
+        !formData.email ||
+        !formData.phone ||
+        !formData.passengerArea ||
+        !formData.category
+      ) {
+        toast({
+          title: "Form tidak lengkap",
+          description: "Mohon lengkapi semua field yang diperlukan.",
+          variant: "destructive",
+        });
+        return;
+      }
+    } else {
+      // Dynamic validation based on travel types for other services
+      const needsPickupArea =
+        formData.travelTypes.includes("Arrival") ||
+        formData.travelTypes.includes("Transit");
+      const needsDropoffArea =
+        formData.travelTypes.includes("Departure") ||
+        formData.travelTypes.includes("Transit");
 
-    // Validate form
-    if (
-      !formData.name ||
-      !formData.email ||
-      !formData.phone ||
-      !formData.passengerArea ||
-      !formData.category ||
-      !formData.flightNumber ||
-      formData.travelTypes.length === 0 ||
-      (needsPickupArea && !formData.pickupArea) ||
-      (needsDropoffArea && !formData.dropoffArea)
-    ) {
-      toast({
-        title: "Form tidak lengkap",
-        description:
-          "Mohon lengkapi semua field yang diperlukan dan pilih minimal satu jenis perjalanan.",
-        variant: "destructive",
-      });
-      return;
+      // Validate form for other services
+      if (
+        !formData.name ||
+        !formData.email ||
+        !formData.phone ||
+        !formData.passengerArea ||
+        !formData.category ||
+        !formData.flightNumber ||
+        formData.travelTypes.length === 0 ||
+        (needsPickupArea && !formData.pickupArea) ||
+        (needsDropoffArea && !formData.dropoffArea)
+      ) {
+        toast({
+          title: "Form tidak lengkap",
+          description:
+            "Mohon lengkapi semua field yang diperlukan dan pilih minimal satu jenis perjalanan.",
+          variant: "destructive",
+        });
+        return;
+      }
     }
-    setCurrentStep(3);
+    setCurrentStep(4);
   };
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
-      <div className="max-w-2xl mx-auto">
+      <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="mb-8">
           <Button
@@ -583,7 +714,7 @@ const HandlingPage = () => {
 
         {/* Step Indicator */}
         <div className="mb-6">
-          <div className="flex items-center justify-center space-x-4">
+          <div className="flex items-center justify-center space-x-2 md:space-x-4">
             <div
               className={`flex items-center space-x-2 ${currentStep >= 1 ? "text-green-600" : "text-gray-400"}`}
             >
@@ -596,10 +727,10 @@ const HandlingPage = () => {
               >
                 1
               </div>
-              <span className="text-sm font-medium">Pilih Kategori</span>
+              <span className="text-xs md:text-sm font-medium">Pilih Menu</span>
             </div>
             <div
-              className={`w-8 h-0.5 ${currentStep >= 2 ? "bg-green-600" : "bg-gray-200"}`}
+              className={`w-4 md:w-8 h-0.5 ${currentStep >= 2 ? "bg-green-600" : "bg-gray-200"}`}
             ></div>
             <div
               className={`flex items-center space-x-2 ${currentStep >= 2 ? "text-green-600" : "text-gray-400"}`}
@@ -613,10 +744,12 @@ const HandlingPage = () => {
               >
                 2
               </div>
-              <span className="text-sm font-medium">Informasi Pemesanan</span>
+              <span className="text-xs md:text-sm font-medium">
+                Pilih Kategori
+              </span>
             </div>
             <div
-              className={`w-8 h-0.5 ${currentStep >= 3 ? "bg-green-600" : "bg-gray-200"}`}
+              className={`w-4 md:w-8 h-0.5 ${currentStep >= 3 ? "bg-green-600" : "bg-gray-200"}`}
             ></div>
             <div
               className={`flex items-center space-x-2 ${currentStep >= 3 ? "text-green-600" : "text-gray-400"}`}
@@ -630,94 +763,211 @@ const HandlingPage = () => {
               >
                 3
               </div>
-              <span className="text-sm font-medium">Ringkasan Pesanan</span>
+              <span className="text-xs md:text-sm font-medium">
+                Informasi Pemesanan
+              </span>
+            </div>
+            <div
+              className={`w-4 md:w-8 h-0.5 ${currentStep >= 4 ? "bg-green-600" : "bg-gray-200"}`}
+            ></div>
+            <div
+              className={`flex items-center space-x-2 ${currentStep >= 4 ? "text-green-600" : "text-gray-400"}`}
+            >
+              <div
+                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+                  currentStep >= 4
+                    ? "bg-green-600 text-white"
+                    : "bg-gray-200 text-gray-600"
+                }`}
+              >
+                4
+              </div>
+              <span className="text-xs md:text-sm font-medium">
+                Ringkasan Pesanan
+              </span>
             </div>
           </div>
         </div>
 
-        {/* Category Selection Card */}
+        {/* Menu Selection Card */}
         {currentStep === 1 && (
           <Card className="bg-white shadow-lg">
             <CardHeader>
               <CardTitle className="text-xl font-semibold text-gray-900">
-                Pilih Kategori Layanan
+                Pilih Menu Layanan Handling
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {categories.map((category) => (
-                  <Card
-                    key={category.id}
-                    className={`cursor-pointer transition-all hover:shadow-lg ${
-                      formData.category === category.id
-                        ? "border-2 border-green-500 shadow-md"
-                        : "border border-gray-200"
-                    }`}
-                    onClick={() => {
-                      if (!isAuthenticated) {
-                        setShowAuthModal(true);
-                        return;
-                      }
-                      handleInputChange("category", category.id);
-                    }}
-                  >
-                    <CardContent className="flex flex-col items-center justify-center p-6">
-                      <div
-                        className={`p-4 rounded-full mb-4 ${
-                          formData.category === category.id
-                            ? "bg-green-100 text-green-600"
-                            : "bg-gray-100 text-gray-600"
-                        }`}
-                      >
-                        {category.icon}
-                      </div>
-                      <h3 className="text-lg font-semibold mb-2 text-center">
-                        {category.title}
-                      </h3>
-                      <p className="text-gray-500 text-center text-sm mb-4">
-                        {category.description}
-                      </p>
-                      <Button
-                        variant={
-                          formData.category === category.id
-                            ? "default"
-                            : "outline"
+              <Tabs
+                value={selectedMenu}
+                onValueChange={setSelectedMenu}
+                className="w-full"
+              >
+                <TabsList className="grid w-full grid-cols-3">
+                  <TabsTrigger value="personal">Personal Handling</TabsTrigger>
+                  <TabsTrigger value="porter">Porter</TabsTrigger>
+                  <TabsTrigger value="group">Handling Group</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="personal" className="mt-6">
+                  <div className="text-center mb-4">
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      Personal Handling
+                    </h3>
+                    <p className="text-gray-600">
+                      Layanan handling perorangan untuk penerbangan domestik dan
+                      internasional
+                    </p>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="porter" className="mt-6">
+                  <div className="text-center mb-4">
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      Porter
+                    </h3>
+                    <p className="text-gray-600">
+                      Layanan porter untuk membantu membawa bagasi
+                    </p>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="group" className="mt-6">
+                  <div className="text-center mb-4">
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      Handling Group
+                    </h3>
+                    <p className="text-gray-600">
+                      Layanan handling grup untuk penerbangan domestik maupun
+                      internasional
+                    </p>
+                  </div>
+                </TabsContent>
+              </Tabs>
+
+              {/* Action Buttons */}
+              <div className="flex flex-col sm:flex-row gap-4 pt-6">
+                <Button
+                  onClick={handleBack}
+                  variant="outline"
+                  className="flex-1 border-gray-300 text-gray-700 hover:bg-gray-50"
+                >
+                  Kembali
+                </Button>
+                <Button
+                  onClick={handleContinueToCategory}
+                  className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                >
+                  Lanjutkan ke Kategori
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Category Selection Card */}
+        {currentStep === 2 && (
+          <Card className="bg-white shadow-lg">
+            <CardHeader>
+              <CardTitle className="text-xl font-semibold text-gray-900">
+                Pilih Kategori Layanan -{" "}
+                {selectedMenu === "personal"
+                  ? "Personal Handling"
+                  : selectedMenu === "porter"
+                    ? "Porter"
+                    : "Handling Group"}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="flex justify-center">
+                <div
+                  className={`grid gap-6 ${
+                    selectedMenu === "personal"
+                      ? "grid-cols-1 md:grid-cols-2 max-w-2xl"
+                      : "grid-cols-1 max-w-md"
+                  }`}
+                >
+                  {(selectedMenu === "personal"
+                    ? personalHandlingCategories
+                    : selectedMenu === "porter"
+                      ? porterCategories
+                      : groupCategories
+                  ).map((category) => (
+                    <Card
+                      key={category.id}
+                      className={`cursor-pointer transition-all hover:shadow-lg ${
+                        formData.category === category.id
+                          ? "border-2 border-green-500 shadow-md"
+                          : "border border-gray-200"
+                      }`}
+                      onClick={() => {
+                        if (!isAuthenticated) {
+                          setShowAuthModal(true);
+                          return;
                         }
-                        className={`w-full ${
-                          formData.category === category.id
-                            ? "bg-green-600 hover:bg-green-700"
-                            : "border-green-600 text-green-600 hover:bg-green-50"
-                        }`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (!isAuthenticated) {
-                            setShowAuthModal(true);
-                            return;
+                        handleInputChange("category", category.id);
+                      }}
+                    >
+                      <CardContent className="flex flex-col items-center justify-center p-6">
+                        <div
+                          className={`p-4 rounded-full mb-4 ${
+                            formData.category === category.id
+                              ? "bg-green-100"
+                              : "bg-gray-100"
+                          }`}
+                        >
+                          {category.icon}
+                        </div>
+                        <h3 className="text-lg font-semibold mb-2 text-center">
+                          {category.title}
+                        </h3>
+                        <p className="text-gray-500 text-center text-sm mb-4">
+                          {category.description}
+                        </p>
+                        <Button
+                          variant={
+                            formData.category === category.id
+                              ? "default"
+                              : "outline"
                           }
-                          handleInputChange("category", category.id);
-                        }}
-                      >
-                        {formData.category === category.id
-                          ? "Selected"
-                          : "Select"}
-                      </Button>
-                    </CardContent>
-                  </Card>
-                ))}
+                          className={`w-full ${
+                            formData.category === category.id
+                              ? "bg-green-600 hover:bg-green-700"
+                              : "border-green-600 text-green-600 hover:bg-green-50"
+                          }`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (!isAuthenticated) {
+                              setShowAuthModal(true);
+                              return;
+                            }
+                            handleInputChange("category", category.id);
+                          }}
+                        >
+                          {formData.category === category.id
+                            ? "Selected"
+                            : "Select"}
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
               </div>
 
               {/* Selected Category Display */}
-              <div className="space-y-2">
-                <label className="flex items-center text-sm font-medium text-gray-700">
-                  <User className="h-4 w-4 mr-2 text-green-600" />
-                  Kategori Terpilih
-                </label>
-                <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                  <span className="font-medium text-green-800">
-                    {formData.category}
-                  </span>
+              {formData.category && (
+                <div className="space-y-2">
+                  <label className="flex items-center text-sm font-medium text-gray-700">
+                    <User className="h-4 w-4 mr-2 text-green-600" />
+                    Kategori Terpilih
+                  </label>
+                  <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                    <span className="font-medium text-green-800">
+                      {formData.category}
+                    </span>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Action Buttons */}
               <div className="flex flex-col sm:flex-row gap-4 pt-6">
@@ -740,7 +990,7 @@ const HandlingPage = () => {
         )}
 
         {/* Form Card */}
-        {currentStep === 2 && (
+        {currentStep === 3 && (
           <Card className="bg-white shadow-lg">
             <CardHeader>
               <CardTitle className="text-xl font-semibold text-gray-900">
@@ -842,84 +1092,26 @@ const HandlingPage = () => {
                 </Select>
               </div>
 
-              {/* Flight Number Field */}
-              <div className="space-y-2">
-                <label className="flex items-center text-sm font-medium text-gray-700">
-                  <Plane className="h-4 w-4 mr-2 text-green-600" />
-                  Nomor Penerbangan
-                </label>
-                <Input
-                  type="text"
-                  placeholder="Contoh: GA123, SJ182"
-                  value={formData.flightNumber}
-                  onChange={(e) =>
-                    handleInputChange("flightNumber", e.target.value)
-                  }
-                  className="w-full"
-                />
-              </div>
-
-              {/* Travel Type Field */}
-              <div className="space-y-2">
-                <label className="flex items-center text-sm font-medium text-gray-700">
-                  <Navigation className="h-4 w-4 mr-2 text-green-600" />
-                  Jenis Perjalanan
-                </label>
-                <div className="flex flex-col space-y-2">
-                  {travelTypes.map((type) => (
-                    <div
-                      key={type.value}
-                      className="flex items-center space-x-2"
-                    >
-                      <input
-                        type="checkbox"
-                        id={type.value}
-                        checked={formData.travelTypes.includes(type.value)}
-                        onChange={(e) =>
-                          handleTravelTypeChange(type.value, e.target.checked)
-                        }
-                        className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
-                      />
-                      <label
-                        htmlFor={type.value}
-                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                      >
-                        {type.label}
-                      </label>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Dynamic Location Fields based on Travel Types */}
-              {/* Pickup Area Field - Show for Arrival or Transit */}
-              {(formData.travelTypes.includes("Arrival") ||
-                formData.travelTypes.includes("Transit")) && (
+              {/* Additional Baggage Field - Only show for Porter Service */}
+              {formData.category === "Porter Service" && (
                 <div className="space-y-2">
                   <label className="flex items-center text-sm font-medium text-gray-700">
-                    <MapPin className="h-4 w-4 mr-2 text-green-600" />
-                    Lokasi Jemput
+                    <User className="h-4 w-4 mr-2 text-green-600" />
+                    Baggasi Tambahan
                   </label>
                   <Select
-                    value={formData.pickupArea}
+                    value={formData.additionalBaggage.toString()}
                     onValueChange={(value) =>
-                      handleInputChange("pickupArea", value)
+                      handleInputChange("additionalBaggage", parseInt(value))
                     }
-                    disabled={!formData.category}
                   >
                     <SelectTrigger className="w-full">
-                      <SelectValue
-                        placeholder={
-                          formData.category
-                            ? "Pilih lokasi jemput"
-                            : "Pilih kategori terlebih dahulu"
-                        }
-                      />
+                      <SelectValue placeholder="Pilih jumlah baggasi tambahan" />
                     </SelectTrigger>
                     <SelectContent>
-                      {currentOptions.pickupAreas.map((area) => (
-                        <SelectItem key={area} value={area}>
-                          {area}
+                      {[1, 2, 3, 4, 5].map((num) => (
+                        <SelectItem key={num} value={num.toString()}>
+                          {num} Baggasi
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -927,39 +1119,132 @@ const HandlingPage = () => {
                 </div>
               )}
 
-              {/* Dropoff Area Field - Show for Departure or Transit */}
-              {(formData.travelTypes.includes("Departure") ||
-                formData.travelTypes.includes("Transit")) && (
+              {/* Flight Number Field - Hide for Porter Service */}
+              {formData.category !== "Porter Service" && (
                 <div className="space-y-2">
                   <label className="flex items-center text-sm font-medium text-gray-700">
-                    <MapPin className="h-4 w-4 mr-2 text-green-600" />
-                    Lokasi Antar
+                    <Plane className="h-4 w-4 mr-2 text-green-600" />
+                    Nomor Penerbangan
                   </label>
-                  <Select
-                    value={formData.dropoffArea}
-                    onValueChange={(value) =>
-                      handleInputChange("dropoffArea", value)
+                  <Input
+                    type="text"
+                    placeholder="Contoh: GA123, SJ182"
+                    value={formData.flightNumber}
+                    onChange={(e) =>
+                      handleInputChange("flightNumber", e.target.value)
                     }
-                    disabled={!formData.category}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue
-                        placeholder={
-                          formData.category
-                            ? "Pilih lokasi antar"
-                            : "Pilih kategori terlebih dahulu"
-                        }
-                      />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {currentOptions.pickupAreas.map((area) => (
-                        <SelectItem key={area} value={area}>
-                          {area}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    className="w-full"
+                  />
                 </div>
+              )}
+
+              {/* Travel Type Field - Hide for Porter Service */}
+              {formData.category !== "Porter Service" && (
+                <div className="space-y-2">
+                  <label className="flex items-center text-sm font-medium text-gray-700">
+                    <Navigation className="h-4 w-4 mr-2 text-green-600" />
+                    Jenis Perjalanan
+                  </label>
+                  <div className="flex flex-col space-y-2">
+                    {travelTypes.map((type) => (
+                      <div
+                        key={type.value}
+                        className="flex items-center space-x-2"
+                      >
+                        <input
+                          type="checkbox"
+                          id={type.value}
+                          checked={formData.travelTypes.includes(type.value)}
+                          onChange={(e) =>
+                            handleTravelTypeChange(type.value, e.target.checked)
+                          }
+                          className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
+                        />
+                        <label
+                          htmlFor={type.value}
+                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                        >
+                          {type.label}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Dynamic Location Fields based on Travel Types - Hide for Porter Service */}
+              {formData.category !== "Porter Service" && (
+                <>
+                  {/* Pickup Area Field - Show for Arrival or Transit */}
+                  {(formData.travelTypes.includes("Arrival") ||
+                    formData.travelTypes.includes("Transit")) && (
+                    <div className="space-y-2">
+                      <label className="flex items-center text-sm font-medium text-gray-700">
+                        <MapPin className="h-4 w-4 mr-2 text-green-600" />
+                        Lokasi Jemput
+                      </label>
+                      <Select
+                        value={formData.pickupArea}
+                        onValueChange={(value) =>
+                          handleInputChange("pickupArea", value)
+                        }
+                        disabled={!formData.category}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue
+                            placeholder={
+                              formData.category
+                                ? "Pilih lokasi jemput"
+                                : "Pilih kategori terlebih dahulu"
+                            }
+                          />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {currentOptions.pickupAreas.map((area) => (
+                            <SelectItem key={area} value={area}>
+                              {area}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  {/* Dropoff Area Field - Show for Departure or Transit */}
+                  {(formData.travelTypes.includes("Departure") ||
+                    formData.travelTypes.includes("Transit")) && (
+                    <div className="space-y-2">
+                      <label className="flex items-center text-sm font-medium text-gray-700">
+                        <MapPin className="h-4 w-4 mr-2 text-green-600" />
+                        Lokasi Antar
+                      </label>
+                      <Select
+                        value={formData.dropoffArea}
+                        onValueChange={(value) =>
+                          handleInputChange("dropoffArea", value)
+                        }
+                        disabled={!formData.category}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue
+                            placeholder={
+                              formData.category
+                                ? "Pilih lokasi antar"
+                                : "Pilih kategori terlebih dahulu"
+                            }
+                          />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {currentOptions.pickupAreas.map((area) => (
+                            <SelectItem key={area} value={area}>
+                              {area}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </>
               )}
 
               {/* Additional Notes Field */}
@@ -1153,7 +1438,7 @@ const HandlingPage = () => {
         )}
 
         {/* Summary Card */}
-        {currentStep === 3 && (
+        {currentStep === 4 && (
           <Card className="bg-white shadow-lg">
             <CardHeader>
               <CardTitle className="text-xl font-semibold text-gray-900">

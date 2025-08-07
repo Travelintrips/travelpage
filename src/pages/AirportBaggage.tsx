@@ -1,1056 +1,434 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { Card, CardContent } from "@/components/ui/card";
+import React, { useState, useEffect, useCallback } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Boxes } from "lucide-react";
-import { Laptop, MonitorSmartphone, TabletSmartphone } from "lucide-react";
-import { Waves, Tent, Compass } from "lucide-react";
-import { WheelchairIcon } from "@/components/icons";
-import { SurfingIcon, GolfIcon, JoinedIcon } from "@/components/icons";
-import { format } from "date-fns";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "@/components/ui/use-toast";
+import BookingForm from "@/pages/BookingFormBag";
 import {
   Package,
   PackageOpen,
   Luggage,
-  Map as MapIcon,
-  Loader2,
+  Boxes,
+  ArrowLeft,
+  MapPin,
+  Clock,
+  Shield,
+  CheckCircle,
 } from "lucide-react";
-import BookingForm from "./BookingFormBag";
-import { useNavigate } from "react-router-dom";
-import { supabase } from "@/lib/supabase";
-import { useToast } from "@/components/ui/use-toast";
-import { useShoppingCart } from "@/hooks/useShoppingCart";
-import { useAuth } from "@/contexts/AuthContext";
-import ShoppingCart from "@/components/booking/ShoppingCart";
-import AuthRequiredModal from "@/components/auth/AuthRequiredModal";
+import {
+  JoinedIcon,
+  SurfingIcon,
+  WheelchairIcon,
+  GolfIcon,
+} from "@/components/icons";
 
-interface BaggageSizeOption {
+interface BaggageOption {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  icon: React.ReactNode;
+  features: string[];
+  maxDimensions?: string;
+  maxWeight?: string;
+  examples?: string[];
+}
+
+interface BaggagePrice {
   id: string;
   size: string;
   price: number;
-  icon: React.ReactNode;
-  description: string;
+  created_at: string;
+  updated_at: string;
 }
 
-interface AirportBaggageProps {
-  onSelectSize?: (size: string, price: number) => void;
-  selectedSize?: string;
-}
+type BaggageSize =
+  | "small"
+  | "electronic"
+  | "medium"
+  | "large"
+  | "extra_large"
+  | "surfingboard"
+  | "wheelchair"
+  | "stickgolf";
 
-// Default prices to use as fallback - updated to match database values
-const DEFAULT_PRICES = {
-  small_price: 70000,
-  medium_price: 80000,
-  large_price: 90000,
-  extra_large_price: 100000,
-  electronic_price: 90000,
-  surfingboard_price: 100000,
-  wheelchair_price: 110000,
-  stickgolf_price: 110000,
-};
-
-const AirportBaggage = ({
-  onSelectSize = () => {},
-  selectedSize = "",
-}: AirportBaggageProps) => {
-  // All hooks must be declared at the top level and in the same order every time
-  const { toast } = useToast();
-  const { addToCart } = useShoppingCart();
-  const {
-    userId,
-    isLoading: authLoading,
-    isAuthenticated,
-    userName,
-    userEmail,
-    isHydrated,
-  } = useAuth();
-  const navigate = useNavigate();
-
-  // All state hooks declared first
-  const [userPhone, setUserPhone] = useState<string>("");
-  const [showForm, setShowForm] = useState(false);
-  const [showMap, setShowMap] = useState(false);
-  const [showReceipt, setShowReceipt] = useState(false);
-  const [showCart, setShowCart] = useState(false);
+const AirportBaggage: React.FC = () => {
+  const { isAuthenticated, userId } = useAuth();
+  const [selectedSize, setSelectedSize] = useState<BaggageSize | null>(null);
+  const [showBookingForm, setShowBookingForm] = useState(false);
+  const [baggagePrices, setBaggagePrices] = useState<BaggagePrice[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showAuthModal, setShowAuthModal] = useState(false);
-  const [bookingData, setBookingData] = useState({
-    size: "",
-    price: 0,
-    name: "",
-    contact: "",
-    email: "",
-    phone: "",
-    durationType: "hours",
-    hours: 4,
-    date: "",
-    endDate: "",
-    startTime: "",
-    duration: 0,
-    startDate: "",
-    storageLocation: "",
-  });
-  const [baggagePrices, setBaggagePrices] =
-    useState<Record<string, number>>(DEFAULT_PRICES);
-  const [persistentStorageLocation, setPersistentStorageLocation] =
-    useState<string>("");
-  const [isInitialized, setIsInitialized] = useState(false);
-
-  // Memoized functions to prevent unnecessary re-renders
-  const loadPricesFromLocalStorage = useCallback((): Record<
-    string,
-    number
-  > | null => {
-    try {
-      const savedPrices = localStorage.getItem("baggage_prices");
-      if (savedPrices) {
-        const parsedPrices = JSON.parse(savedPrices);
-        console.log(
-          "📂 Loaded baggage prices from localStorage:",
-          parsedPrices,
-        );
-        return parsedPrices;
-      }
-    } catch (error) {
-      console.error(
-        "❌ Error loading baggage prices from localStorage:",
-        error,
-      );
-    }
-    return null;
-  }, []);
-
-  const savePricesToLocalStorage = useCallback(
-    (prices: Record<string, number>) => {
-      try {
-        localStorage.setItem("baggage_prices", JSON.stringify(prices));
-        console.log("💾 Baggage prices saved to localStorage");
-      } catch (error) {
-        console.error("❌ Error saving baggage prices to localStorage:", error);
-      }
-    },
-    [],
-  );
-
-  const getCurrentUserName = useCallback(() => {
-    if (userName && userName.trim() !== "") {
-      return userName;
-    }
-    const storedUserName = localStorage.getItem("userName");
-    if (storedUserName && storedUserName.trim() !== "") {
-      return storedUserName;
-    }
-    const storedUser = localStorage.getItem("auth_user");
-    if (storedUser) {
-      try {
-        const userData = JSON.parse(storedUser);
-        if (userData?.name && userData.name.trim() !== "") {
-          return userData.name;
-        }
-      } catch (error) {
-        console.warn("[AirportBaggage] Error parsing auth_user:", error);
-      }
-    }
-    if (userEmail && userEmail.includes("@")) {
-      return userEmail.split("@")[0];
-    }
-    return "";
-  }, [userName, userEmail]);
-
-  const getCurrentUserEmail = useCallback(() => {
-    if (userEmail && userEmail.trim() !== "") {
-      return userEmail;
-    }
-    const storedUserEmail = localStorage.getItem("userEmail");
-    if (storedUserEmail && storedUserEmail.trim() !== "") {
-      return storedUserEmail;
-    }
-    const storedUser = localStorage.getItem("auth_user");
-    if (storedUser) {
-      try {
-        const userData = JSON.parse(storedUser);
-        if (userData?.email && userData.email.trim() !== "") {
-          return userData.email;
-        }
-      } catch (error) {
-        console.warn("[AirportBaggage] Error parsing auth_user:", error);
-      }
-    }
-    return "";
-  }, [userEmail]);
-
-  const getOrCreateStorageLocation = useCallback(() => {
-    if (persistentStorageLocation) {
-      return persistentStorageLocation;
-    }
-    const storedLocation = localStorage.getItem("baggage_storage_location");
-    if (storedLocation) {
-      setPersistentStorageLocation(storedLocation);
-      return storedLocation;
-    }
-    const terminals = [1, 2, 3];
-    const levels = [1, 2];
-    const randomTerminal =
-      terminals[Math.floor(Math.random() * terminals.length)];
-    const randomLevel = levels[Math.floor(Math.random() * levels.length)];
-    const newLocation = `Terminal ${randomTerminal}, Level ${randomLevel}`;
-    setPersistentStorageLocation(newLocation);
-    localStorage.setItem("baggage_storage_location", newLocation);
-    return newLocation;
-  }, [persistentStorageLocation]);
-
-  // Event handlers
-  const handleViewMap = useCallback(() => {
-    setShowMap(true);
-  }, []);
-
-  const handleCloseMap = useCallback(() => {
-    setShowMap(false);
-  }, []);
-
-  const handleSizeSelect = useCallback(
-    (size: string, price: number) => {
-      // Check if user is authenticated
-      if (!isAuthenticated) {
-        setShowAuthModal(true);
-        return;
-      }
-
-      const now = new Date();
-      const hours = String(now.getHours()).padStart(2, "0");
-      const minutes = String(now.getMinutes()).padStart(2, "0");
-      const currentTime = `${hours}:${minutes}`;
-      const storageLocation = getOrCreateStorageLocation();
-
-      setBookingData((prev) => ({
-        ...prev,
-        size,
-        price,
-        date: new Date().toISOString().split("T")[0],
-        startTime: currentTime,
-        storageLocation,
-      }));
-      setShowForm(true);
-      onSelectSize(size, price);
-    },
-    [isAuthenticated, getOrCreateStorageLocation, onSelectSize],
-  );
-
-  const handleBookingComplete = useCallback(
-    async (data) => {
-      console.log("📋 Booking completed with data:", data);
-
-      // Define baggage options locally to avoid initialization issues
-      const localBaggageOptions = [
-        { id: "baggage-small", size: "Small" },
-        { id: "baggage-medium", size: "Medium" },
-        { id: "baggage-large", size: "Large" },
-        { id: "baggage-extra-large", size: "Extra Large" },
-        { id: "baggage-electronics", size: "Electronics" },
-        { id: "baggage-surfing-board", size: "Surfing Board" },
-        { id: "baggage-wheelchair", size: "Wheel Chair" },
-        { id: "baggage-stick-golf", size: "Stick Golf" },
-      ];
-
-      // Find the selected baggage option to get the size name
-      const selectedOption = localBaggageOptions.find(
-        (option) => option.id === bookingData.size,
-      );
-      const baggageSizeName = selectedOption
-        ? selectedOption.size.toLowerCase().replace(" ", "_")
-        : "medium";
-
-      // 🎯 REMOVED: Cart addition is now handled by BookingFormBag.tsx to prevent duplicates
-      // The BookingFormBag component will handle adding items to cart with proper validation
-      console.log(
-        "[AirportBaggage] Cart addition will be handled by BookingFormBag component",
-      );
-
-      setBookingData((prev) => ({
-        ...prev,
-        ...data,
-        is_guest: !isAuthenticated || !userId,
-        bookingCode: data.bookingCode,
-        storageLocation:
-          data.storageLocation ||
-          persistentStorageLocation ||
-          getOrCreateStorageLocation(),
-      }));
-      // 🎯 REMOVED: No longer showing receipt modal - user will be redirected to cart
-      // setShowReceipt(true);
-    },
-    [
-      isAuthenticated,
-      userId,
-      persistentStorageLocation,
-      getOrCreateStorageLocation,
-      bookingData.size,
-      bookingData.price,
-      addToCart,
-      toast,
-    ],
-  );
-
-  const handleCloseReceipt = useCallback(() => {
-    setShowReceipt(false);
-  }, []);
-
-  const handleViewCart = useCallback(() => {
-    setShowCart(true);
-  }, []);
-
-  const handleCloseCart = useCallback(() => {
-    setShowCart(false);
-  }, []);
 
   // Fetch baggage prices from database
   const fetchBaggagePrices = useCallback(async () => {
     try {
-      console.log("🔄 Fetching baggage prices from database...");
+      setLoading(true);
       const { data, error } = await supabase
         .from("baggage_price")
         .select("*")
-        .limit(1);
+        .order("created_at", { ascending: true });
 
       if (error) {
-        console.error("❌ Error fetching baggage prices:", error);
+        console.error("Error fetching baggage prices:", error);
         toast({
           title: "Error",
-          description: "Failed to fetch baggage prices. Using default prices.",
+          description: "Failed to load baggage prices",
           variant: "destructive",
         });
         return;
       }
 
-      if (data && data.length > 0) {
-        const priceData = data[0];
-        const parsedPrices = {
-          small_price:
-            parseFloat(priceData.small_price) || DEFAULT_PRICES.small_price,
-          medium_price:
-            parseFloat(priceData.medium_price) || DEFAULT_PRICES.medium_price,
-          large_price:
-            parseFloat(priceData.large_price) || DEFAULT_PRICES.large_price,
-          extra_large_price:
-            parseFloat(priceData.extra_large_price) ||
-            DEFAULT_PRICES.extra_large_price,
-          electronic_price:
-            parseFloat(priceData.electronic_price) ||
-            DEFAULT_PRICES.electronic_price,
-          surfingboard_price:
-            parseFloat(priceData.surfingboard_price) ||
-            DEFAULT_PRICES.surfingboard_price,
-          wheelchair_price:
-            parseFloat(priceData.wheelchair_price) ||
-            DEFAULT_PRICES.wheelchair_price,
-          stickgolf_price:
-            parseFloat(priceData.stickgolf_price) ||
-            DEFAULT_PRICES.stickgolf_price,
-        };
-
-        console.log("💰 Database price data received:", priceData);
-        console.log("💰 Final validated baggage prices:", parsedPrices);
-
-        console.log("💰 Final validated baggage prices:", parsedPrices);
-        setBaggagePrices(parsedPrices);
-        savePricesToLocalStorage(parsedPrices);
-      }
+      setBaggagePrices(data || []);
     } catch (error) {
-      console.error("🚨 Exception in fetchBaggagePrices:", error);
+      console.error("Error fetching baggage prices:", error);
       toast({
-        title: "Database Error",
-        description: "Could not connect to database. Using default prices.",
+        title: "Error",
+        description: "Failed to load baggage prices",
         variant: "destructive",
       });
+    } finally {
+      setLoading(false);
     }
-  }, [toast, savePricesToLocalStorage]);
+  }, []);
 
-  // Initialize component - single effect for initialization
   useEffect(() => {
-    if (!isHydrated || isInitialized) return;
-
-    console.log("[AirportBaggage] Initializing component");
-
-    // Initialize storage location
-    const storedLocation = localStorage.getItem("baggage_storage_location");
-    if (storedLocation) {
-      setPersistentStorageLocation(storedLocation);
-    }
-
-    // Load cached prices first
-    const cachedPrices = loadPricesFromLocalStorage();
-    if (cachedPrices && Object.keys(cachedPrices).length > 0) {
-      setBaggagePrices(cachedPrices);
-    }
-
-    // Fetch fresh prices from database
     fetchBaggagePrices();
+  }, [fetchBaggagePrices]);
 
-    setLoading(false);
-    setIsInitialized(true);
-  }, [
-    isHydrated,
-    isInitialized,
-    loadPricesFromLocalStorage,
-    fetchBaggagePrices,
-  ]);
+  // Get price for a specific baggage size
+  const getPriceForSize = (size: BaggageSize): number => {
+    const priceEntry = baggagePrices.find((p) => p.size === size);
+    return priceEntry?.price || 0;
+  };
 
-  // Handle auth state changes
-  useEffect(() => {
-    if (isAuthenticated && userId && !authLoading) {
-      const storedPhone = localStorage.getItem("userPhone");
-      if (storedPhone) {
-        setUserPhone(storedPhone);
-      }
+  // Baggage options with dynamic pricing
+  const baggageOptions: BaggageOption[] = [
+    {
+      id: "small",
+      name: "Small Baggage",
+      description: "Perfect for small personal items and documents",
+      price: getPriceForSize("small"),
+      icon: <Package className="h-8 w-8" />,
+      features: ["Secure storage", "24/7 access", "Insurance included"],
+      maxDimensions: "40cm x 30cm x 20cm",
+      maxWeight: "5kg",
+      examples: ["Laptop bag", "Small backpack", "Documents"],
+    },
+    {
+      id: "electronic",
+      name: "Electronic Items",
+      description: "Specialized storage for electronic devices",
+      price: getPriceForSize("electronic"),
+      icon: <JoinedIcon className="h-8 w-8" />,
+      features: [
+        "Climate controlled",
+        "Anti-static protection",
+        "Secure handling",
+      ],
+      maxDimensions: "50cm x 40cm x 30cm",
+      maxWeight: "10kg",
+      examples: ["Laptops", "Cameras", "Gaming consoles"],
+    },
+    {
+      id: "medium",
+      name: "Medium Baggage",
+      description: "Ideal for standard travel luggage",
+      price: getPriceForSize("medium"),
+      icon: <Luggage className="h-8 w-8" />,
+      features: ["Standard storage", "Easy retrieval", "Damage protection"],
+      maxDimensions: "60cm x 40cm x 30cm",
+      maxWeight: "15kg",
+      examples: ["Carry-on luggage", "Medium suitcase", "Travel bag"],
+    },
+    {
+      id: "large",
+      name: "Large Baggage",
+      description: "For bigger luggage and multiple items",
+      price: getPriceForSize("large"),
+      icon: <PackageOpen className="h-8 w-8" />,
+      features: [
+        "Spacious storage",
+        "Multiple item handling",
+        "Extended security",
+      ],
+      maxDimensions: "80cm x 60cm x 40cm",
+      maxWeight: "25kg",
+      examples: ["Large suitcase", "Multiple bags", "Sports equipment"],
+    },
+    {
+      id: "extra_large",
+      name: "Extra Large Baggage",
+      description: "Maximum storage for oversized items",
+      price: getPriceForSize("extra_large"),
+      icon: <Boxes className="h-8 w-8" />,
+      features: [
+        "Maximum capacity",
+        "Oversized item handling",
+        "Premium security",
+      ],
+      maxDimensions: "100cm x 80cm x 60cm",
+      maxWeight: "35kg",
+      examples: ["Oversized luggage", "Multiple large items", "Bulk storage"],
+    },
+    {
+      id: "surfingboard",
+      name: "Surfing Board",
+      description: "Specialized storage for surfboards and long items",
+      price: getPriceForSize("surfingboard"),
+      icon: <SurfingIcon className="h-8 w-8" />,
+      features: [
+        "Vertical storage",
+        "Protective padding",
+        "Climate controlled",
+      ],
+      maxDimensions: "300cm x 60cm x 20cm",
+      maxWeight: "15kg",
+      examples: ["Surfboards", "Skis", "Long sporting equipment"],
+    },
+    {
+      id: "wheelchair",
+      name: "Wheelchair",
+      description: "Safe and secure wheelchair storage",
+      price: getPriceForSize("wheelchair"),
+      icon: <WheelchairIcon className="h-8 w-8" />,
+      features: [
+        "Accessibility focused",
+        "Careful handling",
+        "Priority service",
+      ],
+      maxDimensions: "120cm x 70cm x 90cm",
+      maxWeight: "50kg",
+      examples: ["Manual wheelchair", "Electric wheelchair", "Mobility aids"],
+    },
+    {
+      id: "stickgolf",
+      name: "Golf Equipment",
+      description: "Secure storage for golf clubs and equipment",
+      price: getPriceForSize("stickgolf"),
+      icon: <GolfIcon className="h-8 w-8" />,
+      features: ["Sports equipment care", "Organized storage", "Quick access"],
+      maxDimensions: "130cm x 40cm x 30cm",
+      maxWeight: "20kg",
+      examples: ["Golf clubs", "Golf bag", "Golf accessories"],
+    },
+  ];
 
-      const currentUserName = getCurrentUserName();
-      const currentUserEmail = getCurrentUserEmail();
+  const handleSizeSelect = (size: BaggageSize) => {
+    setSelectedSize(size);
+    setShowBookingForm(true);
+  };
 
-      if (currentUserName) {
-        localStorage.setItem("userName", currentUserName);
-      }
-      if (currentUserEmail) {
-        localStorage.setItem("userEmail", currentUserEmail);
-      }
-    } else if (!isAuthenticated && !authLoading) {
-      setUserPhone("");
-      localStorage.removeItem("userPhone");
-    }
-  }, [
-    isAuthenticated,
-    userId,
-    authLoading,
-    getCurrentUserName,
-    getCurrentUserEmail,
-  ]);
+  const handleBackToSelection = () => {
+    setShowBookingForm(false);
+    setSelectedSize(null);
+  };
 
-  // Memoized baggage options to prevent unnecessary re-renders
-  const baggageOptions: BaggageSizeOption[] = useMemo(
-    () => [
-      {
-        id: "baggage-small",
-        size: "Small",
-        price: baggagePrices.small_price || 0,
-        icon: <Package className="h-12 w-12" />,
-        description: "Ideal for small bags, backpacks, or personal items",
-      },
-      {
-        id: "baggage-medium",
-        size: "Medium",
-        price: baggagePrices.medium_price || 0,
-        icon: <PackageOpen className="h-12 w-12" />,
-        description: "Perfect for carry-on luggage or medium-sized bags",
-      },
-      {
-        id: "baggage-large",
-        size: "Large",
-        price: baggagePrices.large_price || 0,
-        icon: <Luggage className="h-12 w-12" />,
-        description: "Best for large suitcases or multiple items",
-      },
-      {
-        id: "baggage-extra-large",
-        size: "Extra Large",
-        price: baggagePrices.extra_large_price || 0,
-        icon: <Boxes className="h-12 w-12" />,
-        description: "Best for Extra large suitcases or multiple items",
-      },
-      {
-        id: "baggage-electronics",
-        size: "Electronics",
-        price: baggagePrices.electronic_price || 0,
-        icon: <JoinedIcon className="h-12 w-12" />,
-        description: "Best for Goods Electronic Laptop,Keyboards,Guitar,Camera",
-      },
-      {
-        id: "baggage-surfing-board",
-        size: "Surfing Board",
-        price: baggagePrices.surfingboard_price || 0,
-        icon: <SurfingIcon className="h-12 w-12" />,
-        description:
-          "Best for Long or wide items such as surfboards or sporting gear.",
-      },
-      {
-        id: "baggage-wheelchair",
-        size: "Wheel Chair",
-        price: baggagePrices.wheelchair_price || 0,
-        icon: <WheelchairIcon />,
-        description:
-          "Best for Manual or foldable wheelchairs and mobility aids.",
-      },
-      {
-        id: "baggage-stick-golf",
-        size: "Stick Golf",
-        price: baggagePrices.stickgolf_price || 0,
-        icon: <GolfIcon className="h-12 w-12" />,
-        description: "Best for Golf bags or long-shaped sports equipment.",
-      },
-    ],
-    [baggagePrices],
-  );
-
-  const formatPrice = useCallback(
-    (price: number) =>
-      new Intl.NumberFormat("id-ID", {
-        style: "currency",
-        currency: "IDR",
-        minimumFractionDigits: 0,
-      }).format(price),
-    [],
-  );
-
-  // Show loading state only during initialization, not session checks
-  if (!isInitialized) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center max-w-md mx-auto p-6">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500 mx-auto mb-6"></div>
-          <h2 className="text-xl font-semibold text-gray-800 mb-2">
-            Initializing baggage service...
-          </h2>
-          <p className="text-sm text-gray-600 mb-4">
-            Please wait while we prepare the booking system
-          </p>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading baggage options...</p>
         </div>
       </div>
     );
   }
 
-  // Show loading state only when actually loading prices
-  if (loading) {
+  if (showBookingForm && selectedSize) {
+    const selectedOption = baggageOptions.find(
+      (option) => option.id === selectedSize,
+    );
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-pulse">
-            <div className="h-8 bg-gray-200 rounded w-48 mx-auto mb-4"></div>
-            <div className="h-4 bg-gray-200 rounded w-32 mx-auto"></div>
+      <div className="min-h-screen bg-gray-50">
+        <div className="container mx-auto px-4 py-8">
+          <div className="max-w-4xl mx-auto">
+            <div className="flex items-center gap-4 mb-6">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleBackToSelection}
+                className="mr-2"
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </Button>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">
+                  Book {selectedOption?.name}
+                </h1>
+                <p className="text-gray-600">
+                  Complete your baggage storage booking
+                </p>
+              </div>
+            </div>
+            <BookingForm
+              selectedSize={selectedSize}
+              price={selectedOption?.price || 0}
+              onBack={handleBackToSelection}
+            />
           </div>
-          <p className="mt-4 text-gray-600">Loading baggage prices...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="w-full bg-white">
-      <div className="container-luggage mx-auto max-w-full bg-white">
-        <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-gray-50">
+      <div className="container mx-auto px-4 py-8">
+        <div className="max-w-6xl mx-auto">
           {/* Header */}
-          <header className="w-full bg-sky-700 text-white py-6 shadow-md">
-            <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-0 sm:justify-between px-4 sm:px-6">
-              <Button
-                variant="outline"
-                className="text-black border-white hover:bg-white-600 shadow-md font-semibold px-4 py-2 rounded-md w-full sm:w-auto"
-                onClick={() => navigate("/")}
-              >
-                ← Back
-              </Button>
-              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-center w-full sm:flex-1 order-first sm:order-none">
+          <div className="text-center mb-12">
+            <div className="flex items-center justify-center gap-3 mb-4">
+              <Luggage className="h-10 w-10 text-blue-600" />
+              <h1 className="text-4xl font-bold text-gray-900">
                 Airport Baggage Storage
               </h1>
-              <Button
-                variant="outline"
-                className="text-blue-900 bg-white border-white hover:bg-blue-100 shadow-md font-semibold px-4 py-2 rounded-md w-full sm:w-auto"
-                onClick={handleViewMap}
-              >
-                <MapIcon className="mr-2 h-4 w-4" /> View Storage Locations
-              </Button>
             </div>
-          </header>
+            <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+              Secure, convenient, and affordable baggage storage solutions at
+              the airport. Choose from our range of storage options to fit your
+              needs.
+            </p>
+          </div>
 
-          {/* Hero Section */}
-          <section className="w-full py-8 sm:py-12 bg-gradient-to-b from-sky-600 to-sky-700 text-white">
-            <div className="w-full px-4 sm:px-6">
-              <div className="max-w-6xl mx-auto text-center">
-                <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4 break-words">
-                  Store Your Baggage Safely
-                </h2>
-                <p className="text-base sm:text-xl max-w-2xl mx-auto">
-                  Enjoy your layover without the burden of carrying your
-                  luggage. Our secure storage service is available 24/7
-                  throughout the airport.
-                </p>
-              </div>
-            </div>
-          </section>
-
-          {/* Main Content Baggage */}
-          <section className="py-12">
-            <div className="container mx-auto px-4">
-              <Card className="bg-white shadow-lg">
-                <CardContent className="p-6">
-                  {!showForm ? (
-                    <div>
-                      <h2 className="text-2xl font-bold text-center mb-8">
-                        Select Your Baggage Size
-                      </h2>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6 max-w-5xl mx-auto">
-                        {baggageOptions.map((option) => (
-                          <Card
-                            key={option.id}
-                            className={`cursor-pointer transition-all hover:shadow-lg ${
-                              bookingData.size === option.id
-                                ? "border-2 border-blue-500 shadow-md"
-                                : "border border-gray-200"
-                            }`}
-                            onClick={() => {
-                              if (!isAuthenticated) {
-                                setShowAuthModal(true);
-                                return;
-                              }
-                              handleSizeSelect(option.id, option.price);
-                            }}
-                          >
-                            <CardContent className="flex flex-col items-center justify-center p-6">
-                              <div
-                                className={`p-4 rounded-full mb-4 ${
-                                  bookingData.size === option.id
-                                    ? "bg-blue-100 text-blue-600"
-                                    : "bg-gray-100 text-gray-600"
-                                }`}
-                              >
-                                {option.icon}
-                              </div>
-                              <h3 className="text-xl font-semibold mb-1">
-                                {option.size}
-                              </h3>
-                              <p className="text-lg font-bold text-blue-600 mb-2">
-                                {formatPrice(option.price)}
-                              </p>
-                              <p className="text-gray-500 text-center text-sm mb-4">
-                                {option.description}
-                              </p>
-                              <Button
-                                variant={
-                                  bookingData.size === option.id
-                                    ? "default"
-                                    : "outline"
-                                }
-                                className="w-full"
-                                onClick={() => {
-                                  if (!isAuthenticated) {
-                                    setShowAuthModal(true);
-                                    return;
-                                  }
-                                  handleSizeSelect(option.id, option.price);
-                                }}
-                              >
-                                {bookingData.size === option.id
-                                  ? "Selected"
-                                  : "Select"}
-                              </Button>
-                            </CardContent>
-                          </Card>
-                        ))}
-                      </div>
-                    </div>
-                  ) : (
-                    <div>
-                      <h2 className="text-2xl font-bold text-center mb-8">
-                        Complete Your Booking
-                      </h2>
-                      <BookingForm
-                        selectedSize={(() => {
-                          // Convert baggage option ID to the expected format
-                          const sizeMap: Record<
-                            string,
-                            | "small"
-                            | "medium"
-                            | "large"
-                            | "extra_large"
-                            | "electronic"
-                            | "surfingboard"
-                            | "wheelchair"
-                            | "stickgolf"
-                          > = {
-                            "baggage-small": "small",
-                            "baggage-medium": "medium",
-                            "baggage-large": "large",
-                            "baggage-extra-large": "extra_large",
-                            "baggage-electronics": "electronic",
-                            "baggage-surfing-board": "surfingboard",
-                            "baggage-wheelchair": "wheelchair",
-                            "baggage-stick-golf": "stickgolf",
-                          };
-                          return (
-                            sizeMap[bookingData.size as keyof typeof sizeMap] ||
-                            "small"
-                          );
-                        })()}
-                        baggagePrices={{
-                          small:
-                            baggagePrices.small_price ||
-                            DEFAULT_PRICES.small_price,
-                          medium:
-                            baggagePrices.medium_price ||
-                            DEFAULT_PRICES.medium_price,
-                          large:
-                            baggagePrices.large_price ||
-                            DEFAULT_PRICES.large_price,
-                          extra_large:
-                            baggagePrices.extra_large_price ||
-                            DEFAULT_PRICES.extra_large_price,
-                          electronic:
-                            baggagePrices.electronic_price ||
-                            DEFAULT_PRICES.electronic_price,
-                          surfingboard:
-                            baggagePrices.surfingboard_price ||
-                            DEFAULT_PRICES.surfingboard_price,
-                          wheelchair:
-                            baggagePrices.wheelchair_price ||
-                            DEFAULT_PRICES.wheelchair_price,
-                          stickgolf:
-                            baggagePrices.stickgolf_price ||
-                            DEFAULT_PRICES.stickgolf_price,
-                        }}
-                        onComplete={handleBookingComplete}
-                        onCancel={() => setShowForm(false)}
-                        initialDate={new Date()}
-                        initialTime={bookingData.startTime || ""}
-                        prefilledData={
-                          isAuthenticated
-                            ? {
-                                name: getCurrentUserName(),
-                                email: getCurrentUserEmail(),
-                                phone:
-                                  userPhone ||
-                                  localStorage.getItem("userPhone") ||
-                                  "",
-                              }
-                            : undefined
-                        }
-                      />
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-          </section>
-
-          {/* Features Section */}
-          <section className="py-12 bg-gray-100">
-            <div className="container mx-auto px-4">
-              <h2 className="text-2xl font-bold text-center mb-8">
-                Why Choose Our Service
-              </h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
-                <Card className="bg-white">
-                  <CardContent className="p-6 text-center">
-                    <div className="rounded-full bg-sky-100 p-4 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="h-8 w-8 text-sky-600"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"
-                        />
-                      </svg>
-                    </div>
-                    <h3 className="text-xl font-semibold mb-2">
-                      Secure Storage
-                    </h3>
-                    <p className="text-gray-600">
-                      Your belongings are kept in a monitored, secure area with
-                      24/7 surveillance.
-                    </p>
-                  </CardContent>
-                </Card>
-                <Card className="bg-white">
-                  <CardContent className="p-6 text-center">
-                    <div className="rounded-full bg-sky-100 p-4 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="h-8 w-8 text-sky-600"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                        />
-                      </svg>
-                    </div>
-                    <h3 className="text-xl font-semibold mb-2">Quick & Easy</h3>
-                    <p className="text-gray-600">
-                      Drop off and pick up your baggage in minutes with our
-                      efficient service.
-                    </p>
-                  </CardContent>
-                </Card>
-                <Card className="bg-white">
-                  <CardContent className="p-6 text-center">
-                    <div className="rounded-full bg-sky-100 p-4 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="h-8 w-8 text-sky-600"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"
-                        />
-                      </svg>
-                    </div>
-                    <h3 className="text-xl font-semibold mb-2">
-                      Affordable Rates
-                    </h3>
-                    <p className="text-gray-600">
-                      Competitive pricing with options for different baggage
-                      sizes and durations.
-                    </p>
-                  </CardContent>
-                </Card>
-              </div>
-            </div>
-          </section>
-
-          {/* Footer */}
-          <footer className="bg-gray-800 text-white py-8">
-            <div className="container mx-auto px-4 text-center">
-              <p>
-                © {new Date().getFullYear()} Airport Baggage Storage. All
-                rights reserved.
+          {/* Features */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+            <Card className="text-center p-6">
+              <Shield className="h-12 w-12 text-green-600 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold mb-2">Secure Storage</h3>
+              <p className="text-gray-600">
+                24/7 monitored facilities with advanced security systems
               </p>
-              <div className="mt-4">
-                <a href="#" className="text-sky-300 hover:text-sky-100 mx-2">
-                  Terms of Service
-                </a>
-                <a href="#" className="text-sky-300 hover:text-sky-100 mx-2">
-                  Privacy Policy
-                </a>
-                <a href="#" className="text-sky-300 hover:text-sky-100 mx-2">
-                  Contact Us
-                </a>
-              </div>
-            </div>
-          </footer>
+            </Card>
+            <Card className="text-center p-6">
+              <Clock className="h-12 w-12 text-blue-600 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold mb-2">Flexible Hours</h3>
+              <p className="text-gray-600">
+                Access your belongings anytime with our 24/7 service
+              </p>
+            </Card>
+            <Card className="text-center p-6">
+              <MapPin className="h-12 w-12 text-purple-600 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold mb-2">Prime Location</h3>
+              <p className="text-gray-600">
+                Conveniently located within the airport terminal
+              </p>
+            </Card>
+          </div>
 
-          {/* Modals */}
-          {showReceipt && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-              <Card className="w-full max-w-md bg-white">
-                <CardContent className="p-6">
-                  <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-xl font-bold">Booking Receipt</h3>
+          {/* Baggage Options */}
+          <div className="mb-8">
+            <h2 className="text-2xl font-bold text-gray-900 mb-6 text-center">
+              Choose Your Storage Size
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {baggageOptions.map((option) => (
+                <Card
+                  key={option.id}
+                  className="hover:shadow-lg transition-shadow cursor-pointer group"
+                  onClick={() => handleSizeSelect(option.id as BaggageSize)}
+                >
+                  <CardHeader className="text-center pb-4">
+                    <div className="flex justify-center mb-3 text-blue-600 group-hover:text-blue-700 transition-colors">
+                      {option.icon}
+                    </div>
+                    <CardTitle className="text-lg">{option.name}</CardTitle>
+                    <div className="text-2xl font-bold text-green-600">
+                      Rp {option.price.toLocaleString("id-ID")}
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <p className="text-gray-600 text-sm mb-4">
+                      {option.description}
+                    </p>
+
+                    {option.maxDimensions && (
+                      <div className="mb-3">
+                        <Badge variant="outline" className="text-xs">
+                          Max: {option.maxDimensions}
+                        </Badge>
+                        {option.maxWeight && (
+                          <Badge variant="outline" className="text-xs ml-2">
+                            {option.maxWeight}
+                          </Badge>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="space-y-2 mb-4">
+                      {option.features.map((feature, index) => (
+                        <div key={index} className="flex items-center gap-2">
+                          <CheckCircle className="h-4 w-4 text-green-500" />
+                          <span className="text-sm text-gray-600">
+                            {feature}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+
+                    {option.examples && (
+                      <div className="border-t pt-3">
+                        <p className="text-xs text-gray-500 mb-2">Examples:</p>
+                        <div className="flex flex-wrap gap-1">
+                          {option.examples.map((example, index) => (
+                            <Badge
+                              key={index}
+                              variant="secondary"
+                              className="text-xs"
+                            >
+                              {example}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={handleCloseReceipt}
+                      className="w-full mt-4 group-hover:bg-blue-700 transition-colors"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleSizeSelect(option.id as BaggageSize);
+                      }}
                     >
-                      ✕
+                      Select This Size
                     </Button>
-                  </div>
-                  <div className="space-y-4">
-                    <div>
-                      <p className="text-sm text-gray-500">Baggage Size</p>
-                      <p className="font-medium">
-                        {(() => {
-                          const localBaggageOptions = [
-                            {
-                              id: "baggage-small",
-                              size: "Small",
-                            },
-                            {
-                              id: "baggage-medium",
-                              size: "Medium",
-                            },
-                            {
-                              id: "baggage-large",
-                              size: "Large",
-                            },
-                            {
-                              id: "baggage-extra-large",
-                              size: "Extra Large",
-                            },
-                            {
-                              id: "baggage-electronics",
-                              size: "Electronics",
-                            },
-                            {
-                              id: "baggage-surfing-board",
-                              size: "Surfing Board",
-                            },
-                            {
-                              id: "baggage-wheelchair",
-                              size: "Wheel Chair",
-                            },
-                            {
-                              id: "baggage-stick-golf",
-                              size: "Stick Golf",
-                            },
-                          ];
-                          return (
-                            localBaggageOptions.find(
-                              (opt) => opt.id === bookingData.size,
-                            )?.size || ""
-                          );
-                        })()}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Name</p>
-                      <p className="font-medium">{bookingData.name || ""}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Email</p>
-                      <p className="font-medium">{bookingData.email || ""}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Phone</p>
-                      <p className="font-medium">{bookingData.phone || ""}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Price</p>
-                      <p className="font-medium">
-                        Rp {bookingData.price.toLocaleString("id-ID")}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Duration</p>
-                      <p className="font-medium">
-                        {bookingData.hours
-                          ? `${bookingData.hours} ${bookingData.durationType === "days" ? "day(s)" : "hour(s)"}`
-                          : ""}
-                      </p>
-                    </div>
-                    {bookingData.durationType === "hours" && (
-                      <div>
-                        <p className="text-sm text-gray-500">Start Date</p>
-                        <p className="font-medium">
-                          {format(
-                            new Date(bookingData.date || new Date()),
-                            "MMMM d, yyyy - HH:mm",
-                          )}
-                        </p>
-                      </div>
-                    )}
-                    {bookingData.durationType === "days" && (
-                      <>
-                        <div>
-                          <p className="text-sm text-gray-500">Start Date</p>
-                          <p className="font-medium">
-                            {format(
-                              new Date(bookingData.startDate),
-                              "MMMM d, yyyy - HH:mm",
-                            )}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-500">End Date</p>
-                          <p className="font-medium">
-                            {format(
-                              new Date(bookingData.endDate),
-                              "MMMM d, yyyy",
-                            )}
-                          </p>
-                        </div>
-                      </>
-                    )}
-                    <div>
-                      <p className="text-sm text-gray-500">Booking ID</p>
-                      <p className="font-medium font-mono text-blue-600">
-                        {(bookingData as any).bookingCode || "GENERATING..."}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Storage Location</p>
-                      <p className="font-medium">
-                        {bookingData.storageLocation ||
-                          persistentStorageLocation ||
-                          getOrCreateStorageLocation()}
-                      </p>
-                    </div>
-                    <div className="flex justify-center">
-                      <div className="text-center">
-                        <p className="font-medium">Travelin Baggage</p>
-                        <p className="text-sm text-gray-500">
-                          Thank you for your order
-                        </p>
-                      </div>
-                    </div>
-                    <div className="mt-6 flex justify-end space-x-2">
-                      <Button variant="outline" onClick={handleCloseReceipt}>
-                        Close
-                      </Button>
-                      <Button
-                        onClick={() => {
-                          handleCloseReceipt();
-                          navigate("/cart");
-                        }}
-                      >
-                        View Cart
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
-          )}
+          </div>
 
-          {showMap && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-              <Card className="w-full max-w-4xl bg-white">
-                <CardContent className="p-6">
-                  <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-xl font-bold">
-                      Airport Storage Locations
-                    </h3>
-                    <Button variant="ghost" size="sm" onClick={handleCloseMap}>
-                      ✕
-                    </Button>
-                  </div>
-                  <div className="bg-gray-200 h-96 rounded-lg flex items-center justify-center">
-                    <div className="text-center">
-                      <MapIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                      <p className="text-gray-600">Airport Map View</p>
-                      {bookingData.size && (
-                        <p className="mt-2 font-medium text-blue-600">
-                          Your baggage is stored at:{" "}
-                          {bookingData.storageLocation ||
-                            persistentStorageLocation ||
-                            getOrCreateStorageLocation()}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  <div className="mt-6 flex justify-end">
-                    <Button onClick={handleCloseMap}>Close</Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          )}
-
-          {showCart && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-              <div className="w-full max-w-6xl max-h-[90vh] overflow-auto">
-                <ShoppingCart />
-                <div className="flex justify-end p-4">
-                  <Button onClick={handleCloseCart}>Close Cart</Button>
+          {/* Additional Information */}
+          <Card className="bg-blue-50 border-blue-200">
+            <CardContent className="p-6">
+              <h3 className="text-lg font-semibold text-blue-900 mb-4">
+                Important Information
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-blue-800">
+                <div>
+                  <h4 className="font-medium mb-2">Storage Terms:</h4>
+                  <ul className="space-y-1 list-disc list-inside">
+                    <li>Minimum storage period: 1 hour</li>
+                    <li>Maximum storage period: 30 days</li>
+                    <li>Items must be properly packed</li>
+                    <li>No hazardous materials allowed</li>
+                  </ul>
+                </div>
+                <div>
+                  <h4 className="font-medium mb-2">What's Included:</h4>
+                  <ul className="space-y-1 list-disc list-inside">
+                    <li>Insurance coverage up to $1000</li>
+                    <li>24/7 security monitoring</li>
+                    <li>Climate-controlled environment</li>
+                    <li>Easy online booking and payment</li>
+                  </ul>
                 </div>
               </div>
-            </div>
-          )}
-
-          {/* Authentication Required Modal */}
-          <AuthRequiredModal
-            isOpen={showAuthModal}
-            onClose={() => setShowAuthModal(false)}
-            title="Authentication Required"
-            message="Please Sign in or Register to access baggage storage service"
-          />
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>

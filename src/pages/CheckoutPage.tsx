@@ -493,17 +493,20 @@ const CheckoutPage: React.FC = () => {
     paymentId: string,
     bookingId: string,
     bookingType: string,
+    codeBooking?: string,
   ) => {
     console.log("📦 Linking to payment_bookings:", {
       payment_id: paymentId,
       booking_id: bookingId,
       booking_type: bookingType,
+      code_booking: codeBooking,
     });
 
     const { error } = await supabase.from("payment_bookings").insert({
       payment_id: paymentId,
       booking_id: bookingId,
       booking_type: bookingType,
+      code_booking: codeBooking || null,
     });
 
     if (error) {
@@ -775,8 +778,6 @@ const CheckoutPage: React.FC = () => {
         created_at: new Date().toISOString(),
         code_booking: null,
         booking_id: null,
-        baggage_booking_id: null,
-        handling_booking_id: null,
       };
 
       // Set booking ID and code based on item types
@@ -795,17 +796,116 @@ const CheckoutPage: React.FC = () => {
           regularBookingId,
         );
       } else if (hasBaggageItems && !hasHandlingItems && !hasRegularItems) {
-        // Baggage items only - will be set after baggage booking creation
+        // Baggage items only - use booking_id from first baggage item if available
         const firstBaggageItem = cartItems.find(
           (item) => item.item_type === "baggage",
         );
-        if (firstBaggageItem && firstBaggageItem.code_booking) {
-          paymentData.code_booking = firstBaggageItem.code_booking;
+
+        console.log("💰 First baggage item check:", {
+          item_booking_id: firstBaggageItem?.booking_id,
+          item_code_booking: firstBaggageItem?.code_booking,
+          item_booking_id_type: typeof firstBaggageItem?.booking_id,
+          item_booking_id_is_uuid: firstBaggageItem?.booking_id
+            ? isValidUUID(firstBaggageItem.booking_id)
+            : false,
+        });
+
+        // CRITICAL FIX: Use booking_id directly from cart item, not from details
+        if (
+          firstBaggageItem?.booking_id &&
+          isValidUUID(firstBaggageItem.booking_id)
+        ) {
+          paymentData.booking_id = firstBaggageItem.booking_id;
+          console.log(
+            "💰 Using booking_id from cart item:",
+            firstBaggageItem.booking_id,
+          );
+        } else {
+          // Fallback: try to get from details
+          let baggageDetails = firstBaggageItem?.details;
+          if (typeof baggageDetails === "string") {
+            try {
+              baggageDetails = JSON.parse(baggageDetails);
+            } catch (error) {
+              console.error("Error parsing baggage details:", error);
+            }
+          }
+
+          if (
+            baggageDetails?.booking_id &&
+            isValidUUID(baggageDetails.booking_id)
+          ) {
+            paymentData.booking_id = baggageDetails.booking_id;
+            console.log(
+              "💰 Using booking_id from details:",
+              baggageDetails.booking_id,
+            );
+          }
         }
-        console.log("💰 Payment prepared for baggage booking");
+
+        // Set code_booking from cart item or details
+        if (firstBaggageItem?.code_booking) {
+          paymentData.code_booking = firstBaggageItem.code_booking;
+          console.log(
+            "💰 Using code_booking from cart item:",
+            firstBaggageItem.code_booking,
+          );
+        } else {
+          let baggageDetails = firstBaggageItem?.details;
+          if (typeof baggageDetails === "string") {
+            try {
+              baggageDetails = JSON.parse(baggageDetails);
+            } catch (error) {
+              console.error("Error parsing baggage details:", error);
+            }
+          }
+          if (baggageDetails?.code_booking) {
+            paymentData.code_booking = baggageDetails.code_booking;
+            console.log(
+              "💰 Using code_booking from details:",
+              baggageDetails.code_booking,
+            );
+          }
+        }
+
+        console.log("💰 Payment prepared for baggage booking:", {
+          booking_id: paymentData.booking_id,
+          code_booking: paymentData.code_booking,
+        });
       } else if (hasHandlingItems && !hasBaggageItems && !hasRegularItems) {
-        // Handling items only - will be set after handling booking creation
-        console.log("💰 Payment prepared for handling booking");
+        // Handling items only - use booking_id from first handling item if available
+        const firstHandlingItem = cartItems.find(
+          (item) => item.item_type === "handling",
+        );
+        let handlingDetails = firstHandlingItem?.details;
+        if (typeof handlingDetails === "string") {
+          try {
+            handlingDetails = JSON.parse(handlingDetails);
+          } catch (error) {
+            console.error("Error parsing handling details:", error);
+          }
+        }
+
+        if (
+          handlingDetails?.booking_id &&
+          isValidUUID(handlingDetails.booking_id)
+        ) {
+          paymentData.booking_id = handlingDetails.booking_id;
+        }
+        if (
+          handlingDetails?.code_booking ||
+          handlingDetails?.bookingId ||
+          firstHandlingItem?.code_booking
+        ) {
+          paymentData.code_booking =
+            handlingDetails?.code_booking ||
+            handlingDetails?.bookingId ||
+            firstHandlingItem.code_booking;
+        }
+        console.log("💰 Payment prepared for handling booking:", {
+          booking_id: paymentData.booking_id,
+          code_booking: paymentData.code_booking,
+        });
       } else {
         // Mixed items - use regular booking approach
         const mixedBookingId = uuidv4();
@@ -823,7 +923,6 @@ const CheckoutPage: React.FC = () => {
         booking_id_is_uuid: paymentData.booking_id
           ? isValidUUID(paymentData.booking_id)
           : null,
-        baggage_booking_id_type: typeof paymentData.baggage_booking_id,
       });
 
       const { data: payment, error: paymentError } = await supabase
@@ -846,13 +945,41 @@ const CheckoutPage: React.FC = () => {
           type: item.item_type,
           service: item.service_name,
           price: item.price,
+          booking_id: item.booking_id,
+          code_booking: item.code_booking,
+          booking_id_type: typeof item.booking_id,
+          booking_id_is_uuid: item.booking_id
+            ? isValidUUID(item.booking_id)
+            : false,
         });
 
         if (item.item_type === "baggage" && item.details) {
-          // Generate UUID for baggage booking (for database primary key)
-          const baggageBookingUUID = uuidv4();
+          // Use the booking_id from the cart item (which comes from BookingFormBag.tsx)
+          let baggageBookingUUID = item.booking_id;
 
-          // Validate the generated UUID
+          console.log("💼 Cart item booking_id check:", {
+            item_booking_id: item.booking_id,
+            item_booking_id_type: typeof item.booking_id,
+            item_booking_id_is_uuid: item.booking_id
+              ? isValidUUID(item.booking_id)
+              : false,
+          });
+
+          // If no booking_id in cart item, generate a new one
+          if (!baggageBookingUUID || !isValidUUID(baggageBookingUUID)) {
+            baggageBookingUUID = uuidv4();
+            console.log(
+              "💼 Generated new UUID for baggage booking:",
+              baggageBookingUUID,
+            );
+          } else {
+            console.log(
+              "💼 Using existing UUID from cart item:",
+              baggageBookingUUID,
+            );
+          }
+
+          // Validate the UUID
           if (!isValidUUID(baggageBookingUUID)) {
             console.error(
               "❌ Failed to generate valid UUID for baggage booking:",
@@ -863,10 +990,21 @@ const CheckoutPage: React.FC = () => {
             );
           }
 
-          // Generate text-based booking code for display/reference
-          const bookingCode = `BG-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+          // Use the booking code from the cart item (which comes from BookingFormBag.tsx)
+          let bookingCode = item.code_booking;
 
-          // Validate the generated booking code
+          // If no booking code in cart item, generate a new one
+          if (!bookingCode || !isValidBookingCode(bookingCode)) {
+            bookingCode = `BG-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+            console.log("💼 Generated new booking code:", bookingCode);
+          } else {
+            console.log(
+              "💼 Using existing booking code from cart item:",
+              bookingCode,
+            );
+          }
+
+          // Validate the booking code
           if (!isValidBookingCode(bookingCode)) {
             console.error(
               "❌ Generated invalid booking code format:",
@@ -875,7 +1013,7 @@ const CheckoutPage: React.FC = () => {
             throw new Error("Failed to generate valid booking code");
           }
 
-          console.log("💼 Generated baggage booking identifiers:", {
+          console.log("💼 Final baggage booking identifiers:", {
             uuid: baggageBookingUUID,
             uuid_valid: isValidUUID(baggageBookingUUID),
             code: bookingCode,
@@ -1105,6 +1243,7 @@ const CheckoutPage: React.FC = () => {
 
           const bookingData = {
             id: baggageBookingUUID, // Use UUID for primary key
+            booking_id: baggageBookingUUID, // CRITICAL FIX: Set booking_id to the same UUID as id
             customer_name: customerData.name,
             customer_phone: customerData.phone,
             customer_email: customerData.email,
@@ -1138,6 +1277,14 @@ const CheckoutPage: React.FC = () => {
             payment_method: selectedPaymentMethod, // Add payment method to baggage booking
             code_booking: item.code_booking || bookingCode, // Use code_booking from cart item or generated code (TEXT)
           };
+
+          console.log("💼 Final booking data with booking_id:", {
+            id: bookingData.id,
+            booking_id: bookingData.booking_id,
+            id_equals_booking_id: bookingData.id === bookingData.booking_id,
+            payment_id: bookingData.payment_id,
+            code_booking: bookingData.code_booking,
+          });
 
           console.log("💼 Inserting baggage booking data:", {
             id: bookingData.id,
@@ -1212,30 +1359,48 @@ const CheckoutPage: React.FC = () => {
             customer_name: baggageBooking.customer_name,
           });
 
-          // Update payment with baggage_booking_id if this is a baggage-only payment
-          if (hasBaggageItems && !hasHandlingItems && !hasRegularItems) {
+          // CRITICAL FIX: Only update payment with booking details if payment doesn't already have booking_id
+          // This prevents overwriting the booking_id that was set during payment creation
+          if (!paymentData.booking_id) {
+            console.log("💰 Updating payment with baggage booking details:", {
+              paymentId: paymentId,
+              baggageBookingId: baggageBooking.id,
+              baggageBookingIdType: typeof baggageBooking.id,
+              baggageBookingIdIsUUID: isValidUUID(baggageBooking.id),
+              codeBooking: baggageBooking.code_booking,
+            });
+
             const { error: updatePaymentError } = await supabase
               .from("payments")
               .update({
-                baggage_booking_id: baggageBooking.id,
+                booking_id: baggageBooking.id,
                 code_booking: baggageBooking.code_booking,
               })
               .eq("id", paymentId);
 
             if (updatePaymentError) {
-              console.error(
-                "❌ Error updating payment with baggage_booking_id:",
-                updatePaymentError,
-              );
+              console.error("❌ Error updating payment with booking details:", {
+                error: updatePaymentError,
+                paymentId: paymentId,
+                baggageBookingId: baggageBooking.id,
+                codeBooking: baggageBooking.code_booking,
+              });
               throw new Error(
-                `Failed to update payment with baggage_booking_id: ${updatePaymentError.message}`,
+                `Failed to update payment with booking details: ${updatePaymentError.message}`,
               );
             }
 
-            console.log(
-              "✅ Payment updated with baggage_booking_id:",
-              baggageBooking.id,
-            );
+            console.log("✅ Payment updated with booking details:", {
+              paymentId: paymentId,
+              baggageBookingId: baggageBooking.id,
+              codeBooking: baggageBooking.code_booking,
+            });
+          } else {
+            console.log("💰 Payment already has booking_id, skipping update:", {
+              paymentId: paymentId,
+              existingBookingId: paymentData.booking_id,
+              baggageBookingId: baggageBooking.id,
+            });
           }
 
           // Link to payment_bookings table
@@ -1243,6 +1408,7 @@ const CheckoutPage: React.FC = () => {
             paymentId,
             baggageBooking.id.toString(),
             "baggage",
+            baggageBooking.code_booking,
           );
         } else if (item.item_type === "airport_transfer" && item.details) {
           // Parse details for airport transfer
@@ -1389,6 +1555,7 @@ const CheckoutPage: React.FC = () => {
             paymentId,
             transferBooking.id.toString(),
             "airport_transfer",
+            transferBooking.code_booking,
           );
 
           // Send WhatsApp message for airport transfer booking
@@ -1461,57 +1628,70 @@ const CheckoutPage: React.FC = () => {
             const handlingBooking = handlingBookings[0];
             console.log("✅ Handling booking updated:", handlingBooking.id);
 
-            // Update payment with handling_booking_id if this is a handling-only payment
+            // Update payment with booking details if this is a handling-only payment
             if (hasHandlingItems && !hasBaggageItems && !hasRegularItems) {
               const { error: updatePaymentError } = await supabase
                 .from("payments")
                 .update({
-                  handling_booking_id: handlingBooking.id,
+                  booking_id: handlingBooking.id,
                   code_booking: handlingBooking.code_booking,
                 })
                 .eq("id", paymentId);
 
               if (updatePaymentError) {
                 console.error(
-                  "❌ Error updating payment with handling_booking_id:",
+                  "❌ Error updating payment with booking details:",
                   updatePaymentError,
                 );
                 throw new Error(
-                  `Failed to update payment with handling_booking_id: ${updatePaymentError.message}`,
+                  `Failed to update payment with booking details: ${updatePaymentError.message}`,
                 );
               }
 
               console.log(
-                "✅ Payment updated with handling_booking_id:",
+                "✅ Payment updated with booking details:",
                 handlingBooking.id,
               );
             }
 
-            // Link to payment_bookings table using UUID
+            // Link to payment_bookings table using the SAME booking_id from handling_bookings
             await linkPaymentBooking(
               paymentId,
               handlingBooking.id.toString(),
               "handling",
+              handlingBooking.code_booking,
             );
           } else {
             // Create new handling booking
-            // Generate UUID for handling booking (for database primary key)
-            const handlingBookingUUID = uuidv4();
-
-            // Validate the generated UUID
-            if (!isValidUUID(handlingBookingUUID)) {
-              console.error(
-                "❌ Failed to generate valid UUID for handling booking:",
+            // Use existing booking_id from cart item details if available, otherwise generate new UUID
+            let handlingBookingUUID;
+            if (
+              parsedDetails?.booking_id &&
+              isValidUUID(parsedDetails.booking_id)
+            ) {
+              handlingBookingUUID = parsedDetails.booking_id;
+              console.log(
+                "🤝 Using existing booking_id from cart:",
                 handlingBookingUUID,
               );
-              throw new Error(
-                "Failed to generate valid UUID for handling booking",
+            } else {
+              handlingBookingUUID = uuidv4();
+              console.log("🤝 Generated new booking_id:", handlingBookingUUID);
+            }
+
+            // Validate the UUID
+            if (!isValidUUID(handlingBookingUUID)) {
+              console.error(
+                "❌ Invalid UUID for handling booking:",
+                handlingBookingUUID,
               );
+              throw new Error("Invalid UUID for handling booking");
             }
 
             // Use existing booking code from details or generate new one
             const handlingBookingCode =
               parsedDetails?.bookingId ||
+              parsedDetails?.code_booking ||
               item.code_booking ||
               `HS-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
@@ -1526,7 +1706,7 @@ const CheckoutPage: React.FC = () => {
               );
             }
 
-            console.log("🤝 Generated handling service identifiers:", {
+            console.log("🤝 Handling service identifiers:", {
               uuid: handlingBookingUUID,
               uuid_valid: isValidUUID(handlingBookingUUID),
               code: handlingBookingCode,
@@ -1542,14 +1722,10 @@ const CheckoutPage: React.FC = () => {
               throw new Error("Invalid payment_id UUID for handling booking");
             }
 
-            // Create handling booking
+            // Create handling booking with the SAME booking_id that will be used in payment_bookings
             const handlingBookingData = {
               id: handlingBookingUUID, // Use UUID for primary key
-              booking_id:
-                parsedDetails?.booking_id &&
-                isValidUUID(parsedDetails.booking_id)
-                  ? parsedDetails.booking_id
-                  : paymentData.booking_id, // Use UUID from details if valid, otherwise from payment
+              booking_id: handlingBookingUUID, // Use the SAME UUID for consistency
               code_booking: handlingBookingCode, // Use text-based code for display/reference
               user_id: userIdForPayment, // Add user_id field
               customer_name: customerData.name,
@@ -1577,6 +1753,19 @@ const CheckoutPage: React.FC = () => {
               payment_id: paymentId,
               created_at: new Date().toISOString(),
             };
+
+            console.log(
+              "🤝 Creating handling booking with consistent booking_id:",
+              {
+                handlingBookingUUID,
+                handlingBookingCode,
+                paymentId,
+                willUpdatePaymentWith: {
+                  booking_id: handlingBookingUUID,
+                  code_booking: handlingBookingCode,
+                },
+              },
+            );
 
             const { data: handlingBooking, error: handlingError } =
               await supabase
@@ -1622,37 +1811,48 @@ const CheckoutPage: React.FC = () => {
 
             console.log("✅ Handling booking created:", handlingBooking.id);
 
-            // Update payment with handling_booking_id if this is a handling-only payment
+            // Update payment with booking details if this is a handling-only payment
             if (hasHandlingItems && !hasBaggageItems && !hasRegularItems) {
               const { error: updatePaymentError } = await supabase
                 .from("payments")
                 .update({
-                  handling_booking_id: handlingBooking.id,
+                  booking_id: handlingBooking.id,
                   code_booking: handlingBooking.code_booking,
                 })
                 .eq("id", paymentId);
 
               if (updatePaymentError) {
                 console.error(
-                  "❌ Error updating payment with handling_booking_id:",
+                  "❌ Error updating payment with booking details:",
                   updatePaymentError,
                 );
                 throw new Error(
-                  `Failed to update payment with handling_booking_id: ${updatePaymentError.message}`,
+                  `Failed to update payment with booking details: ${updatePaymentError.message}`,
                 );
               }
 
               console.log(
-                "✅ Payment updated with handling_booking_id:",
+                "✅ Payment updated with booking details:",
                 handlingBooking.id,
               );
             }
 
-            // Link to payment_bookings table
+            // Link to payment_bookings table using the SAME booking_id from handling_bookings
+            console.log("🔗 Linking payment_bookings with:", {
+              payment_id: paymentId,
+              booking_id: handlingBooking.id,
+              booking_type: "handling",
+              code_booking: handlingBooking.code_booking,
+            });
             await linkPaymentBooking(
               paymentId,
               handlingBooking.id.toString(),
               "handling",
+              handlingBooking.code_booking,
+            );
+            console.log(
+              "✅ Successfully linked payment_bookings with booking_id:",
+              handlingBooking.id,
             );
           }
         } else if (item.item_type === "passenger_handling" && item.details) {
@@ -1790,6 +1990,7 @@ const CheckoutPage: React.FC = () => {
             paymentId,
             passengerHandlingBooking.id.toString(),
             "passenger_handling",
+            passengerHandlingBooking.code_booking,
           );
         } else if (item.item_type === "car" && item.details) {
           // Handle car rental bookings
@@ -1833,6 +2034,7 @@ const CheckoutPage: React.FC = () => {
                 paymentId,
                 carBooking.id.toString(),
                 "car",
+                null, // Car bookings don't have code_booking field
               );
             } else {
               // Create new car rental booking
@@ -1891,7 +2093,7 @@ const CheckoutPage: React.FC = () => {
               console.log("✅ Car booking created:", carBooking.id);
 
               // Link to payment_bookings table
-              await linkPaymentBooking(paymentId, carBooking.id, "car");
+              await linkPaymentBooking(paymentId, carBooking.id, "car", null);
             }
           } catch (linkError) {
             console.error("❌ Error processing car booking:", linkError);

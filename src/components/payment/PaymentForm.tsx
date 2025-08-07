@@ -338,12 +338,14 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
         const isHandlingBooking =
           bookingSummary.booking_type === "handling_bookings";
 
+        // First insert into payments table
         const paymentData = {
-          booking_id: isHandlingBooking ? null : bookingId, // Only use booking_id for non-handling bookings
-          handling_booking_id: isHandlingBooking ? bookingId : null, // Use handling_booking_id for handling bookings (UUID)
+          booking_id: isHandlingBooking
+            ? bookingSummary.details.booking_id // UUID from handling booking details
+            : bookingId, // For other booking types, use the provided booking ID
           code_booking: isHandlingBooking
-            ? bookingSummary.details.code_booking
-            : bookingId, // Use code_booking from details for handling bookings
+            ? bookingSummary.details.code_booking // Text-based code from handling booking details
+            : bookingId, // For other booking types, use the provided booking ID as code
           amount: values.amount,
           payment_method: selectedPaymentMethod.name,
           bank_name:
@@ -367,6 +369,33 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
 
         paymentRecord = result.data;
         paymentError = result.error;
+
+        // If payments insert was successful, also insert into payment_bookings
+        if (!paymentError && paymentRecord) {
+          const paymentBookingData = {
+            booking_id: isHandlingBooking
+              ? bookingSummary.details.booking_id // UUID from handling booking details
+              : bookingId, // For other booking types, use the provided booking ID
+            code_booking: isHandlingBooking
+              ? bookingSummary.details.code_booking // Text-based code from handling booking details
+              : bookingId, // For other booking types, use the provided booking ID as code
+            booking_type: isHandlingBooking
+              ? "handling"
+              : bookingSummary.booking_type,
+            created_at: new Date().toISOString(),
+          };
+
+          const { error: paymentBookingError } = await supabase
+            .from("payment_bookings")
+            .insert(paymentBookingData);
+
+          if (paymentBookingError) {
+            console.error(
+              "Error inserting payment booking:",
+              paymentBookingError,
+            );
+          }
+        }
       }
 
       if (paymentError) throw paymentError;
