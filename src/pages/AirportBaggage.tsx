@@ -58,6 +58,32 @@ type BaggageSize =
   | "wheelchair"
   | "stickgolf";
 
+// Type guard function to validate baggage size
+const isBaggageSize = (value: string): value is BaggageSize => {
+  const validSizes: BaggageSize[] = [
+    "small",
+    "electronic",
+    "medium",
+    "large",
+    "extra_large",
+    "surfingboard",
+    "wheelchair",
+    "stickgolf",
+  ];
+
+  return validSizes.includes(value as BaggageSize);
+};
+
+// Validation function for baggage size using type guard
+const validateBaggageSize = (size: string): BaggageSize => {
+  if (isBaggageSize(size)) {
+    return size;
+  }
+
+  console.warn(`Invalid baggage size '${size}', defaulting to 'medium'`);
+  return "medium";
+};
+
 const AirportBaggage: React.FC = () => {
   const { isAuthenticated, userId } = useAuth();
   const navigate = useNavigate();
@@ -206,57 +232,57 @@ const AirportBaggage: React.FC = () => {
       const defaultPrices: BaggagePrice[] = [
         {
           id: "1",
-          size: "small",
-          price: 50000,
+          baggage_size: "small",
+          baggage_prices: 50000,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         },
         {
           id: "2",
-          size: "electronic",
-          price: 75000,
+          baggage_size: "electronic",
+          baggage_prices: 75000,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         },
         {
           id: "3",
-          size: "medium",
-          price: 100000,
+          baggage_size: "medium",
+          baggage_prices: 100000,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         },
         {
           id: "4",
-          size: "large",
-          price: 150000,
+          baggage_size: "large",
+          baggage_prices: 150000,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         },
         {
           id: "5",
-          size: "extra_large",
-          price: 200000,
+          baggage_size: "extra_large",
+          baggage_prices: 200000,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         },
         {
           id: "6",
-          size: "surfingboard",
-          price: 250000,
+          baggage_size: "surfingboard",
+          baggage_prices: 250000,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         },
         {
           id: "7",
-          size: "wheelchair",
-          price: 100000,
+          baggage_size: "wheelchair",
+          baggage_prices: 100000,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         },
         {
           id: "8",
-          size: "stickgolf",
-          price: 175000,
+          baggage_size: "stickgolf",
+          baggage_prices: 175000,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         },
@@ -282,14 +308,19 @@ const AirportBaggage: React.FC = () => {
     fetchBaggagePrices();
   }, [fetchBaggagePrices]);
 
-  // Get price for a specific baggage size
-  const getPriceForSize = (size: BaggageSize): number => {
-    console.log(`💰 Getting price for size: ${size}`);
+  // Get price for a specific baggage size with validation
+  const getPriceForSize = (size: string): number => {
+    const validatedSize = validateBaggageSize(size);
+    console.log(
+      `💰 Getting price for size: ${size} (validated: ${validatedSize})`,
+    );
     console.log(`📊 Available baggage prices:`, baggagePrices);
-    const priceEntry = baggagePrices.find((p) => p.baggage_size === size);
-    console.log(`🔍 Found price entry for ${size}:`, priceEntry);
+    const priceEntry = baggagePrices.find(
+      (p) => p.baggage_size === validatedSize,
+    );
+    console.log(`🔍 Found price entry for ${validatedSize}:`, priceEntry);
     const price = priceEntry?.baggage_prices || 0;
-    console.log(`💵 Final price for ${size}: ${price}`);
+    console.log(`💵 Final price for ${validatedSize}: ${price}`);
     return price;
   };
 
@@ -419,8 +450,10 @@ const AirportBaggage: React.FC = () => {
     ];
   }, [baggagePrices, arePricesLoaded]);
 
-  const handleSizeSelect = (size: BaggageSize) => {
-    setSelectedSize(size);
+  const handleSizeSelect = (size: string) => {
+    const validatedSize = validateBaggageSize(size);
+    console.log(`🎯 Size selected: ${size} (validated: ${validatedSize})`);
+    setSelectedSize(validatedSize);
     setShowBookingForm(true);
   };
 
@@ -572,7 +605,7 @@ const AirportBaggage: React.FC = () => {
                   <Card
                     key={option.id}
                     className="hover:shadow-lg transition-shadow cursor-pointer group"
-                    onClick={() => handleSizeSelect(option.id as BaggageSize)}
+                    onClick={() => handleSizeSelect(option.id)}
                   >
                     <CardHeader className="text-center pb-4">
                       <div className="flex justify-center mb-3 text-blue-600 group-hover:text-blue-700 transition-colors">
@@ -628,7 +661,7 @@ const AirportBaggage: React.FC = () => {
                         className="w-full mt-4 group-hover:bg-blue-700 transition-colors"
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleSizeSelect(option.id as BaggageSize);
+                          handleSizeSelect(option.id);
                         }}
                         disabled={!arePricesLoaded || option.price <= 0}
                       >

@@ -19,9 +19,36 @@ import {
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/lib/supabase";
-import { Calendar, Search, Loader2, User, MapPin } from "lucide-react";
+import {
+  Calendar,
+  Search,
+  Loader2,
+  User,
+  MapPin,
+  Plane,
+  Edit,
+  Trash2,
+  Check,
+  Clock,
+  X,
+  CheckCircle,
+} from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Label } from "@/components/ui/label";
 
-interface AgentBooking {
+interface HandlingBooking {
   id: string;
   created_at: string;
   customer_name: string;
@@ -42,49 +69,110 @@ interface AgentBooking {
   payment_method?: string;
   user_id?: string;
   payment_id?: string;
+  created_by_role?: string;
 }
 
-const AgentManagement = () => {
-  const [agentBookings, setAgentBookings] = useState<AgentBooking[]>([]);
+const BookingAgentManagement = () => {
+  const [handlingBookings, setHandlingBookings] = useState<HandlingBooking[]>(
+    [],
+  );
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedBooking, setSelectedBooking] =
+    useState<HandlingBooking | null>(null);
 
   useEffect(() => {
-    fetchAgentBookings();
+    fetchHandlingBookings();
   }, []);
 
-  const fetchAgentBookings = async () => {
+  const fetchHandlingBookings = async () => {
     try {
       setLoading(true);
-      console.log("Fetching agent bookings...");
+      console.log("Fetching handling bookings created by agents...");
 
-      // Fetch bookings from handling_bookings table
-      // Note: Since there's no created_by_role field in the schema,
-      // we'll fetch all bookings for now and can add filtering later
-      const { data, error } = await supabase
+      // First, try to fetch bookings with created_by_role filter
+      let query = supabase
         .from("handling_bookings")
         .select("*")
         .order("created_at", { ascending: false });
 
-      if (error) {
-        console.error("Error fetching agent bookings:", error);
-        throw error;
+      // Try to filter by created_by_role = 'Agent'
+      // If the column doesn't exist, this will fail gracefully
+      try {
+        query = query.eq("created_by_role", "Agent");
+        console.log("Filtering by created_by_role = 'Agent'");
+      } catch (filterError) {
+        console.warn(
+          "created_by_role column might not exist, fetching all bookings:",
+          filterError,
+        );
       }
 
-      console.log("Fetched agent bookings:", data);
-      setAgentBookings(data || []);
+      const { data, error } = await query;
+
+      if (error) {
+        console.error("Error fetching handling bookings:", error);
+        console.error("Error details:", {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code,
+        });
+
+        // If the error is about unknown column, try without filter
+        if (error.message?.includes("column") || error.code === "42703") {
+          console.log("Retrying without created_by_role filter...");
+          const { data: fallbackData, error: fallbackError } = await supabase
+            .from("handling_bookings")
+            .select("*")
+            .order("created_at", { ascending: false });
+
+          if (fallbackError) {
+            console.error("Fallback query also failed:", fallbackError);
+            return;
+          }
+
+          console.log(
+            "Fallback query successful, showing all bookings:",
+            fallbackData,
+          );
+          setHandlingBookings(fallbackData || []);
+          return;
+        }
+        return;
+      }
+
+      console.log("Successfully fetched agent bookings:", data);
+      console.log("Number of agent bookings found:", data?.length || 0);
+      setHandlingBookings(data || []);
 
       if (!data || data.length === 0) {
         console.log("No agent bookings found in database");
       }
     } catch (error) {
-      console.error("Error:", error);
+      console.error("Unexpected error:", error);
+
+      // Final fallback - try to get all bookings
+      try {
+        console.log("Attempting final fallback to fetch all bookings...");
+        const { data: allData, error: allError } = await supabase
+          .from("handling_bookings")
+          .select("*")
+          .order("created_at", { ascending: false });
+
+        if (!allError && allData) {
+          console.log("Final fallback successful:", allData);
+          setHandlingBookings(allData);
+        }
+      } catch (fallbackError) {
+        console.error("All fallback attempts failed:", fallbackError);
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  const filteredBookings = agentBookings.filter(
+  const filteredBookings = handlingBookings.filter(
     (booking) =>
       booking.customer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       booking.customer_email.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -125,11 +213,53 @@ const AgentManagement = () => {
     }
   };
 
+  const updateBookingStatus = async (bookingId: string, newStatus: string) => {
+    try {
+      const { error } = await supabase
+        .from("handling_bookings")
+        .update({ status: newStatus })
+        .eq("id", bookingId);
+
+      if (error) {
+        console.error("Error updating booking status:", error);
+        return;
+      }
+
+      // Refresh the bookings list
+      fetchHandlingBookings();
+    } catch (error) {
+      console.error("Unexpected error updating status:", error);
+    }
+  };
+
+  const deleteBooking = async (bookingId: string) => {
+    if (!confirm("Are you sure you want to delete this booking?")) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from("handling_bookings")
+        .delete()
+        .eq("id", bookingId);
+
+      if (error) {
+        console.error("Error deleting booking:", error);
+        return;
+      }
+
+      // Refresh the bookings list
+      fetchHandlingBookings();
+    } catch (error) {
+      console.error("Unexpected error deleting booking:", error);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64 bg-white">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-blue-500" />
           <div className="text-lg">Loading agent bookings...</div>
           <div className="text-sm text-muted-foreground mt-2">
             Fetching data from handling_bookings table
@@ -147,13 +277,14 @@ const AgentManagement = () => {
             Booking Agent Management
           </h1>
           <p className="text-muted-foreground">
-            Manage bookings created by agents ({agentBookings.length} total)
+            Manage agent handling service bookings ({handlingBookings.length}{" "}
+            found)
           </p>
         </div>
         <div className="flex gap-2">
           <Button
             variant="outline"
-            onClick={fetchAgentBookings}
+            onClick={fetchHandlingBookings}
             disabled={loading}
           >
             {loading ? "Loading..." : "Refresh"}
@@ -175,7 +306,7 @@ const AgentManagement = () => {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Calendar className="h-5 w-5" />
-            Agent Bookings
+            Agent Handling Bookings
           </CardTitle>
           <CardDescription>
             Passenger handling service bookings created by agents
@@ -189,17 +320,17 @@ const AgentManagement = () => {
               <p className="text-muted-foreground mb-4">
                 {searchTerm
                   ? "No bookings match your search."
-                  : agentBookings.length === 0
+                  : handlingBookings.length === 0
                     ? "No bookings available in the database."
                     : "All bookings are filtered out."}
               </p>
-              {agentBookings.length === 0 && (
+              {handlingBookings.length === 0 && (
                 <div className="text-sm text-muted-foreground">
-                  <p>Total bookings in database: {agentBookings.length}</p>
+                  <p>Total bookings in database: {handlingBookings.length}</p>
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={fetchAgentBookings}
+                    onClick={fetchHandlingBookings}
                     className="mt-2"
                   >
                     Refresh Data
@@ -220,7 +351,7 @@ const AgentManagement = () => {
                   <TableHead>Passengers</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Price</TableHead>
-                  <TableHead>Created At</TableHead>
+                  <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -248,7 +379,10 @@ const AgentManagement = () => {
                       <Badge variant="outline">{booking.category}</Badge>
                     </TableCell>
                     <TableCell>
-                      <div className="font-medium">{booking.flight_number}</div>
+                      <div className="font-medium flex items-center gap-1">
+                        <Plane className="h-4 w-4" />
+                        {booking.flight_number}
+                      </div>
                     </TableCell>
                     <TableCell>
                       <Badge variant="secondary">{booking.travel_type}</Badge>
@@ -280,8 +414,57 @@ const AgentManagement = () => {
                       {formatCurrency(booking.total_price)}
                     </TableCell>
                     <TableCell>
-                      <div className="text-sm">
-                        {formatDate(booking.created_at)}
+                      <div className="flex items-center gap-2">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="outline" size="sm">
+                              <Edit className="h-4 w-4 mr-1" />
+                              Edit
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent>
+                            <DropdownMenuItem
+                              onClick={() =>
+                                updateBookingStatus(booking.id, "confirmed")
+                              }
+                            >
+                              <Check className="h-4 w-4 mr-2" />
+                              Confirm
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() =>
+                                updateBookingStatus(booking.id, "in_progress")
+                              }
+                            >
+                              <Clock className="h-4 w-4 mr-2" />
+                              In Progress
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() =>
+                                updateBookingStatus(booking.id, "completed")
+                              }
+                            >
+                              <CheckCircle className="h-4 w-4 mr-2" />
+                              Complete
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() =>
+                                updateBookingStatus(booking.id, "cancelled")
+                              }
+                            >
+                              <X className="h-4 w-4 mr-2" />
+                              Cancel
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => deleteBooking(booking.id)}
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -292,9 +475,10 @@ const AgentManagement = () => {
         </CardContent>
         <CardFooter className="flex justify-between">
           <div className="text-sm text-muted-foreground">
-            Showing {filteredBookings.length} of {agentBookings.length} bookings
+            Showing {filteredBookings.length} of {handlingBookings.length}{" "}
+            bookings
           </div>
-          <Button variant="outline" onClick={fetchAgentBookings}>
+          <Button variant="outline" onClick={fetchHandlingBookings}>
             Refresh
           </Button>
         </CardFooter>
@@ -303,4 +487,4 @@ const AgentManagement = () => {
   );
 };
 
-export default AgentManagement;
+export default BookingAgentManagement;

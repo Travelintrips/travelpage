@@ -732,7 +732,8 @@ export default function BookingManagement() {
             <TableRow>
               <TableHead className="w-12">Select</TableHead>
               <TableHead>Kode Booking</TableHead>
-              <TableHead>Customer</TableHead>
+              <TableHead>Type Booking</TableHead>
+              <TableHead>Name</TableHead>
               <TableHead>Vehicle</TableHead>
               <TableHead>Driver</TableHead>
               <TableHead>Dates</TableHead>
@@ -759,6 +760,11 @@ export default function BookingManagement() {
                   />
                 </TableCell>
                 <TableCell>{booking.kode_booking || booking.id}</TableCell>
+                <TableCell>
+                  {booking.created_by_role === "Driver Perusahaan"
+                    ? "Driver Perusahaan"
+                    : "Customer"}
+                </TableCell>
                 <TableCell className="font-medium">
                   {booking.user?.full_name || "Unknown"}
                 </TableCell>

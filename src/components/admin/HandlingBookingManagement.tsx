@@ -30,6 +30,7 @@ import {
   MapPin,
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface HandlingBooking {
   id: string;
@@ -43,23 +44,28 @@ interface HandlingBooking {
   travel_type: string;
   pickup_date: string;
   pickup_time: string;
-  passengers: number;
-  special_requests?: string;
-  status: "pending" | "confirmed" | "in_progress" | "completed" | "cancelled";
+  passengers?: number;
+  additional_notes?: string;
+  status?: string;
   total_price: number;
-  booking_id: string;
-  payment_method: string;
+  booking_id?: string;
+  payment_method?: string;
   created_at: string;
+  user_id?: string;
+  payment_id?: string;
 }
 
-const HandlingBookingManagement = () => {
-  const [bookings, setBookings] = useState<HandlingBooking[]>([]);
+const BookingAgentManagement = () => {
+  const [handlingBookings, setHandlingBookings] = useState<HandlingBooking[]>(
+    [],
+  );
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedBooking, setSelectedBooking] =
     useState<HandlingBooking | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
+  const { userRole, isAdmin } = useAuth();
 
   useEffect(() => {
     fetchBookings();
@@ -68,22 +74,33 @@ const HandlingBookingManagement = () => {
   const fetchBookings = async () => {
     try {
       setLoading(true);
+      console.log("Fetching handling bookings...");
+
+      // Fetch bookings from handling_bookings table filtered by created_by_role
       const { data, error } = await supabase
         .from("handling_bookings")
         .select("*")
+        .or(
+          `created_by_role.ilike.%customer%,created_by_role.ilike.%staff_trips%`,
+        )
         .order("created_at", { ascending: false });
 
       if (error) {
         console.error("Error fetching handling bookings:", error);
         toast({
           title: "Error",
-          description: "Failed to fetch handling bookings",
+          description: `Failed to fetch handling bookings: ${error.message}`,
           variant: "destructive",
         });
         return;
       }
 
-      setBookings(data || []);
+      console.log("Fetched handling bookings:", data);
+      setHandlingBookings(data || []);
+
+      if (!data || data.length === 0) {
+        console.log("No handling bookings found in database");
+      }
     } catch (error) {
       console.error("Error:", error);
       toast({
@@ -166,7 +183,7 @@ const HandlingBookingManagement = () => {
     }
   };
 
-  const getStatusBadgeVariant = (status: string) => {
+  const getStatusBadgeVariant = (status?: string) => {
     switch (status) {
       case "confirmed":
         return "default";
@@ -181,7 +198,7 @@ const HandlingBookingManagement = () => {
     }
   };
 
-  const filteredBookings = bookings.filter(
+  const filteredBookings = handlingBookings.filter(
     (booking) =>
       booking.customer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       booking.customer_email.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -206,8 +223,14 @@ const HandlingBookingManagement = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-lg">Loading handling bookings...</div>
+      <div className="flex items-center justify-center h-64 bg-white">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <div className="text-lg">Loading handling bookings...</div>
+          <div className="text-sm text-muted-foreground mt-2">
+            Fetching data from handling_bookings table
+          </div>
+        </div>
       </div>
     );
   }
@@ -217,44 +240,69 @@ const HandlingBookingManagement = () => {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">
-            Handling Bookings
+            Handling Booking Management
           </h1>
           <p className="text-muted-foreground">
-            Manage passenger handling service bookings
+            Manage bookings created by customers and staff trips (
+            {handlingBookings.length} total)
           </p>
         </div>
-        <Button className="bg-primary-tosca hover:bg-primary-dark">
-          <Plus className="h-4 w-4 mr-2" />
-          New Booking
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={fetchBookings} disabled={loading}>
+            {loading ? "Loading..." : "Refresh"}
+          </Button>
+          <Button className="bg-primary-tosca hover:bg-primary-dark">
+            <Plus className="h-4 w-4 mr-2" />
+            New Booking
+          </Button>
+        </div>
+      </div>
+
+      <div className="flex items-center space-x-2 mb-4">
+        <Search className="h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Search bookings..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="max-w-sm"
+        />
       </div>
 
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Calendar className="h-5 w-5" />
-            Booking Management
+            Handling Bookings
           </CardTitle>
-          <div className="flex items-center space-x-2">
-            <Search className="h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search bookings..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="max-w-sm"
-            />
-          </div>
+          <p className="text-sm text-muted-foreground">
+            Passenger handling service bookings from customers and staff trips
+          </p>
         </CardHeader>
         <CardContent>
           {filteredBookings.length === 0 ? (
             <div className="text-center py-8">
               <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
               <h3 className="text-lg font-semibold mb-2">No bookings found</h3>
-              <p className="text-muted-foreground">
+              <p className="text-muted-foreground mb-4">
                 {searchTerm
                   ? "No bookings match your search."
-                  : "No handling bookings available."}
+                  : handlingBookings.length === 0
+                    ? "No bookings available in the database."
+                    : "All bookings are filtered out."}
               </p>
+              {handlingBookings.length === 0 && (
+                <div className="text-sm text-muted-foreground">
+                  <p>Total bookings in database: {handlingBookings.length}</p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={fetchBookings}
+                    className="mt-2"
+                  >
+                    Refresh Data
+                  </Button>
+                </div>
+              )}
             </div>
           ) : (
             <Table>
@@ -280,7 +328,7 @@ const HandlingBookingManagement = () => {
                   <TableRow key={booking.id}>
                     <TableCell>
                       <div className="font-mono text-sm">
-                        {booking.booking_id}
+                        {booking.booking_id || booking.id}
                       </div>
                     </TableCell>
                     <TableCell>
@@ -322,17 +370,21 @@ const HandlingBookingManagement = () => {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <div className="text-sm">{booking.payment_method}</div>
+                      <div className="text-sm">
+                        {booking.payment_method || "N/A"}
+                      </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center">
                         <User className="h-4 w-4 mr-1" />
-                        {booking.passengers}
+                        {booking.passengers || "N/A"}
                       </div>
                     </TableCell>
                     <TableCell>
                       <Badge variant={getStatusBadgeVariant(booking.status)}>
-                        {booking.status.replace("_", " ").toUpperCase()}
+                        {(booking.status || "pending")
+                          .replace("_", " ")
+                          .toUpperCase()}
                       </Badge>
                     </TableCell>
                     <TableCell className="font-medium">
@@ -384,7 +436,7 @@ const HandlingBookingManagement = () => {
                                   <div>
                                     <Label>Passengers</Label>
                                     <p className="font-medium">
-                                      {selectedBooking.passengers}
+                                      {selectedBooking.passengers || "N/A"}
                                     </p>
                                   </div>
                                   <div>
@@ -410,13 +462,14 @@ const HandlingBookingManagement = () => {
                                   <div>
                                     <Label>Booking ID</Label>
                                     <p className="font-medium font-mono">
-                                      {selectedBooking.booking_id}
+                                      {selectedBooking.booking_id ||
+                                        selectedBooking.id}
                                     </p>
                                   </div>
                                   <div>
                                     <Label>Payment Method</Label>
                                     <p className="font-medium">
-                                      {selectedBooking.payment_method}
+                                      {selectedBooking.payment_method || "N/A"}
                                     </p>
                                   </div>
                                 </div>
@@ -432,11 +485,11 @@ const HandlingBookingManagement = () => {
                                     {selectedBooking.pickup_area}
                                   </p>
                                 </div>
-                                {selectedBooking.special_requests && (
+                                {selectedBooking.additional_notes && (
                                   <div>
-                                    <Label>Special Requests</Label>
+                                    <Label>Additional Notes</Label>
                                     <p className="font-medium">
-                                      {selectedBooking.special_requests}
+                                      {selectedBooking.additional_notes}
                                     </p>
                                   </div>
                                 )}
@@ -521,4 +574,4 @@ const HandlingBookingManagement = () => {
   );
 };
 
-export default HandlingBookingManagement;
+export default BookingAgentManagement;

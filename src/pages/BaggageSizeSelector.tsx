@@ -189,7 +189,10 @@ const BaggageSizeSelector = ({
                             key={option.id}
                             className={`cursor-pointer transition-all hover:shadow-lg ${bookingData.size === option.id ? "border-2 border-blue-500 shadow-md" : "border border-gray-200"}`}
                             onClick={() =>
-                              handleSizeSelect(option.id, option.price)
+                              handleSizeSelect(
+                                validateBaggageSize(option.id),
+                                option.price,
+                              )
                             }
                           >
                             <CardContent className="flex flex-col items-center justify-center p-6">
@@ -215,7 +218,10 @@ const BaggageSizeSelector = ({
                                 }
                                 className="w-full"
                                 onClick={() =>
-                                  handleSizeSelect(option.id, option.price)
+                                  handleSizeSelect(
+                                    validateBaggageSize(option.id),
+                                    option.price,
+                                  )
                                 }
                               >
                                 {bookingData.size === option.id

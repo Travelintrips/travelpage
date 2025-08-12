@@ -64,7 +64,7 @@ const HandlingPage = () => {
     pickupArea: "",
     dropoffArea: "", // Added dropoff area field
     additionalNotes: "",
-    additionalBaggage: 1, // New field for Porter service
+    extraBaggageCount: 0, // New field for Porter service - changed from additionalBaggage
   });
 
   // Auto-fill form with user data when available
@@ -479,18 +479,113 @@ const HandlingPage = () => {
     }
   };
 
+  // Calculate price per passenger for Handling Group based on travel types
+  const calculateHandlingGroupPrice = () => {
+    if (
+      formData.category !== "Handling Group" ||
+      formData.travelTypes.length === 0
+    ) {
+      return 0;
+    }
+
+    const hasArrival = formData.travelTypes.includes("Arrival");
+    const hasDeparture = formData.travelTypes.includes("Departure");
+    const hasTransit = formData.travelTypes.includes("Transit");
+
+    // Transit = Rp80,000 per passenger
+    if (hasTransit) {
+      return 80000;
+    }
+
+    // Arrival + Departure = Rp80,000 per passenger
+    if (hasArrival && hasDeparture) {
+      return 80000;
+    }
+
+    // Single service (Arrival OR Departure) = Rp40,000 per passenger
+    if (hasArrival || hasDeparture) {
+      return 40000;
+    }
+
+    return 0;
+  };
+
+  // Calculate price for Personal Handling (Individual) based on travel types
+  const calculatePersonalHandlingPrice = () => {
+    if (
+      (formData.category !== "International - Individual" &&
+        formData.category !== "Domestik - Individual") ||
+      formData.travelTypes.length === 0
+    ) {
+      return 0;
+    }
+
+    const hasArrival = formData.travelTypes.includes("Arrival");
+    const hasDeparture = formData.travelTypes.includes("Departure");
+    const hasTransit = formData.travelTypes.includes("Transit");
+
+    // Transit = Rp80,000
+    if (hasTransit) {
+      return 80000;
+    }
+
+    // Arrival + Departure = Rp80,000
+    if (hasArrival && hasDeparture) {
+      return 80000;
+    }
+
+    // Single service (Arrival OR Departure) = Rp40,000
+    if (hasArrival || hasDeparture) {
+      return 40000;
+    }
+
+    return 0;
+  };
+
+  // Calculate Porter Service price
+  const calculatePorterServicePrice = () => {
+    if (formData.category !== "Porter Service") {
+      return 0;
+    }
+
+    const basePrice = 70000;
+    const extraBaggagePrice = formData.extraBaggageCount * 10000;
+    return basePrice + extraBaggagePrice;
+  };
+
   // Calculate total price whenever service price, category price, or passengers change
   useEffect(() => {
     if (formData.category === "Handling Group") {
-      // For group bookings: sell_price + (additional * passengers)
-      const totalGroupPrice =
-        servicePrice + categoryPrice * formData.passengers;
+      // For Handling Group: use custom price calculation
+      const pricePerPassenger = calculateHandlingGroupPrice();
+      const totalGroupPrice = pricePerPassenger * formData.passengers;
       setTotalPrice(totalGroupPrice);
+      setServicePrice(pricePerPassenger); // Set service price to price per passenger for display
+    } else if (
+      formData.category === "International - Individual" ||
+      formData.category === "Domestik - Individual"
+    ) {
+      // For Personal Handling: use custom price calculation
+      const personalPrice = calculatePersonalHandlingPrice();
+      setTotalPrice(personalPrice);
+      setServicePrice(personalPrice);
+    } else if (formData.category === "Porter Service") {
+      // For Porter Service: use custom price calculation
+      const porterPrice = calculatePorterServicePrice();
+      setTotalPrice(porterPrice);
+      setServicePrice(porterPrice);
     } else {
-      // For individual bookings: just the sell_price
+      // For other services: just the sell_price
       setTotalPrice(servicePrice);
     }
-  }, [servicePrice, categoryPrice, formData.passengers, formData.category]);
+  }, [
+    servicePrice,
+    categoryPrice,
+    formData.passengers,
+    formData.category,
+    formData.travelTypes,
+    formData.extraBaggageCount,
+  ]);
 
   // Recalculate price when travel types change for International - Individual
   useEffect(() => {
@@ -539,8 +634,13 @@ const HandlingPage = () => {
           pickup_area: formData.pickupArea,
           dropoff_area: formData.dropoffArea,
           additional_notes: formData.additionalNotes,
+          extra_baggage_count:
+            formData.category === "Porter Service"
+              ? formData.extraBaggageCount
+              : null,
           service_price: servicePrice,
           category_price: categoryPrice,
+          total_amount: totalPrice || 150000,
           total_price: totalPrice || 150000,
           status: "pending",
         })
@@ -586,6 +686,10 @@ const HandlingPage = () => {
           pickupArea: formData.pickupArea,
           dropoffArea: formData.dropoffArea,
           additionalNotes: formData.additionalNotes,
+          extraBaggageCount:
+            formData.category === "Porter Service"
+              ? formData.extraBaggageCount
+              : null,
           serviceType: "handling",
           servicePrice: servicePrice,
           categoryPrice: categoryPrice,
@@ -1092,30 +1196,68 @@ const HandlingPage = () => {
                 </Select>
               </div>
 
-              {/* Additional Baggage Field - Only show for Porter Service */}
+              {/* Extra Baggage Count Field - Only show for Porter Service */}
               {formData.category === "Porter Service" && (
                 <div className="space-y-2">
                   <label className="flex items-center text-sm font-medium text-gray-700">
                     <User className="h-4 w-4 mr-2 text-green-600" />
                     Baggasi Tambahan
                   </label>
-                  <Select
-                    value={formData.additionalBaggage.toString()}
-                    onValueChange={(value) =>
-                      handleInputChange("additionalBaggage", parseInt(value))
-                    }
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Pilih jumlah baggasi tambahan" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {[1, 2, 3, 4, 5].map((num) => (
-                        <SelectItem key={num} value={num.toString()}>
-                          {num} Baggasi
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Input
+                    type="number"
+                    min="0"
+                    placeholder="Masukkan jumlah baggasi tambahan"
+                    value={formData.extraBaggageCount.toString()}
+                    onChange={(e) => {
+                      const value = parseInt(e.target.value) || 0;
+                      if (value >= 0) {
+                        handleInputChange("extraBaggageCount", value);
+                      }
+                    }}
+                    className="w-full"
+                  />
+                  <p className="text-xs text-gray-500">
+                    Minimal 0 baggasi tambahan
+                  </p>
+
+                  {/* Porter Service Price Calculation Display */}
+                  <div className="mt-4 p-4 bg-purple-50 border border-purple-200 rounded-lg">
+                    <h4 className="font-semibold text-purple-800 mb-2">
+                      Kalkulasi Harga Porter Service
+                    </h4>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-purple-700">Harga Dasar:</span>
+                        <span className="font-medium text-purple-800">
+                          Rp 70.000
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-purple-700">
+                          Bagasi Tambahan ({formData.extraBaggageCount} × Rp
+                          10.000):
+                        </span>
+                        <span className="font-medium text-purple-800">
+                          Rp{" "}
+                          {(
+                            formData.extraBaggageCount * 10000
+                          ).toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="border-t border-purple-200 pt-2 mt-2">
+                        <div className="flex justify-between font-semibold text-purple-800">
+                          <span>Total Harga:</span>
+                          <span>
+                            Rp{" "}
+                            {(
+                              70000 +
+                              formData.extraBaggageCount * 10000
+                            ).toLocaleString()}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -1347,12 +1489,95 @@ const HandlingPage = () => {
                     }}
                     className="w-full"
                   />
-                  <p className="text-xs text-gray-500">
-                    Minimum 1 penumpang. Biaya tambahan: Rp{" "}
-                    {categoryPrice.toLocaleString()} per penumpang
-                  </p>
+
+                  {/* Price Calculation Display for Handling Group */}
+                  {formData.travelTypes.length > 0 && (
+                    <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                      <h4 className="font-semibold text-blue-800 mb-2">
+                        Kalkulasi Harga
+                      </h4>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-blue-700">
+                            Jenis Perjalanan:
+                          </span>
+                          <span className="font-medium text-blue-800">
+                            {formData.travelTypes.join(", ")}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-blue-700">
+                            Harga per Penumpang:
+                          </span>
+                          <span className="font-medium text-blue-800">
+                            Rp {calculateHandlingGroupPrice().toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-blue-700">
+                            Jumlah Penumpang:
+                          </span>
+                          <span className="font-medium text-blue-800">
+                            {formData.passengers} orang
+                          </span>
+                        </div>
+                        <div className="border-t border-blue-200 pt-2 mt-2">
+                          <div className="flex justify-between font-semibold text-blue-800">
+                            <span>Total Harga:</span>
+                            <span>
+                              Rp{" "}
+                              {(
+                                calculateHandlingGroupPrice() *
+                                formData.passengers
+                              ).toLocaleString()}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
+
+              {/* Price Calculation Display for Personal Handling */}
+              {(formData.category === "International - Individual" ||
+                formData.category === "Domestik - Individual") &&
+                formData.travelTypes.length > 0 && (
+                  <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+                    <h4 className="font-semibold text-green-800 mb-2">
+                      Kalkulasi Harga Personal Handling
+                    </h4>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-green-700">
+                          Jenis Perjalanan:
+                        </span>
+                        <span className="font-medium text-green-800">
+                          {formData.travelTypes.join(", ")}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-green-700">Kategori:</span>
+                        <span className="font-medium text-green-800">
+                          {formData.category}
+                        </span>
+                      </div>
+                      <div className="border-t border-green-200 pt-2 mt-2">
+                        <div className="flex justify-between font-semibold text-green-800">
+                          <span>Total Harga:</span>
+                          <span>
+                            Rp{" "}
+                            {calculatePersonalHandlingPrice().toLocaleString()}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="mt-2 text-xs text-green-600">
+                        <p>• Arrival atau Departure: Rp 40.000</p>
+                        <p>• Arrival + Departure atau Transit: Rp 80.000</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
               {/* Date and Time Fields for Group categories */}
               {formData.category === "Handling Group" && (
@@ -1569,55 +1794,103 @@ const HandlingPage = () => {
                   Detail Harga
                 </h3>
                 <div className="space-y-2 text-sm">
-                  {servicePrice > 0 && (
-                    <div className="flex justify-between">
-                      <span className="text-green-700">
-                        Harga Dasar ({formData.category}):
-                      </span>
-                      <span className="font-medium text-green-800">
-                        Rp {servicePrice.toLocaleString()}
-                      </span>
-                    </div>
-                  )}
-                  {formData.category === "Handling Group" &&
-                    categoryPrice > 0 && (
-                      <>
+                  {formData.category === "Handling Group" ? (
+                    <>
+                      <div className="flex justify-between">
+                        <span className="text-green-700">
+                          Jenis Perjalanan:
+                        </span>
+                        <span className="font-medium text-green-800">
+                          {formData.travelTypes.join(", ") || "Belum dipilih"}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-green-700">
+                          Harga per Penumpang:
+                        </span>
+                        <span className="font-medium text-green-800">
+                          Rp {calculateHandlingGroupPrice().toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-green-700">
+                          Jumlah Penumpang:
+                        </span>
+                        <span className="font-medium text-green-800">
+                          {formData.passengers} orang
+                        </span>
+                      </div>
+                    </>
+                  ) : formData.category === "International - Individual" ||
+                    formData.category === "Domestik - Individual" ? (
+                    <>
+                      <div className="flex justify-between">
+                        <span className="text-green-700">
+                          Jenis Perjalanan:
+                        </span>
+                        <span className="font-medium text-green-800">
+                          {formData.travelTypes.join(", ") || "Belum dipilih"}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-green-700">Kategori:</span>
+                        <span className="font-medium text-green-800">
+                          {formData.category}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-green-700">
+                          Harga Personal Handling:
+                        </span>
+                        <span className="font-medium text-green-800">
+                          Rp {calculatePersonalHandlingPrice().toLocaleString()}
+                        </span>
+                      </div>
+                    </>
+                  ) : formData.category === "Porter Service" ? (
+                    <>
+                      <div className="flex justify-between">
+                        <span className="text-green-700">Harga Dasar:</span>
+                        <span className="font-medium text-green-800">
+                          Rp 70.000
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-green-700">
+                          Bagasi Tambahan ({formData.extraBaggageCount} × Rp
+                          10.000):
+                        </span>
+                        <span className="font-medium text-green-800">
+                          Rp{" "}
+                          {(
+                            formData.extraBaggageCount * 10000
+                          ).toLocaleString()}
+                        </span>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      {servicePrice > 0 && (
                         <div className="flex justify-between">
                           <span className="text-green-700">
-                            Biaya per Penumpang:
+                            Harga Dasar ({formData.category}):
                           </span>
                           <span className="font-medium text-green-800">
-                            Rp {categoryPrice.toLocaleString()}
+                            Rp {servicePrice.toLocaleString()}
                           </span>
                         </div>
+                      )}
+                      {totalPrice === 0 && (
                         <div className="flex justify-between">
                           <span className="text-green-700">
-                            Jumlah Penumpang:
+                            Layanan Handling:
                           </span>
                           <span className="font-medium text-green-800">
-                            {formData.passengers} orang
+                            Rp 150.000
                           </span>
                         </div>
-                        <div className="flex justify-between">
-                          <span className="text-green-700">
-                            Subtotal Penumpang:
-                          </span>
-                          <span className="font-medium text-green-800">
-                            Rp{" "}
-                            {(
-                              categoryPrice * formData.passengers
-                            ).toLocaleString()}
-                          </span>
-                        </div>
-                      </>
-                    )}
-                  {totalPrice === 0 && (
-                    <div className="flex justify-between">
-                      <span className="text-green-700">Layanan Handling:</span>
-                      <span className="font-medium text-green-800">
-                        Rp 150.000
-                      </span>
-                    </div>
+                      )}
+                    </>
                   )}
                   <div className="border-t border-green-200 pt-2 mt-2">
                     <div className="flex justify-between font-semibold text-green-800">

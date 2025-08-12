@@ -156,7 +156,8 @@ const AdminLayout = () => {
                       location.pathname.includes("/admin/data-agent") ||
                       location.pathname.includes("/admin/booking-agent") ||
                       location.pathname.includes("/admin/top-up-agent") ||
-                      location.pathname.includes("/admin/history-top-up")
+                      location.pathname.includes("/admin/history-top-up") ||
+                      location.pathname.includes("/admin/top-up-requests")
                         ? "bg-white/20 font-medium text-white"
                         : "text-white/80"
                     } ${!sidebarOpen && "justify-center"}`}
@@ -206,6 +207,13 @@ const AdminLayout = () => {
                       >
                         <Activity className="h-4 w-4 text-white" />
                         <span className="ml-3">History Top Up</span>
+                      </Link>
+                      <Link
+                        to="/admin/top-up-requests"
+                        className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/top-up-requests") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
+                      >
+                        <CheckSquare className="h-4 w-4 text-white" />
+                        <span className="ml-3">Top Up Requests</span>
                       </Link>
                     </div>
                   )}
