@@ -822,12 +822,12 @@ const ShoppingCart: React.FC<ShoppingCartProps> = () => {
                                   return (
                                     <div className="mt-3 space-y-1">
                                       {/* Booking Code */}
-                                      {parsedDetails.bookingCode && (
+                                      {parsedDetails.codeBooking && (
                                         <p className="text-sm text-gray-600">
                                           <span className="font-medium">
                                             Booking Code:
                                           </span>{" "}
-                                          {parsedDetails.bookingCode}
+                                          {parsedDetails.codeBooking}
                                         </p>
                                       )}
 

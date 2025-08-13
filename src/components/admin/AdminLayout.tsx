@@ -219,14 +219,36 @@ const AdminLayout = () => {
                   )}
                 </div>
 
-                {/* 4. Bookings - Show for Staff Traffic */}
-                <Link
-                  to="/admin/bookings"
-                  className={`flex items-center p-3 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/bookings") ? "bg-white/20 font-medium text-white" : "text-white/80"} ${!sidebarOpen && "justify-center"}`}
-                >
-                  <CalendarDays className="h-5 w-5 text-white" />
-                  {sidebarOpen && <span className="ml-3">Bookings</span>}
-                </Link>
+                {/* 4. Bookings Menu - Show for Staff Traffic */}
+                <div>
+                  <Link
+                    to="/admin/bookings"
+                    className={`flex items-center p-3 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname === "/admin/bookings" ? "bg-white/20 font-medium text-white" : "text-white/80"} ${!sidebarOpen && "justify-center"}`}
+                  >
+                    <CalendarDays className="h-5 w-5 text-white" />
+                    {sidebarOpen && <span className="ml-3">Bookings</span>}
+                  </Link>
+
+                  {/* Bookings Sub-menu items */}
+                  {sidebarOpen && (
+                    <div className="ml-6 mt-2 space-y-1">
+                      <Link
+                        to="/admin/bookings/customer"
+                        className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/bookings/customer") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
+                      >
+                        <User className="h-4 w-4 text-white" />
+                        <span className="ml-3">Bookings Customer</span>
+                      </Link>
+                      <Link
+                        to="/admin/bookings/driver"
+                        className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/bookings/driver") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
+                      >
+                        <UserCog className="h-4 w-4 text-white" />
+                        <span className="ml-3">Bookings Driver</span>
+                      </Link>
+                    </div>
+                  )}
+                </div>
 
                 {/* 5. Payments - Hide for Staff Traffic */}
                 {userRole !== "Staff Traffic" && (

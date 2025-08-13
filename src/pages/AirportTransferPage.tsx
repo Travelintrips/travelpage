@@ -89,7 +89,7 @@ interface BookingFormData {
   price: number;
   distance: number;
   duration: number;
-  bookingCode: string;
+  codeBooking: string;
   driverId: string | null;
   driverName: string;
   driverPhone: string;
@@ -162,7 +162,7 @@ function AirportTransferPageContent() {
     price: 0,
     distance: 0,
     duration: 0,
-    bookingCode: generateBookingCode(),
+    codeBooking: generateCodeBooking(),
     driverId: null,
     driverName: "",
     driverPhone: "",
@@ -216,7 +216,7 @@ function AirportTransferPageContent() {
         .from("vehicle_types")
         .select("id")
         .eq("name", vehicleType)
-        .single();
+        .maybeSingle();
 
       if (vehicleTypeError || !vehicleTypeData) {
         console.error("Error fetching vehicle type ID:", vehicleTypeError);
@@ -242,7 +242,7 @@ function AirportTransferPageContent() {
             id,
             id_driver,
             name,
-            phone
+            phone_number
           )
         `,
         )
@@ -268,7 +268,7 @@ function AirportTransferPageContent() {
             model: vehicle.model,
             license_plate: vehicle.license_plate || "N/A",
             driver_name: vehicle.drivers?.name || "Unknown Driver",
-            driver_phone: vehicle.drivers?.phone || "N/A",
+            driver_phone: vehicle.drivers?.phone_number || "N/A",
             vehicle_type: vehicle.type || vehicleType,
             price_km: Number(vehicle.price_km) || 3250,
             basic_price: Number(vehicle.basic_price) || 75000,
@@ -1342,7 +1342,7 @@ function AirportTransferPageContent() {
   };
 
   // Generate a unique booking code
-  function generateBookingCode() {
+  function generateCodeBooking() {
     return `AT-${Math.floor(100000 + Math.random() * 900000)}`;
   }
 
@@ -1581,290 +1581,145 @@ function AirportTransferPageContent() {
     }));
   };
 
-  // Search for available drivers
+  // Search for available drivers who have rented vehicles matching the selected vehicle type
   const searchDrivers = async () => {
     setIsSearchingDriver(true);
     try {
-      const { data: drivers, error: driverError } = await supabase
-        .from("drivers")
+      console.log(
+        `🔍 Searching for drivers with ${formData.vehicleType} vehicles from bookings table`,
+      );
+
+      // First, get drivers who have rented vehicles from bookings table
+      // and match the selected vehicle type
+      const { data: bookingsWithDrivers, error: bookingsError } = await supabase
+        .from("bookings")
         .select(
           `
-        id,
-        id_driver,
-        name,
-        phone,
-        selfie_url
-      `,
+    driver_id,
+    driver_name,
+    vehicle_type,
+    license_plate,
+    make,
+    model,
+    drivers!bookings_driver_id_fkey (
+      id,
+      id_driver,
+      name,
+      phone_number,
+      selfie_url,
+      status,
+      is_online
+    )
+  `,
         )
-        .eq("is_online", true);
+        .eq("vehicle_type", formData.vehicleType)
+        .eq("drivers.status", "Standby") // ✅ filter Standby di server
+        .eq("drivers.is_online", true) // ✅ filter Online di server
+        .not("driver_id", "is", null)
+        .not("drivers", "is", null);
 
-      if (driverError) {
-        console.error("❌ Error fetching drivers:", driverError);
-        throw driverError;
+      if (bookingsError) {
+        console.error(
+          "❌ Error fetching bookings with drivers:",
+          bookingsError,
+        );
+        throw bookingsError;
       }
 
-      console.log("✅ Drivers fetched:", drivers);
+      console.log(
+        "📋 Bookings with drivers found:",
+        bookingsWithDrivers?.length || 0,
+      );
 
-      // Format driver data
-      const driverData = [];
+      // Filter drivers who are "Standby" and Online
+      const availableDriversFromBookings = [];
 
-      // Process each onride driver
-      // Format driver list dari tabel drivers dan vehicles
-      for (const item of drivers || []) {
-        try {
-          // Skip jika tidak ada vehicle_id
-          if (!item.vehicle_id) continue;
+      for (const booking of bookingsWithDrivers || []) {
+        if (!booking.drivers) continue;
 
-          // Ambil data kendaraan berdasarkan vehicle_id
-          const { data: vehicle, error: vehicleError } = await supabase
-            .from("vehicles")
-            .select(
-              "make, model, type, license_plate, color, price_km, basic_price, surcharge",
-            )
-            .eq("id", item.vehicle_id)
-            .maybeSingle();
+        const driver = booking.drivers;
 
-          if (vehicleError || !vehicle) {
-            console.warn(
-              `⚠️ Kendaraan tidak ditemukan untuk driver ${item.name}`,
-            );
-            continue;
-          }
+        // Only include drivers with "Standby" status and Online
+        if (driver.status === "Standby" && driver.is_online === true) {
+          // Get vehicle pricing for this vehicle type
+          const { data: vehiclePricing, error: pricingError } = await supabase
+            .from("price_km")
+            .select("price_per_km, basic_price, surcharge")
+            .eq("vehicle_type", formData.vehicleType)
+            .eq("is_active", true)
+            .limit(1);
 
-          // Filter berdasarkan tipe kendaraan yang dipilih user
-          if (vehicle.type !== formData.vehicleType) continue;
-
-          // Default values
+          // Default pricing values
           let price_km = 3250;
           let basic_price = 75000;
           let surcharge = 40000;
 
-          // Gunakan nilai dari kendaraan jika tersedia dan valid
-          const tempPriceKm = Number(vehicle.price_km);
-          const tempBasicPrice = Number(vehicle.basic_price);
-          const tempSurcharge = Number(vehicle.surcharge);
-
-          if (!isNaN(tempPriceKm)) price_km = tempPriceKm;
-          if (!isNaN(tempBasicPrice)) basic_price = tempBasicPrice;
-          if (!isNaN(tempSurcharge)) surcharge = tempSurcharge;
-
-          console.log(
-            `🚗 Driver ${item.name} menggunakan kendaraan ${vehicle.make}`,
-          );
-
-          // Ensure id_driver is properly extracted and converted to number if needed
-          const driverId =
-            item.id_driver !== undefined && item.id_driver !== null
-              ? Number(item.id_driver)
-              : null;
-
-          console.log(
-            `Processing driver ${item.name} with id_driver:`,
-            item.id_driver,
-          );
+          if (!pricingError && vehiclePricing && vehiclePricing.length > 0) {
+            const pricing = vehiclePricing[0];
+            price_km = Number(pricing.price_per_km) || price_km;
+            basic_price = Number(pricing.basic_price) || basic_price;
+            surcharge = Number(pricing.surcharge) || surcharge;
+          }
 
           const driverEntry = {
-            id: item.id,
-            id_driver: driverId,
-            driver_name: item.name,
-            phone_number: item.phone,
-            photo_url: item.selfie_url,
-            license_plate: vehicle.license_plate,
-            vehicle_name: vehicle.make,
-            vehicle_model: vehicle.model,
-            vehicle_type: vehicle.type,
-            vehicle_color: vehicle.color,
-            distance: Math.round(Math.random() * 5 + 1),
-            eta: Math.round(Math.random() * 10 + 5),
+            id: driver.id,
+            id_driver: driver.id_driver,
+            driver_name: driver.name,
+            phone_number: driver.phone_number,
+            photo_url: driver.selfie_url,
+            status: driver.status,
+            license_plate: booking.license_plate || "N/A",
+            vehicle_name: booking.make || "Unknown",
+            vehicle_model: booking.model || "Unknown",
+            vehicle_type: booking.vehicle_type,
+            vehicle_color: "N/A", // Not available in bookings table
+            distance: Math.round(Math.random() * 5 + 1), // Simulated distance
+            eta: Math.round(Math.random() * 10 + 5), // Simulated ETA
             price_km,
             basic_price,
             surcharge,
           };
 
-          console.log("Adding driver with data:", driverEntry);
-          driverData.push(driverEntry);
-        } catch (err) {
-          console.error(`❌ Error processing driver ${item.name}:`, err);
+          // Avoid duplicates by checking if driver already exists
+          const existingDriver = availableDriversFromBookings.find(
+            (existing) => existing.id === driver.id,
+          );
+
+          if (!existingDriver) {
+            availableDriversFromBookings.push(driverEntry);
+            console.log(
+              `✅ Added driver: ${driver.name} with ${booking.vehicle_type} (${booking.make} ${booking.model})`,
+            );
+          }
+        } else {
+          console.log(
+            `⏭️ Skipping driver ${driver.name}: status=${driver.status}, online=${driver.is_online}`,
+          );
         }
       }
 
-      // Simpan ke state jika ada driver yang valid
-      if (driverData.length > 0) {
-        setAvailableDrivers(driverData);
+      console.log(
+        `🎯 Found ${availableDriversFromBookings.length} available drivers with ${formData.vehicleType} vehicles`,
+      );
+
+      if (availableDriversFromBookings.length > 0) {
+        setAvailableDrivers(availableDriversFromBookings);
         return;
       }
 
-      // If no onride drivers, find available drivers
-      const { data: availableDriversData, error: availableError } =
-        await supabase
-          .from("drivers")
-          .select("id, name, phone, selfie_url, id_driver")
-          .eq("status", "active")
-          .eq("is_online", true)
-          .limit();
-
-      if (availableError) {
-        console.error("Error fetching available drivers:", availableError);
-        throw availableError;
-      }
-
-      // Format available drivers
-      const availableDriversFormatted = [];
-
-      // Fetch vehicle pricing data once for the selected vehicle type
-      const { data: vehiclePricing, error: vehiclePricingError } =
-        await supabase
-          .from("vehicles")
-          .select("price_km, basic_price, surcharge")
-          .eq("type", formData.vehicleType)
-          .limit(1);
-
-      if (vehiclePricingError) {
-        console.error(
-          `Error fetching pricing for ${formData.vehicleType}:`,
-          vehiclePricingError,
-        );
-        // Use default values instead of throwing error
-        const defaultValues = {
-          price_km: 3250,
-          basic_price: 75000,
-          surcharge: 40000,
-        };
-
-        // For each available driver, use default pricing data
-        for (const driver of availableDriversData || []) {
-          availableDriversFormatted.push({
-            id: driver.id,
-            id_driver: driver.id_driver,
-            driver_name: driver.name,
-            phone_number: driver.phone,
-            status: driver.status,
-            photo_url: driver.selfie_url,
-            // Simulate distance and ETA for demo purposes
-            distance: Math.round(Math.random() * 10 + 5), // 5-15 km
-            eta: Math.round(Math.random() * 15 + 10), // 10-25 minutes
-            // Add default pricing data
-            price_km: defaultValues.price_km,
-            basic_price: defaultValues.basic_price,
-            surcharge: defaultValues.surcharge,
-            vehicle_type: formData.vehicleType,
-          });
-        }
-
-        setAvailableDrivers(availableDriversFormatted);
-        return;
-      }
-
-      // Check if we have data
-      if (!vehiclePricing || vehiclePricing.length === 0) {
-        console.error(`No pricing data found for ${formData.vehicleType}`);
-        // Use default values
-        const defaultValues = {
-          price_km: 3250,
-          basic_price: 75000,
-          surcharge: 40000,
-        };
-
-        // For each available driver, use default pricing data
-        for (const driver of availableDriversData || []) {
-          availableDriversFormatted.push({
-            id: driver.id,
-            id_driver: driver.id_driver,
-            driver_name: driver.name,
-            phone_number: driver.phone,
-            status: driver.status,
-            photo_url: driver.selfie_url,
-            // Simulate distance and ETA for demo purposes
-            distance: Math.round(Math.random() * 10 + 5), // 5-15 km
-            eta: Math.round(Math.random() * 15 + 10), // 10-25 minutes
-            // Add vehicle pricing data from database
-            price_km: defaultValues.price_km,
-            basic_price: defaultValues.basic_price,
-            surcharge: defaultValues.surcharge,
-            vehicle_type: formData.vehicleType,
-          });
-        }
-
-        setAvailableDrivers(availableDriversFormatted);
-        return;
-      }
-
-      // Get the first item from the array
-      const pricingData = vehiclePricing[0];
-
-      // Ensure all price values are properly converted to numbers
-      const price_km = Number(pricingData.price_km);
-      const basic_price = Number(pricingData.basic_price);
-      const surcharge = Number(pricingData.surcharge);
-
-      if (isNaN(price_km) || isNaN(basic_price) || isNaN(surcharge)) {
-        console.error(
-          `Invalid pricing data for ${formData.vehicleType}:`,
-          vehiclePricing,
-        );
-        // Use default values instead of throwing error
-        const defaultValues = {
-          price_km: 3250,
-          basic_price: 75000,
-          surcharge: 40000,
-        };
-
-        // For each available driver, use default pricing data
-        for (const driver of availableDriversData || []) {
-          availableDriversFormatted.push({
-            id: driver.id,
-            id_driver: driver.id_driver,
-            driver_name: driver.name,
-            phone_number: driver.phone,
-            status: driver.status,
-            photo_url: driver.selfie_url,
-            // Simulate distance and ETA for demo purposes
-            distance: Math.round(Math.random() * 10 + 5), // 5-15 km
-            eta: Math.round(Math.random() * 15 + 10), // 10-25 minutes
-            // Add vehicle pricing data from database
-            price_km: defaultValues.price_km,
-            basic_price: defaultValues.basic_price,
-            surcharge: defaultValues.surcharge,
-            vehicle_type: formData.vehicleType,
-          });
-        }
-
-        setAvailableDrivers(availableDriversFormatted);
-        return;
-      }
-
-      // For each available driver, use the pricing data we fetched
-      for (const driver of availableDriversData || []) {
-        try {
-          availableDriversFormatted.push({
-            id: driver.id,
-            id_driver: driver.id_driver,
-            driver_name: driver.name,
-            phone_number: driver.phone,
-            status: driver.status,
-            photo_url: driver.selfie_url,
-            // Simulate distance and ETA for demo purposes
-            distance: Math.round(Math.random() * 10 + 5), // 5-15 km
-            eta: Math.round(Math.random() * 15 + 10), // 10-25 minutes
-            // Add vehicle pricing data from database
-            price_km,
-            basic_price,
-            surcharge,
-            vehicle_type: formData.vehicleType,
-          });
-        } catch (err) {
-          console.error(`Error processing driver ${driver.name}:`, err);
-        }
-      }
-
-      setAvailableDrivers(availableDriversFormatted);
+      // If no drivers found from bookings, show message
+      console.log(
+        "⚠️ No drivers found with rented vehicles matching the criteria",
+      );
+      setAvailableDrivers([]);
     } catch (err) {
-      console.error("Error searching drivers:", err);
+      console.error("❌ Error searching drivers:", err);
       toast({
         title: "Driver Search Failed",
-        description: "Could not find available drivers",
+        description: "Could not find available drivers with rented vehicles",
         variant: "destructive",
       });
+      setAvailableDrivers([]);
     } finally {
       setIsSearchingDriver(false);
     }
@@ -2262,7 +2117,7 @@ function AirportTransferPageContent() {
       // Create booking data for Supabase
       const bookingData = {
         id: uuidv4(), // Generate UUID for the id field
-        booking_code: formData.bookingCode,
+        code_booking: formData.codeBooking,
         customer_name: formData.fullName || "Guest Customer",
         phone: formData.phoneNumber || "",
         pickup_location: formData.fromAddress,
@@ -2310,7 +2165,7 @@ function AirportTransferPageContent() {
         quantity: 1,
         details: {
           bookingId: data.id,
-          bookingCode: formData.bookingCode,
+          codeBooking: formData.codeBooking,
           vehicleType: formData.vehicleType,
           fromAddress: formData.fromAddress,
           toAddress: formData.toAddress,
@@ -2360,7 +2215,7 @@ function AirportTransferPageContent() {
     try {
       const bookingData = {
         id: uuidv4(), // Generate UUID for the id field
-        booking_code: formData.bookingCode,
+        code_booking: formData.codeBooking,
         customer_name: formData.fullName,
         phone: formData.phoneNumber,
         pickup_location: formData.fromAddress,

@@ -38,6 +38,8 @@ import CarsManagement from "./components/admin/CarsManagement";
 import Payments from "./components/admin/Payments";
 import BookingManagement from "./components/admin/BookingManagement";
 import BookingManagementConnected from "./components/admin/BookingManagementConnected";
+import BookingManagementCustomer from "./components/admin/BookingManagementCustomer";
+import BookingManagementDriver from "./components/admin/BookingManagementDriver";
 import InspectionManagement from "./components/admin/InspectionManagement";
 import ChecklistManagement from "./components/admin/ChecklistManagement";
 import DamageManagement from "./components/admin/DamageManagement";
@@ -614,7 +616,15 @@ function AppContent() {
             <Route path="drivers" element={<DriverManagement />} />
             <Route path="cars" element={<CarsManagement />} />
             <Route path="payments" element={<Payments />} />
-            <Route path="bookings" element={<BookingManagementConnected />} />
+            <Route path="bookings" element={<BookingManagement />} />
+            <Route
+              path="bookings/customer"
+              element={<BookingManagementCustomer />}
+            />
+            <Route
+              path="bookings/driver"
+              element={<BookingManagementDriver />}
+            />
             <Route path="staff" element={<StaffPage />} />
             <Route path="inspections" element={<InspectionManagement />} />
             <Route path="checklist" element={<ChecklistManagement />} />
