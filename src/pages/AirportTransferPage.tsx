@@ -211,21 +211,11 @@ function AirportTransferPageContent() {
 
     setIsLoadingVehicles(true);
     try {
-      // First, get the vehicle_type_id from vehicle_types table
-      const { data: vehicleTypeData, error: vehicleTypeError } = await supabase
-        .from("vehicle_types")
-        .select("id")
-        .eq("name", vehicleType)
-        .maybeSingle();
+      console.log(`🔍 Fetching vehicles for type: ${vehicleType}`);
 
-      if (vehicleTypeError || !vehicleTypeData) {
-        console.error("Error fetching vehicle type ID:", vehicleTypeError);
-        setAvailableVehiclesWithDrivers([]);
-        return;
-      }
-
-      // Query vehicles with assigned drivers
-      const { data: vehiclesData, error: vehiclesError } = await supabase
+      // Try multiple approaches to find vehicles for the selected type
+      // Approach 1: Direct type matching
+      let { data: vehiclesData, error: vehiclesError } = await supabase
         .from("vehicles")
         .select(
           `
@@ -246,9 +236,93 @@ function AirportTransferPageContent() {
           )
         `,
         )
-        .eq("vehicle_type_id", vehicleTypeData.id)
+        .eq("type", vehicleType)
         .not("driver_id", "is", null)
         .eq("is_active", true);
+
+      // If no results with direct type matching, try vehicle_type_id approach
+      if ((!vehiclesData || vehiclesData.length === 0) && !vehiclesError) {
+        console.log(
+          `🔄 No direct matches for ${vehicleType}, trying vehicle_type_id approach`,
+        );
+
+        // Get the vehicle_type_id from vehicle_types table
+        const { data: vehicleTypeData, error: vehicleTypeError } =
+          await supabase
+            .from("vehicle_types")
+            .select("id")
+            .eq("name", vehicleType)
+            .maybeSingle();
+
+        if (!vehicleTypeError && vehicleTypeData) {
+          const { data: vehiclesData2, error: vehiclesError2 } = await supabase
+            .from("vehicles")
+            .select(
+              `
+              id,
+              make,
+              model,
+              license_plate,
+              type,
+              price_km,
+              basic_price,
+              surcharge,
+              image,
+              drivers!vehicles_driver_id_fkey (
+                id,
+                id_driver,
+                name,
+                phone_number
+              )
+            `,
+            )
+            .eq("vehicle_type_id", vehicleTypeData.id)
+            .not("driver_id", "is", null)
+            .eq("is_active", true);
+
+          if (!vehiclesError2) {
+            vehiclesData = vehiclesData2;
+            vehiclesError = vehiclesError2;
+          }
+        }
+      }
+
+      // If still no results, try case-insensitive matching
+      if ((!vehiclesData || vehiclesData.length === 0) && !vehiclesError) {
+        console.log(
+          `🔄 No matches found, trying case-insensitive search for ${vehicleType}`,
+        );
+
+        const { data: vehiclesData3, error: vehiclesError3 } = await supabase
+          .from("vehicles")
+          .select(
+            `
+            id,
+            make,
+            model,
+            license_plate,
+            type,
+            price_km,
+            basic_price,
+            surcharge,
+            image,
+            drivers!vehicles_driver_id_fkey (
+              id,
+              id_driver,
+              name,
+              phone_number
+            )
+          `,
+          )
+          .ilike("type", `%${vehicleType}%`)
+          .not("driver_id", "is", null)
+          .eq("is_active", true);
+
+        if (!vehiclesError3) {
+          vehiclesData = vehiclesData3;
+          vehiclesError = vehiclesError3;
+        }
+      }
 
       if (vehiclesError) {
         console.error("Error fetching vehicles with drivers:", vehiclesError);
@@ -278,8 +352,34 @@ function AirportTransferPageContent() {
 
       setAvailableVehiclesWithDrivers(formattedVehicles);
       console.log(
-        `Found ${formattedVehicles.length} available vehicles with drivers for ${vehicleType}`,
+        `✅ Found ${formattedVehicles.length} available vehicles with drivers for ${vehicleType}:`,
+        formattedVehicles.map(
+          (v) =>
+            `${v.make} ${v.model} (${v.vehicle_type}) - Driver: ${v.driver_name}`,
+        ),
       );
+
+      // Debug: Log all available vehicle types in database
+      if (formattedVehicles.length === 0) {
+        console.log(
+          `⚠️ No vehicles found for ${vehicleType}. Checking what vehicle types exist in database...`,
+        );
+
+        const { data: allVehicles } = await supabase
+          .from("vehicles")
+          .select("type, make, model")
+          .not("driver_id", "is", null)
+          .eq("is_active", true);
+
+        console.log(`📊 All available vehicle types in database:`, [
+          ...new Set(allVehicles?.map((v) => v.type) || []),
+        ]);
+
+        console.log(
+          `📊 All vehicles in database:`,
+          allVehicles?.map((v) => `${v.make} ${v.model} (${v.type})`) || [],
+        );
+      }
     } catch (error) {
       console.error("Error in fetchAvailableVehiclesWithDrivers:", error);
       setAvailableVehiclesWithDrivers([]);
@@ -1591,7 +1691,12 @@ function AirportTransferPageContent() {
 
       // First, get drivers who have rented vehicles from bookings table
       // and match the selected vehicle type
-      const { data: bookingsWithDrivers, error: bookingsError } = await supabase
+      console.log(
+        `🔍 Searching for drivers with ${formData.vehicleType} vehicles`,
+      );
+
+      // Try exact match first
+      let { data: bookingsWithDrivers, error: bookingsError } = await supabase
         .from("bookings")
         .select(
           `
@@ -1617,6 +1722,49 @@ function AirportTransferPageContent() {
         .eq("drivers.is_online", true) // ✅ filter Online di server
         .not("driver_id", "is", null)
         .not("drivers", "is", null);
+
+      // If no exact matches found, try case-insensitive search
+      if (
+        (!bookingsWithDrivers || bookingsWithDrivers.length === 0) &&
+        !bookingsError
+      ) {
+        console.log(
+          `🔄 No exact matches for ${formData.vehicleType}, trying case-insensitive search`,
+        );
+
+        const { data: bookingsWithDrivers2, error: bookingsError2 } =
+          await supabase
+            .from("bookings")
+            .select(
+              `
+      driver_id,
+      driver_name,
+      vehicle_type,
+      license_plate,
+      make,
+      model,
+      drivers!bookings_driver_id_fkey (
+        id,
+        id_driver,
+        name,
+        phone_number,
+        selfie_url,
+        status,
+        is_online
+      )
+    `,
+            )
+            .ilike("vehicle_type", `%${formData.vehicleType}%`)
+            .eq("drivers.status", "Standby")
+            .eq("drivers.is_online", true)
+            .not("driver_id", "is", null)
+            .not("drivers", "is", null);
+
+        if (!bookingsError2) {
+          bookingsWithDrivers = bookingsWithDrivers2;
+          bookingsError = bookingsError2;
+        }
+      }
 
       if (bookingsError) {
         console.error(
@@ -1699,8 +1847,36 @@ function AirportTransferPageContent() {
       }
 
       console.log(
-        `🎯 Found ${availableDriversFromBookings.length} available drivers with ${formData.vehicleType} vehicles`,
+        `🎯 Found ${availableDriversFromBookings.length} available drivers with ${formData.vehicleType} vehicles:`,
+        availableDriversFromBookings.map(
+          (d) =>
+            `${d.driver_name} - ${d.vehicle_name} ${d.vehicle_model} (${d.vehicle_type})`,
+        ),
       );
+
+      // Debug: If no drivers found, check what vehicle types exist in bookings
+      if (availableDriversFromBookings.length === 0) {
+        console.log(
+          `⚠️ No drivers found for ${formData.vehicleType}. Checking what vehicle types exist in bookings...`,
+        );
+
+        const { data: allBookingVehicleTypes } = await supabase
+          .from("bookings")
+          .select("vehicle_type, make, model, driver_name")
+          .not("driver_id", "is", null);
+
+        console.log(`📊 All vehicle types in bookings:`, [
+          ...new Set(allBookingVehicleTypes?.map((b) => b.vehicle_type) || []),
+        ]);
+
+        console.log(
+          `📊 All bookings with vehicles:`,
+          allBookingVehicleTypes?.map(
+            (b) =>
+              `${b.driver_name} - ${b.make} ${b.model} (${b.vehicle_type})`,
+          ) || [],
+        );
+      }
 
       if (availableDriversFromBookings.length > 0) {
         setAvailableDrivers(availableDriversFromBookings);

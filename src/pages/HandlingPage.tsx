@@ -228,14 +228,37 @@ const HandlingPage = () => {
 
   const handleTravelTypeChange = (value: string, checked: boolean) => {
     setFormData((prev) => {
-      const newTravelTypes = checked
-        ? [...prev.travelTypes, value]
-        : prev.travelTypes.filter((type) => type !== value);
+      let newTravelTypes;
+
+      if (checked) {
+        // If Transit is being selected, clear all other options
+        if (value === "Transit") {
+          newTravelTypes = ["Transit"];
+        }
+        // If Arrival or Departure is being selected, remove Transit if it exists
+        else if (value === "Arrival" || value === "Departure") {
+          newTravelTypes = prev.travelTypes.filter(
+            (type) => type !== "Transit",
+          );
+          newTravelTypes.push(value);
+        } else {
+          newTravelTypes = [...prev.travelTypes, value];
+        }
+      } else {
+        // If unchecking, just remove the value
+        newTravelTypes = prev.travelTypes.filter((type) => type !== value);
+      }
+
       return {
         ...prev,
         travelTypes: newTravelTypes,
       };
     });
+
+    // Fetch prices when category changes
+    if (field === "category") {
+      fetchPrices(value as string);
+    }
   };
 
   const menuOptions = [
@@ -492,19 +515,19 @@ const HandlingPage = () => {
     const hasDeparture = formData.travelTypes.includes("Departure");
     const hasTransit = formData.travelTypes.includes("Transit");
 
-    // Transit = Rp80,000 per passenger
+    // Transit = Rp70,000 per passenger
     if (hasTransit) {
-      return 80000;
+      return 70000;
     }
 
-    // Arrival + Departure = Rp80,000 per passenger
+    // Arrival + Departure = Rp70,000 per passenger
     if (hasArrival && hasDeparture) {
-      return 80000;
+      return 70000;
     }
 
-    // Single service (Arrival OR Departure) = Rp40,000 per passenger
+    // Single service (Arrival OR Departure) = Rp35,000 per passenger
     if (hasArrival || hasDeparture) {
-      return 40000;
+      return 35000;
     }
 
     return 0;
@@ -1288,28 +1311,47 @@ const HandlingPage = () => {
                     Jenis Perjalanan
                   </label>
                   <div className="flex flex-col space-y-2">
-                    {travelTypes.map((type) => (
-                      <div
-                        key={type.value}
-                        className="flex items-center space-x-2"
-                      >
-                        <input
-                          type="checkbox"
-                          id={type.value}
-                          checked={formData.travelTypes.includes(type.value)}
-                          onChange={(e) =>
-                            handleTravelTypeChange(type.value, e.target.checked)
-                          }
-                          className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
-                        />
-                        <label
-                          htmlFor={type.value}
-                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                    {travelTypes.map((type) => {
+                      // Determine if this checkbox should be disabled
+                      const isDisabled =
+                        (type.value === "Transit" &&
+                          (formData.travelTypes.includes("Arrival") ||
+                            formData.travelTypes.includes("Departure"))) ||
+                        ((type.value === "Arrival" ||
+                          type.value === "Departure") &&
+                          formData.travelTypes.includes("Transit"));
+
+                      return (
+                        <div
+                          key={type.value}
+                          className="flex items-center space-x-2"
                         >
-                          {type.label}
-                        </label>
-                      </div>
-                    ))}
+                          <input
+                            type="checkbox"
+                            id={type.value}
+                            checked={formData.travelTypes.includes(type.value)}
+                            disabled={isDisabled}
+                            onChange={(e) =>
+                              handleTravelTypeChange(
+                                type.value,
+                                e.target.checked,
+                              )
+                            }
+                            className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                          />
+                          <label
+                            htmlFor={type.value}
+                            className={`text-sm font-medium leading-none ${
+                              isDisabled
+                                ? "text-gray-400 cursor-not-allowed"
+                                : "text-gray-900 cursor-pointer"
+                            }`}
+                          >
+                            {type.label}
+                          </label>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
