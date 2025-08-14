@@ -18,65 +18,198 @@ import {
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { supabase } from "@/lib/supabase";
-import { Calendar, Search, Loader2, User, MapPin } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import {
+  Calendar,
+  Search,
+  Loader2,
+  User,
+  MapPin,
+  MoreHorizontal,
+  UserCheck,
+  UserX,
+  Trash2,
+} from "lucide-react";
+import { useToast } from "@/components/ui/use-toast";
 
-interface AgentBooking {
+interface Agent {
   id: string;
   created_at: string;
-  customer_name: string;
-  customer_email: string;
-  customer_phone: string;
-  category: string;
-  passenger_area: string;
-  pickup_area: string;
-  flight_number: string;
-  travel_type: string;
-  pickup_date: string;
-  pickup_time: string;
-  passengers?: number;
-  additional_notes?: string;
+  full_name: string;
+  email: string;
+  phone_number?: string;
+  role: string;
   status?: string;
-  total_price: number;
-  booking_id?: string;
-  payment_method?: string;
-  user_id?: string;
-  payment_id?: string;
+  last_login?: string;
+  total_bookings?: number;
+  total_revenue?: number;
+  commission_rate?: number;
+  saldo?: number;
 }
 
 const AgentManagement = () => {
-  const [agentBookings, setAgentBookings] = useState<AgentBooking[]>([]);
+  const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const { isAdmin, userRole } = useAuth();
+  const { toast } = useToast();
 
   useEffect(() => {
-    fetchAgentBookings();
+    fetchAgents();
   }, []);
 
-  const fetchAgentBookings = async () => {
+  const fetchAgents = async () => {
     try {
       setLoading(true);
-      console.log("Fetching agent bookings...");
+      console.log("Fetching agents...");
 
-      // Fetch bookings from handling_bookings table
-      // Note: Since there's no created_by_role field in the schema,
-      // we'll fetch all bookings for now and can add filtering later
-      const { data, error } = await supabase
-        .from("handling_bookings")
-        .select("*")
+      // Fetch users with Agent role from users table
+      const { data: agentsData, error } = await supabase
+        .from("users")
+        .select(
+          `
+          id,
+          created_at,
+          full_name,
+          email,
+          phone_number,
+          role,
+          saldo,
+          status
+        `,
+        )
+        .eq("role", "Agent")
         .order("created_at", { ascending: false });
 
       if (error) {
-        console.error("Error fetching agent bookings:", error);
+        console.error("Error fetching agents:", error);
         throw error;
       }
 
-      console.log("Fetched agent bookings:", data);
-      setAgentBookings(data || []);
+      console.log("Fetched agents:", agentsData);
 
-      if (!data || data.length === 0) {
-        console.log("No agent bookings found in database");
+      if (!agentsData || agentsData.length === 0) {
+        console.log("No agents found in database");
+        setAgents([]);
+        return;
       }
+
+      // Calculate total bookings and revenue for each agent
+      const agentsWithStats = await Promise.all(
+        agentsData.map(async (agent) => {
+          let totalBookings = 0;
+          let totalRevenue = 0;
+
+          try {
+            // Get bookings from bookings_trips table which has user_id for the agent
+            const bookingsTripsResult = await supabase
+              .from("bookings_trips")
+              .select("id, total_amount, total_price", { count: "exact" })
+              .eq("user_id", agent.id);
+
+            // Get airport transfer bookings where this agent is involved
+            const airportTransferResult = await supabase
+              .from("airport_transfer")
+              .select("id, price", { count: "exact" })
+              .or(`customer_id.eq.${agent.id},driver_id.eq.${agent.id}`);
+
+            // Get baggage bookings where this agent is involved
+            const baggageBookingResult = await supabase
+              .from("baggage_booking")
+              .select("id, total_amount", { count: "exact" })
+              .eq("user_id", agent.id);
+
+            // Get handling bookings where this agent is involved
+            const handlingBookingResult = await supabase
+              .from("handling_bookings")
+              .select("id, total_price", { count: "exact" })
+              .eq("user_id", agent.id);
+
+            // Get regular bookings where this agent is involved
+            const regularBookingResult = await supabase
+              .from("bookings")
+              .select("id, total_amount", { count: "exact" })
+              .eq("user_id", agent.id);
+
+            // Calculate total bookings
+            totalBookings =
+              (bookingsTripsResult.count || 0) +
+              (airportTransferResult.count || 0) +
+              (baggageBookingResult.count || 0) +
+              (handlingBookingResult.count || 0) +
+              (regularBookingResult.count || 0);
+
+            // Calculate total revenue
+            const bookingsTripsRevenue =
+              bookingsTripsResult.data?.reduce((sum, booking) => {
+                return sum + (booking.total_amount || booking.total_price || 0);
+              }, 0) || 0;
+
+            const airportRevenue =
+              airportTransferResult.data?.reduce(
+                (sum, booking) => sum + (booking.price || 0),
+                0,
+              ) || 0;
+            const baggageRevenue =
+              baggageBookingResult.data?.reduce(
+                (sum, booking) => sum + (booking.total_amount || 0),
+                0,
+              ) || 0;
+            const handlingRevenue =
+              handlingBookingResult.data?.reduce(
+                (sum, booking) => sum + (booking.total_price || 0),
+                0,
+              ) || 0;
+            const regularRevenue =
+              regularBookingResult.data?.reduce(
+                (sum, booking) => sum + (booking.total_amount || 0),
+                0,
+              ) || 0;
+
+            totalRevenue =
+              bookingsTripsRevenue +
+              airportRevenue +
+              baggageRevenue +
+              handlingRevenue +
+              regularRevenue;
+          } catch (statsError) {
+            console.error(
+              `Error fetching stats for agent ${agent.id}:`,
+              statsError,
+            );
+          }
+
+          return {
+            ...agent,
+            status: agent.status || "active",
+            total_bookings: totalBookings,
+            total_revenue: totalRevenue,
+            commission_rate: 10, // Default 10%
+            saldo: agent.saldo || 0,
+          };
+        }),
+      );
+
+      setAgents(agentsWithStats);
     } catch (error) {
       console.error("Error:", error);
     } finally {
@@ -84,13 +217,12 @@ const AgentManagement = () => {
     }
   };
 
-  const filteredBookings = agentBookings.filter(
-    (booking) =>
-      booking.customer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      booking.customer_email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      booking.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      booking.flight_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (booking.booking_id || "")
+  const filteredAgents = agents.filter(
+    (agent) =>
+      agent.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      agent.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      agent.role?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (agent.phone_number || "")
         .toLowerCase()
         .includes(searchTerm.toLowerCase()),
   );
@@ -112,6 +244,10 @@ const AgentManagement = () => {
 
   const getStatusBadgeVariant = (status?: string) => {
     switch (status) {
+      case "active":
+        return "default";
+      case "inactive":
+        return "destructive";
       case "confirmed":
         return "default";
       case "in_progress":
@@ -125,14 +261,153 @@ const AgentManagement = () => {
     }
   };
 
+  const handleActivateAgent = async (agentId: string) => {
+    if (!isAdmin && userRole !== "Admin") {
+      toast({
+        title: "Access Denied",
+        description: "Only Admin or Super Admin can perform this action.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setActionLoading(agentId);
+    try {
+      const { error } = await supabase
+        .from("users")
+        .update({ status: "active" })
+        .eq("id", agentId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Agent has been activated successfully.",
+      });
+
+      // Refresh the agents list
+      await fetchAgents();
+    } catch (error) {
+      console.error("Error activating agent:", error);
+      toast({
+        title: "Error",
+        description: "Failed to activate agent. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleDeactivateAgent = async (agentId: string) => {
+    if (!isAdmin && userRole !== "Admin") {
+      toast({
+        title: "Access Denied",
+        description: "Only Admin or Super Admin can perform this action.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setActionLoading(agentId);
+    try {
+      const { error } = await supabase
+        .from("users")
+        .update({ status: "inactive" })
+        .eq("id", agentId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description:
+          "Agent has been deactivated successfully. They will not be able to login.",
+      });
+
+      // Refresh the agents list
+      await fetchAgents();
+    } catch (error) {
+      console.error("Error deactivating agent:", error);
+      toast({
+        title: "Error",
+        description: "Failed to deactivate agent. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleDeleteAgent = async (agentId: string, agentEmail: string) => {
+    if (!isAdmin && userRole !== "Admin") {
+      toast({
+        title: "Access Denied",
+        description: "Only Admin or Super Admin can perform this action.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setActionLoading(agentId);
+    try {
+      // First, delete from users table
+      const { error: usersError } = await supabase
+        .from("users")
+        .delete()
+        .eq("id", agentId);
+
+      if (usersError) throw usersError;
+
+      // Delete from agent_users table if it exists
+      const { error: agentUsersError } = await supabase
+        .from("agent_users")
+        .delete()
+        .eq("user_id", agentId);
+
+      // Don't throw error if agent_users table doesn't exist or no records found
+      if (
+        agentUsersError &&
+        !agentUsersError.message.includes("does not exist")
+      ) {
+        console.warn("Error deleting from agent_users:", agentUsersError);
+      }
+
+      // Delete from Supabase Auth
+      const { error: authError } =
+        await supabase.auth.admin.deleteUser(agentId);
+
+      if (authError) {
+        console.warn("Error deleting from auth:", authError);
+        // Continue even if auth deletion fails, as the user record is already deleted
+      }
+
+      toast({
+        title: "Success",
+        description: "Agent has been deleted successfully from all systems.",
+      });
+
+      // Refresh the agents list
+      await fetchAgents();
+    } catch (error) {
+      console.error("Error deleting agent:", error);
+      toast({
+        title: "Error",
+        description: "Failed to delete agent. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64 bg-white">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <div className="text-lg">Loading agent bookings...</div>
+          <div className="text-lg">Loading agents...</div>
           <div className="text-sm text-muted-foreground mt-2">
-            Fetching data from handling_bookings table
+            Fetching data from users table
           </div>
         </div>
       </div>
@@ -144,18 +419,14 @@ const AgentManagement = () => {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">
-            Booking Agent Management
+            Agent Data Management
           </h1>
           <p className="text-muted-foreground">
-            Manage bookings created by agents ({agentBookings.length} total)
+            Manage agent accounts and information ({agents.length} total)
           </p>
         </div>
         <div className="flex gap-2">
-          <Button
-            variant="outline"
-            onClick={fetchAgentBookings}
-            disabled={loading}
-          >
+          <Button variant="outline" onClick={fetchAgents} disabled={loading}>
             {loading ? "Loading..." : "Refresh"}
           </Button>
         </div>
@@ -164,7 +435,7 @@ const AgentManagement = () => {
       <div className="flex items-center space-x-2 mb-4">
         <Search className="h-4 w-4 text-muted-foreground" />
         <Input
-          placeholder="Search bookings..."
+          placeholder="Search agents..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="max-w-sm"
@@ -174,32 +445,32 @@ const AgentManagement = () => {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Calendar className="h-5 w-5" />
-            Agent Bookings
+            <User className="h-5 w-5" />
+            Agent Data
           </CardTitle>
           <CardDescription>
-            Passenger handling service bookings created by agents
+            Registered agents and their account information
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {filteredBookings.length === 0 ? (
+          {filteredAgents.length === 0 ? (
             <div className="text-center py-8">
-              <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold mb-2">No bookings found</h3>
+              <User className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+              <h3 className="text-lg font-semibold mb-2">No agents found</h3>
               <p className="text-muted-foreground mb-4">
                 {searchTerm
-                  ? "No bookings match your search."
-                  : agentBookings.length === 0
-                    ? "No bookings available in the database."
-                    : "All bookings are filtered out."}
+                  ? "No agents match your search."
+                  : agents.length === 0
+                    ? "No agents available in the database."
+                    : "All agents are filtered out."}
               </p>
-              {agentBookings.length === 0 && (
+              {agents.length === 0 && (
                 <div className="text-sm text-muted-foreground">
-                  <p>Total bookings in database: {agentBookings.length}</p>
+                  <p>Total agents in database: {agents.length}</p>
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={fetchAgentBookings}
+                    onClick={fetchAgents}
                     className="mt-2"
                   >
                     Refresh Data
@@ -211,78 +482,144 @@ const AgentManagement = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Booking ID</TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Flight Number</TableHead>
-                  <TableHead>Travel Type</TableHead>
-                  <TableHead>Date & Time</TableHead>
-                  <TableHead>Passengers</TableHead>
+                  <TableHead>Agent ID</TableHead>
+                  <TableHead>Agent Name</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Phone</TableHead>
+                  <TableHead>Role</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Price</TableHead>
-                  <TableHead>Created At</TableHead>
+                  <TableHead>Total Bookings</TableHead>
+                  <TableHead>Total Revenue</TableHead>
+                  <TableHead>Balance</TableHead>
+                  <TableHead>Joined Date</TableHead>
+                  <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredBookings.map((booking) => (
-                  <TableRow key={booking.id}>
+                {filteredAgents.map((agent) => (
+                  <TableRow key={agent.id}>
                     <TableCell>
                       <div className="font-mono text-sm">
-                        {booking.booking_id || booking.id.slice(0, 8)}
+                        {agent.id.slice(0, 8)}
                       </div>
                     </TableCell>
                     <TableCell>
-                      <div>
-                        <div className="font-medium">
-                          {booking.customer_name}
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          {booking.customer_email}
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          {booking.customer_phone}
-                        </div>
-                      </div>
+                      <div className="font-medium">{agent.full_name}</div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline">{booking.category}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="font-medium">{booking.flight_number}</div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="secondary">{booking.travel_type}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div>
-                        <div className="font-medium">
-                          {formatDate(booking.pickup_date)}
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          {booking.pickup_time}
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center">
-                        <User className="h-4 w-4 mr-1" />
-                        {booking.passengers || "N/A"}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={getStatusBadgeVariant(booking.status)}>
-                        {(booking.status || "pending")
-                          .replace("_", " ")
-                          .toUpperCase()}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="font-medium">
-                      {formatCurrency(booking.total_price)}
+                      <div className="text-sm">{agent.email}</div>
                     </TableCell>
                     <TableCell>
                       <div className="text-sm">
-                        {formatDate(booking.created_at)}
+                        {agent.phone_number || "N/A"}
                       </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{agent.role}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={getStatusBadgeVariant(agent.status)}>
+                        {agent.status === "active" ? "ACTIVE" : "INACTIVE"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center">
+                        <Calendar className="h-4 w-4 mr-1" />
+                        {agent.total_bookings || 0}
+                      </div>
+                    </TableCell>
+                    <TableCell className="font-medium">
+                      {formatCurrency(agent.total_revenue || 0)}
+                    </TableCell>
+                    <TableCell className="font-medium">
+                      {formatCurrency(agent.saldo || 0)}
+                    </TableCell>
+                    <TableCell>
+                      <div className="text-sm">
+                        {formatDate(agent.created_at)}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {isAdmin || userRole === "Admin" ? (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              className="h-8 w-8 p-0"
+                              disabled={actionLoading === agent.id}
+                            >
+                              {actionLoading === agent.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <MoreHorizontal className="h-4 w-4" />
+                              )}
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            {agent.status === "active" ? (
+                              <DropdownMenuItem
+                                onClick={() => handleDeactivateAgent(agent.id)}
+                                className="text-orange-600"
+                              >
+                                <UserX className="mr-2 h-4 w-4" />
+                                Non Aktif
+                              </DropdownMenuItem>
+                            ) : (
+                              <DropdownMenuItem
+                                onClick={() => handleActivateAgent(agent.id)}
+                                className="text-green-600"
+                              >
+                                <UserCheck className="mr-2 h-4 w-4" />
+                                Aktif
+                              </DropdownMenuItem>
+                            )}
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <DropdownMenuItem
+                                  onSelect={(e) => e.preventDefault()}
+                                  className="text-red-600"
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  Delete
+                                </DropdownMenuItem>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>
+                                    Delete Agent
+                                  </AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Are you sure you want to delete agent "
+                                    {agent.full_name}"? This action will
+                                    permanently remove the agent from:
+                                    <br />• Authentication system
+                                    <br />• Users table
+                                    <br />• Agent users table
+                                    <br />
+                                    <br />
+                                    This action cannot be undone.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={() =>
+                                      handleDeleteAgent(agent.id, agent.email)
+                                    }
+                                    className="bg-red-600 hover:bg-red-700"
+                                  >
+                                    Delete
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      ) : (
+                        <Badge variant="outline" className="text-xs">
+                          No Access
+                        </Badge>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -292,9 +629,9 @@ const AgentManagement = () => {
         </CardContent>
         <CardFooter className="flex justify-between">
           <div className="text-sm text-muted-foreground">
-            Showing {filteredBookings.length} of {agentBookings.length} bookings
+            Showing {filteredAgents.length} of {agents.length} agents
           </div>
-          <Button variant="outline" onClick={fetchAgentBookings}>
+          <Button variant="outline" onClick={fetchAgents}>
             Refresh
           </Button>
         </CardFooter>

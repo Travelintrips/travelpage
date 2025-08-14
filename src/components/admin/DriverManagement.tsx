@@ -372,7 +372,7 @@ const DriverManagement = () => {
       kk_url: driver.kk_url || "",
       stnk_expiry: driver.stnk_expiry || "",
       family_phone_number: driver.family_phone_number || "",
-      role_id: null,
+      role_id: driver.role_id || null,
     });
     setIsSubmitting(false);
     setIsEditDialogOpen(true);

@@ -752,7 +752,25 @@ const HandlingPage = () => {
   };
 
   const handleContinueToCategory = () => {
-    setCurrentStep(2);
+    // Get categories based on selected menu
+    const categories =
+      selectedMenu === "personal"
+        ? personalHandlingCategories
+        : selectedMenu === "porter"
+          ? porterCategories
+          : groupCategories;
+
+    // If there's only one category, auto-select it and skip to form
+    if (categories.length === 1) {
+      if (!isAuthenticated) {
+        setShowAuthModal(true);
+        return;
+      }
+      handleInputChange("category", categories[0].id);
+      setCurrentStep(3); // Skip category selection, go directly to form
+    } else {
+      setCurrentStep(2); // Go to category selection
+    }
   };
 
   const handleContinueToForm = () => {
