@@ -89,6 +89,9 @@ const AgentManagement = () => {
     phone_number: "",
   });
   const { isAdmin, userRole } = useAuth();
+
+  // Check if user is Super Admin
+  const isSuperAdmin = userRole === "Super Admin";
   const { toast } = useToast();
 
   useEffect(() => {
@@ -280,10 +283,10 @@ const AgentManagement = () => {
   };
 
   const handleActivateAgent = async (agentId: string) => {
-    if (!isAdmin && userRole !== "Admin") {
+    if (!isSuperAdmin) {
       toast({
         title: "Access Denied",
-        description: "Only Admin or Super Admin can perform this action.",
+        description: "Only Super Admin can perform this action.",
         variant: "destructive",
       });
       return;
@@ -318,10 +321,10 @@ const AgentManagement = () => {
   };
 
   const handleDeactivateAgent = async (agentId: string) => {
-    if (!isAdmin && userRole !== "Admin") {
+    if (!isSuperAdmin) {
       toast({
         title: "Access Denied",
-        description: "Only Admin or Super Admin can perform this action.",
+        description: "Only Super Admin can perform this action.",
         variant: "destructive",
       });
       return;
@@ -413,10 +416,10 @@ const AgentManagement = () => {
   };
 
   const handleDeleteAgent = async (agentId: string, agentEmail: string) => {
-    if (!isAdmin && userRole !== "Admin") {
+    if (!isSuperAdmin) {
       toast({
         title: "Access Denied",
-        description: "Only Admin or Super Admin can perform this action.",
+        description: "Only Super Admin can perform this action.",
         variant: "destructive",
       });
       return;
@@ -637,63 +640,76 @@ const AgentManagement = () => {
                               <Edit className="mr-2 h-4 w-4" />
                               Edit
                             </DropdownMenuItem>
-                            {agent.status === "active" ? (
-                              <DropdownMenuItem
-                                onClick={() => handleDeactivateAgent(agent.id)}
-                                className="text-orange-600"
-                              >
-                                <UserX className="mr-2 h-4 w-4" />
-                                Non Aktif
-                              </DropdownMenuItem>
-                            ) : (
-                              <DropdownMenuItem
-                                onClick={() => handleActivateAgent(agent.id)}
-                                className="text-green-600"
-                              >
-                                <UserCheck className="mr-2 h-4 w-4" />
-                                Aktif
-                              </DropdownMenuItem>
-                            )}
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <DropdownMenuItem
-                                  onSelect={(e) => e.preventDefault()}
-                                  className="text-red-600"
-                                >
-                                  <Trash2 className="mr-2 h-4 w-4" />
-                                  Delete
-                                </DropdownMenuItem>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>
-                                    Delete Agent
-                                  </AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    Are you sure you want to delete agent "
-                                    {agent.full_name}"? This action will
-                                    permanently remove the agent from:
-                                    <br />• Authentication system
-                                    <br />• Users table
-                                    <br />• Agent users table
-                                    <br />
-                                    <br />
-                                    This action cannot be undone.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction
+                            {isSuperAdmin && (
+                              <>
+                                {agent.status === "active" ? (
+                                  <DropdownMenuItem
                                     onClick={() =>
-                                      handleDeleteAgent(agent.id, agent.email)
+                                      handleDeactivateAgent(agent.id)
                                     }
-                                    className="bg-red-600 hover:bg-red-700"
+                                    className="text-orange-600"
                                   >
-                                    Delete
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
+                                    <UserX className="mr-2 h-4 w-4" />
+                                    Non Aktif
+                                  </DropdownMenuItem>
+                                ) : (
+                                  <DropdownMenuItem
+                                    onClick={() =>
+                                      handleActivateAgent(agent.id)
+                                    }
+                                    className="text-green-600"
+                                  >
+                                    <UserCheck className="mr-2 h-4 w-4" />
+                                    Aktif
+                                  </DropdownMenuItem>
+                                )}
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <DropdownMenuItem
+                                      onSelect={(e) => e.preventDefault()}
+                                      className="text-red-600"
+                                    >
+                                      <Trash2 className="mr-2 h-4 w-4" />
+                                      Delete
+                                    </DropdownMenuItem>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>
+                                        Delete Agent
+                                      </AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        Are you sure you want to delete agent "
+                                        {agent.full_name}"? This action will
+                                        permanently remove the agent from:
+                                        <br />• Authentication system
+                                        <br />• Users table
+                                        <br />• Agent users table
+                                        <br />
+                                        <br />
+                                        This action cannot be undone.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>
+                                        Cancel
+                                      </AlertDialogCancel>
+                                      <AlertDialogAction
+                                        onClick={() =>
+                                          handleDeleteAgent(
+                                            agent.id,
+                                            agent.email,
+                                          )
+                                        }
+                                        className="bg-red-600 hover:bg-red-700"
+                                      >
+                                        Delete
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                              </>
+                            )}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       ) : (
