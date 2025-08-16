@@ -546,9 +546,9 @@ function AirportTransferPageContent() {
           },
           {
             name: "Electric",
-            price_per_km: 3000,
-            basic_price: 70000,
-            surcharge: 35000,
+            price_per_km: 5500,
+            basic_price: 95000,
+            surcharge: 45000,
             minimum_distance: 8,
           },
         ];
@@ -840,6 +840,71 @@ function AirportTransferPageContent() {
 
     fetchVehicleTypes();
   }, [isSessionReady]);
+
+  // Listen to MapPicker route calculations to ensure synchronization
+  useEffect(() => {
+    const handleMapboxRouteCalculated = (event: CustomEvent) => {
+      const { distance, duration, source } = event.detail;
+      console.log(`🗺️ RECEIVED MAPBOX ROUTE FROM MAP:`, {
+        distance,
+        duration,
+        source,
+        currentFormDistance: formData.distance,
+        timestamp: new Date().toISOString(),
+      });
+
+      console.log(`🔄 DISTANCE SYNCHRONIZATION:`);
+      console.log(`   Map calculated: ${distance} km`);
+      console.log(`   Current form distance: ${formData.distance} km`);
+      console.log(`   Will update to: ${distance} km`);
+      console.log(
+        `   Duration: ${duration} minutes -> ${Math.ceil(duration)} minutes`,
+      );
+
+      // CRITICAL: Update form data with the exact same values from the map
+      // This ensures the Distance card and price calculation use the same distance
+      setFormData((prev) => {
+        const updatedData = {
+          ...prev,
+          distance: distance, // Use exact distance from MapPicker
+          duration: Math.ceil(duration), // Convert to minutes
+        };
+
+        console.log(`📊 FORM DATA UPDATED:`, {
+          previousDistance: prev.distance,
+          newDistance: distance,
+          previousDuration: prev.duration,
+          newDuration: Math.ceil(duration),
+          timestamp: new Date().toISOString(),
+        });
+
+        return updatedData;
+      });
+
+      setRouteCalculated(true);
+      console.log(`✅ SYNCHRONIZED DISTANCE FROM MAP: ${distance}km`);
+      console.log(`✅ Distance card will now show: ${distance.toFixed(1)} km`);
+      console.log(`✅ Price calculation will use: ${distance} km`);
+    };
+
+    console.log(`🎧 SETTING UP EVENT LISTENER: mapboxRouteCalculated`);
+
+    window.addEventListener(
+      "mapboxRouteCalculated",
+      handleMapboxRouteCalculated as EventListener,
+    );
+
+    // Test if event listener is working
+    console.log(`✅ Event listener attached for mapboxRouteCalculated`);
+
+    return () => {
+      console.log(`🔇 REMOVING EVENT LISTENER: mapboxRouteCalculated`);
+      window.removeEventListener(
+        "mapboxRouteCalculated",
+        handleMapboxRouteCalculated as EventListener,
+      );
+    };
+  }, []);
 
   // Calculate route distance and duration - only once when locations are set
   useEffect(() => {
@@ -1412,7 +1477,8 @@ function AirportTransferPageContent() {
           return (
             formData.fromAddress.trim() !== "" &&
             formData.toAddress.trim() !== "" &&
-            selectedVehicleDriver !== null // Require driver selection for instant booking
+            formData.vehicleType !== "" && // Require vehicle type selection
+            formData.distance > 0 // Ensure route is calculated
           );
         } else {
           return (
@@ -1420,7 +1486,8 @@ function AirportTransferPageContent() {
             formData.toAddress.trim() !== "" &&
             formData.pickupDate !== "" &&
             formData.pickupTime !== "" &&
-            formData.vehicleType !== "" // Require vehicle type selection for scheduled booking
+            formData.vehicleType !== "" && // Require vehicle type selection for scheduled booking
+            formData.distance > 0 // Ensure route is calculated
           );
         }
       case 2: // Vehicle Selection & Confirmation
@@ -1505,7 +1572,7 @@ function AirportTransferPageContent() {
     return finalPrice;
   }
 
-  // Get route details using OSRM - only calculate once
+  // Get route details using Mapbox API to match the map display - only calculate once
   async function getRouteDetails(
     from: [number, number] | null,
     to: [number, number] | null,
@@ -1551,9 +1618,11 @@ function AirportTransferPageContent() {
     }
 
     try {
-      // Use car driving profile explicitly
+      // Use Mapbox Directions API to match the map display
+      const MAPBOX_ACCESS_TOKEN =
+        "pk.eyJ1IjoidHJhdmVsaW50cmlwcyIsImEiOiJjbWNib2VqaWwwNzZoMmtvNmYxd3htbTFhIn0.9rFe8T88zhYh--wZDSumsQ";
       const res = await fetch(
-        `https://router.project-osrm.org/route/v1/driving/${fromLng},${fromLat};${toLng},${toLat}?overview=full`,
+        `https://api.mapbox.com/directions/v5/mapbox/driving/${fromLng},${fromLat};${toLng},${toLat}?geometries=geojson&access_token=${MAPBOX_ACCESS_TOKEN}`,
       );
       const data = await res.json();
 
@@ -1564,19 +1633,19 @@ function AirportTransferPageContent() {
           Math.ceil(data.routes[0].duration / 60),
         ); // convert to minutes, minimum 1
 
-        console.log(`✅ ROUTE CALCULATION SUCCESS:`, {
+        console.log(`✅ MAPBOX ROUTE CALCULATION SUCCESS:`, {
           rawDistance: data.routes[0].distance,
           distanceKm: distanceKm,
           rawDuration: data.routes[0].duration,
           durationMin: durationMin,
-          source: "OSRM",
+          source: "MAPBOX",
           fromCoords: [fromLat, fromLng],
           toCoords: [toLat, toLng],
           timestamp: new Date().toISOString(),
         });
 
         setFormData((prev) => {
-          console.log(`📊 SETTING ROUTE DATA:`, {
+          console.log(`📊 SETTING MAPBOX ROUTE DATA:`, {
             previousDistance: prev.distance,
             newDistance: distanceKm,
             previousDuration: prev.duration,
@@ -1593,55 +1662,87 @@ function AirportTransferPageContent() {
         // CRITICAL: Mark route as calculated to prevent recalculation
         setRouteCalculated(true);
         console.log(
-          `🔒 ROUTE MARKED AS CALCULATED - No more calculations allowed`,
+          `🔒 MAPBOX ROUTE MARKED AS CALCULATED - Distance: ${distanceKm}km matches map display`,
         );
       } else {
-        console.warn("No route found from OSRM");
-        // Set default values instead of showing error
+        console.warn("No route found from Mapbox");
+        // Fallback to OSRM if Mapbox fails
+        await getRouteDetailsOSRM(from, to);
+      }
+    } catch (err) {
+      console.error("Error calling Mapbox Directions API:", err);
+      // Fallback to OSRM if Mapbox fails
+      await getRouteDetailsOSRM(from, to);
+    }
+  }
+
+  // Fallback function using OSRM
+  async function getRouteDetailsOSRM(
+    from: [number, number] | null,
+    to: [number, number] | null,
+  ) {
+    if (!from || !to) return;
+
+    const [fromLat, fromLng] = from;
+    const [toLat, toLng] = to;
+
+    try {
+      // Use car driving profile explicitly
+      const res = await fetch(
+        `https://router.project-osrm.org/route/v1/driving/${fromLng},${fromLat};${toLng},${toLat}?overview=full`,
+      );
+      const data = await res.json();
+
+      if (data.routes && data.routes.length > 0) {
+        const distanceKm = Math.max(0.1, data.routes[0].distance / 1000);
+        const durationMin = Math.max(
+          1,
+          Math.ceil(data.routes[0].duration / 60),
+        );
+
+        console.log(`✅ OSRM FALLBACK ROUTE CALCULATION:`, {
+          distanceKm: distanceKm,
+          durationMin: durationMin,
+          source: "OSRM_FALLBACK",
+        });
+
+        setFormData((prev) => ({
+          ...prev,
+          distance: distanceKm,
+          duration: durationMin,
+        }));
+
+        setRouteCalculated(true);
+      } else {
+        // Final fallback to direct distance
         const directDistance = calculateDirectDistance(
           fromLat,
           fromLng,
           toLat,
           toLng,
         );
-
-        console.log(`🛣️ No route found, using direct distance:`, {
-          directDistance: directDistance,
-          estimatedDuration: Math.ceil(directDistance * 2),
-          source: "direct_calculation",
-        });
-
         setFormData((prev) => ({
           ...prev,
           distance: directDistance,
-          duration: Math.ceil(directDistance * 2), // Rough estimate: 30km/h average speed
+          duration: Math.ceil(directDistance * 2),
         }));
-
-        // Mark route as calculated
         setRouteCalculated(true);
       }
     } catch (err) {
-      console.error("Error calling OSRM:", err);
-      // Calculate direct distance as fallback
+      console.error("OSRM fallback also failed:", err);
+      // Final fallback to direct distance
       const directDistance = calculateDirectDistance(
         fromLat,
         fromLng,
         toLat,
         toLng,
       );
-
-      console.log(`🛣️ OSRM error, using direct distance fallback:`, {
-        error: err.message,
-        directDistance: directDistance,
-        estimatedDuration: Math.ceil(directDistance * 2),
-        source: "error_fallback",
-      });
-
       setFormData((prev) => ({
         ...prev,
         distance: directDistance,
-        duration: Math.ceil(directDistance * 2), // Rough estimate: 30km/h average speed
+        duration: Math.ceil(directDistance * 2),
       }));
+      setRouteCalculated(true);
     }
   }
 
@@ -1672,13 +1773,34 @@ function AirportTransferPageContent() {
 
   // Handle location swap
   const handleSwapLocation = () => {
+    console.log("🔄 SWAPPING LOCATIONS:", {
+      beforeSwap: {
+        fromAddress: formData.fromAddress,
+        toAddress: formData.toAddress,
+        fromLocation: formData.fromLocation,
+        toLocation: formData.toLocation,
+        distance: formData.distance,
+        duration: formData.duration,
+      },
+    });
+
     setFormData((prev) => ({
       ...prev,
       fromLocation: prev.toLocation,
       toLocation: prev.fromLocation,
       fromAddress: prev.toAddress,
       toAddress: prev.fromAddress,
+      // CRITICAL: Reset distance and duration to trigger recalculation
+      distance: 0,
+      duration: 0,
     }));
+
+    // CRITICAL: Reset route calculation state to allow recalculation
+    setRouteCalculated(false);
+
+    console.log(
+      "✅ LOCATIONS SWAPPED - Route calculation reset, distance and duration cleared",
+    );
   };
 
   // Search for available drivers who have rented vehicles matching the selected vehicle type
@@ -2613,36 +2735,50 @@ Please prepare for the trip!`;
       formData.toAddress.trim() !== ""
     ) {
       setLocationsSelected(true);
-      // CRITICAL: Only trigger route calculation if not already calculated
-      if (
-        formData.fromLocation[0] !== 0 &&
-        formData.toLocation[0] !== 0 &&
-        !routeCalculated &&
-        formData.distance === 0
-      ) {
-        console.log("🗺️ TRIGGERING ROUTE CALCULATION FROM LOCATIONS EFFECT:", {
-          fromAddress: formData.fromAddress,
-          toAddress: formData.toAddress,
-          fromLocation: formData.fromLocation,
-          toLocation: formData.toLocation,
-          routeCalculated,
-          currentDistance: formData.distance,
-          timestamp: new Date().toISOString(),
-        });
-        getRouteDetails(formData.fromLocation, formData.toLocation);
-      } else {
-        console.log("🚫 SKIPPING ROUTE CALCULATION FROM LOCATIONS EFFECT:", {
-          hasFromLocation: formData.fromLocation[0] !== 0,
-          hasToLocation: formData.toLocation[0] !== 0,
-          routeCalculated,
-          currentDistance: formData.distance,
-          reason: routeCalculated
-            ? "Already calculated"
-            : formData.distance > 0
-              ? "Distance already set"
-              : "Missing coordinates",
-          timestamp: new Date().toISOString(),
-        });
+      // CRITICAL: Reset route calculation when addresses change to allow recalculation
+      if (formData.fromLocation[0] !== 0 && formData.toLocation[0] !== 0) {
+        // If we have coordinates but addresses changed, reset route calculation
+        if (routeCalculated) {
+          console.log(
+            "🔄 ADDRESSES CHANGED - Resetting route calculation to allow recalculation",
+          );
+          setRouteCalculated(false);
+          setFormData((prev) => ({
+            ...prev,
+            distance: 0,
+            duration: 0,
+          }));
+        }
+
+        // Trigger route calculation if not already calculated
+        if (!routeCalculated && formData.distance === 0) {
+          console.log(
+            "🗺️ TRIGGERING ROUTE CALCULATION FROM LOCATIONS EFFECT:",
+            {
+              fromAddress: formData.fromAddress,
+              toAddress: formData.toAddress,
+              fromLocation: formData.fromLocation,
+              toLocation: formData.toLocation,
+              routeCalculated,
+              currentDistance: formData.distance,
+              timestamp: new Date().toISOString(),
+            },
+          );
+          getRouteDetails(formData.fromLocation, formData.toLocation);
+        } else {
+          console.log("🚫 SKIPPING ROUTE CALCULATION FROM LOCATIONS EFFECT:", {
+            hasFromLocation: formData.fromLocation[0] !== 0,
+            hasToLocation: formData.toLocation[0] !== 0,
+            routeCalculated,
+            currentDistance: formData.distance,
+            reason: routeCalculated
+              ? "Already calculated"
+              : formData.distance > 0
+                ? "Distance already set"
+                : "Missing coordinates",
+            timestamp: new Date().toISOString(),
+          });
+        }
       }
     } else {
       setLocationsSelected(false);
@@ -2654,7 +2790,6 @@ Please prepare for the trip!`;
     formData.toAddress,
     formData.fromLocation,
     formData.toLocation,
-    routeCalculated,
   ]);
 
   // Step 1: Location and Schedule
@@ -2979,6 +3114,32 @@ Please prepare for the trip!`;
                             price: estimatedPrice,
                           }));
 
+                          // Force immediate price recalculation to ensure UI updates
+                          setTimeout(() => {
+                            const recalculatedPrice = calculatePrice(
+                              formData.distance,
+                              finalPriceKm,
+                              finalBasicPrice,
+                              finalSurcharge,
+                            );
+
+                            setFormData((prev) => ({
+                              ...prev,
+                              price: recalculatedPrice,
+                            }));
+
+                            console.log(
+                              `🔄 Price recalculated for ${type.name}:`,
+                              {
+                                distance: formData.distance,
+                                priceKm: finalPriceKm,
+                                basicPrice: finalBasicPrice,
+                                surcharge: finalSurcharge,
+                                newPrice: recalculatedPrice,
+                              },
+                            );
+                          }, 100);
+
                           console.log(`💰 Vehicle type selection complete:`, {
                             name: type.name,
                             priceKm: finalPriceKm,
@@ -3053,6 +3214,12 @@ Please prepare for the trip!`;
                             <div className="text-right flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
                               <p className="text-sm sm:text-base font-bold text-green-600">
                                 {(() => {
+                                  // Use form data price if this vehicle type is selected and price is calculated
+                                  if (isSelected && formData.price > 0) {
+                                    return `Rp ${Math.round(formData.price).toLocaleString()}`;
+                                  }
+
+                                  // Otherwise calculate estimated price
                                   const price = calculateEstimatedPrice();
                                   return isNaN(price) || price <= 0
                                     ? "Calculating..."
@@ -3070,271 +3237,6 @@ Please prepare for the trip!`;
                   })}
                 </div>
               </div>
-
-              {/* Show available vehicles with drivers for instant booking */}
-              {bookingType === "instant" && formData.vehicleType && (
-                <div className="space-y-4 mt-6">
-                  <h3 className="text-lg font-medium">
-                    Available Vehicles & Drivers
-                  </h3>
-
-                  {isLoadingVehicles ? (
-                    <div className="flex items-center justify-center py-8">
-                      <Loader2 className="h-6 w-6 animate-spin mr-2" />
-                      <span>Loading available vehicles...</span>
-                    </div>
-                  ) : availableVehiclesWithDrivers.length > 0 ? (
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
-                      {availableVehiclesWithDrivers.map((vehicle) => {
-                        const calculateVehiclePrice = () => {
-                          if (formData.distance <= 0) return 0;
-
-                          // Ensure all values are numbers
-                          const priceKm = Number(vehicle.price_km) || 0;
-                          const basicPrice = Number(vehicle.basic_price) || 0;
-                          const surcharge = Number(vehicle.surcharge) || 0;
-
-                          // Validate pricing data
-                          if (priceKm <= 0 || basicPrice <= 0) {
-                            console.warn(
-                              `Invalid vehicle pricing data for ${vehicle.make} ${vehicle.model}:`,
-                              {
-                                priceKm,
-                                basicPrice,
-                                surcharge,
-                              },
-                            );
-                            return 0;
-                          }
-
-                          // Use the same calculatePrice function for consistency
-                          const calculatedPrice = calculatePrice(
-                            formData.distance,
-                            priceKm,
-                            basicPrice,
-                            surcharge,
-                          );
-
-                          console.log(
-                            `🚗 Vehicle price calculation for ${vehicle.make} ${vehicle.model}:`,
-                            {
-                              distance: formData.distance,
-                              priceKm,
-                              basicPrice,
-                              surcharge,
-                              calculatedPrice,
-                              source: "vehicle_selection",
-                            },
-                          );
-
-                          return calculatedPrice;
-                        };
-
-                        const isSelected =
-                          selectedVehicleDriver?.uuid === vehicle.uuid;
-
-                        return (
-                          <Card
-                            key={vehicle.id}
-                            className={`cursor-pointer transition-all ${
-                              isSelected
-                                ? "border-blue-500 bg-blue-50 shadow-md"
-                                : "hover:shadow-md hover:border-blue-300"
-                            }`}
-                            onClick={() => {
-                              console.log(
-                                `🚗 Vehicle driver selected: ${vehicle.driver_name} - ${vehicle.make} ${vehicle.model}`,
-                              );
-
-                              // Calculate price using the same function for consistency
-                              const calculatedPrice = calculateVehiclePrice();
-
-                              // Set the selected vehicle and driver data
-                              const vehicleData = {
-                                id: vehicle.id, // Vehicle ID
-                                uuid: vehicle.uuid, // ✅ Driver UUID from drivers.id
-                                id_driver: vehicle.id_driver, // ✅ Driver integer ID from drivers.id_driver
-                                driver_name: vehicle.driver_name,
-                                driver_phone: vehicle.driver_phone,
-                                make: vehicle.make,
-                                model: vehicle.model,
-                                license_plate: vehicle.license_plate,
-                                price_km: vehicle.price_km,
-                                basic_price: vehicle.basic_price,
-                                surcharge: vehicle.surcharge,
-                                calculated_price: calculatedPrice,
-                              };
-
-                              setSelectedVehicleDriver(vehicleData);
-
-                              // CRITICAL: Lock the distance and duration to prevent recalculation
-                              const currentDistance =
-                                formData.distance > 0 ? formData.distance : 8.3;
-                              const currentDuration =
-                                formData.duration > 0 ? formData.duration : 10;
-
-                              console.log(`🔒 LOCKING DISTANCE AND DURATION:`, {
-                                selectedVehicle: `${vehicle.make} ${vehicle.model}`,
-                                driver: vehicle.driver_name,
-                                lockedDistance: currentDistance,
-                                lockedDuration: currentDuration,
-                                calculatedPrice,
-                                timestamp: new Date().toISOString(),
-                              });
-
-                              setFormData((prev) => ({
-                                ...prev,
-                                driverId: vehicle.uuid, // ✅ Use driver UUID instead of vehicle ID
-                                driverName: vehicle.driver_name,
-                                driverPhone: vehicle.driver_phone,
-                                vehicleName: `${vehicle.make} ${vehicle.model}`,
-                                vehicleModel: vehicle.model,
-                                vehiclePlate: vehicle.license_plate,
-                                vehicleMake: vehicle.make,
-                                vehiclePricePerKm: vehicle.price_km,
-                                basicPrice: vehicle.basic_price,
-                                surcharge: vehicle.surcharge,
-                                price: calculatedPrice,
-                                // CRITICAL: Lock distance and duration to prevent changes
-                                distance: currentDistance,
-                                duration: currentDuration,
-                              }));
-
-                              // CRITICAL: Mark route as calculated to prevent recalculation
-                              setRouteCalculated(true);
-                              console.log(
-                                `🛑 ROUTE LOCKED - Distance: ${currentDistance}km, Duration: ${currentDuration}min`,
-                              );
-
-                              console.log(
-                                `💰 Selected vehicle driver pricing updated:`,
-                                {
-                                  driver: vehicle.driver_name,
-                                  vehicleName: `${vehicle.make} ${vehicle.model}`,
-                                  priceKm: vehicle.price_km,
-                                  basicPrice: vehicle.basic_price,
-                                  surcharge: vehicle.surcharge,
-                                  calculatedPrice,
-                                  distance: formData.distance,
-                                  formula: `${vehicle.basic_price} + (${formData.distance > 8 ? formData.distance - 8 : 0} × ${vehicle.price_km}) + ${vehicle.surcharge} = ${calculatedPrice}`,
-                                },
-                              );
-                            }}
-                          >
-                            <CardContent className="pt-4 sm:pt-6">
-                              <div className="space-y-3">
-                                {/* Vehicle Info */}
-                                <div className="flex items-center gap-2 sm:gap-3">
-                                  <div className="relative w-12 h-12 sm:w-16 sm:h-16 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
-                                    {/* Try to load vehicle photo from database, fallback to placeholder */}
-                                    <img
-                                      src={
-                                        vehicle.image ||
-                                        `https://images.unsplash.com/photo-1549924231-f129b911e442?w=200&q=80&fit=crop&crop=center`
-                                      }
-                                      alt={`${vehicle.make} ${vehicle.model}`}
-                                      className="w-full h-full object-cover"
-                                      onError={(e) => {
-                                        // Fallback to different car images if the database image fails
-                                        const target =
-                                          e.target as HTMLImageElement;
-                                        if (
-                                          vehicle.image &&
-                                          target.src === vehicle.image
-                                        ) {
-                                          // First fallback: generic car image
-                                          target.src = `https://images.unsplash.com/photo-1549924231-f129b911e442?w=200&q=80&fit=crop&crop=center`;
-                                        } else if (
-                                          target.src.includes("1549924231")
-                                        ) {
-                                          target.src = `https://images.unsplash.com/photo-1580273916550-e323be2ae537?w=200&q=80&fit=crop&crop=center`;
-                                        } else if (
-                                          target.src.includes("1580273916")
-                                        ) {
-                                          target.src = `https://images.unsplash.com/photo-1552519507-da3b142c6e3d?w=200&q=80&fit=crop&crop=center`;
-                                        } else {
-                                          // Final fallback: show icon
-                                          target.style.display = "none";
-                                          const iconDiv =
-                                            target.nextElementSibling as HTMLElement;
-                                          if (iconDiv)
-                                            iconDiv.style.display = "flex";
-                                        }
-                                      }}
-                                    />
-                                    {/* Fallback icon (hidden by default) */}
-                                    <div
-                                      className="absolute inset-0 bg-blue-100 text-blue-600 flex items-center justify-center"
-                                      style={{ display: "none" }}
-                                    >
-                                      <Car className="h-4 w-4 sm:h-6 sm:w-6" />
-                                    </div>
-                                    {/* Vehicle type badge */}
-                                    <div className="absolute top-1 right-1 bg-black/70 text-white text-xs px-1 py-0.5 rounded">
-                                      {vehicle.vehicle_type ||
-                                        formData.vehicleType}
-                                    </div>
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <h4 className="text-sm sm:text-base font-semibold truncate">
-                                      {vehicle.make} {vehicle.model}
-                                    </h4>
-                                    <p className="text-xs sm:text-sm text-gray-500">
-                                      {vehicle.license_plate}
-                                    </p>
-                                  </div>
-                                  {isSelected && (
-                                    <CheckCircle className="h-5 w-5 sm:h-6 sm:w-6 text-blue-500 flex-shrink-0" />
-                                  )}
-                                </div>
-
-                                {/* Driver Info */}
-                                <div className="flex items-center gap-2 sm:gap-3 pl-7 sm:pl-11">
-                                  <UserCheck className="h-3 w-3 sm:h-4 sm:w-4 text-green-600" />
-                                  <div className="min-w-0 flex-1">
-                                    <p className="text-xs sm:text-sm font-medium truncate">
-                                      {vehicle.driver_name}
-                                    </p>
-                                    <p className="text-xs text-gray-500">
-                                      {vehicle.driver_phone}
-                                    </p>
-                                  </div>
-                                </div>
-
-                                {/* Price */}
-                                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center pt-2 border-t gap-1">
-                                  <span className="text-xs sm:text-sm text-gray-600">
-                                    Estimated Price:
-                                  </span>
-                                  <span className="text-sm sm:text-base font-bold text-green-600">
-                                    {(() => {
-                                      const price = calculateVehiclePrice();
-                                      return isNaN(price) || price <= 0
-                                        ? "Calculating..."
-                                        : `Rp ${Math.round(price).toLocaleString()}`;
-                                    })()}
-                                  </span>
-                                </div>
-                              </div>
-                            </CardContent>
-                          </Card>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <div className="text-center py-8 bg-gray-50 rounded-lg">
-                      <Car className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                      <h4 className="text-lg font-medium text-gray-600 mb-2">
-                        No Available Vehicles
-                      </h4>
-                      <p className="text-gray-500">
-                        No {formData.vehicleType.toLowerCase()} vehicles with
-                        assigned drivers are currently available.
-                      </p>
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
           </div>
         )}

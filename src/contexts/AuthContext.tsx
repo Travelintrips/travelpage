@@ -322,6 +322,53 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
                     userRole,
                   );
                 }
+
+                // CRITICAL: Check for restricted roles and immediately sign out
+                const restrictedRoles = [
+                  "Agent",
+                  "Driver Perusahaan",
+                  "Driver Mitra",
+                ];
+                if (restrictedRoles.includes(userRole)) {
+                  console.log(
+                    "[AuthContext] RESTRICTED ROLE DETECTED - SIGNING OUT:",
+                    userRole,
+                  );
+
+                  try {
+                    await supabase.auth.signOut({ scope: "global" });
+                    console.log(
+                      "[AuthContext] Successfully signed out restricted user",
+                    );
+                  } catch (signOutError) {
+                    console.error(
+                      "[AuthContext] Error signing out restricted user:",
+                      signOutError,
+                    );
+                  }
+
+                  // Clear all auth data
+                  localStorage.removeItem("auth_user");
+                  localStorage.removeItem("userId");
+                  localStorage.removeItem("userEmail");
+                  localStorage.removeItem("userName");
+                  localStorage.removeItem("userPhone");
+                  localStorage.removeItem("userRole");
+                  localStorage.removeItem("isAdmin");
+                  sessionStorage.clear();
+
+                  // Set state to unauthenticated
+                  batchedStateUpdate({
+                    session: null,
+                    user: null,
+                    role: null,
+                    isLoading: false,
+                    isHydrated: true,
+                    isSessionReady: true,
+                  });
+                  initializationRef.current = false;
+                  return;
+                }
               } else {
                 // Force Customer role if no database data for non-admin emails
                 userRole = "Customer";

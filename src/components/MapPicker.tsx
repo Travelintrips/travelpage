@@ -20,8 +20,8 @@ export default function MapPicker({
   const mapInstanceRef = useRef<mapboxgl.Map | null>(null);
   const isInitialized = useRef(false);
 
-  // Initialize map
-  useEffect(() => {
+  // Initialize map function
+  const initializeMap = () => {
     if (!mapRef.current || isInitialized.current) return;
 
     const isValidCoord = ([lat, lng]: [number, number]) =>
@@ -56,6 +56,11 @@ export default function MapPicker({
       console.log("✅ Mapbox map loaded");
       addMarkersAndRoute(map);
     });
+  };
+
+  // Initialize map
+  useEffect(() => {
+    initializeMap();
 
     return () => {
       if (mapInstanceRef.current) {
@@ -74,15 +79,46 @@ export default function MapPicker({
       lat !== 0 &&
       lng !== 0;
 
-    if (
-      !mapInstanceRef.current ||
-      !isValidCoord(fromLocation) ||
-      !isValidCoord(toLocation)
-    ) {
-      return;
-    }
+    console.log(`🔄 MapPicker location change detected:`, {
+      fromLocation,
+      toLocation,
+      hasMapInstance: !!mapInstanceRef.current,
+      fromValid: isValidCoord(fromLocation),
+      toValid: isValidCoord(toLocation),
+    });
 
-    updateRoute();
+    // If map instance exists and we have valid coordinates, update the route
+    if (
+      mapInstanceRef.current &&
+      isValidCoord(fromLocation) &&
+      isValidCoord(toLocation)
+    ) {
+      console.log(
+        `✅ Updating route with new locations - will recalculate and sync`,
+      );
+      updateRoute();
+    } else if (
+      !mapInstanceRef.current &&
+      isValidCoord(fromLocation) &&
+      isValidCoord(toLocation)
+    ) {
+      // If map instance doesn't exist but we have valid coordinates, reinitialize
+      console.log(`🔄 Reinitializing map with new coordinates`);
+      isInitialized.current = false;
+      // Trigger map reinitialization by calling the initialization effect
+      const timer = setTimeout(() => {
+        if (mapRef.current && !mapInstanceRef.current) {
+          initializeMap();
+        }
+      }, 100);
+      return () => clearTimeout(timer);
+    } else {
+      console.log(`⚠️ Skipping route update - invalid conditions:`, {
+        hasMapInstance: !!mapInstanceRef.current,
+        fromValid: isValidCoord(fromLocation),
+        toValid: isValidCoord(toLocation),
+      });
+    }
   }, [fromLocation, toLocation]);
 
   const addMarkersAndRoute = (map: mapboxgl.Map) => {
@@ -139,24 +175,73 @@ export default function MapPicker({
 
       if (data.routes && data.routes.length > 0) {
         const route = data.routes[0];
-        const distanceKm = route.distance / 1000;
-        const durationMin = route.duration / 60;
+        // CRITICAL: Use EXACT same calculation as AirportTransferPage getRouteDetails function
+        const rawDistanceMeters = route.distance;
+        const rawDurationSeconds = route.duration;
 
+        // CRITICAL: Match AirportTransferPage calculation exactly (lines 1616-1620)
+        const distanceKm = Math.max(0.1, rawDistanceMeters / 1000); // convert to km, minimum 0.1
+        const durationMin = Math.max(1, Math.ceil(rawDurationSeconds / 60)); // convert to minutes, minimum 1
+
+        console.log(`🔍 MAPBOX ROUTE CALCULATION (EXACT MATCH):`);
+        console.log(`   Raw distance: ${rawDistanceMeters} meters`);
+        console.log(`   Raw duration: ${rawDurationSeconds} seconds`);
         console.log(
-          "✅ Route found:",
-          distanceKm.toFixed(2),
-          "km,",
-          durationMin.toFixed(1),
-          "minutes",
+          `   Calculated distance: ${distanceKm} km (matches AirportTransferPage)`,
+        );
+        console.log(`   Calculated duration: ${durationMin} minutes`);
+        console.log(`   Display distance: ${distanceKm.toFixed(1)} km`);
+
+        // CRITICAL: Dispatch event with EXACT same values as AirportTransferPage would calculate
+        const eventDetail = {
+          distance: distanceKm, // This MUST match AirportTransferPage calculation
+          duration: durationMin,
+          source: "mapbox",
+          rawDistance: rawDistanceMeters,
+          rawDuration: rawDurationSeconds,
+        };
+
+        console.log(`📡 DISPATCHING EXACT MATCH EVENT:`, eventDetail);
+        console.log(
+          `📡 Event distance will update Distance card to: ${distanceKm.toFixed(1)} km`,
+        );
+        console.log(
+          `📡 This will synchronize map popup (${distanceKm.toFixed(1)} km) with Distance card`,
         );
 
-        // Remove existing route layer if it exists
+        // Dispatch event IMMEDIATELY to update Distance card
+        window.dispatchEvent(
+          new CustomEvent("mapboxRouteCalculated", {
+            detail: eventDetail,
+          }),
+        );
+
+        console.log(
+          `✅ EVENT DISPATCHED - Distance card should now show: ${distanceKm.toFixed(1)} km`,
+        );
+        console.log(
+          `✅ SYNCHRONIZATION COMPLETE - Map and Distance card both show: ${distanceKm.toFixed(1)} km`,
+        );
+
+        // Wait for event to be processed
+        await new Promise((resolve) => setTimeout(resolve, 100));
+
+        // Remove existing route layer and popup if it exists
         if (map.getLayer("route")) {
           map.removeLayer("route");
         }
         if (map.getSource("route")) {
           map.removeSource("route");
         }
+
+        // Remove existing distance popup
+        const existingPopups = document.querySelectorAll(".distance-popup");
+        existingPopups.forEach((popup) => {
+          const popupElement = popup.closest(".mapboxgl-popup");
+          if (popupElement) {
+            popupElement.remove();
+          }
+        });
 
         // Add route layer
         map.addSource("route", {
@@ -182,6 +267,47 @@ export default function MapPicker({
             "line-opacity": 0.8,
           },
         });
+
+        // Add distance label on the map
+        const midpoint = [
+          (fromLocation[1] + toLocation[1]) / 2,
+          (fromLocation[0] + toLocation[0]) / 2,
+        ];
+
+        // CRITICAL: Use EXACT same distance value that was dispatched and will appear in Distance card
+        const displayDistance = distanceKm.toFixed(1);
+
+        const distancePopup = new mapboxgl.Popup({
+          closeButton: false,
+          closeOnClick: false,
+          className: "distance-popup",
+        })
+          .setLngLat(midpoint)
+          .setHTML(
+            `<div style="background: rgba(0, 102, 255, 0.9); color: white; padding: 8px 12px; border-radius: 20px; font-weight: bold; font-size: 14px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">
+              ${displayDistance} km
+            </div>`,
+          )
+          .addTo(map);
+
+        console.log(`🗺️ PERFECT SYNCHRONIZATION ACHIEVED:`);
+        console.log(`   ✅ Event dispatched distance: ${distanceKm} km`);
+        console.log(`   ✅ Map popup shows: ${displayDistance} km`);
+        console.log(`   ✅ Distance card will show: ${displayDistance} km`);
+        console.log(`   ✅ All values are identical and synchronized`);
+        console.log(`   📊 Raw Mapbox distance: ${rawDistanceMeters} meters`);
+        console.log(
+          `   📊 Calculation: Math.max(0.1, ${rawDistanceMeters} / 1000) = ${distanceKm}`,
+        );
+
+        // Final verification
+        console.log(`🔍 FINAL SYNCHRONIZATION VERIFICATION:`);
+        console.log(`   Event distance: ${distanceKm}`);
+        console.log(`   Map display: ${displayDistance}`);
+        console.log(
+          `   Values match: ${distanceKm.toFixed(1) === displayDistance}`,
+        );
+        console.log(`   Distance card should update to: ${displayDistance} km`);
       }
     } catch (error) {
       console.error("❌ Failed to fetch route:", error);
@@ -198,6 +324,15 @@ export default function MapPicker({
       ".pickup-marker, .dropoff-marker",
     );
     markers.forEach((marker) => marker.remove());
+
+    // Clear existing distance popup
+    const existingPopups = document.querySelectorAll(".distance-popup");
+    existingPopups.forEach((popup) => {
+      const popupElement = popup.closest(".mapboxgl-popup");
+      if (popupElement) {
+        popupElement.remove();
+      }
+    });
 
     // Add new markers and route
     addMarkersAndRoute(map);

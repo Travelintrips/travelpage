@@ -369,6 +369,56 @@ const AuthForm: React.FC<AuthFormProps> = ({
         userRole = authData.user?.user_metadata?.role || "Customer";
       }
 
+      // CRITICAL: Check for restricted roles IMMEDIATELY after determining role
+      const restrictedRoles = ["Agent", "Driver Perusahaan", "Driver Mitra"];
+      if (restrictedRoles.includes(userRole)) {
+        console.log("🚫 RESTRICTED ROLE DETECTED - BLOCKING LOGIN:", userRole);
+
+        // Immediately sign out the user to prevent session establishment
+        try {
+          await supabase.auth.signOut({ scope: "global" });
+          console.log("✅ Successfully signed out restricted user");
+        } catch (signOutError) {
+          console.error("❌ Error signing out restricted user:", signOutError);
+        }
+
+        // Clear ALL authentication data immediately
+        localStorage.removeItem("auth_user");
+        localStorage.removeItem("userId");
+        localStorage.removeItem("userRole");
+        localStorage.removeItem("userEmail");
+        localStorage.removeItem("userName");
+        localStorage.removeItem("userPhone");
+        localStorage.removeItem("isAdmin");
+        localStorage.removeItem("driverData");
+        localStorage.removeItem("supabase.auth.token");
+        localStorage.removeItem("sb-refresh-token");
+        localStorage.removeItem("sb-access-token");
+        localStorage.removeItem("sb-auth-token");
+
+        // Clear session storage as well
+        sessionStorage.clear();
+
+        // Show restricted access dialog
+        setShowAccessRestrictedDialog(true);
+
+        // Auto close after 10 seconds
+        const timer = setTimeout(() => {
+          setShowAccessRestrictedDialog(false);
+          if (onClose) {
+            onClose();
+          } else {
+            navigate("/");
+          }
+        }, 10000); // 10 seconds
+
+        setDialogAutoCloseTimer(timer);
+        setIsSubmitting(false);
+
+        // CRITICAL: Prevent any further execution of login logic
+        return;
+      }
+
       const isAdmin = userRole === "Admin" || userRole === "Super Admin";
       localStorage.setItem("isAdmin", isAdmin ? "true" : "false");
       console.log("🏷️ User role determined:", userRole, "isAdmin:", isAdmin);
@@ -395,41 +445,6 @@ const AuthForm: React.FC<AuthFormProps> = ({
           setIsSubmitting(false);
           return;
         }
-      }
-
-      // Check for restricted roles BEFORE completing login
-      const restrictedRoles = ["Agent", "Driver Perusahaan", "Driver Mitra"];
-      if (restrictedRoles.includes(userRole)) {
-        console.log("🚫 Restricted role detected:", userRole);
-
-        // Sign out the user immediately
-        await supabase.auth.signOut();
-
-        // Clear any stored data
-        localStorage.removeItem("auth_user");
-        localStorage.removeItem("userId");
-        localStorage.removeItem("userRole");
-        localStorage.removeItem("userEmail");
-        localStorage.removeItem("userName");
-        localStorage.removeItem("userPhone");
-        localStorage.removeItem("isAdmin");
-
-        // Show restricted access dialog
-        setShowAccessRestrictedDialog(true);
-
-        // Auto close after 10 seconds
-        const timer = setTimeout(() => {
-          setShowAccessRestrictedDialog(false);
-          if (onClose) {
-            onClose();
-          } else {
-            navigate("/");
-          }
-        }, 10000); // 10 seconds
-
-        setDialogAutoCloseTimer(timer);
-        setIsSubmitting(false);
-        return;
       }
 
       console.log("✅ Calling handleLoginSuccess...");

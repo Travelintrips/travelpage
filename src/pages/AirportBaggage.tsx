@@ -9,6 +9,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/components/ui/use-toast";
 import BookingForm from "@/pages/BookingFormBag";
 import { useNavigate } from "react-router-dom";
+import AuthRequiredModal from "@/components/auth/AuthRequiredModal";
 import {
   Package,
   PackageOpen,
@@ -91,6 +92,7 @@ const AirportBaggage: React.FC = () => {
   const [showBookingForm, setShowBookingForm] = useState(false);
   const [baggagePrices, setBaggagePrices] = useState<BaggagePrice[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showAuthModal, setShowAuthModal] = useState(false);
 
   // Fetch baggage prices from database
   const fetchBaggagePrices = useCallback(async () => {
@@ -451,6 +453,10 @@ const AirportBaggage: React.FC = () => {
   }, [baggagePrices, arePricesLoaded]);
 
   const handleSizeSelect = (size: string) => {
+    if (!isAuthenticated) {
+      setShowAuthModal(true);
+      return;
+    }
     const validatedSize = validateBaggageSize(size);
     console.log(`🎯 Size selected: ${size} (validated: ${validatedSize})`);
     setSelectedSize(validatedSize);
@@ -661,6 +667,10 @@ const AirportBaggage: React.FC = () => {
                         className="w-full mt-4 group-hover:bg-blue-700 transition-colors"
                         onClick={(e) => {
                           e.stopPropagation();
+                          if (!isAuthenticated) {
+                            setShowAuthModal(true);
+                            return;
+                          }
                           handleSizeSelect(option.id);
                         }}
                         disabled={!arePricesLoaded || option.price <= 0}
@@ -726,6 +736,14 @@ const AirportBaggage: React.FC = () => {
               </div>
             </CardContent>
           </Card>
+
+          {/* Auth Required Modal */}
+          <AuthRequiredModal
+            isOpen={showAuthModal}
+            onClose={() => setShowAuthModal(false)}
+            title="Authentication Required"
+            message="Please Sign in or Register to access"
+          />
         </div>
       </div>
     </div>

@@ -380,6 +380,39 @@ function AppContent() {
       // Clear any logout flags to ensure proper authentication state
       sessionStorage.removeItem("loggedOut");
 
+      // CRITICAL: Check for restricted roles and force logout immediately
+      const restrictedRoles = ["Agent", "Driver Perusahaan", "Driver Mitra"];
+      if (userRole && restrictedRoles.includes(userRole)) {
+        console.log(
+          "[App] RESTRICTED ROLE DETECTED - FORCING LOGOUT:",
+          userRole,
+        );
+
+        // Clear all auth data immediately
+        localStorage.removeItem("auth_user");
+        localStorage.removeItem("userId");
+        localStorage.removeItem("userEmail");
+        localStorage.removeItem("userName");
+        localStorage.removeItem("userPhone");
+        localStorage.removeItem("userRole");
+        localStorage.removeItem("isAdmin");
+        sessionStorage.clear();
+
+        // Sign out from Supabase and force page reload
+        supabase.auth
+          .signOut({ scope: "global" })
+          .then(() => {
+            console.log("[App] Successfully signed out restricted user");
+            window.location.href = "/";
+          })
+          .catch((error) => {
+            console.error("[App] Error signing out restricted user:", error);
+            window.location.href = "/";
+          });
+
+        return; // Stop further execution
+      }
+
       // Debug output to help diagnose issues
       console.log("Current authentication state:", {
         isAuthenticated,

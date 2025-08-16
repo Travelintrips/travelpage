@@ -15,9 +15,15 @@ import {
 } from "./ui/dropdown-menu";
 
 const Header = () => {
+  // Always call all hooks at the top level in the same order
   const { isAuthenticated, isLoading, userRole } = useAuth();
   const { cartCount } = useShoppingCart();
   const [mounted, setMounted] = useState(false);
+
+  // Define restricted roles as a constant to avoid dependency issues
+  const restrictedRoles = ["Agent", "Driver Perusahaan", "Driver Mitra"];
+  const isRestrictedRole = userRole && restrictedRoles.includes(userRole);
+  const showAuthenticatedUI = isAuthenticated && !isLoading;
 
   // Ensure we're properly mounted to avoid hydration issues
   useEffect(() => {
@@ -46,17 +52,54 @@ const Header = () => {
     };
   }, []);
 
-  // Prevent header from disappearing during auth state transitions
+  // Force logout restricted users immediately - always call useEffect with consistent dependencies
+  useEffect(() => {
+    if (isAuthenticated && userRole && restrictedRoles.includes(userRole)) {
+      console.log(
+        "[Header] Restricted role detected, forcing logout:",
+        userRole,
+      );
+
+      // Clear all auth data immediately
+      localStorage.removeItem("auth_user");
+      localStorage.removeItem("userId");
+      localStorage.removeItem("userEmail");
+      localStorage.removeItem("userName");
+      localStorage.removeItem("userPhone");
+      localStorage.removeItem("userRole");
+      localStorage.removeItem("isAdmin");
+      sessionStorage.clear();
+
+      // Sign out from Supabase
+      supabase.auth
+        .signOut({ scope: "global" })
+        .then(() => {
+          console.log("[Header] Successfully signed out restricted user");
+          // Force page reload to clear any remaining state
+          window.location.reload();
+        })
+        .catch((error) => {
+          console.error("[Header] Error signing out restricted user:", error);
+          // Force page reload anyway
+          window.location.reload();
+        });
+    }
+  }, [isAuthenticated, userRole]);
+
+  // Show loading state instead of returning null to prevent hook order issues
   if (!mounted) {
-    return null;
+    return (
+      <header className="bg-green-800 text-white py-4">
+        <div className="container mx-auto flex justify-between items-center px-4">
+          <div className="flex items-center space-x-4">
+            <Link to="/" className="text-xl font-bold">
+              Travelintrips *
+            </Link>
+          </div>
+        </div>
+      </header>
+    );
   }
-
-  // Show header even during loading to prevent layout shift
-  const showAuthenticatedUI = isAuthenticated && !isLoading;
-
-  // Check if current user has restricted role
-  const restrictedRoles = ["Agent", "Driver Perusahaan", "Driver Mitra"];
-  const isRestrictedRole = userRole && restrictedRoles.includes(userRole);
 
   return (
     <>
@@ -96,7 +139,7 @@ const Header = () => {
               </Button>
             </Link>
             {/* Show auth-dependent UI when authenticated */}
-            {mounted && showAuthenticatedUI && (
+            {showAuthenticatedUI && (
               <Link to="/bookings" className="hover:text-green-200">
                 Bookings
               </Link>
@@ -112,7 +155,7 @@ const Header = () => {
                 className="relative text-white hover:bg-green-700"
               >
                 <CartIcon className="h-5 w-5" />
-                {mounted && cartCount > 0 && (
+                {cartCount > 0 && (
                   <Badge
                     variant="destructive"
                     className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center p-0 text-xs"
@@ -123,7 +166,7 @@ const Header = () => {
               </Button>
             </Link>
 
-            {mounted && showAuthenticatedUI ? (
+            {showAuthenticatedUI ? (
               <UserDropdown />
             ) : (
               !isRestrictedRole && (

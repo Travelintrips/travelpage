@@ -181,16 +181,34 @@ const PriceKMManagement = () => {
 
       // Update all vehicles for each changed type
       for (const vehicleType of changedTypes) {
-        const { error } = await supabase
-          .from("vehicles")
-          .update({
-            price_km: vehicleType.price_km,
-            basic_price: vehicleType.basic_price,
-            surcharge: vehicleType.surcharge,
-          })
-          .eq("type", vehicleType.type);
+        const [vehicleRes, priceRes] = await Promise.all([
+          supabase
+            .from("vehicles")
+            .update({
+              price_km: vehicleType.price_km,
+              basic_price: vehicleType.basic_price,
+              surcharge: vehicleType.surcharge,
+            })
+            .eq("type", vehicleType.type),
 
-        if (error) throw error;
+          supabase
+            .from("price_km")
+            .update({
+              price_per_km: vehicleType.price_per_km, // ✅ sudah sama nama kolomnya
+              basic_price: vehicleType.basic_price,
+              surcharge: vehicleType.surcharge,
+            })
+
+            .eq("vehicle_type", vehicleType.type),
+        ]);
+
+        if (vehicleRes.error || priceRes.error) {
+          console.error("❌ Update failed:", vehicleType.type, {
+            vehicleError: vehicleRes.error,
+            priceError: priceRes.error,
+          });
+          throw vehicleRes.error || priceRes.error;
+        }
       }
 
       // Count total vehicles updated
