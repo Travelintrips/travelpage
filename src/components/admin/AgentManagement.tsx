@@ -30,6 +30,16 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -47,6 +57,7 @@ import {
   UserCheck,
   UserX,
   Trash2,
+  Edit,
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 
@@ -70,6 +81,13 @@ const AgentManagement = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingAgent, setEditingAgent] = useState<Agent | null>(null);
+  const [editForm, setEditForm] = useState({
+    full_name: "",
+    email: "",
+    phone_number: "",
+  });
   const { isAdmin, userRole } = useAuth();
   const { toast } = useToast();
 
@@ -338,6 +356,62 @@ const AgentManagement = () => {
     }
   };
 
+  const handleEditAgent = (agent: Agent) => {
+    setEditingAgent(agent);
+    setEditForm({
+      full_name: agent.full_name || "",
+      email: agent.email || "",
+      phone_number: agent.phone_number || "",
+    });
+    setEditDialogOpen(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingAgent) return;
+
+    if (!isAdmin && userRole !== "Admin") {
+      toast({
+        title: "Access Denied",
+        description: "Only Admin or Super Admin can perform this action.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setActionLoading(editingAgent.id);
+    try {
+      const { error } = await supabase
+        .from("users")
+        .update({
+          full_name: editForm.full_name,
+          email: editForm.email,
+          phone_number: editForm.phone_number,
+        })
+        .eq("id", editingAgent.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Agent details have been updated successfully.",
+      });
+
+      setEditDialogOpen(false);
+      setEditingAgent(null);
+      // Refresh the agents list
+      await fetchAgents();
+    } catch (error) {
+      console.error("Error updating agent:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update agent details. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const handleDeleteAgent = async (agentId: string, agentEmail: string) => {
     if (!isAdmin && userRole !== "Admin") {
       toast({
@@ -556,6 +630,13 @@ const AgentManagement = () => {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onClick={() => handleEditAgent(agent)}
+                              className="text-blue-600"
+                            >
+                              <Edit className="mr-2 h-4 w-4" />
+                              Edit
+                            </DropdownMenuItem>
                             {agent.status === "active" ? (
                               <DropdownMenuItem
                                 onClick={() => handleDeactivateAgent(agent.id)}
@@ -627,15 +708,92 @@ const AgentManagement = () => {
             </Table>
           )}
         </CardContent>
-        <CardFooter className="flex justify-between">
+        {/*    <CardFooter className="flex justify-between">
           <div className="text-sm text-muted-foreground">
             Showing {filteredAgents.length} of {agents.length} agents
           </div>
           <Button variant="outline" onClick={fetchAgents}>
             Refresh
           </Button>
-        </CardFooter>
+        </CardFooter>*/}
       </Card>
+
+      {/* Edit Agent Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Edit Agent Details</DialogTitle>
+            <DialogDescription>
+              Update the agent's information. Click save when you're done.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="full_name" className="text-right">
+                Agent Name
+              </Label>
+              <Input
+                id="full_name"
+                value={editForm.full_name}
+                onChange={(e) =>
+                  setEditForm({ ...editForm, full_name: e.target.value })
+                }
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="email" className="text-right">
+                Email
+              </Label>
+              <Input
+                id="email"
+                type="email"
+                value={editForm.email}
+                onChange={(e) =>
+                  setEditForm({ ...editForm, email: e.target.value })
+                }
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="phone_number" className="text-right">
+                Phone
+              </Label>
+              <Input
+                id="phone_number"
+                value={editForm.phone_number}
+                onChange={(e) =>
+                  setEditForm({ ...editForm, phone_number: e.target.value })
+                }
+                className="col-span-3"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setEditDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleSaveEdit}
+              disabled={actionLoading === editingAgent?.id}
+            >
+              {actionLoading === editingAgent?.id ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save Changes"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

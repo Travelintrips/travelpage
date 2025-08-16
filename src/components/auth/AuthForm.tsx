@@ -9,6 +9,15 @@ import { uploadDocumentImages } from "@/lib/edgeFunctions";
 import { useNavigate, useLocation } from "react-router-dom";
 import AuthModal from "./AuthModal";
 import { useAuth } from "@/contexts/AuthContext";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 import {
   Card,
@@ -62,8 +71,13 @@ const AuthForm: React.FC<AuthFormProps> = ({
     initialTab || (initialMode === "signin" ? "login" : "register"),
   );
   const [showPassword, setShowPassword] = useState(false);
+  const [showAccessRestrictedDialog, setShowAccessRestrictedDialog] =
+    useState(false);
+  const [dialogAutoCloseTimer, setDialogAutoCloseTimer] =
+    useState<NodeJS.Timeout | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
+  const { userRole, isAuthenticated } = useAuth();
 
   useEffect(() => {
     const authUserStr = localStorage.getItem("auth_user");
@@ -82,6 +96,26 @@ const AuthForm: React.FC<AuthFormProps> = ({
       }
     }
   }, [onAuthStateChange]);
+
+  // Check for restricted roles and show popup
+  useEffect(() => {
+    const restrictedRoles = ["Agent", "Driver Perusahaan", "Driver Mitra"];
+    if (isAuthenticated && userRole && restrictedRoles.includes(userRole)) {
+      setShowAccessRestrictedDialog(true);
+
+      // Auto close after 10 seconds
+      const timer = setTimeout(() => {
+        setShowAccessRestrictedDialog(false);
+        if (onClose) {
+          onClose();
+        } else {
+          navigate("/");
+        }
+      }, 10000); // 10 seconds
+
+      setDialogAutoCloseTimer(timer);
+    }
+  }, [isAuthenticated, userRole, onClose, navigate]);
 
   const loginForm = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -291,10 +325,56 @@ const AuthForm: React.FC<AuthFormProps> = ({
         metadata: authData.user.user_metadata,
       });
 
-      const userRole = authData.user?.user_metadata?.role || "Customer";
-      const isAdmin = userRole === "Admin";
+      // Get user role from database first, then fallback to metadata
+      let userRole = "Customer"; // Default to Customer
+
+      // Try to get role from users table first
+      try {
+        const { data: userData, error: userError } = await supabase
+          .from("users")
+          .select("role, role_name")
+          .eq("id", authData.user.id)
+          .single();
+
+        if (!userError && userData) {
+          if (userData.role) {
+            userRole = userData.role;
+            console.log("✅ Found role in users table:", userRole);
+          } else if (userData.role_name) {
+            userRole = userData.role_name;
+            console.log("✅ Found role_name in users table:", userRole);
+          }
+        } else {
+          console.log(
+            "🔍 No role found in users table, checking staff table...",
+          );
+          // Check staff table for role
+          const { data: staffData, error: staffError } = await supabase
+            .from("staff")
+            .select("role")
+            .eq("id", authData.user.id)
+            .single();
+
+          if (!staffError && staffData?.role) {
+            userRole = staffData.role;
+            console.log("✅ Found role in staff table:", userRole);
+          } else {
+            // Fallback to metadata
+            userRole = authData.user?.user_metadata?.role || "Customer";
+            console.log("🔄 Using metadata role:", userRole);
+          }
+        }
+      } catch (error) {
+        console.warn("⚠️ Error fetching role from database:", error);
+        userRole = authData.user?.user_metadata?.role || "Customer";
+      }
+
+      const isAdmin = userRole === "Admin" || userRole === "Super Admin";
       localStorage.setItem("isAdmin", isAdmin ? "true" : "false");
       console.log("🏷️ User role determined:", userRole, "isAdmin:", isAdmin);
+
+      // Also store the exact role for debugging
+      localStorage.setItem("userRole", userRole);
 
       if (userRole === "Driver") {
         console.log("🚗 Checking driver status...");
@@ -315,6 +395,41 @@ const AuthForm: React.FC<AuthFormProps> = ({
           setIsSubmitting(false);
           return;
         }
+      }
+
+      // Check for restricted roles BEFORE completing login
+      const restrictedRoles = ["Agent", "Driver Perusahaan", "Driver Mitra"];
+      if (restrictedRoles.includes(userRole)) {
+        console.log("🚫 Restricted role detected:", userRole);
+
+        // Sign out the user immediately
+        await supabase.auth.signOut();
+
+        // Clear any stored data
+        localStorage.removeItem("auth_user");
+        localStorage.removeItem("userId");
+        localStorage.removeItem("userRole");
+        localStorage.removeItem("userEmail");
+        localStorage.removeItem("userName");
+        localStorage.removeItem("userPhone");
+        localStorage.removeItem("isAdmin");
+
+        // Show restricted access dialog
+        setShowAccessRestrictedDialog(true);
+
+        // Auto close after 10 seconds
+        const timer = setTimeout(() => {
+          setShowAccessRestrictedDialog(false);
+          if (onClose) {
+            onClose();
+          } else {
+            navigate("/");
+          }
+        }, 10000); // 10 seconds
+
+        setDialogAutoCloseTimer(timer);
+        setIsSubmitting(false);
+        return;
       }
 
       console.log("✅ Calling handleLoginSuccess...");
@@ -425,10 +540,14 @@ const AuthForm: React.FC<AuthFormProps> = ({
         console.log("⚠️ No onAuthStateChange handler provided (second time)");
       }
 
-      // Force immediate redirect for Admin users
-      if (userRole === "Admin" || isAdmin) {
-        console.log("🔀 Redirecting Admin user to admin panel");
-        navigate("/admin");
+      // Force immediate redirect for Admin and Super Admin users
+      if (userRole === "Admin" || userRole === "Super Admin" || isAdmin) {
+        console.log("🔀 Redirecting Admin/Super Admin user to admin panel", {
+          userRole,
+          isAdmin,
+        });
+        // Use replace: true to prevent back button issues
+        navigate("/admin", { replace: true });
       } else {
         console.log("ℹ️ No redirect needed for role:", userRole);
       }
@@ -944,20 +1063,86 @@ const AuthForm: React.FC<AuthFormProps> = ({
     setShowPassword(!showPassword);
   };
 
+  const handleAccessRestrictedClose = () => {
+    // Clear the auto-close timer if user manually closes
+    if (dialogAutoCloseTimer) {
+      clearTimeout(dialogAutoCloseTimer);
+      setDialogAutoCloseTimer(null);
+    }
+
+    setShowAccessRestrictedDialog(false);
+    if (onClose) {
+      onClose();
+    } else {
+      navigate("/");
+    }
+  };
+
+  // Check if current user has restricted role
+  const restrictedRoles = ["Agent", "Driver Perusahaan", "Driver Mitra"];
+  const isRestrictedRole =
+    isAuthenticated && userRole && restrictedRoles.includes(userRole);
+
   return (
-    <AuthModal
-      onClose={onClose}
-      activeTab={activeTab}
-      setActiveTab={setActiveTab}
-      loginForm={loginForm}
-      handleLoginSubmit={handleLoginSubmit}
-      loginError={loginError}
-      isLoading={isLoading}
-      isSubmitting={isSubmitting}
-      showPassword={showPassword}
-      togglePasswordVisibility={togglePasswordVisibility}
-      handleRegisterSubmit={handleRegisterSubmit}
-    />
+    <>
+      <AlertDialog
+        open={showAccessRestrictedDialog}
+        onOpenChange={(open) => {
+          if (!open) {
+            handleAccessRestrictedClose();
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Akses Terbatas</AlertDialogTitle>
+            <AlertDialogDescription>
+              Akses Driver dan Agent, tidak di halaman ini.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={handleAccessRestrictedClose}>
+              OK
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {!isRestrictedRole ? (
+        <AuthModal
+          onClose={onClose}
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          loginForm={loginForm}
+          handleLoginSubmit={handleLoginSubmit}
+          loginError={loginError}
+          isLoading={isLoading}
+          isSubmitting={isSubmitting}
+          showPassword={showPassword}
+          togglePasswordVisibility={togglePasswordVisibility}
+          handleRegisterSubmit={handleRegisterSubmit}
+        />
+      ) : (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full mx-4">
+            <h2 className="text-xl font-semibold mb-4 text-center">
+              Akses Terbatas
+            </h2>
+            <p className="text-gray-600 text-center mb-6">
+              Akses Driver dan Agent, tidak di halaman ini.
+            </p>
+            <div className="flex justify-center">
+              <button
+                onClick={handleAccessRestrictedClose}
+                className="bg-green-600 text-white px-6 py-2 rounded hover:bg-green-700 transition-colors"
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 };
 

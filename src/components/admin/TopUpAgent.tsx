@@ -529,8 +529,14 @@ const TopUpAgent = () => {
                         Rp {transaction.saldo_akhir.toLocaleString()}
                       </TableCell>
                       <TableCell className="max-w-xs truncate">
-                        {transaction.keterangan || "-"}
+                        {transaction.keterangan
+                          ? transaction.keterangan
+                              .replace(/ - undefined/gi, " Handling Group")
+                              .replace(/undefined/gi, "Handling Group")
+                              .trim()
+                          : "-"}
                       </TableCell>
+
                       <TableCell>
                         {transaction.trans_date
                           ? new Date(transaction.trans_date).toLocaleDateString(

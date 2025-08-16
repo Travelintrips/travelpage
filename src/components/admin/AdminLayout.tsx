@@ -49,6 +49,8 @@ const AdminLayout = () => {
         return "Staff Traffic Dashboard";
       case "Admin":
         return "Admin Dashboard";
+      case "Super Admin":
+        return "Super Admin Dashboard";
       case "Staff":
         return "Staff Dashboard";
       default:

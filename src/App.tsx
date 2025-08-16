@@ -66,6 +66,7 @@ import AgentManagement from "./components/admin/AgentManagement";
 import BookingAgentManagement from "./components/admin/BookingAgentManagement";
 import TopUpAgent from "./components/admin/TopUpAgent";
 import TopUpRequests from "./components/admin/TopUpRequests";
+import HistoryTopUp from "./components/admin/HistoryTopUp";
 import TransportasiPage from "./pages/TransportasiPage";
 
 declare global {
@@ -76,6 +77,7 @@ declare global {
 
 const ROLES = {
   ADMIN: "Admin",
+  SUPER_ADMIN: "Super Admin",
   STAFF: "Staff",
   STAFF_TRIPS: "Staff Trips",
   STAFF_TRAFFIC: "Staff Traffic",
@@ -388,8 +390,15 @@ function AppContent() {
       });
 
       // Check if user is admin either by role or isAdmin flag
-      if (userRole === ROLES.ADMIN || isAdmin) {
-        console.log("Admin user detected, redirecting to admin dashboard");
+      if (
+        userRole === ROLES.ADMIN ||
+        userRole === ROLES.SUPER_ADMIN ||
+        isAdmin
+      ) {
+        console.log(
+          "Admin/Super Admin user detected, redirecting to admin dashboard",
+          { userRole, isAdmin },
+        );
         // Always redirect admin users to admin dashboard if they're not already there
         if (!currentPath.includes("/admin")) {
           // Use navigate with replace: true to prevent back button issues
@@ -458,8 +467,11 @@ function AppContent() {
 
     // Special case for admin - check both isAdmin flag and userRole
     // This ensures that users with admin emails or admin roles can access admin routes
-    if (isAdmin || userRole === ROLES.ADMIN) {
-      console.log("Admin access granted via isAdmin flag or Admin role");
+    if (isAdmin || userRole === ROLES.ADMIN || userRole === ROLES.SUPER_ADMIN) {
+      console.log(
+        "Admin access granted via isAdmin flag or Admin/Super Admin role",
+        { isAdmin, userRole },
+      );
       return children;
     }
 
@@ -570,6 +582,7 @@ function AppContent() {
               <ProtectedRoute
                 allowedRoles={[
                   ROLES.ADMIN,
+                  ROLES.SUPER_ADMIN,
                   ROLES.STAFF,
                   ROLES.STAFF_TRIPS,
                   ROLES.STAFF_TRAFFIC,
@@ -586,6 +599,7 @@ function AppContent() {
               <ProtectedRoute
                 allowedRoles={[
                   ROLES.ADMIN,
+                  ROLES.SUPER_ADMIN,
                   ROLES.STAFF,
                   ROLES.STAFF_TRIPS,
                   ROLES.STAFF_TRAFFIC,
@@ -601,6 +615,7 @@ function AppContent() {
               <ProtectedRoute
                 allowedRoles={[
                   ROLES.ADMIN,
+                  ROLES.SUPER_ADMIN,
                   ROLES.STAFF,
                   ROLES.STAFF_TRIPS,
                   ROLES.STAFF_TRAFFIC,
@@ -639,17 +654,7 @@ function AppContent() {
             <Route path="data-agent" element={<AgentManagement />} />
             <Route path="booking-agent" element={<BookingAgentManagement />} />
             <Route path="top-up-agent" element={<TopUpAgent />} />
-            <Route
-              path="history-top-up"
-              element={
-                <div className="p-8">
-                  <h1 className="text-2xl font-bold">History Top Up</h1>
-                  <p className="text-gray-600 mt-4">
-                    View top-up transaction history
-                  </p>
-                </div>
-              }
-            />
+            <Route path="history-top-up" element={<HistoryTopUp />} />
             <Route path="top-up-requests" element={<TopUpRequests />} />
             <Route path="price-km" element={<PriceKMManagement />} />
             <Route

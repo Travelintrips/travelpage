@@ -1449,6 +1449,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     userPhone: user?.user_metadata?.phone ?? null,
     isAdmin:
       role === "Admin" ||
+      role === "Super Admin" ||
       user?.email?.includes("admin") ||
       user?.email === "divatranssoetta@gmail.com",
     isLoading,

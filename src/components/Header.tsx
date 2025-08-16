@@ -15,7 +15,7 @@ import {
 } from "./ui/dropdown-menu";
 
 const Header = () => {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, userRole } = useAuth();
   const { cartCount } = useShoppingCart();
   const [mounted, setMounted] = useState(false);
 
@@ -53,6 +53,10 @@ const Header = () => {
 
   // Show header even during loading to prevent layout shift
   const showAuthenticatedUI = isAuthenticated && !isLoading;
+
+  // Check if current user has restricted role
+  const restrictedRoles = ["Agent", "Driver Perusahaan", "Driver Mitra"];
+  const isRestrictedRole = userRole && restrictedRoles.includes(userRole);
 
   return (
     <>
@@ -122,17 +126,19 @@ const Header = () => {
             {mounted && showAuthenticatedUI ? (
               <UserDropdown />
             ) : (
-              <div className="flex items-center space-x-2">
-                <Button
-                  variant="outline"
-                  className="bg-transparent text-white border-white hover:bg-white hover:text-green-800"
-                >
-                  <Link to="/login">Sign In</Link>
-                </Button>
-                <Button className="bg-white text-green-800 hover:bg-gray-100">
-                  <Link to="/register">Register</Link>
-                </Button>
-              </div>
+              !isRestrictedRole && (
+                <div className="flex items-center space-x-2">
+                  <Button
+                    variant="outline"
+                    className="bg-transparent text-white border-white hover:bg-white hover:text-green-800"
+                  >
+                    <Link to="/login">Sign In</Link>
+                  </Button>
+                  <Button className="bg-white text-green-800 hover:bg-gray-100">
+                    <Link to="/register">Register</Link>
+                  </Button>
+                </div>
+              )
             )}
           </div>
         </div>
