@@ -49,6 +49,7 @@ import {
   Tag,
   Settings,
 } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface VehicleType {
   id: number;
@@ -85,6 +86,7 @@ const CarsManagement = () => {
   const [cars, setCars] = useState<CarData[]>([]);
   const [vehicleTypes, setVehicleTypes] = useState<VehicleType[]>([]);
   const [loading, setLoading] = useState(true);
+  const { userRole } = useAuth();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedVehicleTypeId, setSelectedVehicleTypeId] = useState<
@@ -380,6 +382,11 @@ const CarsManagement = () => {
 
   const handleDeleteCar = async () => {
     if (!selectedCar) return;
+
+    if (userRole !== "Super Admin") {
+      alert("Only Super Admin can delete cars");
+      return;
+    }
 
     try {
       const { error } = await supabase
@@ -699,6 +706,11 @@ const CarsManagement = () => {
   const handleDeleteVehicleType = async () => {
     try {
       if (!selectedVehicleType) return;
+
+      if (userRole !== "Super Admin") {
+        alert("Only Super Admin can delete vehicle types");
+        return;
+      }
 
       // Check if any cars are using this vehicle type
       const { data: carsWithType, error: checkError } = await supabase
@@ -1060,14 +1072,16 @@ const CarsManagement = () => {
                                     </svg>
                                   )}
                                 </Button>
-                                <Button
-                                  variant="outline"
-                                  size="icon"
-                                  className="text-destructive"
-                                  onClick={() => openDeleteDialog(car)}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
+                                {userRole === "Super Admin" && (
+                                  <Button
+                                    variant="outline"
+                                    size="icon"
+                                    className="text-destructive"
+                                    onClick={() => openDeleteDialog(car)}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                )}
                               </div>
                             </TableCell>
                           </TableRow>
@@ -1660,14 +1674,16 @@ const CarsManagement = () => {
                           >
                             <Pencil className="h-4 w-4" />
                           </Button>
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className="text-destructive"
-                            onClick={() => openDeleteVehicleTypeDialog(type)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          {userRole === "Super Admin" && (
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="text-destructive"
+                              onClick={() => openDeleteVehicleTypeDialog(type)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>

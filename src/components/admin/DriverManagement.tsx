@@ -56,6 +56,7 @@ import {
   Upload,
   Camera,
 } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Driver {
   id: string;
@@ -78,6 +79,7 @@ interface Driver {
 const DriverManagement = () => {
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [loading, setLoading] = useState(true);
+  const { userRole } = useAuth();
   const [searchTerm, setSearchTerm] = useState("");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -335,6 +337,11 @@ const DriverManagement = () => {
 
   const handleDeleteDriver = async () => {
     if (!selectedDriver) return;
+
+    if (userRole !== "Super Admin") {
+      alert("Only Super Admin can delete drivers");
+      return;
+    }
 
     try {
       const { error } = await supabase
@@ -623,14 +630,16 @@ const DriverManagement = () => {
                           >
                             <Pencil className="h-4 w-4" />
                           </Button>
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className="text-destructive"
-                            onClick={() => openDeleteDialog(driver)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          {userRole === "Super Admin" && (
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="text-destructive"
+                              onClick={() => openDeleteDialog(driver)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>

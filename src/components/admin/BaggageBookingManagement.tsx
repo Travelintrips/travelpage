@@ -34,6 +34,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { format } from "date-fns";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface BaggageBooking {
   id: string;
@@ -72,6 +73,7 @@ const BaggageBookingManagement = () => {
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const { toast } = useToast();
+  const { userRole } = useAuth();
 
   useEffect(() => {
     fetchBookings();
@@ -128,6 +130,15 @@ const BaggageBookingManagement = () => {
 
   const handleDeleteBooking = async () => {
     if (!selectedBooking) return;
+
+    if (userRole !== "Super Admin") {
+      toast({
+        variant: "destructive",
+        title: "Access Denied",
+        description: "Only Super Admin can delete baggage bookings",
+      });
+      return;
+    }
 
     try {
       const { error } = await supabase
@@ -433,17 +444,19 @@ const BaggageBookingManagement = () => {
                                 Complete
                               </Button>
                             )}
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-red-600 hover:text-red-700"
-                              onClick={() => {
-                                setSelectedBooking(booking);
-                                setIsDeleteOpen(true);
-                              }}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                            {userRole === "Super Admin" && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-red-600 hover:text-red-700"
+                                onClick={() => {
+                                  setSelectedBooking(booking);
+                                  setIsDeleteOpen(true);
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
                           </div>
                         </td>
                       </tr>

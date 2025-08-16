@@ -30,6 +30,7 @@ import {
   MapPin,
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface HandlingService {
   id: string;
@@ -57,6 +58,7 @@ const HandlingServicesManagement = () => {
     basic_price: 0,
   });
   const { toast } = useToast();
+  const { userRole } = useAuth();
 
   useEffect(() => {
     fetchServices();
@@ -146,6 +148,15 @@ const HandlingServicesManagement = () => {
   };
 
   const deleteService = async (serviceId: string) => {
+    if (userRole !== "Super Admin") {
+      toast({
+        title: "Access Denied",
+        description: "Only Super Admin can delete services",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (!confirm("Are you sure you want to delete this service?")) {
       return;
     }
@@ -299,13 +310,15 @@ const HandlingServicesManagement = () => {
                         >
                           <Edit className="h-4 w-4" />
                         </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => deleteService(service.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        {userRole === "Super Admin" && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => deleteService(service.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>

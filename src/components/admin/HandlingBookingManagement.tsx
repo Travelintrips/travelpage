@@ -147,6 +147,15 @@ const BookingAgentManagement = () => {
   };
 
   const deleteBooking = async (bookingId: string) => {
+    if (userRole !== "Super Admin") {
+      toast({
+        title: "Access Denied",
+        description: "Only Super Admin can delete bookings",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (!confirm("Are you sure you want to delete this booking?")) {
       return;
     }
@@ -554,13 +563,15 @@ const BookingAgentManagement = () => {
                             )}
                           </DialogContent>
                         </Dialog>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => deleteBooking(booking.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        {userRole === "Super Admin" && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => deleteBooking(booking.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>

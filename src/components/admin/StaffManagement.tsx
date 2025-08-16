@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
 import { Pencil, Trash2, UserPlus } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface User {
   id: string;
@@ -51,6 +52,7 @@ export default function StaffManagement() {
   const [isEditMode, setIsEditMode] = useState(false);
   const [currentUser, setCurrentUser] = useState<Partial<User>>({});
   const { toast } = useToast();
+  const { userRole } = useAuth();
 
   // Form state
   const [email, setEmail] = useState("");
@@ -407,6 +409,15 @@ export default function StaffManagement() {
   };
 
   const handleDeleteUser = async (userId: string) => {
+    if (userRole !== "Super Admin") {
+      toast({
+        variant: "destructive",
+        title: "Access Denied",
+        description: "Only Super Admin can delete staff members",
+      });
+      return;
+    }
+
     if (!confirm("Are you sure you want to delete this staff member?")) return;
 
     try {
@@ -485,13 +496,15 @@ export default function StaffManagement() {
                   >
                     <Pencil className="h-4 w-4" />
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleDeleteUser(user.id)}
-                  >
-                    <Trash2 className="h-4 w-4 text-red-500" />
-                  </Button>
+                  {userRole === "Super Admin" && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDeleteUser(user.id)}
+                    >
+                      <Trash2 className="h-4 w-4 text-red-500" />
+                    </Button>
+                  )}
                 </TableCell>
               </TableRow>
             ))}

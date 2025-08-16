@@ -21,6 +21,7 @@ import {
   Car,
 } from "lucide-react";
 import { Tables } from "@/types/supabase";
+import { useAuth } from "@/contexts/AuthContext";
 
 type Vehicle = Tables<"vehicles">;
 
@@ -28,6 +29,7 @@ const VehicleInventory = () => {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [filteredVehicles, setFilteredVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
+  const { userRole } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [sortConfig, setSortConfig] = useState<{
     key: keyof Vehicle | "";
@@ -289,13 +291,15 @@ const VehicleInventory = () => {
                               <Button variant="ghost" size="icon">
                                 <Edit className="h-4 w-4" />
                               </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="text-red-500"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
+                              {userRole === "Super Admin" && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="text-red-500"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              )}
                             </div>
                           </td>
                         </tr>

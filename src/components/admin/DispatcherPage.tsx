@@ -25,6 +25,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Search, Filter, Users, Eye, Edit, Trash2 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface DispatcherUser {
   id: string;
@@ -51,6 +52,7 @@ const DispatcherPage = () => {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [editFormData, setEditFormData] = useState<Partial<DispatcherUser>>({});
   const { toast } = useToast();
+  const { userRole } = useAuth();
 
   // Helper function to get image URL from Supabase Storage
   const getImageUrl = (
@@ -219,6 +221,15 @@ const DispatcherPage = () => {
 
   const handleConfirmDelete = async () => {
     if (!selectedUser) return;
+
+    if (userRole !== "Super Admin") {
+      toast({
+        variant: "destructive",
+        title: "Access Denied",
+        description: "Only Super Admin can delete dispatchers",
+      });
+      return;
+    }
 
     try {
       const { error } = await supabase
@@ -441,14 +452,16 @@ const DispatcherPage = () => {
                           >
                             <Edit className="h-4 w-4 text-green-600" />
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDelete(user)}
-                            className="h-8 w-8 p-0 hover:bg-red-100"
-                          >
-                            <Trash2 className="h-4 w-4 text-red-600" />
-                          </Button>
+                          {userRole === "Super Admin" && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDelete(user)}
+                              className="h-8 w-8 p-0 hover:bg-red-100"
+                            >
+                              <Trash2 className="h-4 w-4 text-red-600" />
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
