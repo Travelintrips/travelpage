@@ -194,7 +194,7 @@ const PriceKMManagement = () => {
           supabase
             .from("price_km")
             .update({
-              price_per_km: vehicleType.price_per_km, // ✅ sudah sama nama kolomnya
+              price_per_km: vehicleType.price_km, // ✅ kolom sesuai DB
               basic_price: vehicleType.basic_price,
               surcharge: vehicleType.surcharge,
             })
