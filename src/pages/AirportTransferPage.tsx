@@ -146,6 +146,13 @@ function AirportTransferPageContent() {
   const totalSteps = 4;
   const progressPercentage = (currentStep / totalSteps) * 100;
 
+  // Generate booking code once and reuse it
+  const [bookingCode] = useState(() => {
+    const timestamp = Date.now();
+    const random = Math.floor(100000 + Math.random() * 900000);
+    return `AT-${timestamp}-${random}`;
+  });
+
   // Form data
   const [formData, setFormData] = useState<BookingFormData>({
     fromLocation: [-6.2, 106.8], // Jakarta default
@@ -162,7 +169,7 @@ function AirportTransferPageContent() {
     price: 0,
     distance: 0,
     duration: 0,
-    codeBooking: generateCodeBooking(),
+    codeBooking: bookingCode,
     driverId: null,
     driverName: "",
     driverPhone: "",
@@ -1508,11 +1515,6 @@ function AirportTransferPageContent() {
     }
   };
 
-  // Generate a unique booking code
-  function generateCodeBooking() {
-    return `AT-${Math.floor(100000 + Math.random() * 900000)}`;
-  }
-
   // Calculate price based on distance and vehicle data from database
   function calculatePrice(
     distanceKm: number,
@@ -2277,7 +2279,19 @@ function AirportTransferPageContent() {
     }
 
     if (currentStep === 3) {
-      await handleSubmitBooking();
+      // Step 3 should not create bookings anymore - redirect to cart
+      console.log("[AirportTransfer] Step 3 completed, redirecting to cart");
+
+      // Ensure we don't accidentally call handleSubmitBooking
+      // Just redirect to cart directly
+      navigate("/cart");
+      return;
+    }
+
+    // Block any other steps that might try to create bookings
+    if (currentStep > 3) {
+      console.warn("[AirportTransfer] Invalid step, redirecting to cart");
+      navigate("/cart");
       return;
     }
   };
@@ -2343,7 +2357,7 @@ function AirportTransferPageContent() {
     formData.pickupTime = now.toTimeString().slice(0, 5); // HH:MM
   }
 
-  // Handle direct booking without driver selection
+  // Handle direct booking without driver selection - ONLY ADD TO CART, NO DATABASE INSERT
   const handleDirectBooking = async () => {
     // Ensure session is ready before proceeding
     if (!isSessionReady || !userId || !userEmail) {
@@ -2362,7 +2376,7 @@ function AirportTransferPageContent() {
 
       // If price is not set or pricing data is missing, calculate it
       if (finalPrice <= 0 || finalPriceKm <= 0 || finalBasicPrice <= 0) {
-        console.log(`🔄 Recalculating price for direct booking`);
+        console.log(`🔄 Recalculating price for cart item`);
 
         // Use selected vehicle driver pricing if available
         if (
@@ -2373,7 +2387,7 @@ function AirportTransferPageContent() {
           finalPriceKm = Number(selectedVehicleDriver.price_km);
           finalBasicPrice = Number(selectedVehicleDriver.basic_price);
           finalSurcharge = Number(selectedVehicleDriver.surcharge) || 0;
-          console.log(`✅ Using selected vehicle driver pricing for booking`);
+          console.log(`✅ Using selected vehicle driver pricing for cart`);
         } else {
           // Fallback to vehicle type pricing
           const vehiclePricing = getPricingFromVehicleTypes(
@@ -2382,7 +2396,7 @@ function AirportTransferPageContent() {
           finalPriceKm = vehiclePricing.priceKm;
           finalBasicPrice = vehiclePricing.basicPrice;
           finalSurcharge = vehiclePricing.surcharge;
-          console.log(`✅ Using vehicle type pricing for booking`);
+          console.log(`✅ Using vehicle type pricing for cart`);
         }
 
         finalPrice = calculatePrice(
@@ -2392,7 +2406,7 @@ function AirportTransferPageContent() {
           finalSurcharge,
         );
 
-        console.log(`💰 Direct booking price calculation:`, {
+        console.log(`💰 Cart item price calculation:`, {
           distance: formData.distance,
           priceKm: finalPriceKm,
           basicPrice: finalBasicPrice,
@@ -2412,94 +2426,76 @@ function AirportTransferPageContent() {
         surcharge: finalSurcharge,
       }));
 
-      // Create booking data for Supabase
-      const bookingData = {
-        id: uuidv4(), // Generate UUID for the id field
-        code_booking: formData.codeBooking,
-        customer_name: formData.fullName || "Guest Customer",
-        phone: formData.phoneNumber || "",
-        pickup_location: formData.fromAddress,
-        dropoff_location: formData.toAddress,
-        pickup_date: formData.pickupDate,
-        pickup_time: formData.pickupTime,
-        type: formData.vehicleType,
-        price: finalPrice,
-        passenger: formData.passenger,
-        driver_id: selectedVehicleDriver?.uuid || null, // ✅ UUID dari drivers.id
-        id_driver: selectedVehicleDriver?.id_driver || null, // ✅ integer dari drivers.id_driver
-        driver_name: selectedVehicleDriver?.driver_name || "",
-        payment_method: "pending",
-        distance: formData.distance.toString(),
-        duration: formData.duration.toString(),
-        license_plate: selectedVehicleDriver?.license_plate || "N/A",
-        model: selectedVehicleDriver?.model || "N/A",
-        make: selectedVehicleDriver?.make || "N/A",
-        vehicle_name: formData.vehicleType,
-        status: "pending",
-        customer_id: userId,
-        from_location: formData.fromLocation,
-        to_location: formData.toLocation,
-      };
+      console.log("[AirportTransfer] Adding to cart - NO DATABASE INSERT YET");
 
-      // Insert booking to Supabase
-      const { data, error } = await supabase
-        .from("airport_transfer")
-        .insert([bookingData])
-        .select()
-        .single();
-
-      if (error) {
-        console.error("Error creating booking:", error);
-        throw error;
-      }
-
-      console.log("Booking created successfully:", data);
-
-      // Add to shopping cart
+      // CRITICAL: Only add to cart, do NOT create database record yet
+      // The actual airport_transfer record will be created after successful payment
       await addToCart({
         item_type: "airport_transfer",
         service_name: `Airport Transfer - ${formData.vehicleType}`,
         price: finalPrice,
         quantity: 1,
+        // Populate the code_booking field with the booking code
+        // booking_id will be auto-generated as UUID in the shopping cart hook
+        code_booking: formData.codeBooking,
+        // Store all booking data in details for later use during payment processing
         details: {
-          bookingId: data.id,
+          // Booking identification
           codeBooking: formData.codeBooking,
+
+          // Customer information
+          customerName: formData.fullName || "Guest Customer",
+          customerPhone: formData.phoneNumber || "",
+          customerId: userId,
+
+          // Trip details
           vehicleType: formData.vehicleType,
           fromAddress: formData.fromAddress,
           toAddress: formData.toAddress,
+          fromLocation: formData.fromLocation,
+          toLocation: formData.toLocation,
           pickupDate: formData.pickupDate,
           pickupTime: formData.pickupTime,
           distance: formData.distance.toString(),
           duration: formData.duration.toString(),
           passenger: formData.passenger,
           bookingType: bookingType,
-          // ✅ Correct driver information from drivers table
-          driverId: selectedVehicleDriver?.uuid || null, // ✅ UUID dari drivers.id
-          id_driver: selectedVehicleDriver?.id_driver || null, // ✅ integer dari drivers.id_driver
+
+          // Driver information (if selected)
+          driverId: selectedVehicleDriver?.uuid || null,
+          id_driver: selectedVehicleDriver?.id_driver || null,
           driverName: selectedVehicleDriver?.driver_name || "",
           driverPhone: selectedVehicleDriver?.driver_phone || "",
+
+          // Vehicle information
           vehicleName: selectedVehicleDriver
             ? `${selectedVehicleDriver.make} ${selectedVehicleDriver.model}`
             : "",
           vehicleModel: selectedVehicleDriver?.model || "",
           vehiclePlate: selectedVehicleDriver?.license_plate || "",
           vehicleMake: selectedVehicleDriver?.make || "",
+
+          // Pricing details
+          finalPrice: finalPrice,
+          vehiclePricePerKm: finalPriceKm,
+          basicPrice: finalBasicPrice,
+          surcharge: finalSurcharge,
         },
       });
 
       toast({
-        title: "Booking Added to Cart",
+        title: "Added to Cart",
         description:
-          "Your airport transfer booking has been added to the cart.",
+          "Your airport transfer has been added to the cart. Complete checkout to confirm your booking.",
       });
 
-      // Redirect to cart or success page
+      // Redirect to cart
       navigate("/cart");
     } catch (error) {
-      console.error("Error creating direct booking:", error);
+      console.error("Error adding to cart:", error);
       toast({
-        title: "Booking Failed",
-        description: "Could not create your booking. Please try again.",
+        title: "Failed to Add to Cart",
+        description: "Could not add your booking to cart. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -2507,124 +2503,23 @@ function AirportTransferPageContent() {
     }
   };
 
-  // Submit booking to database
+  // Submit booking to database - DEPRECATED: This function should not be used anymore
+  // All bookings should go through handleDirectBooking to prevent duplicates
   const handleSubmitBooking = async () => {
-    setIsLoadingBooking(true);
-    try {
-      const bookingData = {
-        id: uuidv4(), // Generate UUID for the id field
-        code_booking: formData.codeBooking,
-        customer_name: formData.fullName,
-        phone: formData.phoneNumber,
-        pickup_location: formData.fromAddress,
-        dropoff_location: formData.toAddress,
-        pickup_date: formData.pickupDate,
-        pickup_time: formData.pickupTime,
-        type: formData.vehicleType,
-        price: formData.price,
-        passenger: formData.passenger,
-        driver_id: formData.driverId, // ✅ UUID, foreign key ke drivers.id
-        id_driver: null, // ✅ Integer, ke kolom id_driver
-        driver_name: formData.driverName,
-        payment_method: formData.paymentMethod,
-        distance: formData.distance.toString(),
-        duration: formData.duration.toString(),
-        license_plate: formData.vehiclePlate || "N/A",
-        model: formData.vehicleModel || "N/A",
-        make: formData.vehicleMake || "N/A",
-        vehicle_name: formData.vehicleName || "N/A",
-        status: "pending",
-        customer_id: userId,
-        fromLocation: formData.fromLocation,
-        toLocation: formData.toLocation,
-        //is_guest: !isAuthenticated || !userId, // Set is_guest flag based on auth status
-      };
+    console.warn(
+      "[AirportTransfer] handleSubmitBooking is deprecated and blocked to prevent duplicates.",
+    );
 
-      const { data, error } = await supabase
-        .from("airport_transfer")
-        .insert([bookingData]);
+    // Block this function completely to prevent duplicate bookings
+    toast({
+      title: "Booking Error",
+      description: "Please use the cart system to complete your booking.",
+      variant: "destructive",
+    });
 
-      if (error) {
-        throw error;
-      }
-
-      // Move to success step
-      setCurrentStep(4);
-
-      // Send WhatsApp message to customer
-      const customerMessage = `🚗 Airport Transfer Booking Confirmed!
-
-Booking Code: ${formData.bookingCode}
-Driver: ${formData.driverName}
-Vehicle: ${formData.vehicleName} (${formData.vehiclePlate})
-Pickup: ${formData.fromAddress}
-Dropoff: ${formData.toAddress}
-Date & Time: ${bookingType === "instant" ? "Now" : `${new Date(formData.pickupDate).toLocaleDateString()} at ${formData.pickupTime}`}
-Total Price: Rp ${formData.price.toLocaleString()}
-
-Thank you for choosing our service!`;
-
-      try {
-        await sendWhatsAppMessage(formData.phoneNumber, customerMessage);
-        console.log("WhatsApp message sent to customer successfully");
-      } catch (whatsappError) {
-        console.error(
-          "Failed to send WhatsApp message to customer:",
-          whatsappError,
-        );
-        // Don't show error to user since the booking was already saved
-      }
-
-      // Send WhatsApp message to driver if driver phone is available
-      if (formData.driverPhone) {
-        const driverMessage = `🚗 New Airport Transfer Booking!
-
-Booking Code: ${formData.bookingCode}
-Customer: ${formData.fullName}
-Phone: ${formData.phoneNumber}
-Pickup: ${formData.fromAddress}
-Dropoff: ${formData.toAddress}
-Date & Time: ${bookingType === "instant" ? "Now" : `${new Date(formData.pickupDate).toLocaleDateString()} at ${formData.pickupTime}`}
-Passengers: ${formData.passenger}
-Payment: ${formData.paymentMethod}
-
-Please prepare for the trip!`;
-
-        try {
-          await sendWhatsAppMessage(formData.driverPhone, driverMessage);
-          console.log("WhatsApp message sent to driver successfully");
-        } catch (whatsappError) {
-          console.error(
-            "Failed to send WhatsApp message to driver:",
-            whatsappError,
-          );
-          // Don't show error to user since the booking was already saved
-        }
-      }
-
-      // Send notification (simulated)
-      console.log("Sending booking notification to customer and driver");
-
-      // Import the createBooking function to send data to external API
-      import("../lib/bookingApi").then(async ({ createBooking }) => {
-        try {
-          const result = await createBooking(bookingData as any);
-          console.log("External API booking result:", result);
-        } catch (apiError) {
-          console.error("Failed to send booking to external API:", apiError);
-          // Don't show error to user since the booking was already saved in our database
-        }
-      });
-    } catch (error) {
-      console.error("Error submitting booking:", error);
-      toast({
-        title: "Booking Failed",
-        description: "Could not complete your booking. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoadingBooking(false);
-    }
+    // Redirect to cart instead of creating another booking
+    navigate("/cart");
+    return;
   };
 
   useEffect(() => {
@@ -3998,7 +3893,7 @@ Please prepare for the trip!`;
                 ) : (
                   <>
                     <span className="hidden sm:inline">
-                      {currentStep === 2 ? "Confirm & Add to Cart" : "Next"}
+                      {currentStep === 2 ? "Add to Cart" : "Next"}
                     </span>
                     <span className="sm:hidden">
                       {currentStep === 2 ? "Add to Cart" : "Next"}

@@ -161,12 +161,13 @@ const ThankYouPage: React.FC = () => {
                   await supabase
                     .from("airport_transfer")
                     .select("*")
-                    .eq("id", parseInt(booking_id))
+                    .eq("id", booking_id)
                     .single();
 
                 if (!transferError && transferBooking) {
                   allBookings.push({
-                    booking_id: transferBooking.id.toString(),
+                    booking_id:
+                      transferBooking.code_booking || transferBooking.id,
                     customer_name: transferBooking.customer_name || "Guest",
                     customer_email: "",
                     customer_phone: transferBooking.phone || "",
@@ -336,7 +337,7 @@ const ThankYouPage: React.FC = () => {
                 new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
               )
               .order("created_at", { ascending: false })
-              .limit(5);
+              .limit(1); // Only get the most recent one to avoid duplicates
 
           console.log(
             "Airport transfers by amount found:",
@@ -350,7 +351,7 @@ const ThankYouPage: React.FC = () => {
           ) {
             allBookings.push(
               ...airportTransfersByAmount.map((transfer) => ({
-                booking_id: transfer.id.toString(),
+                booking_id: transfer.code_booking || transfer.id.toString(),
                 customer_name: transfer.customer_name || "Guest",
                 customer_email: "",
                 customer_phone: transfer.phone || "",
@@ -471,7 +472,7 @@ const ThankYouPage: React.FC = () => {
                   new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
                 )
                 .order("created_at", { ascending: false })
-                .limit(3);
+                .limit(1); // Only get the most recent one to avoid duplicates
 
             if (
               !airportAmountError &&
@@ -484,7 +485,7 @@ const ThankYouPage: React.FC = () => {
               );
               allBookings.push(
                 ...airportByAmount.map((transfer) => ({
-                  booking_id: transfer.id.toString(),
+                  booking_id: transfer.code_booking || transfer.id.toString(),
                   customer_name: transfer.customer_name || "Guest",
                   customer_email: "",
                   customer_phone: transfer.phone || "",
@@ -507,8 +508,27 @@ const ThankYouPage: React.FC = () => {
           }
         }
 
-        console.log("Final combined bookings:", allBookings);
-        setBookings(allBookings);
+        // Remove duplicates based on booking_id and booking_type
+        const uniqueBookings = allBookings.filter((booking, index, self) => {
+          return (
+            index ===
+            self.findIndex(
+              (b) =>
+                b.booking_id === booking.booking_id &&
+                b.booking_type === booking.booking_type,
+            )
+          );
+        });
+
+        console.log(
+          "Final combined bookings (before deduplication):",
+          allBookings,
+        );
+        console.log(
+          "Final unique bookings (after deduplication):",
+          uniqueBookings,
+        );
+        setBookings(uniqueBookings);
       } catch (error) {
         console.error("Error fetching data:", error);
         setError("Failed to load order details");

@@ -80,9 +80,21 @@ export function ShoppingCartProvider({
     if (!userId) return { success: false, error: "User not authenticated" };
 
     try {
+      console.log("[ShoppingCart] Adding item to cart:", {
+        item_type: item.item_type,
+        code_booking: item.code_booking,
+        booking_id: item.booking_id,
+        service_name: item.service_name,
+      });
+
+      // Generate a UUID for booking_id - this should always be a UUID
+      const bookingId = crypto.randomUUID();
+
       const { error } = await supabase.from("shopping_cart").insert({
         user_id: userId,
         ...item,
+        booking_id: bookingId, // UUID field - always generate new UUID
+        code_booking: item.code_booking, // Text field - use the provided booking code
         status: "pending",
       });
 
@@ -91,6 +103,7 @@ export function ShoppingCartProvider({
         return { success: false, error: error.message };
       }
 
+      console.log("[ShoppingCart] Item added successfully to cart");
       await loadCartItems();
       return { success: true };
     } catch (error) {

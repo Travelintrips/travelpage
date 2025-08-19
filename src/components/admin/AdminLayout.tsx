@@ -150,76 +150,80 @@ const AdminLayout = () => {
                   </Link>
                 )}
 
-                {/* Agent Management Menu */}
-                <div>
-                  <button
-                    onClick={() => setAgentManagementOpen(!agentManagementOpen)}
-                    className={`w-full flex items-center p-3 rounded-lg hover:bg-white/20 transition-colors duration-200 ${
-                      location.pathname.includes("/admin/data-agent") ||
-                      location.pathname.includes("/admin/booking-agent") ||
-                      location.pathname.includes("/admin/top-up-agent") ||
-                      location.pathname.includes("/admin/history-top-up") ||
-                      location.pathname.includes("/admin/top-up-requests")
-                        ? "bg-white/20 font-medium text-white"
-                        : "text-white/80"
-                    } ${!sidebarOpen && "justify-center"}`}
-                  >
-                    <UserCog className="h-5 w-5 text-white" />
-                    {sidebarOpen && (
-                      <>
-                        <span className="ml-3 flex-1 text-left">
-                          Agent Management
-                        </span>
-                        {agentManagementOpen ? (
-                          <ChevronDown className="h-4 w-4 text-white" />
-                        ) : (
-                          <ChevronRight className="h-4 w-4 text-white" />
-                        )}
-                      </>
-                    )}
-                  </button>
+                {/* Agent Management Menu - Hide for Staff Traffic */}
+                {userRole !== "Staff Traffic" && (
+                  <div>
+                    <button
+                      onClick={() =>
+                        setAgentManagementOpen(!agentManagementOpen)
+                      }
+                      className={`w-full flex items-center p-3 rounded-lg hover:bg-white/20 transition-colors duration-200 ${
+                        location.pathname.includes("/admin/data-agent") ||
+                        location.pathname.includes("/admin/booking-agent") ||
+                        location.pathname.includes("/admin/top-up-agent") ||
+                        location.pathname.includes("/admin/history-top-up") ||
+                        location.pathname.includes("/admin/top-up-requests")
+                          ? "bg-white/20 font-medium text-white"
+                          : "text-white/80"
+                      } ${!sidebarOpen && "justify-center"}`}
+                    >
+                      <UserCog className="h-5 w-5 text-white" />
+                      {sidebarOpen && (
+                        <>
+                          <span className="ml-3 flex-1 text-left">
+                            Agent Management
+                          </span>
+                          {agentManagementOpen ? (
+                            <ChevronDown className="h-4 w-4 text-white" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4 text-white" />
+                          )}
+                        </>
+                      )}
+                    </button>
 
-                  {/* Sub-menu items */}
-                  {sidebarOpen && agentManagementOpen && (
-                    <div className="ml-6 mt-2 space-y-1">
-                      <Link
-                        to="/admin/data-agent"
-                        className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/data-agent") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
-                      >
-                        <User className="h-4 w-4 text-white" />
-                        <span className="ml-3">Data Agent</span>
-                      </Link>
-                      <Link
-                        to="/admin/booking-agent"
-                        className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/booking-agent") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
-                      >
-                        <CalendarDays className="h-4 w-4 text-white" />
-                        <span className="ml-3">Booking Agent</span>
-                      </Link>
-                      <Link
-                        to="/admin/top-up-agent"
-                        className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/top-up-agent") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
-                      >
-                        <Wallet className="h-4 w-4 text-white" />
-                        <span className="ml-3">Top Up Agent</span>
-                      </Link>
-                      <Link
-                        to="/admin/history-top-up"
-                        className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/history-top-up") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
-                      >
-                        <Activity className="h-4 w-4 text-white" />
-                        <span className="ml-3">History Top Up</span>
-                      </Link>
-                      <Link
-                        to="/admin/top-up-requests"
-                        className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/top-up-requests") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
-                      >
-                        <CheckSquare className="h-4 w-4 text-white" />
-                        <span className="ml-3">Top Up Requests</span>
-                      </Link>
-                    </div>
-                  )}
-                </div>
+                    {/* Sub-menu items */}
+                    {sidebarOpen && agentManagementOpen && (
+                      <div className="ml-6 mt-2 space-y-1">
+                        <Link
+                          to="/admin/data-agent"
+                          className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/data-agent") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
+                        >
+                          <User className="h-4 w-4 text-white" />
+                          <span className="ml-3">Data Agent</span>
+                        </Link>
+                        <Link
+                          to="/admin/booking-agent"
+                          className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/booking-agent") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
+                        >
+                          <CalendarDays className="h-4 w-4 text-white" />
+                          <span className="ml-3">Booking Agent</span>
+                        </Link>
+                        <Link
+                          to="/admin/top-up-agent"
+                          className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/top-up-agent") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
+                        >
+                          <Wallet className="h-4 w-4 text-white" />
+                          <span className="ml-3">Top Up Agent</span>
+                        </Link>
+                        <Link
+                          to="/admin/history-top-up"
+                          className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/history-top-up") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
+                        >
+                          <Activity className="h-4 w-4 text-white" />
+                          <span className="ml-3">History Top Up</span>
+                        </Link>
+                        <Link
+                          to="/admin/top-up-requests"
+                          className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/top-up-requests") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
+                        >
+                          <CheckSquare className="h-4 w-4 text-white" />
+                          <span className="ml-3">Top Up Requests</span>
+                        </Link>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* 4. Bookings Menu - Show for Staff Traffic */}
                 <div>

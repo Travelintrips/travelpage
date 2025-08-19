@@ -29,6 +29,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Switch } from "@/components/ui/switch";
 import {
   Dialog,
   DialogContent,
@@ -81,6 +82,11 @@ const AgentManagement = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [statusToggleLoading, setStatusToggleLoading] = useState<string | null>(
+    null,
+  );
+  const [suspendDialogOpen, setSuspendDialogOpen] = useState(false);
+  const [agentToSuspend, setAgentToSuspend] = useState<Agent | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingAgent, setEditingAgent] = useState<Agent | null>(null);
   const [editForm, setEditForm] = useState({
@@ -415,6 +421,79 @@ const AgentManagement = () => {
     }
   };
 
+  const handleStatusToggle = async (agent: Agent) => {
+    if (!isAdmin && userRole !== "Admin") {
+      toast({
+        title: "Access Denied",
+        description: "Only Admin can perform this action.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const newStatus = agent.status === "active" ? "inactive" : "active";
+
+    // If suspending (changing to inactive), show confirmation dialog
+    if (newStatus === "inactive") {
+      setAgentToSuspend(agent);
+      setSuspendDialogOpen(true);
+      return;
+    }
+
+    // If activating, proceed directly
+    await updateAgentStatus(agent, newStatus);
+  };
+
+  const updateAgentStatus = async (agent: Agent, newStatus: string) => {
+    setStatusToggleLoading(agent.id);
+
+    // Optimistic update
+    setAgents((prevAgents) =>
+      prevAgents.map((a) =>
+        a.id === agent.id ? { ...a, status: newStatus } : a,
+      ),
+    );
+
+    try {
+      const { error } = await supabase
+        .from("users")
+        .update({ status: newStatus })
+        .eq("id", agent.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: `Agent has been ${newStatus === "active" ? "activated" : "suspended"} successfully.`,
+      });
+    } catch (error) {
+      console.error("Error updating agent status:", error);
+
+      // Revert optimistic update on error
+      setAgents((prevAgents) =>
+        prevAgents.map((a) =>
+          a.id === agent.id ? { ...a, status: agent.status } : a,
+        ),
+      );
+
+      toast({
+        title: "Error",
+        description: "Failed to update agent status. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setStatusToggleLoading(null);
+    }
+  };
+
+  const handleConfirmSuspend = async () => {
+    if (agentToSuspend) {
+      await updateAgentStatus(agentToSuspend, "inactive");
+      setSuspendDialogOpen(false);
+      setAgentToSuspend(null);
+    }
+  };
+
   const handleDeleteAgent = async (agentId: string, agentEmail: string) => {
     if (!isSuperAdmin) {
       toast({
@@ -595,9 +674,38 @@ const AgentManagement = () => {
                       <Badge variant="outline">{agent.role}</Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge variant={getStatusBadgeVariant(agent.status)}>
-                        {agent.status === "active" ? "ACTIVE" : "INACTIVE"}
-                      </Badge>
+                      {isAdmin || userRole === "Admin" ? (
+                        <div className="flex items-center space-x-2">
+                          <Switch
+                            checked={agent.status === "active"}
+                            onCheckedChange={() => handleStatusToggle(agent)}
+                            disabled={statusToggleLoading === agent.id}
+                            className="data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-red-500"
+                          />
+                          <span
+                            className={`text-sm font-medium ${
+                              agent.status === "active"
+                                ? "text-green-600"
+                                : "text-red-600"
+                            }`}
+                          >
+                            {statusToggleLoading === agent.id ? (
+                              <div className="flex items-center">
+                                <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                                Updating...
+                              </div>
+                            ) : agent.status === "active" ? (
+                              "ACTIVE"
+                            ) : (
+                              "SUSPENDED"
+                            )}
+                          </span>
+                        </div>
+                      ) : (
+                        <Badge variant={getStatusBadgeVariant(agent.status)}>
+                          {agent.status === "active" ? "ACTIVE" : "SUSPENDED"}
+                        </Badge>
+                      )}
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center">
@@ -810,6 +918,36 @@ const AgentManagement = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Suspend Confirmation Dialog */}
+      <AlertDialog open={suspendDialogOpen} onOpenChange={setSuspendDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Suspend Agent</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to suspend agent "
+              {agentToSuspend?.full_name}"? This will prevent them from
+              accessing the system until they are reactivated.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => {
+                setSuspendDialogOpen(false);
+                setAgentToSuspend(null);
+              }}
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmSuspend}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Suspend
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

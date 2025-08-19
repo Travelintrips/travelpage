@@ -241,6 +241,7 @@ const UserDashboard = () => {
   const [activeBookings, setActiveBookings] = useState<any[]>([]);
   const [bookingHistory, setBookingHistory] = useState<any[]>([]);
   const [baggageBookings, setBaggageBookings] = useState<any[]>([]);
+  const [handlingBookings, setHandlingBookings] = useState<any[]>([]);
   const [isLoadingBookings, setIsLoadingBookings] = useState<boolean>(false);
 
   // Fetch real booking data from Supabase
@@ -287,7 +288,7 @@ const UserDashboard = () => {
         status,
         payment_method,
         driver_name,
-        booking_code,
+        code_booking,
         customer_id,
         vehicle_name,
         type,
@@ -347,10 +348,58 @@ const UserDashboard = () => {
           );
         }
 
-        if (bookingsData || airportTransferData || baggageBookingData) {
+        // Fetch handling booking data for this user with payment information
+        const { data: handlingBookingsData, error: handlingBookingsError } =
+          await supabase
+            .from("handling_bookings")
+            .select(
+              `
+        id,
+        travel_type,
+        code_booking,
+        customer_name,
+        customer_phone,
+        customer_email,
+        flight_number,
+        price,
+        status,
+        payment_method,
+        pickup_date,
+        pickup_time,
+        created_at,
+        updated_at,
+        passenger_area,
+        pickup_area
+        
+      `,
+            )
+            .eq("customer_id", userId)
+            .order("created_at", { ascending: false });
+
+        if (handlingBookingsError) {
+          console.error(
+            "Error fetching handling bookings:",
+            handlingBookingsError,
+          );
+        }
+
+        if (handlingBookingsError) {
+          console.error(
+            "Error fetching handling bookings:",
+            handlingBookingsError,
+          );
+        }
+
+        if (
+          bookingsData ||
+          airportTransferData ||
+          baggageBookingData ||
+          handlingBookingsData
+        ) {
           console.log("Fetched bookings:", bookingsData);
           console.log("Fetched airport transfers:", airportTransferData);
           console.log("Fetched baggage bookings:", baggageBookingData);
+          console.log("Fetched handling bookings:", handlingBookingsData);
 
           // Transform the bookings data to match our component's expected format
           const formattedBookings = (bookingsData || []).map((booking) => {

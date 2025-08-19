@@ -228,6 +228,9 @@ export async function processPayment(paymentData: PaymentRequest) {
         }
       }
 
+      // After successful payment creation, check if we need to create airport transfer bookings
+      await createAirportTransferBookingsFromCart(paymentRecord.id);
+
       return {
         success: true,
         data: {
@@ -239,6 +242,95 @@ export async function processPayment(paymentData: PaymentRequest) {
   } catch (error) {
     console.error("Payment processing error:", error);
     return { success: false, error };
+  }
+}
+
+// Function to create airport transfer bookings from cart items after successful payment
+async function createAirportTransferBookingsFromCart(paymentId: string) {
+  try {
+    console.log(
+      "[Payment Service] Checking for airport transfer items in cart for payment:",
+      paymentId,
+    );
+
+    // Get the payment details to find the user
+    const { data: paymentData, error: paymentError } = await supabase
+      .from("payments")
+      .select("user_id")
+      .eq("id", paymentId)
+      .single();
+
+    if (paymentError || !paymentData) {
+      console.error("[Payment Service] Could not find payment:", paymentError);
+      return;
+    }
+
+    // Get cart items for this user that are airport transfers
+    const { data: cartItems, error: cartError } = await supabase
+      .from("shopping_cart")
+      .select("*")
+      .eq("user_id", paymentData.user_id)
+      .eq("item_type", "airport_transfer");
+
+    if (cartError) {
+      console.error("[Payment Service] Error fetching cart items:", cartError);
+      return;
+    }
+
+    if (!cartItems || cartItems.length === 0) {
+      console.log("[Payment Service] No airport transfer items found in cart");
+      return;
+    }
+
+    console.log(
+      `[Payment Service] Found ${cartItems.length} airport transfer items in cart`,
+    );
+
+    // Process each airport transfer item
+    for (const cartItem of cartItems) {
+      try {
+        let details = cartItem.details;
+
+        // Parse details if it's a string
+        if (typeof details === "string") {
+          details = JSON.parse(details);
+        }
+
+        // Call the edge function to create the airport transfer booking
+        const { data: bookingResult, error: bookingError } =
+          await supabase.functions.invoke(
+            "supabase-functions-create-airport-transfer-booking",
+            {
+              body: {
+                paymentId: paymentId,
+                cartItemDetails: details,
+              },
+            },
+          );
+
+        if (bookingError) {
+          console.error(
+            "[Payment Service] Error creating airport transfer booking:",
+            bookingError,
+          );
+        } else {
+          console.log(
+            "[Payment Service] Airport transfer booking created successfully:",
+            bookingResult,
+          );
+        }
+      } catch (itemError) {
+        console.error(
+          "[Payment Service] Error processing cart item:",
+          itemError,
+        );
+      }
+    }
+  } catch (error) {
+    console.error(
+      "[Payment Service] Error in createAirportTransferBookingsFromCart:",
+      error,
+    );
   }
 }
 
