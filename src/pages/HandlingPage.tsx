@@ -254,11 +254,6 @@ const HandlingPage = () => {
         travelTypes: newTravelTypes,
       };
     });
-
-    // Fetch prices when category changes
-    if (field === "category") {
-      fetchPrices(value as string);
-    }
   };
 
   const menuOptions = [
@@ -378,50 +373,88 @@ const HandlingPage = () => {
   const fetchPrices = async (category: string) => {
     try {
       if (category) {
-        // Map category to match database values
-        let dbCategory;
-        let dbTerminal;
+        // For International - Individual and Domestik - Individual, fetch from database
+        if (
+          category === "International - Individual" ||
+          category === "Domestik - Individual"
+        ) {
+          // Fetch prices for IDs 1, 29, 32 from airport_handling_services table
+          const { data: servicesData, error: servicesError } = await supabase
+            .from("airport_handling_services")
+            .select("id, trip_type, basic_price, sell_price, additional")
+            .in("id", [1, 29, 32]);
 
-        switch (category) {
-          case "International - Individual":
-            dbCategory = "Individual";
-            dbTerminal = "International";
-            break;
-          case "Domestik - Individual":
-            dbCategory = "Individual";
-            dbTerminal = "Domestik";
-            break;
-          case "Handling Group":
-            dbCategory = "Group";
-            dbTerminal = "International"; // Default to International for Group
-            break;
-          default:
-            dbCategory = null;
-            dbTerminal = null;
-        }
-
-        if (dbCategory && dbTerminal) {
-          // For International - Individual, calculate price based on selected travel types
-          if (category === "International - Individual") {
-            calculateInternationalIndividualPrice();
+          if (servicesError) {
+            console.error(
+              "Error fetching handling services prices:",
+              servicesError,
+            );
           } else {
+            console.log(
+              "Fetched prices from airport_handling_services table:",
+              servicesData,
+            );
+
+            // Store the fetched data for use in price calculations
+            if (servicesData && servicesData.length > 0) {
+              // Create a map of service data by ID for easy lookup
+              const serviceMap = servicesData.reduce(
+                (acc, service) => {
+                  acc[service.id] = service;
+                  return acc;
+                },
+                {} as Record<number, any>,
+              );
+
+              // Store in component state or calculate based on travel types
+              setServicePrice(0); // Will be calculated dynamically
+              setCategoryPrice(0);
+
+              // Log individual service prices
+              servicesData.forEach((service) => {
+                console.log(
+                  `Service ID ${service.id} (${service.trip_type}):`,
+                  {
+                    basic_price: service.basic_price,
+                    sell_price: service.sell_price,
+                    additional: service.additional,
+                  },
+                );
+              });
+            }
+          }
+        } else {
+          // For other categories, use existing logic
+          let dbCategory;
+          let dbTerminal;
+
+          switch (category) {
+            case "Handling Group":
+              dbCategory = "Group";
+              dbTerminal = "International"; // Default to International for Group
+              break;
+            default:
+              dbCategory = null;
+              dbTerminal = null;
+          }
+
+          if (dbCategory && dbTerminal) {
             // Fetch base price for other categories
             const { data: categoryData, error: categoryError } = await supabase
               .from("airport_handling_services")
               .select("id, trip_type, basic_price")
-              .in("id", [1, 29, 32]) // ✅ filter ID tertentu
+              .in("id", [1, 29, 32])
               .limit(1);
 
             if (categoryError) {
               console.error("Error fetching category price:", categoryError);
             } else {
-              // Handle array result - take first item if exists
               const firstResult =
                 categoryData && categoryData.length > 0
                   ? categoryData[0]
                   : null;
               setServicePrice(firstResult?.basic_price || 0);
-              setCategoryPrice(0); // No additional price for basic_price model
+              setCategoryPrice(0);
 
               console.log("Fetched prices from database:", {
                 category: dbCategory,
@@ -445,14 +478,14 @@ const HandlingPage = () => {
       let totalPrice = 0;
       const selectedTypes = formData.travelTypes;
 
-      // Fetch prices for selected travel types
+      // Fetch prices for selected travel types from airport_handling_services
       const pricePromises = [];
 
       if (selectedTypes.includes("Arrival")) {
         pricePromises.push(
           supabase
             .from("airport_handling_services")
-            .select("basic_price")
+            .select("id, basic_price, sell_price, additional, trip_type")
             .eq("id", 1)
             .single(),
         );
@@ -462,7 +495,7 @@ const HandlingPage = () => {
         pricePromises.push(
           supabase
             .from("airport_handling_services")
-            .select("basic_price")
+            .select("id, basic_price, sell_price, additional, trip_type")
             .eq("id", 29)
             .single(),
         );
@@ -472,7 +505,7 @@ const HandlingPage = () => {
         pricePromises.push(
           supabase
             .from("airport_handling_services")
-            .select("basic_price")
+            .select("id, basic_price, sell_price, additional, trip_type")
             .eq("id", 32)
             .single(),
         );
@@ -481,20 +514,41 @@ const HandlingPage = () => {
       // Wait for all price queries to complete
       const results = await Promise.all(pricePromises);
 
-      // Sum up all the basic_price values
+      // Sum up all the basic_price values and log detailed information
       results.forEach((result) => {
         if (result.data && !result.error) {
-          totalPrice += result.data.basic_price || 0;
+          const service = result.data;
+          totalPrice += service.basic_price || 0;
+
+          console.log(
+            `Service ID ${service.id} (${service.trip_type}) prices:`,
+            {
+              basic_price: service.basic_price,
+              sell_price: service.sell_price,
+              additional: service.additional,
+            },
+          );
         }
       });
 
       setServicePrice(totalPrice);
       setCategoryPrice(0);
 
-      console.log("Calculated International Individual price:", {
+      console.log("Calculated International Individual price from database:", {
         selectedTypes,
         totalPrice,
-        results: results.map((r) => ({ data: r.data, error: r.error })),
+        results: results.map((r) => ({
+          data: r.data
+            ? {
+                id: r.data.id,
+                trip_type: r.data.trip_type,
+                basic_price: r.data.basic_price,
+                sell_price: r.data.sell_price,
+                additional: r.data.additional,
+              }
+            : null,
+          error: r.error,
+        })),
       });
     } catch (error) {
       console.error("Error calculating International Individual price:", error);
@@ -533,8 +587,8 @@ const HandlingPage = () => {
     return 0;
   };
 
-  // Calculate price for Personal Handling (Individual) based on travel types
-  const calculatePersonalHandlingPrice = () => {
+  // Calculate price for Personal Handling (Individual) based on travel types - now uses database prices
+  const calculatePersonalHandlingPrice = async () => {
     if (
       (formData.category !== "International - Individual" &&
         formData.category !== "Domestik - Individual") ||
@@ -543,26 +597,76 @@ const HandlingPage = () => {
       return 0;
     }
 
-    const hasArrival = formData.travelTypes.includes("Arrival");
-    const hasDeparture = formData.travelTypes.includes("Departure");
-    const hasTransit = formData.travelTypes.includes("Transit");
+    try {
+      let totalPrice = 0;
+      const selectedTypes = formData.travelTypes;
+      const pricePromises = [];
 
-    // Transit = Rp80,000
-    if (hasTransit) {
-      return 80000;
+      // Fetch prices from database based on selected travel types
+      if (selectedTypes.includes("Arrival")) {
+        pricePromises.push(
+          supabase
+            .from("airport_handling_services")
+            .select("id, basic_price, sell_price, additional, trip_type")
+            .eq("id", 1)
+            .single(),
+        );
+      }
+
+      if (selectedTypes.includes("Departure")) {
+        pricePromises.push(
+          supabase
+            .from("airport_handling_services")
+            .select("id, basic_price, sell_price, additional, trip_type")
+            .eq("id", 29)
+            .single(),
+        );
+      }
+
+      if (selectedTypes.includes("Transit")) {
+        pricePromises.push(
+          supabase
+            .from("airport_handling_services")
+            .select("id, basic_price, sell_price, additional, trip_type")
+            .eq("id", 32)
+            .single(),
+        );
+      }
+
+      // Wait for all price queries to complete
+      const results = await Promise.all(pricePromises);
+
+      // Sum up all the basic_price values
+      results.forEach((result) => {
+        if (result.data && !result.error) {
+          const service = result.data;
+          totalPrice += service.basic_price || 0;
+
+          console.log(
+            `Personal Handling - Service ID ${service.id} (${service.trip_type}) prices:`,
+            {
+              basic_price: service.basic_price,
+              sell_price: service.sell_price,
+              additional: service.additional,
+            },
+          );
+        }
+      });
+
+      console.log("Personal Handling total price from database:", {
+        selectedTypes,
+        totalPrice,
+        category: formData.category,
+      });
+
+      return totalPrice;
+    } catch (error) {
+      console.error(
+        "Error calculating Personal Handling price from database:",
+        error,
+      );
+      return 0;
     }
-
-    // Arrival + Departure = Rp80,000
-    if (hasArrival && hasDeparture) {
-      return 80000;
-    }
-
-    // Single service (Arrival OR Departure) = Rp40,000
-    if (hasArrival || hasDeparture) {
-      return 40000;
-    }
-
-    return 0;
   };
 
   // Calculate Porter Service price
@@ -578,29 +682,33 @@ const HandlingPage = () => {
 
   // Calculate total price whenever service price, category price, or passengers change
   useEffect(() => {
-    if (formData.category === "Handling Group") {
-      // For Handling Group: use custom price calculation
-      const pricePerPassenger = calculateHandlingGroupPrice();
-      const totalGroupPrice = pricePerPassenger * formData.passengers;
-      setTotalPrice(totalGroupPrice);
-      setServicePrice(pricePerPassenger); // Set service price to price per passenger for display
-    } else if (
-      formData.category === "International - Individual" ||
-      formData.category === "Domestik - Individual"
-    ) {
-      // For Personal Handling: use custom price calculation
-      const personalPrice = calculatePersonalHandlingPrice();
-      setTotalPrice(personalPrice);
-      setServicePrice(personalPrice);
-    } else if (formData.category === "Porter Service") {
-      // For Porter Service: use custom price calculation
-      const porterPrice = calculatePorterServicePrice();
-      setTotalPrice(porterPrice);
-      setServicePrice(porterPrice);
-    } else {
-      // For other services: just the sell_price
-      setTotalPrice(servicePrice);
-    }
+    const updatePrices = async () => {
+      if (formData.category === "Handling Group") {
+        // For Handling Group: use custom price calculation
+        const pricePerPassenger = calculateHandlingGroupPrice();
+        const totalGroupPrice = pricePerPassenger * formData.passengers;
+        setTotalPrice(totalGroupPrice);
+        setServicePrice(pricePerPassenger); // Set service price to price per passenger for display
+      } else if (
+        formData.category === "International - Individual" ||
+        formData.category === "Domestik - Individual"
+      ) {
+        // For Personal Handling: use database price calculation
+        const personalPrice = await calculatePersonalHandlingPrice();
+        setTotalPrice(personalPrice);
+        setServicePrice(personalPrice);
+      } else if (formData.category === "Porter Service") {
+        // For Porter Service: use custom price calculation
+        const porterPrice = calculatePorterServicePrice();
+        setTotalPrice(porterPrice);
+        setServicePrice(porterPrice);
+      } else {
+        // For other services: just the sell_price
+        setTotalPrice(servicePrice);
+      }
+    };
+
+    updatePrices();
   }, [
     servicePrice,
     categoryPrice,
@@ -1625,10 +1733,7 @@ const HandlingPage = () => {
                       <div className="border-t border-green-200 pt-2 mt-2">
                         <div className="flex justify-between font-semibold text-green-800">
                           <span>Total Harga:</span>
-                          <span>
-                            Rp{" "}
-                            {calculatePersonalHandlingPrice().toLocaleString()}
-                          </span>
+                          <span>Rp {totalPrice.toLocaleString()}</span>
                         </div>
                       </div>
                       <div className="mt-2 text-xs text-green-600">

@@ -89,6 +89,12 @@ interface UserInfo {
   role?: string;
 }
 
+interface Agent {
+  id: string;
+  full_name: string;
+  email?: string;
+}
+
 const BookingAgentManagement = () => {
   const { userName, userRole } = useAuth();
   const [handlingBookings, setHandlingBookings] = useState<HandlingBooking[]>(
@@ -96,15 +102,19 @@ const BookingAgentManagement = () => {
   );
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [agentFilter, setAgentFilter] = useState("all");
   const [paymentMethodFilter, setPaymentMethodFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedBooking, setSelectedBooking] =
     useState<HandlingBooking | null>(null);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [userCache, setUserCache] = useState<Record<string, UserInfo>>({});
+  const [agents, setAgents] = useState<Agent[]>([]);
+  const [agentsLoading, setAgentsLoading] = useState(false);
 
   useEffect(() => {
     fetchHandlingBookings();
+    fetchAgents();
   }, []);
 
   const fetchHandlingBookings = async () => {
@@ -194,6 +204,38 @@ const BookingAgentManagement = () => {
     }
   };
 
+  const fetchAgents = async () => {
+    try {
+      setAgentsLoading(true);
+      console.log("Fetching agents from users table...");
+
+      // Fetch users with Agent role
+      const { data, error } = await supabase
+        .from("users")
+        .select("id, full_name, email, role")
+        .eq("role", "Agent")
+        .order("full_name", { ascending: true });
+
+      if (error) {
+        console.error("Error fetching agents:", error);
+        return;
+      }
+
+      const agentsList: Agent[] = (data || []).map((user) => ({
+        id: user.id,
+        full_name: user.full_name || "Unknown Agent",
+        email: user.email,
+      }));
+
+      console.log("Successfully fetched agents:", agentsList);
+      setAgents(agentsList);
+    } catch (error) {
+      console.error("Unexpected error fetching agents:", error);
+    } finally {
+      setAgentsLoading(false);
+    }
+  };
+
   const filteredBookings = handlingBookings.filter((booking) => {
     const matchesSearch =
       booking.customer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -204,6 +246,17 @@ const BookingAgentManagement = () => {
         .toLowerCase()
         .includes(searchTerm.toLowerCase());
 
+    const matchesAgent =
+      agentFilter === "all" ||
+      (booking.user_id && booking.user_id === agentFilter) ||
+      (booking.customer_name || "")
+        .toLowerCase()
+        .includes(
+          agents
+            .find((agent) => agent.id === agentFilter)
+            ?.full_name.toLowerCase() || "",
+        );
+
     const matchesPaymentMethod =
       paymentMethodFilter === "all" ||
       booking.payment_method === paymentMethodFilter;
@@ -211,7 +264,9 @@ const BookingAgentManagement = () => {
     const matchesStatus =
       statusFilter === "all" || (booking.status || "pending") === statusFilter;
 
-    return matchesSearch && matchesPaymentMethod && matchesStatus;
+    return (
+      matchesSearch && matchesAgent && matchesPaymentMethod && matchesStatus
+    );
   });
 
   const formatCurrency = (amount: number) => {
@@ -236,7 +291,7 @@ const BookingAgentManagement = () => {
       case "pending":
         return "secondary";
       case "completed":
-        return "outline";
+        return "default";
       case "cancelled":
         return "destructive";
       default:
@@ -400,6 +455,28 @@ const BookingAgentManagement = () => {
         </div>
 
         <div className="flex items-center space-x-2">
+          <Select value={agentFilter} onValueChange={setAgentFilter}>
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="Select Agent" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Agents</SelectItem>
+              {agentsLoading ? (
+                <SelectItem value="loading" disabled>
+                  Loading agents...
+                </SelectItem>
+              ) : (
+                agents.map((agent) => (
+                  <SelectItem key={agent.id} value={agent.id}>
+                    {agent.full_name}
+                  </SelectItem>
+                ))
+              )}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="flex items-center space-x-2">
           <Select
             value={paymentMethodFilter}
             onValueChange={setPaymentMethodFilter}
@@ -436,11 +513,14 @@ const BookingAgentManagement = () => {
           </Select>
         </div>
 
-        {(paymentMethodFilter !== "all" || statusFilter !== "all") && (
+        {(agentFilter !== "all" ||
+          paymentMethodFilter !== "all" ||
+          statusFilter !== "all") && (
           <Button
             variant="outline"
             size="sm"
             onClick={() => {
+              setAgentFilter("all");
               setPaymentMethodFilter("all");
               setStatusFilter("all");
             }}
@@ -563,7 +643,16 @@ const BookingAgentManagement = () => {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant={getStatusBadgeVariant(booking.status)}>
+                      <Badge
+                        variant={getStatusBadgeVariant(booking.status)}
+                        className={
+                          booking.status === "completed"
+                            ? "bg-blue-500 text-white hover:bg-blue-600"
+                            : booking.status === "pending"
+                              ? "bg-yellow-500 text-white hover:bg-yellow-600"
+                              : ""
+                        }
+                      >
                         {(booking.status || "pending")
                           .replace("_", " ")
                           .toUpperCase()}
@@ -878,6 +967,13 @@ const BookingAgentManagement = () => {
                             variant={getStatusBadgeVariant(
                               selectedBooking.status,
                             )}
+                            className={
+                              selectedBooking.status === "completed"
+                                ? "bg-blue-500 text-white hover:bg-blue-600"
+                                : selectedBooking.status === "pending"
+                                  ? "bg-yellow-500 text-white hover:bg-yellow-600"
+                                  : ""
+                            }
                           >
                             {(selectedBooking.status || "pending")
                               .replace("_", " ")
