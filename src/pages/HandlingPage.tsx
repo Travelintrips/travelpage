@@ -2008,7 +2008,7 @@ const HandlingPage = () => {
                           Harga Personal Handling:
                         </span>
                         <span className="font-medium text-green-800">
-                          Rp {calculatePersonalHandlingPrice().toLocaleString()}
+                          Rp {totalPrice.toLocaleString()}
                         </span>
                       </div>
                     </>
