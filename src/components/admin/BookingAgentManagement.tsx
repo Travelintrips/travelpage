@@ -900,13 +900,34 @@ const BookingAgentManagement = () => {
                       <Label className="text-sm font-medium text-gray-600 mb-2 block">
                         Status History
                       </Label>
-                      <StatusHistory
-                        booking={selectedBooking}
-                        fetchUserInfo={fetchUserInfo}
-                        formatDate={formatDate}
-                        currentUserName={userName}
-                        currentUserRole={userRole}
-                      />
+
+                      {/* Status awal (dibuat oleh Agent) */}
+                      <div className="text-sm text-gray-700">
+                        Created by{" "}
+                        {selectedBooking?.created_by_role || "Unknown"}
+                        {selectedBooking?.customer_name
+                          ? ` (${selectedBooking.customer_name})`
+                          : ""}
+                        <div className="text-xs text-gray-500">
+                          {formatDate(selectedBooking?.created_at)}
+                        </div>
+                      </div>
+
+                      {/* Status update terakhir */}
+                      {selectedBooking?.status && (
+                        <div className="mt-2 p-2 rounded bg-yellow-50 text-sm">
+                          <span className="font-semibold">
+                            {selectedBooking.status}
+                          </span>{" "}
+                          by {selectedBooking?.updated_by_role || "System"}
+                          {selectedBooking?.updated_by_name
+                            ? ` (${selectedBooking.updated_by_name})`
+                            : ""}
+                          <div className="text-xs text-gray-500">
+                            {formatDate(selectedBooking?.updated_at)}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </CardContent>
