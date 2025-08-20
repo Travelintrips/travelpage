@@ -320,18 +320,27 @@ const BookingAgentManagement = () => {
     }
   };
 
-  const updateBookingStatus = async (bookingId: string, newStatus: string) => {
+  const updateBookingStatus = async (
+    bookingId: string,
+    newStatus: string,
+    userRole: string,
+    userName: string,
+  ) => {
     try {
       const { error } = await supabase
         .from("handling_bookings")
         .update({
           status: newStatus,
           updated_at: new Date().toISOString(),
+          updated_by_role: userRole, // simpan role yg update
+          updated_by_name: userName, // simpan nama yg update
         })
-        .eq("id", bookingId);
+        .eq("id", bookingId)
+        .select();
 
       if (error) {
         console.error("Error updating booking status:", error);
+        console.log("Update result:", data, error);
         return;
       }
 
@@ -339,29 +348,6 @@ const BookingAgentManagement = () => {
       fetchHandlingBookings();
     } catch (error) {
       console.error("Unexpected error updating status:", error);
-    }
-  };
-
-  const deleteBooking = async (bookingId: string) => {
-    if (!confirm("Are you sure you want to delete this booking?")) {
-      return;
-    }
-
-    try {
-      const { error } = await supabase
-        .from("handling_bookings")
-        .delete()
-        .eq("id", bookingId);
-
-      if (error) {
-        console.error("Error deleting booking:", error);
-        return;
-      }
-
-      // Refresh the bookings list
-      fetchHandlingBookings();
-    } catch (error) {
-      console.error("Unexpected error deleting booking:", error);
     }
   };
 
@@ -610,7 +596,12 @@ const BookingAgentManagement = () => {
                           <DropdownMenuContent>
                             <DropdownMenuItem
                               onClick={() =>
-                                updateBookingStatus(booking.id, "confirmed")
+                                updateBookingStatus(
+                                  booking.id,
+                                  "confirmed",
+                                  userRole || "Admin",
+                                  userName || "Unknown User",
+                                )
                               }
                             >
                               <Check className="h-4 w-4 mr-2" />
@@ -618,15 +609,25 @@ const BookingAgentManagement = () => {
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               onClick={() =>
-                                updateBookingStatus(booking.id, "in_progress")
+                                updateBookingStatus(
+                                  booking.id,
+                                  "pending",
+                                  userRole || "Admin",
+                                  userName || "Unknown User",
+                                )
                               }
                             >
                               <Clock className="h-4 w-4 mr-2" />
-                              In Progress
+                              Pending
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               onClick={() =>
-                                updateBookingStatus(booking.id, "completed")
+                                updateBookingStatus(
+                                  booking.id,
+                                  "completed",
+                                  userRole || "Admin",
+                                  userName || "Unknown User",
+                                )
                               }
                             >
                               <CheckCircle className="h-4 w-4 mr-2" />
@@ -634,7 +635,12 @@ const BookingAgentManagement = () => {
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               onClick={() =>
-                                updateBookingStatus(booking.id, "cancelled")
+                                updateBookingStatus(
+                                  booking.id,
+                                  "cancelled",
+                                  userRole || "Admin",
+                                  userName || "Unknown User",
+                                )
                               }
                             >
                               <X className="h-4 w-4 mr-2" />
