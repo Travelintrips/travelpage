@@ -24,10 +24,33 @@ import {
   Wallet,
   ChevronDown,
   ChevronRight,
+  Mail,
+  Bell,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
+
+interface Notification {
+  id: string;
+  notification_id: string;
+  is_read: boolean;
+  created_at: string;
+  notification: {
+    message: string;
+    type: string;
+    booking_id?: string;
+    metadata?: any;
+  };
+}
 
 const AdminLayout = () => {
   const [sidebarOpen, setSidebarOpen] = React.useState(true);
@@ -36,9 +59,12 @@ const AdminLayout = () => {
   const [handlingServiceOpen, setHandlingServiceOpen] = React.useState(false);
   const [paymentMethodsOpen, setPaymentMethodsOpen] = React.useState(false);
   const [agentManagementOpen, setAgentManagementOpen] = React.useState(false);
+  const [notifications, setNotifications] = React.useState<Notification[]>([]);
+  const [unreadCount, setUnreadCount] = React.useState(0);
+  const [notificationsLoading, setNotificationsLoading] = React.useState(false);
   const location = useLocation();
   const navigate = useNavigate();
-  const { userRole } = useAuth();
+  const { userRole, userId, isAuthenticated } = useAuth();
 
   // Get dashboard title based on user role
   const getDashboardTitle = () => {
@@ -70,6 +96,104 @@ const AdminLayout = () => {
   const toggleSidebar = () => {
     setSidebarOpen(!sidebarOpen);
   };
+
+  // Load notifications function
+  const loadNotifications = async () => {
+    if (!userId || !isAuthenticated || userRole === "Customer") return;
+
+    setNotificationsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("notification_recipients")
+        .select(
+          `
+          id,
+          notification_id,
+          is_read,
+          created_at,
+          notification:notifications(
+            message,
+            type,
+            booking_id,
+            metadata
+          )
+        `,
+        )
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(50);
+
+      if (error) {
+        console.error("Error loading notifications:", error);
+        return;
+      }
+
+      setNotifications(data || []);
+      setUnreadCount(data?.filter((n) => !n.is_read).length || 0);
+    } catch (error) {
+      console.error("Error loading notifications:", error);
+    } finally {
+      setNotificationsLoading(false);
+    }
+  };
+
+  // Mark all notifications as read
+  const markAllAsRead = async () => {
+    if (!userId || !isAuthenticated || userRole === "Customer") return;
+
+    try {
+      const { error } = await supabase
+        .from("notification_recipients")
+        .update({ is_read: true })
+        .eq("user_id", userId)
+        .eq("is_read", false);
+
+      if (error) {
+        console.error("Error marking notifications as read:", error);
+        return;
+      }
+
+      // Update local state
+      setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+      setUnreadCount(0);
+    } catch (error) {
+      console.error("Error marking notifications as read:", error);
+    }
+  };
+
+  // Load notifications when user is authenticated (exclude Customer role)
+  React.useEffect(() => {
+    if (isAuthenticated && userId && userRole !== "Customer") {
+      loadNotifications();
+    }
+  }, [isAuthenticated, userId, userRole]);
+
+  // Subscribe to realtime notifications (exclude Customer role)
+  React.useEffect(() => {
+    if (!isAuthenticated || !userId || userRole === "Customer") return;
+
+    const channel = supabase
+      .channel("notification_recipients")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "notification_recipients",
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload) => {
+          console.log("Notification change received:", payload);
+          // Reload notifications when changes occur
+          loadNotifications();
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [isAuthenticated, userId, userRole]);
 
   return (
     <div className="flex h-screen bg-background">
@@ -569,14 +693,127 @@ const AdminLayout = () => {
                 <Menu className="h-4 w-4 mr-2" />
                 Menu
               </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="border-primary-tosca/30 hover:bg-primary-tosca/10 text-primary-dark"
-              >
-                <BarChart3 className="h-4 w-4 mr-2 text-primary-tosca" />
-                Reports
-              </Button>
+
+              {/* Inbox Notifications Button - Only show when authenticated and not Customer */}
+              {isAuthenticated && userRole !== "Customer" && (
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="relative flex items-center gap-2"
+                    >
+                      <Mail className="h-4 w-4" />
+                      Inbox Notifikasi
+                      {unreadCount > 0 && (
+                        <Badge
+                          variant="destructive"
+                          className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center p-0 text-xs"
+                        >
+                          {unreadCount > 99 ? "99+" : unreadCount}
+                        </Badge>
+                      )}
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-md max-h-96">
+                    <DialogHeader>
+                      <DialogTitle className="flex items-center justify-between">
+                        Inbox Notifikasi
+                        {unreadCount > 0 && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={markAllAsRead}
+                          >
+                            Tandai Semua Dibaca
+                          </Button>
+                        )}
+                      </DialogTitle>
+                    </DialogHeader>
+                    <div className="max-h-64 overflow-y-auto space-y-2">
+                      {notificationsLoading ? (
+                        <div className="flex items-center justify-center py-4">
+                          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-green-600"></div>
+                        </div>
+                      ) : notifications.length === 0 ? (
+                        <p className="text-center text-gray-500 py-4">
+                          Tidak ada notifikasi
+                        </p>
+                      ) : (
+                        notifications.map((notification) => (
+                          <div
+                            key={notification.id}
+                            className={`p-3 rounded-lg border cursor-pointer hover:bg-gray-50 ${
+                              notification.is_read
+                                ? "bg-gray-50 border-gray-200"
+                                : "bg-blue-50 border-blue-200"
+                            }`}
+                            onClick={() => {
+                              // Mark as read when clicked
+                              if (!notification.is_read) {
+                                supabase
+                                  .from("notification_recipients")
+                                  .update({ is_read: true })
+                                  .eq("id", notification.id)
+                                  .then(() => {
+                                    setNotifications((prev) =>
+                                      prev.map((n) =>
+                                        n.id === notification.id
+                                          ? { ...n, is_read: true }
+                                          : n,
+                                      ),
+                                    );
+                                    setUnreadCount((prev) =>
+                                      Math.max(0, prev - 1),
+                                    );
+                                  });
+                              }
+                              // Navigate to booking details if booking_id exists
+                              if (notification.notification?.booking_id) {
+                                const bookingId =
+                                  notification.notification.booking_id;
+                                const type = notification.notification.type;
+
+                                // Navigate based on notification type
+                                if (type === "booking") {
+                                  navigate("/admin/bookings");
+                                } else if (type === "airport_transfer") {
+                                  navigate("/admin/airport-transfer");
+                                } else if (type === "baggage_booking") {
+                                  navigate("/admin/baggage-booking");
+                                } else if (type === "handling_booking") {
+                                  navigate("/admin/handling-booking");
+                                }
+                              }
+                            }}
+                          >
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <p className="text-sm font-medium text-gray-900">
+                                  {notification.notification?.metadata?.title ||
+                                    "Notifikasi"}
+                                </p>
+                                <p className="text-sm text-gray-600 mt-1">
+                                  {notification.notification?.message}
+                                </p>
+                                <p className="text-xs text-gray-400 mt-2">
+                                  {new Date(
+                                    notification.created_at,
+                                  ).toLocaleString("id-ID")}
+                                </p>
+                              </div>
+                              {!notification.is_read && (
+                                <div className="w-2 h-2 bg-blue-500 rounded-full ml-2 mt-1 flex-shrink-0"></div>
+                              )}
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              )}
+
               <Button
                 size="sm"
                 className="bg-gradient-to-r from-primary-tosca to-primary-dark hover:from-primary-dark hover:to-primary-tosca text-white"

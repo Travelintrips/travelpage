@@ -2,14 +2,14 @@
 CREATE OR REPLACE FUNCTION trigger_booking_notification()
 RETURNS TRIGGER
 LANGUAGE plpgsql
-AS $
+AS $function$
 BEGIN
   IF TG_OP = 'INSERT' THEN
     PERFORM notify_fanout('booking', NEW.id, 'Pesanan Baru', 'Pesanan baru telah dibuat', 'ALL');
   END IF;
   RETURN NEW;
 END;
-$;
+$function$;
 
 DROP TRIGGER IF EXISTS booking_notification_trigger ON bookings;
 CREATE TRIGGER booking_notification_trigger
@@ -17,22 +17,22 @@ CREATE TRIGGER booking_notification_trigger
   FOR EACH ROW
   EXECUTE FUNCTION trigger_booking_notification();
 
--- Create triggers for airport_transfers table
+-- Create triggers for airport_transfer table
 CREATE OR REPLACE FUNCTION trigger_airport_transfer_notification()
 RETURNS TRIGGER
 LANGUAGE plpgsql
-AS $
+AS $function$
 BEGIN
   IF TG_OP = 'INSERT' THEN
     PERFORM notify_fanout('airport_transfer', NEW.id, 'Transfer Bandara Baru', 'Transfer bandara baru telah dibuat', 'ALL');
   END IF;
   RETURN NEW;
 END;
-$;
+$function$;
 
-DROP TRIGGER IF EXISTS airport_transfer_notification_trigger ON airport_transfers;
+DROP TRIGGER IF EXISTS airport_transfer_notification_trigger ON airport_transfer;
 CREATE TRIGGER airport_transfer_notification_trigger
-  AFTER INSERT ON airport_transfers
+  AFTER INSERT ON airport_transfer
   FOR EACH ROW
   EXECUTE FUNCTION trigger_airport_transfer_notification();
 
@@ -40,14 +40,14 @@ CREATE TRIGGER airport_transfer_notification_trigger
 CREATE OR REPLACE FUNCTION trigger_baggage_booking_notification()
 RETURNS TRIGGER
 LANGUAGE plpgsql
-AS $
+AS $function$
 BEGIN
   IF TG_OP = 'INSERT' THEN
     PERFORM notify_fanout('baggage_booking', NEW.id, 'Booking Bagasi Baru', 'Booking bagasi baru telah dibuat', 'ALL');
   END IF;
   RETURN NEW;
 END;
-$;
+$function$;
 
 DROP TRIGGER IF EXISTS baggage_booking_notification_trigger ON baggage_booking;
 CREATE TRIGGER baggage_booking_notification_trigger
@@ -59,14 +59,14 @@ CREATE TRIGGER baggage_booking_notification_trigger
 CREATE OR REPLACE FUNCTION trigger_handling_booking_notification()
 RETURNS TRIGGER
 LANGUAGE plpgsql
-AS $
+AS $function$
 BEGIN
   IF TG_OP = 'INSERT' THEN
     PERFORM notify_fanout('handling_booking', NEW.id, 'Handling Booking Baru', 'Handling booking baru telah dibuat', 'ALL');
   END IF;
   RETURN NEW;
 END;
-$;
+$function$;
 
 DROP TRIGGER IF EXISTS handling_booking_notification_trigger ON handling_bookings;
 CREATE TRIGGER handling_booking_notification_trigger

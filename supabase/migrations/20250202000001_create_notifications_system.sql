@@ -36,7 +36,7 @@ CREATE OR REPLACE FUNCTION notify_fanout(
 ) RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
-AS $
+AS $function$
 DECLARE
   notification_id uuid;
 BEGIN
@@ -47,9 +47,11 @@ BEGIN
 
   -- Insert into notification_recipients based on scope
   IF scope = 'ALL' THEN
-    -- Insert for all users
+    -- Insert for all users except Customer role
     INSERT INTO notification_recipients (notification_id, user_id)
-    SELECT notification_id, id FROM auth.users;
+    SELECT notification_id, u.id 
+    FROM auth.users u
+    WHERE COALESCE(u.raw_user_meta_data->>'role', 'Customer') != 'Customer';
     
   ELSIF scope = 'ROLE' AND role IS NOT NULL THEN
     -- Insert for users with specific role from users table
@@ -58,16 +60,20 @@ BEGIN
     FROM auth.users u
     LEFT JOIN users usr ON u.id = usr.id
     LEFT JOIN roles r ON usr.role_id = r.role_id
-    WHERE r.role_name = role OR u.raw_user_meta_data->>'role' = role;
+    WHERE (r.role_name = role OR u.raw_user_meta_data->>'role' = role)
+    AND COALESCE(u.raw_user_meta_data->>'role', 'Customer') != 'Customer';
     
   ELSIF scope = 'USER' AND target_user IS NOT NULL THEN
-    -- Insert for specific user
+    -- Insert for specific user (only if not Customer)
     INSERT INTO notification_recipients (notification_id, user_id)
-    VALUES (notification_id, target_user);
+    SELECT notification_id, target_user
+    FROM auth.users u
+    WHERE u.id = target_user
+    AND COALESCE(u.raw_user_meta_data->>'role', 'Customer') != 'Customer';
     
   END IF;
 END;
-$;
+$function$;
 
 -- Enable realtime for notification_recipients
 ALTER PUBLICATION supabase_realtime ADD TABLE notification_recipients;

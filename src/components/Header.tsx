@@ -6,7 +6,7 @@ import { useShoppingCart } from "@/hooks/useShoppingCart";
 import UserDropdown from "./UserDropdown";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
-import { ShoppingCart as CartIcon, Truck, Bell } from "lucide-react";
+import { ShoppingCart as CartIcon, Truck, Bell, Mail } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -139,16 +139,17 @@ const Header = () => {
     };
   }, []);
 
-  // Load notifications when user is authenticated
+  // Load notifications when user is authenticated (exclude Customer role)
   useEffect(() => {
-    if (isAuthenticated && userId && mounted) {
+    if (isAuthenticated && userId && mounted && userRole !== "Customer") {
       loadNotifications();
     }
-  }, [isAuthenticated, userId, mounted]);
+  }, [isAuthenticated, userId, mounted, userRole]);
 
-  // Subscribe to realtime notifications
+  // Subscribe to realtime notifications (exclude Customer role)
   useEffect(() => {
-    if (!isAuthenticated || !userId || !mounted) return;
+    if (!isAuthenticated || !userId || !mounted || userRole === "Customer")
+      return;
 
     const channel = supabase
       .channel("notification_recipients")
@@ -171,7 +172,7 @@ const Header = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [isAuthenticated, userId, mounted]);
+  }, [isAuthenticated, userId, mounted, userRole]);
 
   // Force logout restricted users immediately - always call useEffect with consistent dependencies
   useEffect(() => {
@@ -287,8 +288,8 @@ const Header = () => {
               </Button>
             </Link>
 
-            {/* Notifications Button - Only show when authenticated */}
-            {showAuthenticatedUI && (
+            {/* Inbox Notifications Button - Only show when authenticated and not Customer */}
+            {showAuthenticatedUI && userRole !== "Customer" && (
               <Dialog>
                 <DialogTrigger asChild>
                   <Button
@@ -296,7 +297,7 @@ const Header = () => {
                     size="icon"
                     className="relative text-white hover:bg-green-700"
                   >
-                    <Bell className="h-5 w-5" />
+                    <Mail className="h-5 w-5" />
                     {unreadCount > 0 && (
                       <Badge
                         variant="destructive"
@@ -310,7 +311,7 @@ const Header = () => {
                 <DialogContent className="max-w-md max-h-96">
                   <DialogHeader>
                     <DialogTitle className="flex items-center justify-between">
-                      Notifikasi
+                      Inbox Notifikasi
                       {unreadCount > 0 && (
                         <Button
                           variant="outline"
@@ -335,11 +336,55 @@ const Header = () => {
                       notifications.map((notification) => (
                         <div
                           key={notification.id}
-                          className={`p-3 rounded-lg border ${
+                          className={`p-3 rounded-lg border cursor-pointer hover:bg-gray-50 ${
                             notification.is_read
                               ? "bg-gray-50 border-gray-200"
                               : "bg-blue-50 border-blue-200"
                           }`}
+                          onClick={() => {
+                            // Mark as read when clicked
+                            if (!notification.is_read) {
+                              supabase
+                                .from("notification_recipients")
+                                .update({ is_read: true })
+                                .eq("id", notification.id)
+                                .then(() => {
+                                  setNotifications((prev) =>
+                                    prev.map((n) =>
+                                      n.id === notification.id
+                                        ? { ...n, is_read: true }
+                                        : n,
+                                    ),
+                                  );
+                                  setUnreadCount((prev) =>
+                                    Math.max(0, prev - 1),
+                                  );
+                                });
+                            }
+                            // Navigate to booking details if booking_id exists
+                            if (notification.notification?.booking_id) {
+                              const bookingId =
+                                notification.notification.booking_id;
+                              const type = notification.notification.type;
+
+                              // Navigate based on notification type
+                              if (type === "booking") {
+                                window.open(`/admin/bookings`, "_blank");
+                              } else if (type === "airport_transfer") {
+                                window.open(
+                                  `/admin/airport-transfer`,
+                                  "_blank",
+                                );
+                              } else if (type === "baggage_booking") {
+                                window.open(`/admin/baggage-booking`, "_blank");
+                              } else if (type === "handling_booking") {
+                                window.open(
+                                  `/admin/handling-booking`,
+                                  "_blank",
+                                );
+                              }
+                            }
+                          }}
                         >
                           <div className="flex items-start justify-between">
                             <div className="flex-1">
