@@ -55,24 +55,26 @@ const Header = () => {
     setNotificationsLoading(true);
     try {
       const { data, error } = await supabase
-        .from("notification_recipients")
-        .select(
-          `
-          id,
-          notification_id,
-          is_read,
-          created_at,
-          notification:notifications(
-            message,
-            type,
-            booking_id,
-            metadata
-          )
-        `,
-        )
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false })
-        .limit(50);
+  .from("notification_recipients")
+  .select(
+    `
+    id,
+    notification_id,
+    is_read,
+    created_at,
+    notification:notifications(
+      message,
+      type,
+      booking_id,
+      code_booking,
+      metadata
+    )
+  `,
+  )
+  .eq("user_id", userId)
+  .order("created_at", { ascending: false })
+  .limit(50);
+
 
       if (error) {
         console.error("Error loading notifications:", error);
@@ -395,6 +397,11 @@ const Header = () => {
                               <p className="text-sm text-gray-600 mt-1">
                                 {notification.notification?.message}
                               </p>
+                              {notification.notification?.code_booking && (
+  <p className="text-sm text-gray-800 font-mono mt-1">
+    Kode: {notification.notification.code_booking}
+  </p>
+)}
                               <p className="text-xs text-gray-400 mt-2">
                                 {new Date(
                                   notification.created_at,

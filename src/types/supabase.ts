@@ -3346,6 +3346,7 @@ export type Database = {
         Row: {
           booking_id: string | null
           booking_type: string | null
+          code_booking: string | null
           created_at: string | null
           driver_id: string | null
           id: string
@@ -3359,6 +3360,7 @@ export type Database = {
         Insert: {
           booking_id?: string | null
           booking_type?: string | null
+          code_booking?: string | null
           created_at?: string | null
           driver_id?: string | null
           id?: string
@@ -3372,6 +3374,7 @@ export type Database = {
         Update: {
           booking_id?: string | null
           booking_type?: string | null
+          code_booking?: string | null
           created_at?: string | null
           driver_id?: string | null
           id?: string
@@ -5441,8 +5444,8 @@ export type Database = {
               body: string
               booking_id: string
               booking_type: string
-              role?: string
-              scope?: string
+              code_booking?: string
+              scope: string
               service: string
               target_user?: string
               title: string
@@ -5450,8 +5453,8 @@ export type Database = {
           | {
               body: string
               booking_id: string
-              role?: string
-              scope?: string
+              booking_type: string
+              scope: string
               service: string
               target_user?: string
               title: string

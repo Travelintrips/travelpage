@@ -26,6 +26,12 @@ import {
   ChevronRight,
   Mail,
   Bell,
+  CheckCircle,
+  AlertTriangle as AlertTriangleIcon,
+  XCircle,
+  Info,
+  Eye,
+  X as CloseIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -36,6 +42,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -715,40 +728,62 @@ const AdminLayout = () => {
                       )}
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="max-w-md max-h-96">
+                  <DialogContent className="max-w-2xl max-h-[80vh] w-full">
                     <DialogHeader>
-                      <DialogTitle className="flex items-center justify-between">
-                        Inbox Notifikasi
+                      <DialogTitle className="flex items-center justify-between text-lg font-bold">
+                        <div className="flex items-center gap-2">
+                          <Bell className="h-5 w-5 text-primary" />
+                          Inbox Notifikasi
+                        </div>
                         {unreadCount > 0 && (
                           <Button
                             variant="outline"
                             size="sm"
                             onClick={markAllAsRead}
+                            className="text-xs"
                           >
                             Tandai Semua Dibaca
                           </Button>
                         )}
                       </DialogTitle>
                     </DialogHeader>
-                    <div className="max-h-64 overflow-y-auto space-y-2">
+                    <div className="max-h-[60vh] overflow-y-auto pr-2">
                       {notificationsLoading ? (
-                        <div className="flex items-center justify-center py-4">
-                          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-green-600"></div>
+                        <div className="flex items-center justify-center py-8">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                         </div>
                       ) : notifications.length === 0 ? (
-                        <p className="text-center text-gray-500 py-4">
-                          Tidak ada notifikasi
-                        </p>
+                        <div className="text-center py-8">
+                          <Bell className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                          <p className="text-gray-500 text-sm">
+                            Tidak ada notifikasi
+                          </p>
+                        </div>
                       ) : (
-                        notifications.map((notification) => (
-                          <div
-                            key={notification.id}
-                            className={`p-3 rounded-lg border cursor-pointer hover:bg-gray-50 ${
-                              notification.is_read
-                                ? "bg-gray-50 border-gray-200"
-                                : "bg-blue-50 border-blue-200"
-                            }`}
-                            onClick={() => {
+                        <div className="space-y-3">
+                          {notifications.map((notification, index) => {
+                            // Get notification type icon and color
+                            const getNotificationIcon = (type: string) => {
+                              switch (type) {
+                                case "booking":
+                                case "airport_transfer":
+                                case "baggage_booking":
+                                case "handling_booking":
+                                  return { icon: CheckCircle, color: "text-green-500" };
+                                case "warning":
+                                  return { icon: AlertTriangleIcon, color: "text-yellow-500" };
+                                case "error":
+                                  return { icon: XCircle, color: "text-red-500" };
+                                default:
+                                  return { icon: Info, color: "text-blue-500" };
+                              }
+                            };
+
+                            const { icon: IconComponent, color } = getNotificationIcon(
+                              notification.notification?.type || "info"
+                            );
+
+                            const handleNotificationClick = () => {
                               // Mark as read when clicked
                               if (!notification.is_read) {
                                 supabase
@@ -770,8 +805,6 @@ const AdminLayout = () => {
                               }
                               // Navigate to booking details if booking_id exists
                               if (notification.notification?.booking_id) {
-                                const bookingId =
-                                  notification.notification.booking_id;
                                 const type = notification.notification.type;
 
                                 // Navigate based on notification type
@@ -785,29 +818,133 @@ const AdminLayout = () => {
                                   navigate("/admin/handling-booking");
                                 }
                               }
-                            }}
-                          >
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1">
-                                <p className="text-sm font-medium text-gray-900">
-                                  {notification.notification?.metadata?.title ||
-                                    "Notifikasi"}
-                                </p>
-                                <p className="text-sm text-gray-600 mt-1">
-                                  {notification.notification?.message}
-                                </p>
-                                <p className="text-xs text-gray-400 mt-2">
-                                  {new Date(
-                                    notification.created_at,
-                                  ).toLocaleString("id-ID")}
-                                </p>
+                            };
+
+                            const formatDate = (dateString: string) => {
+                              const date = new Date(dateString);
+                              return date.toLocaleDateString("id-ID", {
+                                day: "numeric",
+                                month: "long",
+                                year: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                                timeZoneName: "short"
+                              });
+                            };
+
+                            return (
+                              <div key={notification.id}>
+                                <Card
+                                  className={`transition-all duration-200 hover:shadow-md cursor-pointer border ${
+                                    notification.is_read
+                                      ? "bg-white border-gray-200"
+                                      : "bg-gray-50 border-gray-300 shadow-sm"
+                                  }`}
+                                  onClick={handleNotificationClick}
+                                >
+                                  <CardHeader className="pb-3">
+                                    <div className="flex items-start justify-between gap-3">
+                                      <div className="flex items-start gap-3 flex-1 min-w-0">
+                                        <IconComponent className={`h-5 w-5 ${color} flex-shrink-0 mt-0.5`} />
+                                        <div className="flex-1 min-w-0">
+                                          <CardTitle className="text-base font-semibold text-gray-900 leading-tight mb-1">
+                                            {notification.notification?.metadata?.title ||
+                                              "Notifikasi"}
+                                          </CardTitle>
+                                          <p className="text-sm text-gray-600 leading-relaxed mb-2">
+                                            {notification.notification?.message}
+                                          </p>
+                                          <div className="flex flex-wrap items-center gap-2">
+                                            {notification.notification?.type && (
+                                              <Badge
+                                                variant="outline"
+                                                className="text-xs capitalize"
+                                              >
+                                                {notification.notification.type.replace("_", " ")}
+                                              </Badge>
+                                            )}
+                                            {notification.notification?.booking_id && (
+                                              <button
+                                                className="text-xs text-blue-600 hover:text-blue-800 font-medium underline"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  handleNotificationClick();
+                                                }}
+                                              >
+                                                ID: {notification.notification.booking_id}
+                                              </button>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </div>
+                                      <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                                        {!notification.is_read && (
+                                          <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                                        )}
+                                        <span className="text-xs text-gray-500 text-right">
+                                          {formatDate(notification.created_at)}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </CardHeader>
+                                  <CardContent className="pt-0 pb-4">
+                                    <div className="flex flex-wrap gap-2">
+                                      {notification.notification?.booking_id && (
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          className="flex items-center gap-1 text-xs h-8"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleNotificationClick();
+                                          }}
+                                        >
+                                          <Eye className="h-3 w-3" />
+                                          Lihat Detail
+                                        </Button>
+                                      )}
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 h-8 ml-auto"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          if (!notification.is_read) {
+                                            supabase
+                                              .from("notification_recipients")
+                                              .update({ is_read: true })
+                                              .eq("id", notification.id)
+                                              .then(() => {
+                                                setNotifications((prev) =>
+                                                  prev.map((n) =>
+                                                    n.id === notification.id
+                                                      ? { ...n, is_read: true }
+                                                      : n,
+                                                  ),
+                                                );
+                                                setUnreadCount((prev) =>
+                                                  Math.max(0, prev - 1),
+                                                );
+                                              });
+                                          }
+                                        }}
+                                      >
+                                        <CloseIcon className="h-3 w-3" />
+                                        <span className="hidden sm:inline">
+                                          {notification.is_read ? "Dibaca" : "Tandai Dibaca"}
+                                        </span>
+                                      </Button>
+                                    </div>
+                                  </CardContent>
+                                </Card>
+                                {/* Separator line between notifications */}
+                                {index < notifications.length - 1 && (
+                                  <div className="border-b border-gray-200 my-3"></div>
+                                )}
                               </div>
-                              {!notification.is_read && (
-                                <div className="w-2 h-2 bg-blue-500 rounded-full ml-2 mt-1 flex-shrink-0"></div>
-                              )}
-                            </div>
-                          </div>
-                        ))
+                            );
+                          })}
+                        </div>
                       )}
                     </div>
                   </DialogContent>
