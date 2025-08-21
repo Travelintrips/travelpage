@@ -30,6 +30,7 @@ interface Notification {
     message: string;
     type: string;
     booking_id?: string;
+    code_booking?: string;
     metadata?: any;
   };
 }
@@ -50,45 +51,45 @@ const Header = () => {
 
   // Load notifications function
   const loadNotifications = async () => {
-    if (!userId || !isAuthenticated) return;
+  if (!userId || !isAuthenticated) return;
 
-    setNotificationsLoading(true);
-    try {
-      const { data, error } = await supabase
-  .from("notification_recipients")
-  .select(
-    `
-    id,
-    notification_id,
-    is_read,
-    created_at,
-    notification:notifications(
-      message,
-      type,
-      booking_id,
-      code_booking,
-      metadata
-    )
-  `,
-  )
-  .eq("user_id", userId)
-  .order("created_at", { ascending: false })
-  .limit(50);
+  setNotificationsLoading(true);
+  try {
+    const { data, error } = await supabase
+      .from("notification_recipients") // ✅ fix typo
+      .select(
+        `
+        id,
+        notification_id,
+        is_read,
+        created_at,
+        notification:notifications(
+          message,
+          type,
+          booking_id,
+          code_booking,
+          metadata
+        )
+      `,
+      )
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(50);
 
-
-      if (error) {
-        console.error("Error loading notifications:", error);
-        return;
-      }
-
-      setNotifications(data || []);
-      setUnreadCount(data?.filter((n) => !n.is_read).length || 0);
-    } catch (error) {
+    if (error) {
       console.error("Error loading notifications:", error);
-    } finally {
-      setNotificationsLoading(false);
+      return;
     }
-  };
+
+    setNotifications(data || []);
+    setUnreadCount(data?.filter((n) => !n.is_read).length || 0);
+  } catch (error) {
+    console.error("Error loading notifications:", error);
+  } finally {
+    setNotificationsLoading(false);
+  }
+};
+
 
   // Mark all notifications as read
   const markAllAsRead = async () => {

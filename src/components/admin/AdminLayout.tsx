@@ -61,6 +61,7 @@ interface Notification {
     message: string;
     type: string;
     booking_id?: string;
+    code_booking?: string;
     metadata?: any;
   };
 }
@@ -128,6 +129,7 @@ const AdminLayout = () => {
             message,
             type,
             booking_id,
+            code_booking,
             metadata
           )
         `,
@@ -854,6 +856,11 @@ const AdminLayout = () => {
                                           <p className="text-sm text-gray-600 leading-relaxed mb-2">
                                             {notification.notification?.message}
                                           </p>
+                                          {notification.notification?.code_booking && (
+                                            <p className="text-sm text-gray-800 font-mono mt-1 bg-gray-100 px-2 py-1 rounded">
+                                              Kode: {notification.notification.code_booking}
+                                            </p>
+                                          )}
                                           <div className="flex flex-wrap items-center gap-2">
                                             {notification.notification?.type && (
                                               <Badge

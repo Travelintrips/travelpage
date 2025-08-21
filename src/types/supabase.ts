@@ -5439,26 +5439,16 @@ export type Database = {
         Returns: undefined
       }
       notify_fanout: {
-        Args:
-          | {
-              body: string
-              booking_id: string
-              booking_type: string
-              code_booking?: string
-              scope: string
-              service: string
-              target_user?: string
-              title: string
-            }
-          | {
-              body: string
-              booking_id: string
-              booking_type: string
-              scope: string
-              service: string
-              target_user?: string
-              title: string
-            }
+        Args: {
+          body: string
+          booking_id: string
+          booking_type: string
+          code_booking?: string
+          scope: string
+          service: string
+          target_user?: string
+          title: string
+        }
         Returns: undefined
       }
       pay_booking_and_set_driver_standby: {

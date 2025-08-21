@@ -609,7 +609,7 @@ const TopUpRequests = () => {
                         </TableCell>
                         <TableCell className="p-2">
                           <div className="flex justify-center">
-                            {request.status === "pending" && (
+                            {request.status === "pending" && (userRole === "Super Admin" || userRole === "Staff Admin") && (
                               <Button
                                 variant="outline"
                                 size="sm"
