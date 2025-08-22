@@ -371,7 +371,7 @@ export default function UserManagement(props: UserManagementProps = {}) {
         const selectedRole = roles.find(
           (role) => role.role_id === (roleId || roleData.role_id),
         );
-        const roleName = selectedRole?.role_name || "Staff";
+        const role = selectedRole?.role || "Staff";
 
         // Use the modified edge function to update both users and staff tables
         const { data: updateData, error: updateError } =
@@ -383,17 +383,17 @@ export default function UserManagement(props: UserManagementProps = {}) {
                 email: email,
                 fullName: fullName,
                 roleId: roleId || roleData.role_id,
-                roleName: roleName,
+                role: role,
                 isUpdate: true,
                 // Include other fields that might be needed
                 // phone: removed to preserve existing value
                 address: null,
                 ktpNumber: null,
                 department:
-                  roleName === "Staff"
+                  role === "Staff"
                     ? "General"
-                    : roleName.replace("Staff ", ""),
-                position: roleName,
+                    : role.replace("Staff ", ""),
+                position: null,
                 employeeId: null, // Keep existing employee ID
                 idCardImage: null,
                 religion: null,

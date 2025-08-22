@@ -120,8 +120,14 @@ const UserDropdown = () => {
     console.warn("Error parsing auth_user from localStorage:", e);
   }
 
+  // Handle role object from database join (role.role_name) or direct string
+  let resolvedRole = role;
+  if (role && typeof role === 'object' && role.role_name) {
+    resolvedRole = role.role_name;
+  }
+
   // Priority: AuthContext role > localStorage auth_user role > localStorage userRole > fallback
-  const effectiveRole = role || authUserRole || storedRole || "Customer";
+  const effectiveRole = resolvedRole || authUserRole || storedRole || "Customer";
 
   // Simplified admin check
   const effectiveIsAdmin =

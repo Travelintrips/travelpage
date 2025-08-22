@@ -422,49 +422,54 @@ function AppContent() {
         currentPath,
       });
 
-      // Check if user is admin either by role or isAdmin flag
-      if (
-        userRole === ROLES.ADMIN ||
-        userRole === ROLES.SUPER_ADMIN ||
-        isAdmin
-      ) {
+      // CONSOLIDATED ADMIN/STAFF ROUTING - All admin and staff roles go to admin dashboard
+      const adminStaffRoles = [
+        ROLES.ADMIN,
+        ROLES.SUPER_ADMIN,
+        ROLES.STAFF,
+        ROLES.STAFF_TRIPS,
+        ROLES.STAFF_TRAFFIC,
+        "Staff Admin",
+        "Super Admin",
+        "Staff Trips",
+        "Staff Traffic",
+        "Staff",
+        "Admin"
+      ];
+
+      console.log("Checking role for admin dashboard redirect:", {
+        userRole,
+        isAdmin,
+        isInAdminStaffRoles: adminStaffRoles.includes(userRole),
+        currentPath,
+        allRoles: adminStaffRoles
+      });
+
+      // Handle role object from database join (role.role_name) or direct string
+      let resolvedUserRole = userRole;
+      if (userRole && typeof userRole === 'object' && userRole.role_name) {
+        resolvedUserRole = userRole.role_name;
+      }
+
+      // Check if user should be redirected to admin dashboard
+      const shouldRedirectToAdmin = adminStaffRoles.includes(resolvedUserRole) || isAdmin;
+      
+      if (shouldRedirectToAdmin) {
         console.log(
-          "Admin/Super Admin user detected, redirecting to admin dashboard",
-          { userRole, isAdmin },
+          "Admin/Staff user detected, redirecting to admin dashboard",
+          { userRole, resolvedUserRole, isAdmin, currentPath, shouldRedirectToAdmin },
         );
-        // Always redirect admin users to admin dashboard if they're not already there
+        // Always redirect admin/staff users to admin dashboard if they're not already there
         if (!currentPath.includes("/admin")) {
+          console.log("Navigating to admin dashboard...");
           // Use navigate with replace: true to prevent back button issues
           navigate("/admin", { replace: true });
         }
-      } else if (userRole === ROLES.STAFF_TRIPS) {
-        console.log(
-          "Staff Trips user detected, redirecting to admin dashboard",
-        );
-        // Staff Trips users should be redirected to admin dashboard
-        if (!currentPath.includes("/admin")) {
-          navigate("/admin", { replace: true });
+      } else {
+        console.log("No redirect needed for role:", { userRole, resolvedUserRole });
+        if (userRole === ROLES.DRIVER_PERUSAHAAN) {
+          navigate("/driver-profile");
         }
-      } else if (userRole === ROLES.STAFF_TRAFFIC) {
-        console.log(
-          "Staff Traffic user detected, redirecting to admin dashboard",
-        );
-        // Staff Traffic users should be redirected to admin dashboard
-        if (!currentPath.includes("/admin")) {
-          navigate("/admin", { replace: true });
-        }
-      } else if (userRole === ROLES.STAFF) {
-        // ✅ Regular Staff users tetap berada di TravelPage, tidak redirect ke sub-account
-        if (
-          currentPath !== "/" &&
-          currentPath !== "/home" &&
-          currentPath !== "/sub-account"
-        ) {
-          // Redirect staff ke TravelPage jika mereka tidak berada di halaman utama
-          navigate("/", { replace: true });
-        }
-      } else if (userRole === ROLES.DRIVER_PERUSAHAAN) {
-        navigate("/driver-profile");
       }
     }
   }, [isAuthenticated, isLoading, userRole, isAdmin, userEmail, navigate]);
@@ -527,9 +532,15 @@ function AppContent() {
       return <Navigate to="/" />;
     }
 
-    if (allowedRoles && !allowedRoles.includes(userRole || "")) {
+    // Handle role object from database join (role.role_name) or direct string
+    let resolvedUserRole = userRole;
+    if (userRole && typeof userRole === 'object' && userRole.role_name) {
+      resolvedUserRole = userRole.role_name;
+    }
+
+    if (allowedRoles && !allowedRoles.includes(resolvedUserRole || "")) {
       console.log(
-        `Access denied: User role ${userRole} is not in allowed roles [${allowedRoles.join(", ")}]`,
+        `Access denied: User role ${resolvedUserRole} is not in allowed roles [${allowedRoles.join(", ")}]`,
       );
       return <Navigate to="/" />;
     }
@@ -619,6 +630,8 @@ function AppContent() {
                   ROLES.STAFF,
                   ROLES.STAFF_TRIPS,
                   ROLES.STAFF_TRAFFIC,
+                  "Staff Admin",
+                  "Super Admin",
                 ]}
               >
                 <NewBookingPage />
@@ -636,6 +649,8 @@ function AppContent() {
                   ROLES.STAFF,
                   ROLES.STAFF_TRIPS,
                   ROLES.STAFF_TRAFFIC,
+                  "Staff Admin",
+                  "Super Admin",
                 ]}
               >
                 <AdminLayout />
@@ -652,6 +667,8 @@ function AppContent() {
                   ROLES.STAFF,
                   ROLES.STAFF_TRIPS,
                   ROLES.STAFF_TRAFFIC,
+                  "Staff Admin",
+                  "Super Admin",
                 ]}
               >
                 <AdminLayout />

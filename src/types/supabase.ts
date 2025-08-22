@@ -1251,6 +1251,13 @@ export type Database = {
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "customers_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "v_user_role_consistency"
+            referencedColumns: ["id"]
+          },
         ]
       }
       damages: {
@@ -2542,6 +2549,13 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "histori_transaksi_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "v_user_role_consistency"
             referencedColumns: ["id"]
           },
         ]
@@ -3858,6 +3872,13 @@ export type Database = {
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "profit_loss_reports_generated_by_fkey"
+            columns: ["generated_by"]
+            isOneToOne: false
+            referencedRelation: "v_user_role_consistency"
+            referencedColumns: ["id"]
+          },
         ]
       }
       remaining_payments: {
@@ -4258,6 +4279,13 @@ export type Database = {
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "fk_staff_user"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "v_user_role_consistency"
+            referencedColumns: ["id"]
+          },
         ]
       }
       sub_accounts: {
@@ -4562,6 +4590,10 @@ export type Database = {
           foto_ktp: string | null
           fuel_type: string | null
           full_name: string | null
+          handling_discount_active: boolean | null
+          handling_discount_cap: number | null
+          handling_discount_kind: string | null
+          handling_discount_value: number | null
           id: string
           id_card_url: string | null
           kk_url: string | null
@@ -4618,6 +4650,10 @@ export type Database = {
           foto_ktp?: string | null
           fuel_type?: string | null
           full_name?: string | null
+          handling_discount_active?: boolean | null
+          handling_discount_cap?: number | null
+          handling_discount_kind?: string | null
+          handling_discount_value?: number | null
           id: string
           id_card_url?: string | null
           kk_url?: string | null
@@ -4674,6 +4710,10 @@ export type Database = {
           foto_ktp?: string | null
           fuel_type?: string | null
           full_name?: string | null
+          handling_discount_active?: boolean | null
+          handling_discount_cap?: number | null
+          handling_discount_kind?: string | null
+          handling_discount_value?: number | null
           id?: string
           id_card_url?: string | null
           kk_url?: string | null
@@ -5347,6 +5387,27 @@ export type Database = {
         }
         Relationships: []
       }
+      v_user_role_consistency: {
+        Row: {
+          consistency_status: string | null
+          email: string | null
+          expected_role_from_id: string | null
+          full_name: string | null
+          id: string | null
+          staff_role: string | null
+          user_role: string | null
+          user_role_id: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_users_roles"
+            columns: ["user_role_id"]
+            isOneToOne: false
+            referencedRelation: "roles"
+            referencedColumns: ["role_id"]
+          },
+        ]
+      }
       view_total_kas: {
         Row: {
           account_code: string | null
@@ -5439,16 +5500,47 @@ export type Database = {
         Returns: undefined
       }
       notify_fanout: {
-        Args: {
-          body: string
-          booking_id: string
-          booking_type: string
-          code_booking?: string
-          scope: string
-          service: string
-          target_user?: string
-          title: string
-        }
+        Args:
+          | {
+              body: string
+              booking_id: string
+              booking_type: string
+              code_booking: string
+              scope: string
+              service: string
+              target_user?: string
+              title: string
+            }
+          | {
+              body: string
+              booking_id: string
+              booking_type: string
+              code_booking?: string
+              role?: string
+              scope?: string
+              service: string
+              target_user?: string
+              title: string
+            }
+          | {
+              body: string
+              booking_id: string
+              booking_type: string
+              role?: string
+              scope?: string
+              service: string
+              target_user?: string
+              title: string
+            }
+          | {
+              body: string
+              booking_id: string
+              booking_type: string
+              scope: string
+              service: string
+              target_user?: string
+              title: string
+            }
         Returns: undefined
       }
       pay_booking_and_set_driver_standby: {

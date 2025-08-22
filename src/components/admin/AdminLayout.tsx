@@ -117,6 +117,7 @@ const AdminLayout = () => {
 
     setNotificationsLoading(true);
     try {
+      console.log("[AdminLayout] Loading notifications for user:", userId, "with role:", userRole);
       const { data, error } = await supabase
         .from("notification_recipients")
         .select(
@@ -139,10 +140,11 @@ const AdminLayout = () => {
         .limit(50);
 
       if (error) {
-        console.error("Error loading notifications:", error);
+        console.error("[AdminLayout] Error loading notifications:", error);
         return;
       }
 
+      console.log("[AdminLayout] Loaded notifications:", data?.length || 0, "notifications");
       setNotifications(data || []);
       setUnreadCount(data?.filter((n) => !n.is_read).length || 0);
     } catch (error) {
@@ -178,14 +180,33 @@ const AdminLayout = () => {
 
   // Load notifications when user is authenticated (exclude Customer role)
   React.useEffect(() => {
+    console.log("[AdminLayout] Notification loading check:", { 
+      isAuthenticated, 
+      userId, 
+      userRole, 
+      shouldLoad: isAuthenticated && userId && userRole !== "Customer" 
+    });
+    
     if (isAuthenticated && userId && userRole !== "Customer") {
+      console.log("[AdminLayout] Loading notifications for user:", { userId, userRole, isAuthenticated });
       loadNotifications();
+    } else {
+      console.log("[AdminLayout] Skipping notification load:", {
+        reason: !isAuthenticated ? "not authenticated" : 
+                !userId ? "no userId" : 
+                userRole === "Customer" ? "customer role" : "unknown"
+      });
     }
   }, [isAuthenticated, userId, userRole]);
 
   // Subscribe to realtime notifications (exclude Customer role)
   React.useEffect(() => {
-    if (!isAuthenticated || !userId || userRole === "Customer") return;
+    if (!isAuthenticated || !userId || userRole === "Customer") {
+      console.log("[AdminLayout] Skipping realtime notifications:", { isAuthenticated, userId, userRole });
+      return;
+    }
+    
+    console.log("[AdminLayout] Setting up realtime notifications for:", { userId, userRole });
 
     const channel = supabase
       .channel("notification_recipients")

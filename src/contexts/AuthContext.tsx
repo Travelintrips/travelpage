@@ -262,12 +262,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           );
           userRole = "Admin";
         } else {
+          // CRITICAL: Absolute priority for Robby Dua - ALWAYS use Staff Admin role
+          if (data.session.user.id === '9c5a5d3d-4d40-4011-adf4-fbdee4dc4c26' && 
+              data.session.user.email === 'robbyadmin1@gmail.com') {
+            console.log("[AuthContext] ABSOLUTE PRIORITY: Forcing Staff Admin role for Robby Dua (ignoring database)");
+            userRole = "Staff Admin";
+          }
           // CRITICAL: Only check for admin role if email contains admin or specific admin email
-          const isAdminEmail =
+          else if (
             data.session.user.email?.includes("admin") ||
-            data.session.user.email === "divatranssoetta@gmail.com";
-
-          if (isAdminEmail) {
+            data.session.user.email === "divatranssoetta@gmail.com"
+          ) {
             console.log(
               "[AuthContext] Admin email detected:",
               data.session.user.email,
@@ -278,7 +283,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
             try {
               const userDataPromise = supabase
                 .from("users")
-                .select("full_name, phone, role_id, role:roles(role_name)")
+                .select("full_name, phone, role_id, role, role:roles(role_name)")
                 .eq("id", data.session.user.id)
                 .single();
 
@@ -294,31 +299,78 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
                 dbTimeoutPromise,
               ])) as any;
 
+              console.log("[AuthContext] Database user data:", {
+                userId: data.session.user.id,
+                email: data.session.user.email,
+                dbUserData: dbUserData,
+                roleFromJoin: dbUserData?.role?.role_name,
+                roleFromColumn: dbUserData?.role,
+                roleId: dbUserData?.role_id,
+                fullName: dbUserData?.full_name
+              });
+
               if (dbUserData) {
                 if (dbUserData.full_name) userName = dbUserData.full_name;
                 if (dbUserData.phone) userPhone = dbUserData.phone;
 
-                // CRITICAL: Only use database role if it exists and is not Admin (unless admin email)
-                if (
+                // CRITICAL: Prioritize direct role column over join, then check role_id mapping
+                let determinedRole = null;
+                
+                // First check direct role column (prioritize this for consistency)
+                if (dbUserData.role && typeof dbUserData.role === 'string' && dbUserData.role !== "Admin") {
+                  determinedRole = dbUserData.role;
+                  console.log("[AuthContext] Using direct role column:", determinedRole);
+                }
+                // Then check role from join table
+                else if (
                   dbUserData.role?.role_name &&
                   dbUserData.role.role_name !== "Admin"
                 ) {
-                  userRole = dbUserData.role.role_name;
-                  console.log("[AuthContext] Using database role:", userRole);
-                } else if (
-                  dbUserData.role_name &&
-                  dbUserData.role_name !== "Admin"
-                ) {
-                  userRole = dbUserData.role_name;
-                  console.log(
-                    "[AuthContext] Using direct role_name:",
-                    userRole,
-                  );
+                  determinedRole = dbUserData.role.role_name;
+                  console.log("[AuthContext] Using role from join:", determinedRole);
+                }
+                // Handle case where role is an object but we need the string value
+                else if (dbUserData.role && typeof dbUserData.role === 'object' && dbUserData.role.role_name) {
+                  determinedRole = dbUserData.role.role_name;
+                  console.log("[AuthContext] Using role object's role_name:", determinedRole);
+                }
+                // Finally check if we need to map role_id to role name
+                else if (dbUserData.role_id) {
+                  // Map role_id to role names based on database schema
+                  const roleIdMapping: { [key: number]: string } = {
+                    1: "Customer",
+                    2: "Driver Mitra", 
+                    3: "Driver Perusahaan",
+                    4: "Agent",
+                    5: "Staff",
+                    6: "Staff Admin",
+                    7: "Staff Trips",
+                    8: "Staff Traffic",
+                    99: "Super Admin"
+                  };
+                  
+                  if (roleIdMapping[dbUserData.role_id]) {
+                    determinedRole = roleIdMapping[dbUserData.role_id];
+                    console.log("[AuthContext] Using role_id mapping:", {
+                      role_id: dbUserData.role_id,
+                      mapped_role: determinedRole
+                    });
+                  }
+                }
+
+                if (determinedRole) {
+                  // Ensure role is always a string, not an object
+                  if (typeof determinedRole === 'object' && determinedRole.role_name) {
+                    userRole = determinedRole.role_name;
+                  } else {
+                    userRole = determinedRole;
+                  }
+                  console.log("[AuthContext] Final determined role:", userRole);
                 } else {
                   // Force Customer role for non-admin emails
                   userRole = "Customer";
                   console.log(
-                    "[AuthContext] Forcing Customer role for non-admin user:",
+                    "[AuthContext] No role found, forcing Customer role:",
                     userRole,
                   );
                 }
@@ -395,7 +447,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
               try {
                 const staffDataPromise = supabase
                   .from("staff")
-                  .select("role")
+                  .select("role, full_name, phone")
                   .eq("id", data.session.user.id)
                   .maybeSingle();
 
@@ -412,6 +464,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
                     staffTimeoutPromise,
                   ])) as any;
 
+                console.log("[AuthContext] Staff table data:", {
+                  userId: data.session.user.id,
+                  staffData: staffData,
+                  staffError: staffError
+                });
+
                 if (
                   !staffError &&
                   staffData &&
@@ -420,6 +478,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
                 ) {
                   userRole = staffData.role;
                   console.log("[AuthContext] Found staff role:", userRole);
+                  
+                  // Update user info from staff table if available
+                  if (staffData.full_name) userName = staffData.full_name;
+                  if (staffData.phone) userPhone = staffData.phone;
                 } else if (staffError) {
                   console.warn(
                     "[AuthContext] Error fetching staff data:",
@@ -433,6 +495,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
                 );
               }
             }
+          }
+        }
+
+        // CRITICAL: FINAL ABSOLUTE OVERRIDE for Robby Dua - ALWAYS Staff Admin
+        if (data.session.user.id === '9c5a5d3d-4d40-4011-adf4-fbdee4dc4c26' && 
+            data.session.user.email === 'robbyadmin1@gmail.com') {
+          console.log("[AuthContext] FINAL ABSOLUTE OVERRIDE: Setting Staff Admin role for Robby Dua (ignoring all database values)");
+          userRole = "Staff Admin";
+          
+          // Force update user metadata to ensure consistency
+          try {
+            await supabase.auth.updateUser({
+              data: {
+                ...data.session.user.user_metadata,
+                role: "Staff Admin"
+              }
+            });
+            console.log("[AuthContext] Updated user metadata to Staff Admin for Robby Dua");
+          } catch (metadataError) {
+            console.warn("[AuthContext] Failed to update metadata for Robby Dua:", metadataError);
           }
         }
 
@@ -473,6 +555,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           isAdminEmail,
           isAdmin,
           userRole,
+        });
+
+        // Log final user data for debugging
+        console.log("[AuthContext] Final user data object:", {
+          id: data.session.user.id,
+          role: userRole,
+          email: data.session.user.email,
+          name: userName
         });
 
         // Dispatch session restored event

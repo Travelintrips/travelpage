@@ -145,7 +145,7 @@ const AuthForm: React.FC<AuthFormProps> = ({
     console.log("🔍 Fetching user data from users table...");
     const { data: userData, error: userError } = await supabase
       .from("users")
-      .select("full_name, role, role_name")
+      .select("full_name, role_id, role")
       .eq("id", user.id)
       .single();
 
@@ -352,7 +352,7 @@ const AuthForm: React.FC<AuthFormProps> = ({
           const { data: staffData, error: staffError } = await supabase
             .from("staff")
             .select("role")
-            .eq("id", authData.user.id)
+            .eq("user_id", authData.user.id)
             .single();
 
           if (!staffError && staffData?.role) {
@@ -555,11 +555,30 @@ const AuthForm: React.FC<AuthFormProps> = ({
         console.log("⚠️ No onAuthStateChange handler provided (second time)");
       }
 
-      // Force immediate redirect for Admin and Super Admin users
-      if (userRole === "Admin" || userRole === "Super Admin" || isAdmin) {
-        console.log("🔀 Redirecting Admin/Super Admin user to admin panel", {
+      // Force immediate redirect for Admin and Staff users
+      const adminStaffRoles = [
+        "Admin",
+        "Super Admin", 
+        "Staff",
+        "Staff Admin",
+        "Staff Trips",
+        "Staff Traffic"
+      ];
+      
+      // Handle role object from database join (role.role_name) or direct string
+      let resolvedUserRole = userRole;
+      if (userRole && typeof userRole === 'object' && userRole.role_name) {
+        resolvedUserRole = userRole.role_name;
+      }
+      
+      const shouldRedirectToAdmin = adminStaffRoles.includes(resolvedUserRole) || isAdmin;
+      
+      if (shouldRedirectToAdmin) {
+        console.log("🔀 Redirecting Admin/Staff user to admin panel", {
           userRole,
+          resolvedUserRole,
           isAdmin,
+          shouldRedirectToAdmin
         });
         // Use replace: true to prevent back button issues
         navigate("/admin", { replace: true });
