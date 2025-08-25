@@ -62,6 +62,73 @@ export type Database = {
         }
         Relationships: []
       }
+      agent_logs: {
+        Row: {
+          action: string
+          activated_by: string | null
+          agent_id: string | null
+          created_at: string | null
+          id: string
+        }
+        Insert: {
+          action: string
+          activated_by?: string | null
+          agent_id?: string | null
+          created_at?: string | null
+          id?: string
+        }
+        Update: {
+          action?: string
+          activated_by?: string | null
+          agent_id?: string | null
+          created_at?: string | null
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_logs_activated_by_fkey"
+            columns: ["activated_by"]
+            isOneToOne: false
+            referencedRelation: "agent_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_logs_activated_by_fkey"
+            columns: ["activated_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_logs_activated_by_fkey"
+            columns: ["activated_by"]
+            isOneToOne: false
+            referencedRelation: "v_user_role_consistency"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_logs_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "agent_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_logs_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_logs_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "v_user_role_consistency"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       airport_handling: {
         Row: {
           base_price: number
@@ -1095,6 +1162,13 @@ export type Database = {
             referencedRelation: "chart_of_accounts"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "chart_of_accounts_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "trial_balance_v"
+            referencedColumns: ["account_id"]
+          },
         ]
       }
       checklist_items: {
@@ -1140,21 +1214,32 @@ export type Database = {
       }
       cities: {
         Row: {
+          country_code: string
           created_at: string | null
           id: string
           name: string
         }
         Insert: {
+          country_code: string
           created_at?: string | null
           id?: string
           name: string
         }
         Update: {
+          country_code?: string
           created_at?: string | null
           id?: string
           name?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "cities_country_code_fkey"
+            columns: ["country_code"]
+            isOneToOne: false
+            referencedRelation: "countries"
+            referencedColumns: ["code"]
+          },
+        ]
       }
       companies: {
         Row: {
@@ -1177,6 +1262,24 @@ export type Database = {
           id?: string
           name?: string
           npwp?: string | null
+        }
+        Relationships: []
+      }
+      countries: {
+        Row: {
+          code: string
+          created_at: string | null
+          name: string
+        }
+        Insert: {
+          code: string
+          created_at?: string | null
+          name: string
+        }
+        Update: {
+          code?: string
+          created_at?: string | null
+          name?: string
         }
         Relationships: []
       }
@@ -2251,6 +2354,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "general_ledger_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "trial_balance_v"
+            referencedColumns: ["account_id"]
+          },
+          {
             foreignKeyName: "general_ledger_journal_entry_id_fkey"
             columns: ["journal_entry_id"]
             isOneToOne: false
@@ -3112,6 +3222,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "journal_entry_items_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "trial_balance_v"
+            referencedColumns: ["account_id"]
+          },
+          {
             foreignKeyName: "journal_entry_items_journal_entry_id_fkey"
             columns: ["journal_entry_id"]
             isOneToOne: false
@@ -3251,6 +3368,94 @@ export type Database = {
           total_debit?: number | null
         }
         Relationships: []
+      }
+      memberships: {
+        Row: {
+          activated_at: string | null
+          activated_by: string | null
+          agent_id: string
+          created_at: string | null
+          discount_amount: number
+          discount_percentage: number
+          end_date: string | null
+          id: string
+          is_active: boolean
+          start_date: string | null
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          activated_at?: string | null
+          activated_by?: string | null
+          agent_id: string
+          created_at?: string | null
+          discount_amount?: number
+          discount_percentage?: number
+          end_date?: string | null
+          id?: string
+          is_active?: boolean
+          start_date?: string | null
+          status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          activated_at?: string | null
+          activated_by?: string | null
+          agent_id?: string
+          created_at?: string | null
+          discount_amount?: number
+          discount_percentage?: number
+          end_date?: string | null
+          id?: string
+          is_active?: boolean
+          start_date?: string | null
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "memberships_activated_by_fkey"
+            columns: ["activated_by"]
+            isOneToOne: false
+            referencedRelation: "agent_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "memberships_activated_by_fkey"
+            columns: ["activated_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "memberships_activated_by_fkey"
+            columns: ["activated_by"]
+            isOneToOne: false
+            referencedRelation: "v_user_role_consistency"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "memberships_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: true
+            referencedRelation: "agent_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "memberships_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "memberships_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: true
+            referencedRelation: "v_user_role_consistency"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       modules: {
         Row: {
@@ -5024,15 +5229,7 @@ export type Database = {
           id?: string
           name?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "work_areas_city_id_fkey"
-            columns: ["city_id"]
-            isOneToOne: false
-            referencedRelation: "cities"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       work_places: {
         Row: {
@@ -5231,6 +5428,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "general_ledger_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "trial_balance_v"
+            referencedColumns: ["account_id"]
+          },
+          {
             foreignKeyName: "general_ledger_journal_entry_id_fkey"
             columns: ["journal_entry_id"]
             isOneToOne: false
@@ -5290,6 +5494,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "journal_entry_items_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "trial_balance_v"
+            referencedColumns: ["account_id"]
+          },
+          {
             foreignKeyName: "journal_entry_items_journal_entry_id_fkey"
             columns: ["journal_entry_id"]
             isOneToOne: false
@@ -5347,6 +5558,23 @@ export type Database = {
           total_credit: number | null
           total_debit: number | null
           transaction_date: string | null
+        }
+        Relationships: []
+      }
+      trial_balance_v: {
+        Row: {
+          account_code: string | null
+          account_id: string | null
+          account_name: string | null
+          account_type: string | null
+          closing_balance: number | null
+          credit_balance: number | null
+          debit_balance: number | null
+          id: string | null
+          opening_balance: number | null
+          period: string | null
+          total_credit: number | null
+          total_debit: number | null
         }
         Relationships: []
       }
@@ -5439,6 +5667,14 @@ export type Database = {
         }
         Returns: undefined
       }
+      find_uuid_in_tables: {
+        Args: { search_value: string }
+        Returns: {
+          found_column: string
+          found_schema: string
+          found_table: string
+        }[]
+      }
       generate_balance_sheet: {
         Args: { p_period: string }
         Returns: {
@@ -5491,6 +5727,15 @@ export type Database = {
           total_debit: number
         }[]
       }
+      get_trial_balance_summary_from_view: {
+        Args: { p_period: string }
+        Returns: {
+          is_balanced: boolean
+          record_count: number
+          total_credit: number
+          total_debit: number
+        }[]
+      }
       is_admin: {
         Args: Record<PropertyKey, never>
         Returns: boolean
@@ -5500,47 +5745,55 @@ export type Database = {
         Returns: undefined
       }
       notify_fanout: {
-        Args:
-          | {
-              body: string
-              booking_id: string
-              booking_type: string
-              code_booking: string
-              scope: string
-              service: string
-              target_user?: string
-              title: string
-            }
-          | {
-              body: string
-              booking_id: string
-              booking_type: string
-              code_booking?: string
-              role?: string
-              scope?: string
-              service: string
-              target_user?: string
-              title: string
-            }
-          | {
-              body: string
-              booking_id: string
-              booking_type: string
-              role?: string
-              scope?: string
-              service: string
-              target_user?: string
-              title: string
-            }
-          | {
-              body: string
-              booking_id: string
-              booking_type: string
-              scope: string
-              service: string
-              target_user?: string
-              title: string
-            }
+        Args: {
+          body: string
+          booking_id: string
+          booking_type: string
+          code_booking: string
+          scope: string
+          service: string
+          target_user?: string
+          title: string
+        }
+        Returns: undefined
+      }
+      notify_fanout_1: {
+        Args: {
+          body: string
+          booking_id: string
+          booking_type: string
+          scope: string
+          service: string
+          target_user?: string
+          title: string
+        }
+        Returns: undefined
+      }
+      notify_fanout_2: {
+        Args: {
+          body: string
+          booking_id: string
+          booking_type: string
+          role?: string
+          scope?: string
+          service: string
+          target_user?: string
+          title: string
+        }
+        Returns: undefined
+      }
+      notify_fanout_3: {
+        Args: {
+          body: string
+          booking_id: string
+          booking_type: string
+          code_booking?: string
+          role?: string
+          scope?: string
+          service: string
+          target_user?: string
+          title: string
+        }
         Returns: undefined
       }
       pay_booking_and_set_driver_standby: {
@@ -5562,6 +5815,10 @@ export type Database = {
       }
       recalculate_all_balances: {
         Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      refresh_trial_balance: {
+        Args: { p_end: string; p_start: string }
         Returns: undefined
       }
       reject_topup: {

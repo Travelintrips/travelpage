@@ -61,6 +61,13 @@ import {
   Edit,
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface Agent {
   id: string;
@@ -75,6 +82,8 @@ interface Agent {
   total_revenue?: number;
   commission_rate?: number;
   saldo?: number;
+  membership_status?: string;
+  member_is_active?: boolean;
 }
 
 const AgentManagement = () => {
@@ -94,7 +103,18 @@ const AgentManagement = () => {
     email: "",
     phone_number: "",
   });
-  const { isAdmin, userRole } = useAuth();
+  const [membershipDialogOpen, setMembershipDialogOpen] = useState(false);
+  const [membershipForm, setMembershipForm] = useState({
+    agent_id: "",
+    start_date: "",
+    end_date: "",
+    discount_percentage: 0,
+    status: "inactive",
+  });
+  const [activeTab, setActiveTab] = useState("agents");
+  const [agentLogs, setAgentLogs] = useState<any[]>([]);
+  const [logsLoading, setLogsLoading] = useState(false);
+  const { isAdmin, userRole, userId } = useAuth();
 
   // Check if user is Super Admin
   const isSuperAdmin = userRole === "Super Admin";
@@ -102,16 +122,41 @@ const AgentManagement = () => {
 
   useEffect(() => {
     fetchAgents();
-  }, []);
+    if (activeTab === "logs") {
+      fetchAgentLogs();
+    }
+
+    // Subscribe to real-time updates for memberships table
+    const membershipSubscription = supabase
+      .channel('memberships-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'memberships'
+        },
+        () => {
+          console.log('Membership data changed, refreshing agents...');
+          fetchAgents();
+        }
+      )
+      .subscribe();
+
+    // Cleanup subscription on unmount
+    return () => {
+      membershipSubscription.unsubscribe();
+    };
+  }, [activeTab]);
 
   const fetchAgents = async () => {
     try {
       setLoading(true);
       console.log("Fetching agents...");
 
-      // Fetch users with Agent role from users table
+      // Fetch agents from agent_users view to get membership status
       const { data: agentsData, error } = await supabase
-        .from("users")
+        .from("agent_users")
         .select(
           `
           id,
@@ -121,10 +166,10 @@ const AgentManagement = () => {
           phone_number,
           role,
           saldo,
-          status
-        `,
+          status,
+          member_is_active
+        `
         )
-        .eq("role", "Agent")
         .order("created_at", { ascending: false });
 
       if (error) {
@@ -225,6 +270,9 @@ const AgentManagement = () => {
             );
           }
 
+          // Get membership status from agent_users view
+          const membershipStatus = agent.member_is_active ? "Active" : "Inactive";
+
           return {
             ...agent,
             status: agent.status || "active",
@@ -232,6 +280,7 @@ const AgentManagement = () => {
             total_revenue: totalRevenue,
             commission_rate: 10, // Default 10%
             saldo: agent.saldo || 0,
+            membership_status: membershipStatus,
           };
         }),
       );
@@ -241,6 +290,41 @@ const AgentManagement = () => {
       console.error("Error:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchAgentLogs = async () => {
+    try {
+      setLogsLoading(true);
+      console.log("Fetching agent logs...");
+
+      const { data: logsData, error } = await supabase
+        .from("agent_logs")
+        .select(`
+          id,
+          action,
+          created_at,
+          agent:agent_id(id, full_name, email),
+          activator:activated_by(id, full_name, email)
+        `)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Error fetching agent logs:", error);
+        throw error;
+      }
+
+      console.log("Fetched agent logs:", logsData);
+      setAgentLogs(logsData || []);
+    } catch (error) {
+      console.error("Error:", error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch agent logs. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setLogsLoading(false);
     }
   };
 
@@ -307,6 +391,19 @@ const AgentManagement = () => {
 
       if (error) throw error;
 
+      // Insert log entry for activation
+      const { error: logError } = await supabase
+        .from("agent_logs")
+        .insert({
+          agent_id: agentId,
+          activated_by: userId,
+          action: "activate"
+        });
+
+      if (logError) {
+        console.error("Error logging agent activation:", logError);
+      }
+
       toast({
         title: "Success",
         description: "Agent has been activated successfully.",
@@ -344,6 +441,19 @@ const AgentManagement = () => {
         .eq("id", agentId);
 
       if (error) throw error;
+
+      // Insert log entry for deactivation
+      const { error: logError } = await supabase
+        .from("agent_logs")
+        .insert({
+          agent_id: agentId,
+          activated_by: userId,
+          action: "deactivate"
+        });
+
+      if (logError) {
+        console.error("Error logging agent deactivation:", logError);
+      }
 
       toast({
         title: "Success",
@@ -462,6 +572,19 @@ const AgentManagement = () => {
 
       if (error) throw error;
 
+      // Insert log entry for status change
+      const { error: logError } = await supabase
+        .from("agent_logs")
+        .insert({
+          agent_id: agent.id,
+          activated_by: userId,
+          action: newStatus === "active" ? "activate" : "suspend"
+        });
+
+      if (logError) {
+        console.error("Error logging agent status change:", logError);
+      }
+
       toast({
         title: "Success",
         description: `Agent has been ${newStatus === "active" ? "activated" : "suspended"} successfully.`,
@@ -491,6 +614,88 @@ const AgentManagement = () => {
       await updateAgentStatus(agentToSuspend, "inactive");
       setSuspendDialogOpen(false);
       setAgentToSuspend(null);
+    }
+  };
+
+  const handleActivateMembership = async () => {
+    if (!membershipForm.agent_id) {
+      toast({
+        title: "Error",
+        description: "Please select an agent.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setActionLoading(membershipForm.agent_id);
+    try {
+      const newStatus = membershipForm.status === "active";
+      const agentId = membershipForm.agent_id;
+
+      // Execute both queries simultaneously
+      const [membershipResult, logResult] = await Promise.all([
+        // Update memberships table
+        supabase
+          .from("memberships")
+          .upsert({
+            agent_id: agentId,
+            is_active: newStatus,
+            start_date: newStatus ? new Date().toISOString() : (membershipForm.start_date || null),
+            end_date: !newStatus ? new Date().toISOString() : (membershipForm.end_date || null),
+            discount_percentage: membershipForm.discount_percentage,
+            status: membershipForm.status,
+            activated_by: userId,
+            activated_at: new Date().toISOString(),
+          }, {
+            onConflict: "agent_id"
+          }),
+        
+        // Insert log entry
+        supabase
+          .from("agent_logs")
+          .insert({
+            agent_id: agentId,
+            activated_by: userId,
+            action: newStatus ? "Membership Activated" : "Membership Deactivated",
+            created_at: new Date().toISOString()
+          })
+      ]);
+
+      if (membershipResult.error) throw membershipResult.error;
+      if (logResult.error) {
+        console.error("Error logging membership action:", logResult.error);
+      }
+
+      toast({
+        title: "Success",
+        description: `Agent membership has been ${newStatus ? "activated" : "deactivated"} successfully.`,
+      });
+
+      setMembershipDialogOpen(false);
+      setMembershipForm({
+        agent_id: "",
+        start_date: "",
+        end_date: "",
+        discount_percentage: 0,
+        status: "inactive",
+      });
+      
+      // Refresh the agents list to show updated membership status
+      await fetchAgents();
+      
+      // Refresh logs if we're on the logs tab
+      if (activeTab === "logs") {
+        await fetchAgentLogs();
+      }
+    } catch (error) {
+      console.error("Error activating membership:", error);
+      toast({
+        title: "Error",
+        description: "Failed to activate membership. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setActionLoading(null);
     }
   };
 
@@ -582,21 +787,57 @@ const AgentManagement = () => {
           </p>
         </div>
         <div className="flex gap-2">
+          {(userRole === "Super Admin" || userRole === "Admin" || userRole === "Staff Admin") && (
+            <Button 
+              onClick={() => setMembershipDialogOpen(true)}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
+              Aktifkan Member
+            </Button>
+          )}
           <Button variant="outline" onClick={fetchAgents} disabled={loading}>
             {loading ? "Loading..." : "Refresh"}
           </Button>
         </div>
       </div>
 
-      <div className="flex items-center space-x-2 mb-4">
-        <Search className="h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Search agents..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="max-w-sm"
-        />
+      {/* Tab Navigation */}
+      <div className="border-b border-gray-200">
+        <nav className="-mb-px flex space-x-8">
+          <button
+            onClick={() => setActiveTab("agents")}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              activeTab === "agents"
+                ? "border-blue-500 text-blue-600"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+            }`}
+          >
+            Data Agent
+          </button>
+          <button
+            onClick={() => setActiveTab("logs")}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              activeTab === "logs"
+                ? "border-blue-500 text-blue-600"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+            }`}
+          >
+            Logs Aktivasi Agent
+          </button>
+        </nav>
       </div>
+
+      {activeTab === "agents" && (
+        <>
+          <div className="flex items-center space-x-2 mb-4">
+            <Search className="h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search agents..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="max-w-sm"
+            />
+          </div>
 
       <Card>
         <CardHeader>
@@ -642,12 +883,11 @@ const AgentManagement = () => {
                   <TableHead>Agent Name</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Phone</TableHead>
-                  <TableHead>Role</TableHead>
+                  <TableHead>Member</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Total Bookings</TableHead>
                   <TableHead>Total Revenue</TableHead>
                   <TableHead>Balance</TableHead>
-                  <TableHead>Joined Date</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -671,7 +911,12 @@ const AgentManagement = () => {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline">{agent.role}</Badge>
+                      <Badge 
+                        variant={agent.member_is_active ? "default" : "secondary"}
+                        className={agent.member_is_active ? "bg-green-500 text-white" : "bg-yellow-500 text-white"}
+                      >
+                        {agent.member_is_active ? "Active" : "Inactive"}
+                      </Badge>
                     </TableCell>
                     <TableCell>
                       {isAdmin || userRole === "Admin" ? (
@@ -718,11 +963,6 @@ const AgentManagement = () => {
                     </TableCell>
                     <TableCell className="font-medium">
                       {formatCurrency(agent.saldo || 0)}
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-sm">
-                        {formatDate(agent.created_at)}
-                      </div>
                     </TableCell>
                     <TableCell>
                       {isAdmin || userRole === "Admin" ? (
@@ -841,6 +1081,96 @@ const AgentManagement = () => {
           </Button>
         </CardFooter>*/}
       </Card>
+        </>
+      )}
+
+      {activeTab === "logs" && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Calendar className="h-5 w-5" />
+              Logs Aktivasi Agent
+            </CardTitle>
+            <CardDescription>
+              Riwayat aktivasi dan deaktivasi agent oleh admin
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {logsLoading ? (
+              <div className="flex items-center justify-center h-32">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
+                  <div className="text-lg">Loading logs...</div>
+                </div>
+              </div>
+            ) : agentLogs.length === 0 ? (
+              <div className="text-center py-8">
+                <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <h3 className="text-lg font-semibold mb-2">No logs found</h3>
+                <p className="text-muted-foreground mb-4">
+                  Belum ada aktivitas aktivasi agent yang tercatat.
+                </p>
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Tanggal & Waktu</TableHead>
+                    <TableHead>Nama Agent</TableHead>
+                    <TableHead>Email Agent</TableHead>
+                    <TableHead>Aksi</TableHead>
+                    <TableHead>Diaktifkan Oleh</TableHead>
+                    <TableHead>Email Admin</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {agentLogs.map((log) => (
+                    <TableRow key={log.id}>
+                      <TableCell>
+                        <div className="text-sm">
+                          {formatDate(log.created_at)}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {new Date(log.created_at).toLocaleTimeString("id-ID")}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="font-medium">
+                          {log.agent?.full_name || "N/A"}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-sm">
+                          {log.agent?.email || "N/A"}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge 
+                          variant={log.action === "activate" ? "default" : log.action === "deactivate" || log.action === "suspend" ? "destructive" : "secondary"}
+                        >
+                          {log.action === "activate" ? "Aktivasi" : 
+                           log.action === "deactivate" ? "Deaktivasi" :
+                           log.action === "suspend" ? "Suspend" : log.action}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="font-medium">
+                          {log.activator?.full_name || "N/A"}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-sm">
+                          {log.activator?.email || "N/A"}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Edit Agent Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
@@ -913,6 +1243,134 @@ const AgentManagement = () => {
                 </>
               ) : (
                 "Save Changes"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Membership Activation Dialog */}
+      <Dialog open={membershipDialogOpen} onOpenChange={setMembershipDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Aktifkan Member Agent</DialogTitle>
+            <DialogDescription>
+              Aktifkan membership untuk agent dengan mengisi form di bawah ini.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="agent_select" className="text-right">
+                Pilih Agent
+              </Label>
+              <div className="col-span-3">
+                <Select
+                  value={membershipForm.agent_id}
+                  onValueChange={(value) =>
+                    setMembershipForm({ ...membershipForm, agent_id: value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Pilih agent..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {agents.map((agent) => (
+                      <SelectItem key={agent.id} value={agent.id}>
+                        {agent.full_name} ({agent.email})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="start_date" className="text-right">
+                Tanggal Mulai
+              </Label>
+              <Input
+                id="start_date"
+                type="date"
+                value={membershipForm.start_date}
+                onChange={(e) =>
+                  setMembershipForm({ ...membershipForm, start_date: e.target.value })
+                }
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="end_date" className="text-right">
+                Tanggal Berakhir
+              </Label>
+              <Input
+                id="end_date"
+                type="date"
+                value={membershipForm.end_date}
+                onChange={(e) =>
+                  setMembershipForm({ ...membershipForm, end_date: e.target.value })
+                }
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="discount_percentage" className="text-right">
+                Persentase Diskon (%)
+              </Label>
+              <Input
+                id="discount_percentage"
+                type="number"
+                min="0"
+                max="100"
+                step="0.01"
+                value={membershipForm.discount_percentage}
+                onChange={(e) =>
+                  setMembershipForm({ ...membershipForm, discount_percentage: parseFloat(e.target.value) || 0 })
+                }
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="status_select" className="text-right">
+                Status
+              </Label>
+              <div className="col-span-3">
+                <Select
+                  value={membershipForm.status}
+                  onValueChange={(value) =>
+                    setMembershipForm({ ...membershipForm, status: value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Pilih status..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="inactive">Inactive</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setMembershipDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleActivateMembership}
+              disabled={actionLoading === membershipForm.agent_id}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              {actionLoading === membershipForm.agent_id ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Activating...
+                </>
+              ) : (
+                "Aktifkan Member"
               )}
             </Button>
           </DialogFooter>
