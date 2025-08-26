@@ -275,7 +275,7 @@ const AgentManagement = () => {
 
           return {
             ...agent,
-            status: agent.status || "active",
+            status: agent.status || "active", // Use status from agent_users view, fallback to active
             total_bookings: totalBookings,
             total_revenue: totalRevenue,
             commission_rate: 10, // Default 10%
@@ -532,90 +532,145 @@ const AgentManagement = () => {
   };
 
   const handleStatusToggle = async (agent: Agent) => {
-    if (!isAdmin && userRole !== "Admin") {
-      toast({
-        title: "Access Denied",
-        description: "Only Admin can perform this action.",
-        variant: "destructive",
-      });
-      return;
-    }
+  if (!userRole || !["Super Admin", "Admin", "Staff Admin"].includes(userRole)) {
+    toast({
+      title: "Access Denied",
+      description: "Only Super Admin, Admin, and Staff Admin can perform this action.",
+      variant: "destructive",
+    });
+    return;
+  }
 
-    const newStatus = agent.status === "active" ? "inactive" : "active";
+  // toggle langsung active <-> suspended
+  const newStatus: "active" | "suspended" =
+    agent.status === "active" ? "suspended" : "active";
 
-    // If suspending (changing to inactive), show confirmation dialog
-    if (newStatus === "inactive") {
-      setAgentToSuspend(agent);
-      setSuspendDialogOpen(true);
-      return;
-    }
+  if (newStatus === "suspended") {
+    setAgentToSuspend(agent);
+    setSuspendDialogOpen(true);
+    return;
+  }
 
-    // If activating, proceed directly
-    await updateAgentStatus(agent, newStatus);
-  };
+  await updateAgentStatus(agent, newStatus);
+};
 
-  const updateAgentStatus = async (agent: Agent, newStatus: string) => {
-    setStatusToggleLoading(agent.id);
+const updateAgentStatus = async (agent: Agent, newStatus: "active" | "suspended") => {
+  if (!userRole || !["Super Admin", "Admin", "Staff Admin"].includes(userRole)) {
+    toast({
+      title: "Access Denied",
+      description: "Only Super Admin, Admin, and Staff Admin can update agent status.",
+      variant: "destructive",
+    });
+    return;
+  }
 
-    // Optimistic update
-    setAgents((prevAgents) =>
-      prevAgents.map((a) =>
-        a.id === agent.id ? { ...a, status: newStatus } : a,
-      ),
+  setStatusToggleLoading(agent.id);
+
+  try {
+    const statusValue = newStatus; // sudah konsisten "active" | "suspended"
+    const targetId = (agent.id || "").trim();
+
+    console.log("Updating agent status:", {
+      agentId: targetId,
+      agentEmail: agent.email,
+      currentStatus: agent.status,
+      newStatus: statusValue,
+      userRole,
+      userId,
+      timestamp: new Date().toISOString(),
+    });
+
+    // 1) Coba update
+    // 1) Coba update langsung
+const { data: upd, error: updErr, status: httpStatus } = await supabase
+  .from("users")
+  .update({
+    status: statusValue,
+    updated_at: new Date().toISOString(),
+  })
+  .eq("id", targetId)
+  .select("id, status, email, updated_at");
+
+console.log("Supabase update raw result:", { upd, updErr, httpStatus });
+
+if (updErr) {
+  console.error("Supabase update error:", updErr);
+  throw new Error(`Update failed: ${updErr.message}`);
+}
+
+// 2) Ambil row hasil update atau fallback cek ulang
+let updatedRow:
+  | { id: string; status: string; email?: string; updated_at?: string }
+  | null = null;
+
+if (upd && upd.length > 0) {
+  updatedRow = upd[0];
+} else {
+  console.warn("Update returned no rows, doing fallback fetch…");
+
+  const { data: checkUser, error: checkErr } = await supabase
+    .from("users")
+    .select("id, status, email, updated_at")
+    .eq("id", targetId)
+    .maybeSingle();
+
+  if (checkErr) throw new Error(`User check failed: ${checkErr.message}`);
+  if (!checkUser) throw new Error(`User with ID ${targetId} not found.`);
+  updatedRow = checkUser;
+}
+
+// 3) Validasi hasil update
+if ((updatedRow?.status || "").toLowerCase() !== statusValue.toLowerCase()) {
+  console.warn("Status not reflected as expected.", {
+    expected: statusValue,
+    actual: updatedRow?.status,
+  });
+}
+
+
+    // 4) Log
+    const { error: logErr } = await supabase.from("agent_logs").insert({
+      agent_id: targetId, // sama dengan users.id (dari view agent_users)
+      activated_by: userId,
+      action: newStatus === "active" ? "activate" : "suspend",
+      created_at: new Date().toISOString(),
+    });
+    if (logErr) console.error("Error logging agent status change:", logErr);
+
+    // 5) Update state UI
+    setAgents((prev) =>
+      prev.map((a) => (a.id === targetId ? { ...a, status: statusValue } : a)),
     );
 
-    try {
-      const { error } = await supabase
-        .from("users")
-        .update({ status: newStatus })
-        .eq("id", agent.id);
+    toast({
+      title: "Success",
+      description: `Agent ${agent.full_name} has been ${
+        newStatus === "active" ? "activated" : "suspended"
+      } successfully.`,
+    });
 
-      if (error) throw error;
+    await fetchAgents();
+  } catch (err: any) {
+    console.error("Error updating agent status:", err);
+    toast({
+      title: "Error",
+      description: `Failed to update agent status: ${err?.message ?? "Unknown error"}`,
+      variant: "destructive",
+    });
+  } finally {
+    setStatusToggleLoading(null);
+  }
+};
 
-      // Insert log entry for status change
-      const { error: logError } = await supabase
-        .from("agent_logs")
-        .insert({
-          agent_id: agent.id,
-          activated_by: userId,
-          action: newStatus === "active" ? "activate" : "suspend"
-        });
+const handleConfirmSuspend = async () => {
+  if (agentToSuspend) {
+    await updateAgentStatus(agentToSuspend, "suspended");
+    setSuspendDialogOpen(false);
+    setAgentToSuspend(null);
+  }
+};
 
-      if (logError) {
-        console.error("Error logging agent status change:", logError);
-      }
 
-      toast({
-        title: "Success",
-        description: `Agent has been ${newStatus === "active" ? "activated" : "suspended"} successfully.`,
-      });
-    } catch (error) {
-      console.error("Error updating agent status:", error);
-
-      // Revert optimistic update on error
-      setAgents((prevAgents) =>
-        prevAgents.map((a) =>
-          a.id === agent.id ? { ...a, status: agent.status } : a,
-        ),
-      );
-
-      toast({
-        title: "Error",
-        description: "Failed to update agent status. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setStatusToggleLoading(null);
-    }
-  };
-
-  const handleConfirmSuspend = async () => {
-    if (agentToSuspend) {
-      await updateAgentStatus(agentToSuspend, "inactive");
-      setSuspendDialogOpen(false);
-      setAgentToSuspend(null);
-    }
-  };
 
   const handleActivateMembership = async () => {
     if (!membershipForm.agent_id) {
@@ -919,7 +974,7 @@ const AgentManagement = () => {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      {isAdmin || userRole === "Admin" ? (
+                      {userRole && ["Super Admin", "Admin", "Staff Admin"].includes(userRole) ? (
                         <div className="flex items-center space-x-2">
                           <Switch
                             checked={agent.status === "active"}
@@ -965,7 +1020,7 @@ const AgentManagement = () => {
                       {formatCurrency(agent.saldo || 0)}
                     </TableCell>
                     <TableCell>
-                      {isAdmin || userRole === "Admin" ? (
+                      {userRole && ["Super Admin", "Admin", "Staff Admin"].includes(userRole) ? (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button
@@ -989,74 +1044,51 @@ const AgentManagement = () => {
                               Edit
                             </DropdownMenuItem>
                             {isSuperAdmin && (
-                              <>
-                                {agent.status === "active" ? (
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
                                   <DropdownMenuItem
-                                    onClick={() =>
-                                      handleDeactivateAgent(agent.id)
-                                    }
-                                    className="text-orange-600"
+                                    onSelect={(e) => e.preventDefault()}
+                                    className="text-red-600"
                                   >
-                                    <UserX className="mr-2 h-4 w-4" />
-                                    Non Aktif
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    Delete
                                   </DropdownMenuItem>
-                                ) : (
-                                  <DropdownMenuItem
-                                    onClick={() =>
-                                      handleActivateAgent(agent.id)
-                                    }
-                                    className="text-green-600"
-                                  >
-                                    <UserCheck className="mr-2 h-4 w-4" />
-                                    Aktif
-                                  </DropdownMenuItem>
-                                )}
-                                <AlertDialog>
-                                  <AlertDialogTrigger asChild>
-                                    <DropdownMenuItem
-                                      onSelect={(e) => e.preventDefault()}
-                                      className="text-red-600"
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>
+                                      Delete Agent
+                                    </AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      Are you sure you want to delete agent "
+                                      {agent.full_name}"? This action will
+                                      permanently remove the agent from:
+                                      <br />• Authentication system
+                                      <br />• Users table
+                                      <br />• Agent users table
+                                      <br />
+                                      <br />
+                                      This action cannot be undone.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>
+                                      Cancel
+                                    </AlertDialogCancel>
+                                    <AlertDialogAction
+                                      onClick={() =>
+                                        handleDeleteAgent(
+                                          agent.id,
+                                          agent.email,
+                                        )
+                                      }
+                                      className="bg-red-600 hover:bg-red-700"
                                     >
-                                      <Trash2 className="mr-2 h-4 w-4" />
                                       Delete
-                                    </DropdownMenuItem>
-                                  </AlertDialogTrigger>
-                                  <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                      <AlertDialogTitle>
-                                        Delete Agent
-                                      </AlertDialogTitle>
-                                      <AlertDialogDescription>
-                                        Are you sure you want to delete agent "
-                                        {agent.full_name}"? This action will
-                                        permanently remove the agent from:
-                                        <br />• Authentication system
-                                        <br />• Users table
-                                        <br />• Agent users table
-                                        <br />
-                                        <br />
-                                        This action cannot be undone.
-                                      </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                      <AlertDialogCancel>
-                                        Cancel
-                                      </AlertDialogCancel>
-                                      <AlertDialogAction
-                                        onClick={() =>
-                                          handleDeleteAgent(
-                                            agent.id,
-                                            agent.email,
-                                          )
-                                        }
-                                        className="bg-red-600 hover:bg-red-700"
-                                      >
-                                        Delete
-                                      </AlertDialogAction>
-                                    </AlertDialogFooter>
-                                  </AlertDialogContent>
-                                </AlertDialog>
-                              </>
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
                             )}
                           </DropdownMenuContent>
                         </DropdownMenu>

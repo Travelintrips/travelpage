@@ -12,7 +12,7 @@ const initializeTempoDevtools = async () => {
     if (import.meta.env.VITE_TEMPO && typeof window !== "undefined") {
       const { TempoDevtools } = await import("tempo-devtools");
       if ((window as any).__REDUX_DEVTOOLS_EXTENSION__) {
-        TempoDevtools.init();
+        /* TempoDevtools.init() [deprecated] */;
       }
     }
   } catch (error) {

@@ -78,7 +78,7 @@ const AdminLayout = () => {
   const [notificationsLoading, setNotificationsLoading] = React.useState(false);
   const location = useLocation();
   const navigate = useNavigate();
-  const { userRole, userId, isAuthenticated } = useAuth();
+  const { userRole, userId, isAuthenticated, userName } = useAuth();
 
   // Get dashboard title based on user role
   const getDashboardTitle = () => {
@@ -239,13 +239,22 @@ const AdminLayout = () => {
       >
         <div className="p-5 border-b border-white/20 flex items-center justify-between bg-gradient-to-r from-primary-dark to-primary-tosca">
           <div
-            className={`flex items-center ${!sidebarOpen && "justify-center w-full"}`}
+            className={`flex flex-col ${!sidebarOpen && "justify-center w-full"}`}
           >
-            <Car className="h-6 w-6 text-white" />
-            {sidebarOpen && (
-              <span className="ml-2 font-bold text-lg tracking-tight text-white">
-                Admin Panel
-              </span>
+            <div className="flex items-center">
+              <Car className="h-6 w-6 text-white" />
+              {sidebarOpen && (
+                <span className="ml-2 font-bold text-lg tracking-tight text-white">
+                  Admin Panel
+                </span>
+              )}
+            </div>
+            {sidebarOpen && userName && (
+              <div className="mt-1 ml-8">
+                <span className="text-sm text-white/80">
+                  {userName}
+                </span>
+              </div>
             )}
           </div>
           <Button

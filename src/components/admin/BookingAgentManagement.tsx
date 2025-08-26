@@ -722,7 +722,7 @@ const BookingAgentManagement = () => {
                               <CheckCircle className="h-4 w-4 mr-2" />
                               Complete
                             </DropdownMenuItem>
-                            <DropdownMenuItem
+                           {/*  <DropdownMenuItem
                               onClick={() =>
                                 updateBookingStatus(
                                   booking.id,
@@ -732,9 +732,9 @@ const BookingAgentManagement = () => {
                                 )
                               }
                             >
-                              <X className="h-4 w-4 mr-2" />
+                             <X className="h-4 w-4 mr-2" />
                               Cancel
-                            </DropdownMenuItem>
+                            </DropdownMenuItem> */}
                           </DropdownMenuContent>
                         </DropdownMenu>
                         {userRole === "Super Admin" && (
