@@ -84,6 +84,8 @@ interface Agent {
   saldo?: number;
   membership_status?: string;
   member_is_active?: boolean;
+  discount_percentage?: number;
+  account_type?: string;
 }
 
 const AgentManagement = () => {
@@ -171,6 +173,22 @@ const AgentManagement = () => {
         `
         )
         .order("created_at", { ascending: false });
+
+      // Fetch account_type from users table
+      const { data: usersData, error: usersError } = await supabase
+        .from("users")
+        .select("id, account_type");
+
+      if (usersError) {
+        console.error("Error fetching users data:", usersError);
+      }
+
+      // Fetch active memberships to get discount percentages
+      const { data: membershipsData, error: membershipsError } = await supabase
+        .from("memberships")
+        .select("agent_id, discount_percentage")
+        .eq("status", "active")
+        .eq("is_active", true);
 
       if (error) {
         console.error("Error fetching agents:", error);
@@ -273,6 +291,25 @@ const AgentManagement = () => {
           // Get membership status from agent_users view
           const membershipStatus = agent.member_is_active ? "Active" : "Inactive";
 
+          // Get discount percentage from active membership
+          const activeMembership = membershipsData?.find(m => m.agent_id === agent.id);
+          const discountPercentage = activeMembership?.discount_percentage || 0;
+
+          // Get account_type from users data and normalize to lowercase
+          const userData = usersData?.find(u => u.id === agent.id);
+          const rawAccountType = userData?.account_type;
+          const normalizedAccountType = rawAccountType ? rawAccountType.toLowerCase() : null;
+          
+          // Map account type for display
+          let displayAccountType;
+          if (normalizedAccountType === 'corporate') {
+            displayAccountType = 'Corporate';
+          } else if (normalizedAccountType === 'personal') {
+            displayAccountType = 'Personal';
+          } else {
+            displayAccountType = null;
+          }
+
           return {
             ...agent,
             status: agent.status || "active", // Use status from agent_users view, fallback to active
@@ -281,6 +318,8 @@ const AgentManagement = () => {
             commission_rate: 10, // Default 10%
             saldo: agent.saldo || 0,
             membership_status: membershipStatus,
+            discount_percentage: discountPercentage,
+            account_type: displayAccountType,
           };
         }),
       );
@@ -938,11 +977,13 @@ const handleConfirmSuspend = async () => {
                   <TableHead>Agent Name</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Phone</TableHead>
+                  <TableHead>Account Type</TableHead>
                   <TableHead>Member</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Total Bookings</TableHead>
                   <TableHead>Total Revenue</TableHead>
                   <TableHead>Balance</TableHead>
+                  <TableHead>Persentase Diskon</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -964,6 +1005,18 @@ const handleConfirmSuspend = async () => {
                       <div className="text-sm">
                         {agent.phone_number || "N/A"}
                       </div>
+                    </TableCell>
+                    <TableCell>
+                      {agent.account_type ? (
+                        <Badge 
+                          variant={agent.account_type === "Personal" ? "secondary" : "default"}
+                          className={agent.account_type === "Personal" ? "bg-amber-500 text-white" : "bg-blue-500 text-white"}
+                        >
+                          {agent.account_type}
+                        </Badge>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">-</span>
+                      )}
                     </TableCell>
                     <TableCell>
                       <Badge 
@@ -1018,6 +1071,16 @@ const handleConfirmSuspend = async () => {
                     </TableCell>
                     <TableCell className="font-medium">
                       {formatCurrency(agent.saldo || 0)}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center">
+                        <Badge 
+                          variant={agent.discount_percentage && agent.discount_percentage > 0 ? "default" : "secondary"}
+                          className={agent.discount_percentage && agent.discount_percentage > 0 ? "bg-green-500 text-white" : "bg-gray-500 text-white"}
+                        >
+                          {agent.discount_percentage || 0}%
+                        </Badge>
+                      </div>
                     </TableCell>
                     <TableCell>
                       {userRole && ["Super Admin", "Admin", "Staff Admin"].includes(userRole) ? (

@@ -45,6 +45,7 @@ import {
   DollarSign,
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Agent {
   id: string;
@@ -78,6 +79,7 @@ const TopUpAgent = () => {
   const [description, setDescription] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
   const { toast } = useToast();
+  const { userId } = useAuth();
 
   useEffect(() => {
     fetchAgents();
@@ -123,43 +125,45 @@ const TopUpAgent = () => {
   };
 
   const fetchTransactions = async () => {
-    try {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from("histori_transaksi")
-        .select(
-          `
-          *,
-          users!histori_transaksi_user_id_fkey(
-            full_name,
-            email
-          )
-        `,
+  try {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from("histori_transaksi")
+      .select(
+        `
+        *,
+        users!histori_transaksi_user_id_fkey(
+          full_name,
+          email
         )
-        .order("trans_date", { ascending: false })
-        .limit(100);
+      `,
+      )
+      .eq("jenis_transaksi", "Topup Manual Agent") // ⬅ filter exact match
+      .order("trans_date", { ascending: false })
+      .limit(100);
 
-      if (error) throw error;
+    if (error) throw error;
 
-      const transactionData =
-        data?.map((transaction: any) => ({
-          ...transaction,
-          agent_name: transaction.users?.full_name || "Unknown",
-          agent_email: transaction.users?.email || "Unknown",
-        })) || [];
+    const transactionData =
+      data?.map((transaction: any) => ({
+        ...transaction,
+        agent_name: transaction.users?.full_name || "Unknown",
+        agent_email: transaction.users?.email || "Unknown",
+      })) || [];
 
-      setTransactions(transactionData);
-    } catch (error) {
-      console.error("Error fetching transactions:", error);
-      toast({
-        title: "Error",
-        description: "Failed to fetch transactions",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+    setTransactions(transactionData);
+  } catch (error) {
+    console.error("Error fetching transactions:", error);
+    toast({
+      title: "Error",
+      description: "Failed to fetch transactions",
+      variant: "destructive",
+    });
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   const handleTopUp = async () => {
     if (!selectedAgent || !topUpAmount || parseFloat(topUpAmount) <= 0) {
@@ -195,26 +199,91 @@ const TopUpAgent = () => {
 
       if (updateError) throw updateError;
 
-      // Create transaction record
-      const transactionCode = `TOP${Date.now()}`;
+      // Get admin user information for better tracking - try multiple sources
+      let adminName = "Unknown Admin";
+      let adminEmail = "Unknown Email";
+
+      // First try to get from users table
+      const { data: adminUserData, error: adminUserError } = await supabase
+        .from("users")
+        .select("full_name, email")
+        .eq("id", userId)
+        .single();
+
+      if (!adminUserError && adminUserData) {
+        adminName = adminUserData.full_name || adminName;
+        adminEmail = adminUserData.email || adminEmail;
+        console.log("Admin data from users table:", { adminName, adminEmail });
+      } else {
+        console.warn("Could not fetch admin data from users table:", adminUserError);
+        
+        // Try to get from staff table as fallback
+        const { data: adminStaffData, error: adminStaffError } = await supabase
+          .from("staff")
+          .select("full_name, email")
+          .eq("id", userId)
+          .single();
+
+        if (!adminStaffError && adminStaffData) {
+          adminName = adminStaffData.full_name || adminName;
+          adminEmail = adminStaffData.email || adminEmail;
+          console.log("Admin data from staff table:", { adminName, adminEmail });
+        } else {
+          console.warn("Could not fetch admin data from staff table:", adminStaffError);
+          
+          // Final fallback - use auth context data
+          const storedUser = localStorage.getItem("auth_user");
+          const storedUserName = localStorage.getItem("userName");
+          const storedUserEmail = localStorage.getItem("userEmail");
+          
+          if (storedUser) {
+            try {
+              const userData = JSON.parse(storedUser);
+              adminName = userData.name || storedUserName || adminName;
+              adminEmail = userData.email || storedUserEmail || adminEmail;
+              console.log("Admin data from localStorage:", { adminName, adminEmail });
+            } catch (parseError) {
+              console.warn("Error parsing stored user data:", parseError);
+              adminName = storedUserName || adminName;
+              adminEmail = storedUserEmail || adminEmail;
+            }
+          }
+        }
+      }
+
+      // Create transaction record with detailed admin information
+      const transactionCode = `TOPMA-${Date.now()}`;
+      const adminInfo = `${adminName} (${adminEmail})`;
+      const transactionDescription = description || 
+        `Top up saldo sebesar Rp ${topUpValue.toLocaleString()} oleh Admin: ${adminInfo}`;
+      
+      console.log("Creating transaction with admin info:", {
+        adminId: userId,
+        adminName,
+        adminEmail,
+        adminInfo,
+        transactionDescription
+      });
+
       const { error: transactionError } = await supabase
         .from("histori_transaksi")
         .insert({
           user_id: selectedAgent,
           kode_booking: transactionCode,
           nominal: topUpValue,
+          jenis_transaksi: "Topup Manual Agent",
           saldo_akhir: newBalance,
-          keterangan:
-            description ||
-            `Top up saldo sebesar Rp ${topUpValue.toLocaleString()}`,
+          keterangan: transactionDescription,
           trans_date: new Date().toISOString(),
+          admin_id: userId, // Record which admin performed the top-up
+          admin_name: adminName
         });
 
       if (transactionError) throw transactionError;
 
       toast({
         title: "Success",
-        description: `Successfully topped up Rp ${topUpValue.toLocaleString()} to ${agentData.full_name}`,
+        description: `Successfully topped up Rp ${topUpValue.toLocaleString()} to ${agentData.full_name} by ${adminName}`,
       });
 
       // Reset form and refresh data
@@ -268,7 +337,7 @@ const TopUpAgent = () => {
   return (
     <div className="space-y-6 bg-white">
       <div className="flex justify-between items-center">
-      {/*  <h1 className="text-3xl font-bold">Top Up Agent</h1>
+        <h1 className="text-3xl font-bold">Top Up Agent</h1>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
             <Button className="bg-gradient-to-r from-primary-tosca to-primary-dark hover:from-primary-dark hover:to-primary-tosca text-white">
@@ -356,7 +425,7 @@ const TopUpAgent = () => {
               </Button>
             </DialogFooter>
           </DialogContent>
-        </Dialog>*/}
+        </Dialog>
       </div> 
 
       {/* Statistics Cards */}
@@ -528,13 +597,35 @@ const TopUpAgent = () => {
                       <TableCell className="font-medium">
                         Rp {transaction.saldo_akhir.toLocaleString()}
                       </TableCell>
-                      <TableCell className="max-w-xs truncate">
-                        {transaction.keterangan
-                          ? transaction.keterangan
-                              .replace(/ - undefined/gi, " Handling Group")
-                              .replace(/undefined/gi, "Handling Group")
-                              .trim()
-                          : "-"}
+                      <TableCell className="max-w-xs">
+                        <div className="space-y-1">
+                          <div className="text-sm">
+                            {transaction.keterangan
+                              ? transaction.keterangan
+                                  .replace(/ - undefined/gi, " Handling Group")
+                                  .replace(/undefined/gi, "Handling Group")
+                                  .trim()
+                              : "-"}
+                          </div>
+                          {transaction.nominal > 0 && (
+  <div className="text-xs text-gray-500">
+    {transaction.admin_name
+      ? `Topup by ${transaction.admin_name}`
+      : (() => {
+          // fallback: ambil dari keterangan kalau ada
+          const keterangan = transaction.keterangan || "";
+          const adminMatch = keterangan.match(/oleh Admin: ([^(]+)/);
+          if (adminMatch) {
+            return `Topup by ${adminMatch[1].trim()}`;
+          }
+          // fallback terakhir
+          return `Topup by Admin`;
+        })()
+    }
+  </div>
+)}
+
+                        </div>
                       </TableCell>
 
                       <TableCell>

@@ -65,8 +65,9 @@ import DispatcherPage from "./components/admin/DispatcherPage";
 import AgentManagement from "./components/admin/AgentManagement";
 import BookingAgentManagement from "./components/admin/BookingAgentManagement";
 import TopUpAgent from "./components/admin/TopUpAgent";
-import TopUpRequests from "./components/admin/TopUpRequests";
+import TopUpAgentRequests from "./components/admin/TopUpAgentRequests";
 import HistoryTopUp from "./components/admin/HistoryTopUp";
+import TopUpDriver from "./components/admin/TopUpDriver";
 import TransportasiPage from "./pages/TransportasiPage";
 
 declare global {
@@ -705,7 +706,8 @@ function AppContent() {
             <Route path="booking-agent" element={<BookingAgentManagement />} />
             <Route path="top-up-agent" element={<TopUpAgent />} />
             <Route path="history-top-up" element={<HistoryTopUp />} />
-            <Route path="top-up-requests" element={<TopUpRequests />} />
+            <Route path="top-up-requests" element={<TopUpAgentRequests />} />
+            <Route path="topup-driver" element={<TopUpDriver />} />
             <Route path="price-km" element={<PriceKMManagement />} />
             <Route
               path="payment-methods"

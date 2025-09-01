@@ -33,6 +33,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/lib/supabase";
 import {
   Search,
@@ -49,6 +50,7 @@ import {
   ArrowUpCircle,
   ArrowDownCircle,
   BarChart3,
+  History,
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 
@@ -81,14 +83,30 @@ interface Agent {
   role_name: string | null;
 }
 
+interface HistoriTransaksi {
+  id: string;
+  keterangan: string | null;
+  kode_booking: string;
+  nominal: number;
+  saldo_akhir: number;
+  trans_date: string | null;
+  user_id: string | null;
+  admin_name: string | null;
+  user_name: string | null;
+  user_email: string | null;
+}
+
 const HistoryTopUp = () => {
   const [transactions, setTransactions] = useState<TopUpTransaction[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
+  const [historiTransaksi, setHistoriTransaksi] = useState<HistoriTransaksi[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState("history");
   const [searchTerm, setSearchTerm] = useState("");
   const [agentFilter, setAgentFilter] = useState("");
   const [dateFilter, setDateFilter] = useState("");
   const [amountFilter, setAmountFilter] = useState("");
+  const [adminNameFilter, setAdminNameFilter] = useState("");
   const [selectedTransaction, setSelectedTransaction] =
     useState<TopUpTransaction | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
@@ -98,6 +116,12 @@ const HistoryTopUp = () => {
     fetchTransactions();
     fetchAgents();
   }, []);
+
+  useEffect(() => {
+    if (activeTab === "topup-by-admin") {
+      fetchHistoriTransaksi();
+    }
+  }, [activeTab]);
 
   const fetchTransactions = async () => {
     try {
@@ -222,6 +246,80 @@ const HistoryTopUp = () => {
       setLoading(false);
     }
   };
+
+  const fetchHistoriTransaksi = async () => {
+  try {
+    setLoading(true);
+
+    // Fetch histori_transaksi data
+    const { data: historiData, error: historiError } = await supabase
+      .from("histori_transaksi")
+      .select("*")
+      .not("admin_id", "is", null)     // hanya ambil yang ada admin_id
+      .not("admin_name", "is", null)   // hanya ambil yang ada admin_name
+      .order("trans_date", { ascending: false });
+
+    if (historiError) throw historiError;
+
+    if (!historiData || historiData.length === 0) {
+      setHistoriTransaksi([]);
+      return;
+    }
+
+    // Get unique user IDs from histori_transaksi
+    const userIds = [
+      ...new Set(historiData.map((h) => h.user_id).filter(Boolean)),
+    ];
+
+    console.log("User IDs from histori_transaksi:", userIds);
+
+    // Fetch user data separately if we have user IDs
+    let userData = [];
+    if (userIds.length > 0) {
+      const { data: usersResult, error: usersError } = await supabase
+        .from("users")
+        .select("id, full_name, email")
+        .in("id", userIds);
+
+      if (usersError) {
+        console.error("Error fetching users for histori_transaksi:", usersError);
+      } else {
+        userData = usersResult || [];
+      }
+    }
+
+    console.log("Fetched users for histori_transaksi:", userData);
+
+    // Create a map of user data for quick lookup
+    const userMap = new Map();
+    userData.forEach((user: any) => {
+      userMap.set(user.id, user);
+    });
+
+    // Combine the data
+    const enrichedHistoriData = historiData.map((item: any) => {
+      const user = userMap.get(item.user_id);
+      return {
+        ...item,
+        user_name: user?.full_name || null,
+        user_email: user?.email || null,
+      };
+    });
+
+    console.log("Final enriched histori_transaksi data:", enrichedHistoriData);
+    setHistoriTransaksi(enrichedHistoriData);
+  } catch (error) {
+    console.error("Error fetching histori transaksi:", error);
+    toast({
+      title: "Error",
+      description: "Failed to fetch transaction history",
+      variant: "destructive",
+    });
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   const fetchAgents = async () => {
     try {
@@ -382,6 +480,32 @@ const HistoryTopUp = () => {
     return matchesSearch && matchesAgent && matchesDate && matchesAmount;
   });
 
+  // Helper function to safely handle null/undefined values for string operations
+  const norm = (v: unknown) => (v ?? "").toString().toLowerCase();
+
+  const filteredHistoriTransaksi = (() => {
+    const q = norm(searchTerm);
+    return (historiTransaksi ?? []).filter((item: HistoriTransaksi) => {
+      const matchesSearch =
+        norm(item.kode_booking).includes(q) ||
+        norm(item.keterangan).includes(q) ||
+        norm(item.admin_name).includes(q);
+
+      const matchesAdminName =
+        !adminNameFilter || norm(item.admin_name).includes(norm(adminNameFilter));
+
+      let matchesDate = true;
+      if (dateFilter && item.trans_date) {
+        const transDate = new Date(item.trans_date)
+          .toISOString()
+          .split("T")[0];
+        matchesDate = transDate === dateFilter;
+      }
+
+      return matchesSearch && matchesAdminName && matchesDate;
+    });
+  })();
+
   // Calculate statistics
   const totalTransactions = transactions.length;
   const approvedTransactions = transactions.filter(
@@ -441,6 +565,20 @@ const HistoryTopUp = () => {
           Refresh
         </Button>
       </div>
+
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="history" className="flex items-center gap-2">
+            <History className="h-4 w-4" />
+            Topup History Agent
+          </TabsTrigger>
+          <TabsTrigger value="topup-by-admin" className="flex items-center gap-2">
+            <User className="h-4 w-4" />
+            Topup Agent By Admin
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="history" className="space-y-6">
 
       {/* Statistics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -624,7 +762,7 @@ const HistoryTopUp = () => {
       {/* Transaction History Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Top-Up Request History</CardTitle>
+          <CardTitle>Topup History</CardTitle>
           <CardDescription>
             Detailed history of top-up requests created by agents
           </CardDescription>
@@ -890,6 +1028,186 @@ const HistoryTopUp = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+        </TabsContent>
+
+        <TabsContent value="topup-by-admin" className="space-y-6">
+          {/* Topup By Admin content */}
+          
+          {/* Filters for Topup By Admin Tab */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Filter className="h-5 w-5" />
+                Filters & Search
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                <div className="relative">
+                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search..."
+                    className="pl-8 text-sm"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
+                <Input
+                  placeholder="Admin Name"
+                  className="text-sm"
+                  value={adminNameFilter}
+                  onChange={(e) => setAdminNameFilter(e.target.value)}
+                />
+                <Input
+                  type="date"
+                  placeholder="Date"
+                  className="text-sm"
+                  value={dateFilter}
+                  onChange={(e) => setDateFilter(e.target.value)}
+                />
+              </div>
+            </CardContent>
+          </Card>
+          
+          {/* Histori Transaksi Section */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <User className="h-5 w-5" />
+                Topup By Admin
+              </CardTitle>
+              <CardDescription>
+                Transaction history Topup
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="flex justify-center items-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  <span className="ml-2">Loading transaction history...</span>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table className="min-w-full">
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="min-w-[120px] text-xs font-medium">
+                          Code Topup
+                        </TableHead>
+                        <TableHead className="min-w-[140px] text-xs font-medium">
+                          Recipient User/Agent
+                        </TableHead>
+                        <TableHead className="min-w-[100px] text-xs font-medium">
+                          Nominal
+                        </TableHead>
+                        <TableHead className="min-w-[100px] text-xs font-medium">
+                          Ending Balance
+                        </TableHead>
+                        <TableHead className="min-w-[140px] text-xs font-medium">
+                          Admin Name
+                        </TableHead>
+                        <TableHead className="min-w-[120px] text-xs font-medium">
+                          Date & Time
+                        </TableHead>
+                        <TableHead className="min-w-[200px] text-xs font-medium">
+                          Description
+                        </TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredHistoriTransaksi.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={7} className="text-center py-8">
+                            No transaction history found
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        filteredHistoriTransaksi.map((item) => (
+                          <TableRow key={item.id}>
+                            <TableCell className="font-mono text-xs p-2">
+                              <div className="break-all">
+                                {item.kode_booking}
+                              </div>
+                            </TableCell>
+                            <TableCell className="p-2">
+                              <div className="flex flex-col">
+                                <span
+                                  className="text-xs font-medium truncate max-w-[120px]"
+                                  title={item.user_name || item.user_id || "-"}
+                                >
+                                  {item.user_name || "-"}
+                                </span>
+                                {item.user_email && (
+                                  <span
+                                    className="text-xs text-gray-500 truncate max-w-[120px]"
+                                    title={item.user_email}
+                                  >
+                                    {item.user_email}
+                                  </span>
+                                )}
+                                {!item.user_name && item.user_id && (
+                                  <span
+                                    className="text-xs text-gray-400 font-mono truncate max-w-[120px]"
+                                    title={item.user_id}
+                                  >
+                                    ID: {item.user_id}
+                                  </span>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell className="font-medium text-xs p-2">
+                              <div className="whitespace-nowrap">
+                                Rp {item.nominal.toLocaleString()}
+                              </div>
+                            </TableCell>
+                            <TableCell className="font-medium text-xs p-2">
+                              <div className="whitespace-nowrap">
+                                Rp {item.saldo_akhir.toLocaleString()}
+                              </div>
+                            </TableCell>
+                            <TableCell className="p-2">
+                              <span
+                                className="text-xs truncate max-w-[120px]"
+                                title={item.admin_name || "-"}
+                              >
+                                {item.admin_name || "-"}
+                              </span>
+                            </TableCell>
+                            <TableCell className="p-2">
+                              <div className="text-xs whitespace-nowrap">
+                                {item.trans_date
+                                  ? new Date(item.trans_date).toLocaleDateString(
+                                      "id-ID",
+                                      {
+                                        year: "2-digit",
+                                        month: "short",
+                                        day: "numeric",
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                      },
+                                    )
+                                  : "-"}
+                              </div>
+                            </TableCell>
+                            <TableCell className="p-2">
+                              <div
+                                className="text-xs truncate max-w-[180px]"
+                                title={item.keterangan || "-"}
+                              >
+                                {item.keterangan || "-"}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };

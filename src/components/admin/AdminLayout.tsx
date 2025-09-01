@@ -387,7 +387,7 @@ const AdminLayout = () => {
                           className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/top-up-requests") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
                         >
                           <CheckSquare className="h-4 w-4 text-white" />
-                          <span className="ml-3">Top Up Requests</span>
+                          <span className="ml-3">Topup Agent Requests</span>
                         </Link>
                       </div>
                     )}
@@ -485,11 +485,14 @@ const AdminLayout = () => {
                   </div>
                 )}
 
+
+
                 {/* 6. Cars & Driver Menu - Show for Staff Traffic */}
                 <div>
                   <button
                     onClick={() => setCarsDriverOpen(!carsDriverOpen)}
                     className={`w-full flex items-center p-3 rounded-lg hover:bg-white/20 transition-colors duration-200 ${
+                      location.pathname.includes("/admin/topup-driver") ||
                       location.pathname.includes("/admin/cars") ||
                       location.pathname.includes("/admin/drivers") ||
                       location.pathname.includes("/admin/inspections") ||
@@ -519,6 +522,16 @@ const AdminLayout = () => {
                   {/* Sub-menu items - Show for Staff Traffic */}
                   {sidebarOpen && carsDriverOpen && (
                     <div className="ml-6 mt-2 space-y-1">
+                      {/* Topup Driver submenu - Hide for Staff Traffic */}
+                      {userRole !== "Staff Traffic" && (
+                        <Link
+                          to="/admin/topup-driver"
+                          className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/topup-driver") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
+                        >
+                          <Wallet className="h-4 w-4 text-white" />
+                          <span className="ml-3">Topup Driver</span>
+                        </Link>
+                      )}
                       <Link
                         to="/admin/cars"
                         className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/cars") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}

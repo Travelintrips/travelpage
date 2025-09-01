@@ -40,6 +40,33 @@ type PassengerHandlingFormValues = z.infer<typeof passengerHandlingSchema>;
 const PassengerHandlingForm = () => {
   const { addToCart } = useShoppingCart();
 
+  // Send WhatsApp message function
+  const sendWhatsAppMessage = async (
+    targetNumber: string,
+    messageContent: string,
+  ) => {
+    try {
+      const formData = new FormData();
+      formData.append("target", targetNumber);
+      formData.append("message", messageContent);
+
+      const response = await fetch("https://api.fonnte.com/send", {
+        method: "POST",
+        headers: {
+          Authorization:
+            import.meta.env.FONNTE_API_KEY || "3hYIZghAc5N1!sUe3dMb",
+        },
+        body: formData,
+      });
+
+      const result = await response.json();
+      console.log("Fonnte response:", result);
+      return result;
+    } catch (error) {
+      console.error("Error sending WhatsApp message:", error);
+    }
+  };
+
   const form = useForm<PassengerHandlingFormValues>({
     resolver: zodResolver(passengerHandlingSchema),
     defaultValues: {
@@ -67,6 +94,9 @@ const PassengerHandlingForm = () => {
       profit: profit,
     });
 
+    // Generate transaction code
+    const transactionCode = `PSG-${uuidv4().substring(0, 8)}`;
+
     // Add to cart
     addToCart({
       item_type: "passenger_handling",
@@ -74,7 +104,7 @@ const PassengerHandlingForm = () => {
       price: data.sellingPrice,
       quantity: 1,
       details: {
-        transactionCode: `PSG-${uuidv4().substring(0, 8)}`,
+        transactionCode: transactionCode,
         date: data.date,
         serviceName: data.serviceName,
         location: data.location,
@@ -85,6 +115,11 @@ const PassengerHandlingForm = () => {
         notes: data.notes,
       },
     });
+
+    // Send WhatsApp notification
+    const whatsappMessage = `Transaksi Passenger Handling Baru\n\nKode: ${transactionCode}\nLayanan: ${data.serviceName}\nLokasi: ${data.location}\nTanggal: ${data.date}\nJumlah Penumpang: ${data.passengerCount}\nHarga: Rp ${data.sellingPrice.toLocaleString()}\n\n${data.notes ? `Catatan: ${data.notes}` : ''}`;
+    
+    sendWhatsAppMessage("08991161699", whatsappMessage);
 
     // Reset form
     form.reset({
@@ -244,12 +279,16 @@ const PassengerHandlingForm = () => {
               );
 
               try {
+                // Generate transaction code
+                const transactionCode = `PSG-${uuidv4().substring(0, 8)}`;
+
                 await addToCart({
                   item_type: "passenger_handling",
                   service_name: `${formData.serviceName} - ${formData.location}`,
                   price: formData.sellingPrice,
                   quantity: 1,
                   details: {
+                    transactionCode: transactionCode,
                     serviceName: formData.serviceName,
                     location: formData.location,
                     passengerCount: formData.passengerCount,
@@ -260,6 +299,11 @@ const PassengerHandlingForm = () => {
                     notes: formData.notes,
                   },
                 });
+
+                // Send WhatsApp notification
+                const whatsappMessage = `Transaksi Passenger Handling Baru\n\nKode: ${transactionCode}\nLayanan: ${formData.serviceName}\nLokasi: ${formData.location}\nTanggal: ${formData.date}\nJumlah Penumpang: ${formData.passengerCount}\nHarga: Rp ${formData.sellingPrice.toLocaleString()}\n\n${formData.notes ? `Catatan: ${formData.notes}` : ''}`;
+                
+                sendWhatsAppMessage("08991161699", whatsappMessage);
 
                 // Reset form after adding to cart
                 form.reset({

@@ -74,6 +74,7 @@ interface Driver {
   stnk_expiry: string | null;
   family_phone_number: string | null;
   is_online: boolean | null;
+  saldo: number | null;
 }
 
 const DriverManagement = () => {
@@ -518,13 +519,14 @@ const DriverManagement = () => {
                   <TableHead>Account Status</TableHead>
                   <TableHead>Driver Status</TableHead>
                   <TableHead>Is Online</TableHead>
+                  <TableHead>Saldo</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredDrivers.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={11} className="text-center py-8">
+                    <TableCell colSpan={12} className="text-center py-8">
                       No drivers found
                     </TableCell>
                   </TableRow>
@@ -619,6 +621,18 @@ const DriverManagement = () => {
                           className={`px-2 py-1 rounded-full text-xs ${driver.is_online ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}
                         >
                           {driver.is_online ? "Online" : "Offline"}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <span
+                          className={`font-medium ${(driver.saldo || 0) >= 0 ? "text-green-600" : "text-red-600"}`}
+                        >
+                          {new Intl.NumberFormat('id-ID', {
+                            style: 'currency',
+                            currency: 'IDR',
+                            minimumFractionDigits: 0,
+                            maximumFractionDigits: 0
+                          }).format(driver.saldo || 0)}
                         </span>
                       </TableCell>
                       <TableCell className="text-right">
