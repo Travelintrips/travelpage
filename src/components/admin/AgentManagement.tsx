@@ -86,6 +86,7 @@ interface Agent {
   member_is_active?: boolean;
   discount_percentage?: number;
   account_type?: string;
+  nama_perusahaan?: string;
 }
 
 const AgentManagement = () => {
@@ -104,6 +105,7 @@ const AgentManagement = () => {
     full_name: "",
     email: "",
     phone_number: "",
+    nama_perusahaan: "",
   });
   const [membershipDialogOpen, setMembershipDialogOpen] = useState(false);
   const [membershipForm, setMembershipForm] = useState({
@@ -174,10 +176,10 @@ const AgentManagement = () => {
         )
         .order("created_at", { ascending: false });
 
-      // Fetch account_type from users table
+      // Fetch account_type and nama_perusahaan from users table
       const { data: usersData, error: usersError } = await supabase
         .from("users")
-        .select("id, account_type");
+        .select("id, account_type, nama_perusahaan");
 
       if (usersError) {
         console.error("Error fetching users data:", usersError);
@@ -295,7 +297,7 @@ const AgentManagement = () => {
           const activeMembership = membershipsData?.find(m => m.agent_id === agent.id);
           const discountPercentage = activeMembership?.discount_percentage || 0;
 
-          // Get account_type from users data and normalize to lowercase
+          // Get account_type and nama_perusahaan from users data
           const userData = usersData?.find(u => u.id === agent.id);
           const rawAccountType = userData?.account_type;
           const normalizedAccountType = rawAccountType ? rawAccountType.toLowerCase() : null;
@@ -310,6 +312,9 @@ const AgentManagement = () => {
             displayAccountType = null;
           }
 
+          // Get company name
+          const companyName = userData?.nama_perusahaan || null;
+
           return {
             ...agent,
             status: agent.status || "active", // Use status from agent_users view, fallback to active
@@ -320,6 +325,7 @@ const AgentManagement = () => {
             membership_status: membershipStatus,
             discount_percentage: discountPercentage,
             account_type: displayAccountType,
+            nama_perusahaan: companyName,
           };
         }),
       );
@@ -520,6 +526,7 @@ const AgentManagement = () => {
       full_name: agent.full_name || "",
       email: agent.email || "",
       phone_number: agent.phone_number || "",
+      nama_perusahaan: agent.nama_perusahaan || "",
     });
     setEditDialogOpen(true);
   };
@@ -544,6 +551,7 @@ const AgentManagement = () => {
           full_name: editForm.full_name,
           email: editForm.email,
           phone_number: editForm.phone_number,
+          nama_perusahaan: editForm.nama_perusahaan,
         })
         .eq("id", editingAgent.id);
 
@@ -978,6 +986,7 @@ const handleConfirmSuspend = async () => {
                   <TableHead>Email</TableHead>
                   <TableHead>Phone</TableHead>
                   <TableHead>Account Type</TableHead>
+                  <TableHead>Company</TableHead>
                   <TableHead>Member</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Total Bookings</TableHead>
@@ -1017,6 +1026,11 @@ const handleConfirmSuspend = async () => {
                       ) : (
                         <span className="text-sm text-muted-foreground">-</span>
                       )}
+                    </TableCell>
+                    <TableCell>
+                      <div className="text-sm">
+                        {agent.nama_perusahaan || "-"}
+                      </div>
                     </TableCell>
                     <TableCell>
                       <Badge 
@@ -1313,6 +1327,19 @@ const handleConfirmSuspend = async () => {
                 value={editForm.phone_number}
                 onChange={(e) =>
                   setEditForm({ ...editForm, phone_number: e.target.value })
+                }
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="nama_perusahaan" className="text-right">
+                Company Name
+              </Label>
+              <Input
+                id="nama_perusahaan"
+                value={editForm.nama_perusahaan}
+                onChange={(e) =>
+                  setEditForm({ ...editForm, nama_perusahaan: e.target.value })
                 }
                 className="col-span-3"
               />
