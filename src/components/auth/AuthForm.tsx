@@ -256,15 +256,15 @@ const AuthForm: React.FC<AuthFormProps> = ({
     }
 
     localStorage.setItem("auth_user", JSON.stringify(userDataObj));
-    console.log("✅ User logged in successfully with fresh data:", userDataObj);
+  {/*  console.log("✅ User logged in successfully with fresh data:", userDataObj);*/}
 
     // Debounce auth state change to prevent flickering
     setTimeout(() => {
       if (onAuthStateChange) {
-        console.log("🔄 Calling onAuthStateChange(true)...");
+     {/*   console.log("🔄 Calling onAuthStateChange(true)...");*/}
         onAuthStateChange(true);
       } else {
-        console.log("⚠️ No onAuthStateChange handler provided");
+      {/*  console.log("⚠️ No onAuthStateChange handler provided");*/}
       }
     }, 100);
   };
@@ -273,10 +273,10 @@ const AuthForm: React.FC<AuthFormProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleLoginSubmit = async (data: LoginFormValues) => {
-    console.log("🔄 handleLoginSubmit called with:", {
+ {/*   console.log("🔄 handleLoginSubmit called with:", {
       email: data.email,
       hasPassword: !!data.password,
-    });
+    });*/}
 
     setLoginError(null);
     setIsSubmitting(true);

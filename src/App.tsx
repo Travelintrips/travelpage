@@ -126,12 +126,12 @@ function AppContent() {
     loadTempoRoutes();
   }, []);
 
-  console.log("App.tsx - Current auth state:", {
+  {/*console.log("App.tsx - Current auth state:", {
     isAuthenticated,
     userRole,
     isAdmin,
     isHydrated,
-  });
+  }); */}
 
   // Set auth ready state when context is hydrated
   useEffect(() => {
@@ -150,9 +150,9 @@ function AppContent() {
     const recoverSession = async () => {
       const now = Date.now();
       if (now - lastRecoveryTime < RECOVERY_COOLDOWN || isRecovering) {
-        console.log(
+      {/*  console.log(
           "[App] Recovery cooldown active or already recovering, skipping",
-        );
+        );*/}
         return;
       }
 
@@ -161,27 +161,27 @@ function AppContent() {
       // Check for loggedOut flag to prevent redirect loops
       const loggedOut = sessionStorage.getItem("loggedOut");
       if (loggedOut) {
-        console.log("[App] Logged out flag detected, forcing session ready");
+      {/*  console.log("[App] Logged out flag detected, forcing session ready");*/}
         sessionStorage.removeItem("loggedOut");
         setIsAuthReady(true);
         return;
       }
 
       lastRecoveryTime = now;
-      console.log("[App] Starting enhanced session recovery...");
+     {/* console.log("[App] Starting enhanced session recovery...");*/}
 
       // Priority 1: Try Supabase session first for fresh data
       try {
-        console.log("[App] Attempting fresh Supabase session recovery...");
+       {/* console.log("[App] Attempting fresh Supabase session recovery...");*/}
         const {
           data: { session },
           error,
         } = await supabase.auth.getSession();
 
         if (!error && session?.user) {
-          console.log(
+         {/* console.log(
             "[App] Fresh session found, triggering AuthContext update",
-          );
+          );*/}
 
           // Create consistent user data from fresh session
           const user = session.user;
@@ -215,11 +215,11 @@ function AppContent() {
             }),
           );
 
-          console.log("[App] Session recovered from fresh Supabase data");
+      {/*   console.log("[App] Session recovered from fresh Supabase data");*/}
           return;
         }
       } catch (error) {
-        console.warn("[App] Supabase session recovery failed:", error);
+      {/*  console.warn("[App] Supabase session recovery failed:", error);*/}
       }
 
       // Priority 2: Fallback to localStorage for immediate recovery
@@ -231,7 +231,7 @@ function AppContent() {
         try {
           const userData = JSON.parse(storedUser);
           if (userData && userData.id && userData.email) {
-            console.log("[App] Fallback session recovery from localStorage");
+         {/*   console.log("[App] Fallback session recovery from localStorage");*/}
 
             // Create consistent user data object
             const consistentUserData = {
@@ -261,11 +261,11 @@ function AppContent() {
             return;
           }
         } catch (error) {
-          console.warn("[App] Error parsing stored user data:", error);
+       {/*   console.warn("[App] Error parsing stored user data:", error);*/}
         }
       }
 
-      console.log("[App] No valid session found during recovery");
+     {/* console.log("[App] No valid session found during recovery");*/}
       isRecovering = false; // Reset recovery guard
     };
 
@@ -524,15 +524,15 @@ function AppContent() {
     // Special case for admin - check both isAdmin flag and userRole
     // This ensures that users with admin emails or admin roles can access admin routes
     if (isAdmin || userRole === ROLES.ADMIN || userRole === ROLES.SUPER_ADMIN) {
-      console.log(
+    {/*  console.log(
         "Admin access granted via isAdmin flag or Admin/Super Admin role",
         { isAdmin, userRole },
-      );
+      );*/}
       return children;
     }
 
     if (!isAuthenticated) {
-      console.log("Not authenticated, redirecting to home");
+    {/*  console.log("Not authenticated, redirecting to home");*/}
       return <Navigate to="/" />;
     }
 

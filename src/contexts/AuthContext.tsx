@@ -43,7 +43,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const initializeSession = useCallback(async () => {
     if (initializationRef.current) {
-      console.log("[AuthContext] Session initialization already in progress");
+    {/*  console.log("[AuthContext] Session initialization already in progress");*/}
       return;
     }
 
@@ -51,7 +51,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     const lastInitTime = sessionStorage.getItem("lastSessionInit");
     const now = Date.now();
     if (lastInitTime && now - parseInt(lastInitTime) < 1000) {
-      console.log("[AuthContext] Session initialization throttled");
+    {/*  console.log("[AuthContext] Session initialization throttled");*/}
       return;
     }
     sessionStorage.setItem("lastSessionInit", now.toString());
@@ -73,7 +73,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     };
 
     try {
-      console.log("[AuthContext] Starting session initialization...");
+    {/*  console.log("[AuthContext] Starting session initialization...");*/}
 
       // Clear any existing timeout
       if (sessionTimeoutRef.current) {
@@ -156,7 +156,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       ])) as any;
 
       if (error || !data.session) {
-        console.log("[AuthContext] No valid Supabase session found");
+       {/* console.log("[AuthContext] No valid Supabase session found");*/}
 
         // Try localStorage fallback only if truly offline
         const storedUser = localStorage.getItem("auth_user");
@@ -228,9 +228,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           localStorage.removeItem("userRole");
         }
       } else {
-        console.log(
+      {/*  console.log(
           "[AuthContext] Valid Supabase session found, updating state",
-        );
+        );*/}
         // Batch initial session updates to prevent flickering
         const sessionUpdates: any = {
           session: data.session,
@@ -257,15 +257,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
             currentAdminId === data.session.user.id) ||
           blockAuthChanges === "true"
         ) {
-          console.log(
+        {/*  console.log(
             "[AuthContext] Preserving admin role during user creation process",
-          );
+          );*/}
           userRole = "Admin";
         } else {
           // CRITICAL: Absolute priority for Robby Dua - ALWAYS use Staff Admin role
           if (data.session.user.id === '9c5a5d3d-4d40-4011-adf4-fbdee4dc4c26' && 
               data.session.user.email === 'robbyadmin1@gmail.com') {
-            console.log("[AuthContext] ABSOLUTE PRIORITY: Forcing Staff Admin role for Robby Dua (ignoring database)");
+          {/*  console.log("[AuthContext] ABSOLUTE PRIORITY: Forcing Staff Admin role for Robby Dua (ignoring database)");*/}
             userRole = "Staff Admin";
           }
           // CRITICAL: Only check for admin role if email contains admin or specific admin email
@@ -502,7 +502,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         // CRITICAL: FINAL ABSOLUTE OVERRIDE for Robby Dua - ALWAYS Staff Admin
         if (data.session.user.id === '9c5a5d3d-4d40-4011-adf4-fbdee4dc4c26' && 
             data.session.user.email === 'robbyadmin1@gmail.com') {
-          console.log("[AuthContext] FINAL ABSOLUTE OVERRIDE: Setting Staff Admin role for Robby Dua (ignoring all database values)");
+        {/*  console.log("[AuthContext] FINAL ABSOLUTE OVERRIDE: Setting Staff Admin role for Robby Dua (ignoring all database values)");*/}
           userRole = "Staff Admin";
           
           // Force update user metadata to ensure consistency
@@ -513,9 +513,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
                 role: "Staff Admin"
               }
             });
-            console.log("[AuthContext] Updated user metadata to Staff Admin for Robby Dua");
+          {/*  console.log("[AuthContext] Updated user metadata to Staff Admin for Robby Dua");*/}
           } catch (metadataError) {
-            console.warn("[AuthContext] Failed to update metadata for Robby Dua:", metadataError);
+          {/*  console.warn("[AuthContext] Failed to update metadata for Robby Dua:", metadataError);*/}
           }
         }
 
@@ -551,7 +551,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
         localStorage.setItem("isAdmin", isAdmin ? "true" : "false");
 
-        console.log("[AuthContext] Admin status determined:", {
+       {/* console.log("[AuthContext] Admin status determined:", {
           isAdminByRole,
           isAdminEmail,
           isAdmin,
@@ -564,7 +564,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           role: userRole,
           email: data.session.user.email,
           name: userName
-        });
+        });*/}
 
         // Dispatch session restored event
         window.dispatchEvent(
@@ -628,7 +628,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         isSessionReady: true,
       });
       initializationRef.current = false;
-      console.log("[AuthContext] Session initialization completed");
+    {/*  console.log("[AuthContext] Session initialization completed");*/}
     }
   }, []);
 
@@ -846,12 +846,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       async (event, session) => {
         const now = Date.now();
         if (now - lastAuthStateChangeTime < AUTH_STATE_THROTTLE) {
-          console.log(`[AuthContext] Auth state change throttled: ${event}`);
+        {/*  console.log(`[AuthContext] Auth state change throttled: ${event}`);*/}
           return;
         }
         lastAuthStateChangeTime = now;
 
-        console.log(`[AuthContext] Auth state changed: ${event}`);
+       {/* console.log(`[AuthContext] Auth state changed: ${event}`);*/}
 
         // CRITICAL: Block all auth state changes during staff creation
         const blockAuthChanges = sessionStorage.getItem(
@@ -870,7 +870,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           staffCreationInProgress === "true" ||
           adminCreatingUser === "true"
         ) {
-          console.log(
+         /* console.log(
             "[AuthContext] BLOCKING auth state change during staff creation",
             {
               blockAuthChanges,
@@ -878,24 +878,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
               staffCreationInProgress,
               adminCreatingUser,
             },
-          );
+          );*/
 
           // If this is a SIGNED_IN event during staff creation, immediately sign out the new user
           if (event === "SIGNED_IN" && session?.user) {
-            console.log(
+          {/*  console.log(
               "[AuthContext] Detected SIGNED_IN event during staff creation - blocking and restoring admin",
               { newUserId: session.user.id, newUserEmail: session.user.email },
-            );
+            );*/}
 
             // Immediately sign out the new user session to prevent auto-login
             try {
-              console.log(
+           {/*   console.log(
                 "[AuthContext] Signing out newly created staff user immediately",
               );
               await supabase.auth.signOut({ scope: "global" });
               console.log(
                 "[AuthContext] Successfully signed out new staff user",
-              );
+              );*/}
             } catch (signOutError) {
               console.warn(
                 "[AuthContext] Failed to sign out new staff user:",
