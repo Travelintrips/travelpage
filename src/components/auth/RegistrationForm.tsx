@@ -389,9 +389,9 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({
       let roleId = null;
 
       if (data.role === "Customer") {
-        // Use default role_id for Customer or handle without role_id
-        roleId = 1; // Default Customer role_id
-        console.log("Using default Customer role_id:", roleId);
+        // Use correct role_id for Customer
+        roleId = 10; // Customer role_id is always 10
+        console.log("Using correct Customer role_id:", roleId);
       } else {
         // For other roles, try to get role_id from roles table
         try {
@@ -496,7 +496,7 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({
               data: {
                 full_name: data.name,
                 role: "Customer", // FORCE Customer role for all new registrations
-                role_id: "1", // Customer role_id is always 1
+                role_id: "10", // Customer role_id is always 10
                 phone: data.phone,
               },
             },

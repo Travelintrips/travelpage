@@ -555,7 +555,7 @@ const AuthForm: React.FC<AuthFormProps> = ({
         console.log("⚠️ No onAuthStateChange handler provided (second time)");
       }
 
-      // Force immediate redirect for Admin and Staff users
+      // Force immediate redirect for Admin and Staff users ONLY (not Customer)
       const adminStaffRoles = [
         "Admin",
         "Super Admin", 
@@ -571,9 +571,10 @@ const AuthForm: React.FC<AuthFormProps> = ({
         resolvedUserRole = userRole.role_name;
       }
       
+      // CRITICAL FIX: Only redirect to admin if user is actually admin/staff AND not a customer
       const shouldRedirectToAdmin = adminStaffRoles.includes(resolvedUserRole) || isAdmin;
       
-      if (shouldRedirectToAdmin) {
+      if (shouldRedirectToAdmin && resolvedUserRole !== "Customer") {
         console.log("🔀 Redirecting Admin/Staff user to admin panel", {
           userRole,
           resolvedUserRole,
@@ -584,6 +585,10 @@ const AuthForm: React.FC<AuthFormProps> = ({
         navigate("/admin", { replace: true });
       } else {
         console.log("ℹ️ No redirect needed for role:", userRole);
+        // For Customer users, stay on the current page (no redirection to admin)
+        if (resolvedUserRole === "Customer") {
+          console.log("✅ Customer user logged in, staying on customer interface");
+        }
       }
 
       if (onClose) {
@@ -684,7 +689,7 @@ const AuthForm: React.FC<AuthFormProps> = ({
               full_name: data.name || "",
               phone_number: data.phone || "",
               role: "Customer", // ALWAYS Customer for new registrations
-              role_id: "1", // Customer role_id is always 1
+              role_id: "10", // Customer role_id is always 10
               selfie_url: selfieUrl, // ✅ simpan hasil upload selfie
             },
           },
@@ -773,17 +778,8 @@ const AuthForm: React.FC<AuthFormProps> = ({
 
         console.log("Using document URLs:", documentUrls);
 
-        const { data: roleData, error: roleError } = await supabase
-          .from("roles")
-          .select("role_id")
-          .ilike("role_name", data.role)
-          .single();
-
-        if (roleError) {
-          console.error("Error fetching role ID:", roleError);
-        }
-
-        const roleId = roleData?.role_id || null;
+        // Always use Customer role for new registrations
+        const roleId = "10"; // Customer role_id is always 10
 
         if (roleId && authData.user) {
           try {
@@ -810,7 +806,8 @@ const AuthForm: React.FC<AuthFormProps> = ({
               full_name: data.name,
               email: data.email,
               phone: data.phone,
-              // Omit role_id to avoid type conversion issues
+              role_id: 10, // Customer role_id is always 10
+              role: "Customer", // Explicitly set role to Customer
             },
             { onConflict: "id" },
           );
@@ -823,7 +820,8 @@ const AuthForm: React.FC<AuthFormProps> = ({
           // Continue with the registration process even if this fails
         }
 
-        if (data.role === "Customer") {
+        // Always create customer record for new registrations
+        if (true) {
           const { data: existingCustomer, error: checkCustomerError } =
             await supabase
               .from("customers")
@@ -849,6 +847,8 @@ const AuthForm: React.FC<AuthFormProps> = ({
                 email: data.email,
                 phone: data.phone,
                 selfie_url: selfieUrl,
+                role_id: 10, // Customer role_id is always 10
+                role_name: "Customer", // Explicitly set role_name to Customer
               })
               .eq("id", authData.user.id);
 
@@ -867,16 +867,15 @@ const AuthForm: React.FC<AuthFormProps> = ({
                 email: data.email,
                 phone: data.phone,
                 selfie_url: selfieUrl,
+                role_id: 10, // Customer role_id is always 10
+                role_name: "Customer", // Explicitly set role_name to Customer
               });
 
             if (customerError) {
               console.error("Error creating customer record:", customerError);
             }
           }
-        } else if (
-          data.role === "Driver Mitra" ||
-          data.role === "Driver Perusahaan"
-        ) {
+        } else if (false) { // Disabled - all new registrations are Customer only
           const { data: existingDriver, error: checkDriverError } =
             await supabase
               .from("drivers")
@@ -958,7 +957,7 @@ const AuthForm: React.FC<AuthFormProps> = ({
               console.error("Error creating driver record:", driverError);
             }
           }
-        } else if (data.role === "Staff") {
+        } else if (false) { // Disabled - all new registrations are Customer only
           const { data: existingStaff, error: checkStaffError } = await supabase
             .from("staff")
             .select("id")
@@ -1012,7 +1011,7 @@ const AuthForm: React.FC<AuthFormProps> = ({
           }
         }
 
-        localStorage.setItem("userRole", data.role);
+        localStorage.setItem("userRole", "Customer");
         localStorage.setItem("userId", authData.user.id);
         if (authData.user.email) {
           localStorage.setItem("userEmail", authData.user.email);
@@ -1020,20 +1019,36 @@ const AuthForm: React.FC<AuthFormProps> = ({
 
         const userData = {
           id: authData.user.id,
-          role: data.role,
+          role: "Customer",
           email: authData.user.email || "",
         };
         localStorage.setItem("auth_user", JSON.stringify(userData));
 
         console.log(
-          `User registered successfully with role: ${data.role} (ID: ${roleId})`,
+          `User registered successfully with role: Customer (ID: ${roleId})`,
         );
+        
+        // Force update user metadata to ensure Customer role
+        const { error: forceUpdateError } = await supabase.auth.updateUser({
+          data: {
+            role: "Customer",
+            role_id: "10",
+            full_name: data.name,
+          },
+        });
+        
+        if (forceUpdateError) {
+          console.warn("Failed to force update user metadata:", forceUpdateError);
+        } else {
+          console.log("Successfully forced Customer role in user metadata");
+        }
       }
 
       await onRegister(data);
 
       // For Customer role, don't automatically log in after registration
-      if (data.role === "Customer") {
+      // All new registrations are Customer role
+      if (true) {
         console.log(
           "Customer registered successfully, redirecting to login page",
         );
@@ -1067,7 +1082,7 @@ const AuthForm: React.FC<AuthFormProps> = ({
           console.log("No onAuthStateChange handler provided for registration");
         }
 
-        if (data.role === "Driver Mitra" || data.role === "Driver Perusahaan") {
+        if (false) { // Disabled - all new registrations are Customer only
           console.log(
             "Driver registered successfully, redirecting to driver profile",
           );

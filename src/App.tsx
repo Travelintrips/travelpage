@@ -455,7 +455,12 @@ function AppContent() {
       // Check if user should be redirected to admin dashboard
       const shouldRedirectToAdmin = adminStaffRoles.includes(resolvedUserRole) || isAdmin;
       
-      if (shouldRedirectToAdmin) {
+      // CRITICAL FIX: Only redirect to admin if user is actually admin/staff AND not a customer
+      // Prevent redirection for Customer role users and role_id 10
+      const isCustomerRole = resolvedUserRole === "Customer" || resolvedUserRole === ROLES.CUSTOMER;
+      const hasCustomerRoleId = localStorage.getItem("userRole") === "Customer";
+      
+      if (shouldRedirectToAdmin && !isCustomerRole && !hasCustomerRoleId) {
         console.log(
           "Admin/Staff user detected, redirecting to admin dashboard",
           { userRole, resolvedUserRole, isAdmin, currentPath, shouldRedirectToAdmin },
@@ -470,6 +475,16 @@ function AppContent() {
         console.log("No redirect needed for role:", { userRole, resolvedUserRole });
         if (userRole === ROLES.DRIVER_PERUSAHAAN) {
           navigate("/driver-profile");
+        }
+        // For Customer role, stay on current page (no redirection)
+        const isCustomerRole = resolvedUserRole === "Customer" || resolvedUserRole === ROLES.CUSTOMER;
+        const hasCustomerRoleId = localStorage.getItem("userRole") === "Customer";
+        
+        if (isCustomerRole || hasCustomerRoleId) {
+          console.log("Customer user detected, staying on current page", {
+            resolvedUserRole,
+            storedRole: localStorage.getItem("userRole")
+          });
         }
       }
     }

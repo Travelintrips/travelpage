@@ -338,7 +338,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
                 else if (dbUserData.role_id) {
                   // Map role_id to role names based on database schema
                   const roleIdMapping: { [key: number]: string } = {
-                    1: "Customer",
+                    1: "Admin",
                     2: "Driver Mitra", 
                     3: "Driver Perusahaan",
                     4: "Agent",
@@ -346,6 +346,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
                     6: "Staff Admin",
                     7: "Staff Trips",
                     8: "Staff Traffic",
+                    10: "Customer",
                     99: "Super Admin"
                   };
                   

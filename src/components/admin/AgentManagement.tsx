@@ -158,9 +158,9 @@ const AgentManagement = () => {
       setLoading(true);
       console.log("Fetching agents...");
 
-      // Fetch agents from agent_users view to get membership status
+      // Fetch agents directly from users table with role = 'agent'
       const { data: agentsData, error } = await supabase
-        .from("agent_users")
+        .from("users")
         .select(
           `
           id,
@@ -168,27 +168,20 @@ const AgentManagement = () => {
           full_name,
           email,
           phone_number,
-          role,
-          saldo,
+          nama_perusahaan,
+          account_type,
           status,
-          member_is_active
+          saldo,
+          role
         `
         )
+        .eq("role", "agent")
         .order("created_at", { ascending: false });
 
-      // Fetch account_type and nama_perusahaan from users table
-      const { data: usersData, error: usersError } = await supabase
-        .from("users")
-        .select("id, account_type, nama_perusahaan");
-
-      if (usersError) {
-        console.error("Error fetching users data:", usersError);
-      }
-
-      // Fetch active memberships to get discount percentages
+      // Fetch active memberships to get discount percentages and membership status
       const { data: membershipsData, error: membershipsError } = await supabase
         .from("memberships")
-        .select("agent_id, discount_percentage")
+        .select("agent_id, discount_percentage, is_active")
         .eq("status", "active")
         .eq("is_active", true);
 
@@ -290,16 +283,13 @@ const AgentManagement = () => {
             );
           }
 
-          // Get membership status from agent_users view
-          const membershipStatus = agent.member_is_active ? "Active" : "Inactive";
-
-          // Get discount percentage from active membership
+          // Get membership status and discount percentage from memberships data
           const activeMembership = membershipsData?.find(m => m.agent_id === agent.id);
+          const membershipStatus = activeMembership?.is_active ? "Active" : "Inactive";
           const discountPercentage = activeMembership?.discount_percentage || 0;
 
-          // Get account_type and nama_perusahaan from users data
-          const userData = usersData?.find(u => u.id === agent.id);
-          const rawAccountType = userData?.account_type;
+          // Get account_type and nama_perusahaan directly from agent data
+          const rawAccountType = agent.account_type;
           const normalizedAccountType = rawAccountType ? rawAccountType.toLowerCase() : null;
           
           // Map account type for display
@@ -312,17 +302,18 @@ const AgentManagement = () => {
             displayAccountType = null;
           }
 
-          // Get company name
-          const companyName = userData?.nama_perusahaan || null;
+          // Get company name directly from agent data
+          const companyName = agent.nama_perusahaan || null;
 
           return {
             ...agent,
-            status: agent.status || "active", // Use status from agent_users view, fallback to active
+            status: agent.status || "active", // Use status from users table, fallback to active
             total_bookings: totalBookings,
             total_revenue: totalRevenue,
             commission_rate: 10, // Default 10%
             saldo: agent.saldo || 0,
             membership_status: membershipStatus,
+            member_is_active: activeMembership?.is_active || false,
             discount_percentage: discountPercentage,
             account_type: displayAccountType,
             nama_perusahaan: companyName,
