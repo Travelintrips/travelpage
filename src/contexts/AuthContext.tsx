@@ -299,7 +299,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
                 dbTimeoutPromise,
               ])) as any;
 
-              console.log("[AuthContext] Database user data:", {
+            {/*  console.log("[AuthContext] Database user data:", {
                 userId: data.session.user.id,
                 email: data.session.user.email,
                 dbUserData: dbUserData,
@@ -307,7 +307,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
                 roleFromColumn: dbUserData?.role,
                 roleId: dbUserData?.role_id,
                 fullName: dbUserData?.full_name
-              });
+              });*/}
 
               if (dbUserData) {
                 if (dbUserData.full_name) userName = dbUserData.full_name;
