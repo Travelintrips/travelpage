@@ -333,7 +333,7 @@ function AppContent() {
 
     // Listen for custom session restore events
     const handleForceSessionRestore = (event: CustomEvent) => {
-      console.log("[App] Force session restore event received:", event.detail);
+    {/*  console.log("[App] Force session restore event received:", event.detail);*/}
       // Trigger AuthContext sync
       window.dispatchEvent(
         new CustomEvent("authStateRefreshed", { detail: event.detail }),
@@ -342,7 +342,7 @@ function AppContent() {
 
     // Listen for force session ready events
     const handleForceSessionReady = () => {
-      console.log("[App] Force session ready event received");
+    {/*  console.log("[App] Force session ready event received");*/}
       setIsAuthReady(true);
     };
 
