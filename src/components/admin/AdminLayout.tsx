@@ -103,7 +103,7 @@ const AdminLayout = () => {
       await supabase.auth.signOut();
       navigate("/");
     } catch (error) {
-      console.error("Error signing out:", error);
+     {/* console.error("Error signing out:", error);*/}
     }
   };
 
@@ -117,7 +117,7 @@ const AdminLayout = () => {
 
     setNotificationsLoading(true);
     try {
-      console.log("[AdminLayout] Loading notifications for user:", userId, "with role:", userRole);
+    {/*  console.log("[AdminLayout] Loading notifications for user:", userId, "with role:", userRole);*/}
       const { data, error } = await supabase
         .from("notification_recipients")
         .select(
@@ -140,7 +140,7 @@ const AdminLayout = () => {
         .limit(50);
 
       if (error) {
-        console.error("[AdminLayout] Error loading notifications:", error);
+     {/*   console.error("[AdminLayout] Error loading notifications:", error);*/}
         return;
       }
 
@@ -148,7 +148,7 @@ const AdminLayout = () => {
       setNotifications(data || []);
       setUnreadCount(data?.filter((n) => !n.is_read).length || 0);
     } catch (error) {
-      console.error("Error loading notifications:", error);
+   {/*   console.error("Error loading notifications:", error);*/}
     } finally {
       setNotificationsLoading(false);
     }
@@ -166,7 +166,7 @@ const AdminLayout = () => {
         .eq("is_read", false);
 
       if (error) {
-        console.error("Error marking notifications as read:", error);
+      {/*  console.error("Error marking notifications as read:", error);*/}
         return;
       }
 
@@ -174,28 +174,28 @@ const AdminLayout = () => {
       setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
       setUnreadCount(0);
     } catch (error) {
-      console.error("Error marking notifications as read:", error);
+    {/*  console.error("Error marking notifications as read:", error);*/}
     }
   };
 
   // Load notifications when user is authenticated (exclude Customer role)
   React.useEffect(() => {
-    console.log("[AdminLayout] Notification loading check:", { 
+  {/*  console.log("[AdminLayout] Notification loading check:", { 
       isAuthenticated, 
       userId, 
       userRole, 
       shouldLoad: isAuthenticated && userId && userRole !== "Customer" 
-    });
+    });*/}
     
     if (isAuthenticated && userId && userRole !== "Customer") {
-      console.log("[AdminLayout] Loading notifications for user:", { userId, userRole, isAuthenticated });
+    {/*  console.log("[AdminLayout] Loading notifications for user:", { userId, userRole, isAuthenticated });*/}
       loadNotifications();
     } else {
-      console.log("[AdminLayout] Skipping notification load:", {
+     {/* console.log("[AdminLayout] Skipping notification load:", {
         reason: !isAuthenticated ? "not authenticated" : 
                 !userId ? "no userId" : 
                 userRole === "Customer" ? "customer role" : "unknown"
-      });
+      });*/}
     }
   }, [isAuthenticated, userId, userRole]);
 
@@ -206,7 +206,7 @@ const AdminLayout = () => {
       return;
     }
     
-    console.log("[AdminLayout] Setting up realtime notifications for:", { userId, userRole });
+   {/* console.log("[AdminLayout] Setting up realtime notifications for:", { userId, userRole });*/}
 
     const channel = supabase
       .channel("notification_recipients")
@@ -219,7 +219,7 @@ const AdminLayout = () => {
           filter: `user_id=eq.${userId}`,
         },
         (payload) => {
-          console.log("Notification change received:", payload);
+        {/*  console.log("Notification change received:", payload);*/}
           // Reload notifications when changes occur
           loadNotifications();
         },

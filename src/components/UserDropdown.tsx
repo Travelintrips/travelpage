@@ -136,13 +136,13 @@ const UserDropdown = () => {
     effectiveRole === "Admin";
   const displayRole = effectiveIsAdmin ? "Admin" : effectiveRole;
 
-  console.log("[UserDropdown] Role resolution:", {
+ {/* console.log("[UserDropdown] Role resolution:", {
     contextRole: role,
     authUserRole,
     storedRole,
     effectiveRole,
     displayRole,
-  });
+  });*/}
 
   const handleNavigate = (path: string) => {
     navigate(path);
@@ -182,7 +182,7 @@ const UserDropdown = () => {
     try {
       sessionStorage.clear();
     } catch (e) {
-      console.warn("[UserDropdown] Error clearing session storage:", e);
+    {/*  console.warn("[UserDropdown] Error clearing session storage:", e);*/}
     }
 
     // Set logout flags
@@ -191,7 +191,7 @@ const UserDropdown = () => {
   };
 
   const handleLogout = async () => {
-    console.log("[Logout] Starting logout process...");
+  {/*  console.log("[Logout] Starting logout process...");*/}
 
     // Buat Promise race: paksa lanjut jika signOut terlalu lama
     const timeout = new Promise<void>((resolve) => setTimeout(resolve, 2000)); // 2 detik

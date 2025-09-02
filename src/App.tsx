@@ -386,10 +386,10 @@ function AppContent() {
       // CRITICAL: Check for restricted roles and force logout immediately
       const restrictedRoles = ["Agent", "Driver Perusahaan", "Driver Mitra"];
       if (userRole && restrictedRoles.includes(userRole)) {
-        console.log(
+     {/*   console.log(
           "[App] RESTRICTED ROLE DETECTED - FORCING LOGOUT:",
           userRole,
-        );
+        );*/}
 
         // Clear all auth data immediately
         localStorage.removeItem("auth_user");
@@ -405,7 +405,7 @@ function AppContent() {
         supabase.auth
           .signOut({ scope: "global" })
           .then(() => {
-            console.log("[App] Successfully signed out restricted user");
+          {/*  console.log("[App] Successfully signed out restricted user");*/}
             window.location.href = "/";
           })
           .catch((error) => {
@@ -417,13 +417,13 @@ function AppContent() {
       }
 
       // Debug output to help diagnose issues
-      console.log("Current authentication state:", {
+    {/*  console.log("Current authentication state:", {
         isAuthenticated,
         userRole,
         isAdmin,
         userEmail,
         currentPath,
-      });
+      });*/}
 
       // CONSOLIDATED ADMIN/STAFF ROUTING - All admin and staff roles go to admin dashboard
       const adminStaffRoles = [
@@ -440,13 +440,13 @@ function AppContent() {
         "Admin"
       ];
 
-      console.log("Checking role for admin dashboard redirect:", {
+     {/* console.log("Checking role for admin dashboard redirect:", {
         userRole,
         isAdmin,
         isInAdminStaffRoles: adminStaffRoles.includes(userRole),
         currentPath,
         allRoles: adminStaffRoles
-      });
+      });*/}
 
       // Handle role object from database join (role.role_name) or direct string
       let resolvedUserRole = userRole;
@@ -463,18 +463,18 @@ function AppContent() {
       const hasCustomerRoleId = localStorage.getItem("userRole") === "Customer";
       
       if (shouldRedirectToAdmin && !isCustomerRole && !hasCustomerRoleId) {
-        console.log(
+     {/*   console.log(
           "Admin/Staff user detected, redirecting to admin dashboard",
           { userRole, resolvedUserRole, isAdmin, currentPath, shouldRedirectToAdmin },
-        );
+        );*/}
         // Always redirect admin/staff users to admin dashboard if they're not already there
         if (!currentPath.includes("/admin")) {
-          console.log("Navigating to admin dashboard...");
+         {/* console.log("Navigating to admin dashboard...");*/}
           // Use navigate with replace: true to prevent back button issues
           navigate("/admin", { replace: true });
         }
       } else {
-        console.log("No redirect needed for role:", { userRole, resolvedUserRole });
+       {/* console.log("No redirect needed for role:", { userRole, resolvedUserRole });*/}
         if (userRole === ROLES.DRIVER_PERUSAHAAN) {
           navigate("/driver-profile");
         }
@@ -483,10 +483,10 @@ function AppContent() {
         const hasCustomerRoleId = localStorage.getItem("userRole") === "Customer";
         
         if (isCustomerRole || hasCustomerRoleId) {
-          console.log("Customer user detected, staying on current page", {
+         {/* console.log("Customer user detected, staying on current page", {
             resolvedUserRole,
             storedRole: localStorage.getItem("userRole")
-          });
+          });*/}
         }
       }
     }
