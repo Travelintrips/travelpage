@@ -59,8 +59,35 @@ const ResetPasswordPage: React.FC = () => {
     // Check if we have the necessary tokens in the URL
     const accessToken = searchParams.get("access_token");
     const refreshToken = searchParams.get("refresh_token");
+    const type = searchParams.get("type");
     
-    if (!accessToken || !refreshToken) {
+    console.log('Reset password URL params:', {
+      accessToken: accessToken ? 'present' : 'missing',
+      refreshToken: refreshToken ? 'present' : 'missing',
+      type,
+      allParams: Object.fromEntries(searchParams.entries())
+    });
+    
+    // If we have tokens, set the session
+    if (accessToken && refreshToken) {
+      supabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken
+      }).then(({ error }) => {
+        if (error) {
+          console.error('Error setting session:', error);
+          setError("Invalid or expired reset link. Please request a new password reset.");
+        }
+      });
+    } else if (type === 'recovery') {
+      // For recovery type, we might not have tokens in URL but in hash
+      const hash = window.location.hash;
+      console.log('Hash params:', hash);
+      
+      if (!hash.includes('access_token')) {
+        setError("Invalid or expired reset link. Please request a new password reset.");
+      }
+    } else {
       setError("Invalid or expired reset link. Please request a new password reset.");
     }
   }, [searchParams]);
