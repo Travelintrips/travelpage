@@ -1542,15 +1542,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     const handleForceSessionRestore = async (event: CustomEvent) => {
       const now = Date.now();
       if (now - lastForceRestoreTime < FORCE_RESTORE_THROTTLE) {
-        console.log("[AuthContext] Force session restore throttled");
+      {/*  console.log("[AuthContext] Force session restore throttled");*/}
         return;
       }
       lastForceRestoreTime = now;
 
-      console.log(
+     {/* console.log(
         "[AuthContext] Force session restore event received:",
         event.detail,
-      );
+      );*/}
       const userData = event.detail;
 
       if (
