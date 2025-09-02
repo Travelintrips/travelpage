@@ -118,6 +118,8 @@ const AgentManagement = () => {
   const [activeTab, setActiveTab] = useState("agents");
   const [agentLogs, setAgentLogs] = useState<any[]>([]);
   const [logsLoading, setLogsLoading] = useState(false);
+  const [transactionHistory, setTransactionHistory] = useState<any[]>([]);
+  const [transactionLoading, setTransactionLoading] = useState(false);
   const { isAdmin, userRole, userId } = useAuth();
 
   // Check if user is Super Admin
@@ -128,6 +130,9 @@ const AgentManagement = () => {
     fetchAgents();
     if (activeTab === "logs") {
       fetchAgentLogs();
+    }
+    if (activeTab === "transactions") {
+      fetchTransactionHistory();
     }
 
     // Subscribe to real-time updates for memberships table
@@ -361,6 +366,115 @@ const AgentManagement = () => {
       });
     } finally {
       setLogsLoading(false);
+    }
+  };
+
+  const fetchTransactionHistory = async () => {
+    try {
+      setTransactionLoading(true);
+      console.log("Fetching transaction history...");
+
+      // Get all agent IDs
+      const agentIds = agents.map(agent => agent.id);
+      
+      if (agentIds.length === 0) {
+        setTransactionHistory([]);
+        return;
+      }
+
+      // Fetch transactions from multiple tables
+      const [bookingsTrips, airportTransfers, baggageBookings, handlingBookings, regularBookings] = await Promise.all([
+        // Bookings trips
+        supabase
+          .from("bookings_trips")
+          .select(`
+            id,
+            created_at,
+            total_amount,
+            total_price,
+            status,
+            user:user_id(id, full_name, email)
+          `)
+          .in("user_id", agentIds)
+          .order("created_at", { ascending: false }),
+        
+        // Airport transfers
+        supabase
+          .from("airport_transfer")
+          .select(`
+            id,
+            created_at,
+            price,
+            status,
+            customer:customer_id(id, full_name, email),
+            driver:driver_id(id, full_name, email)
+          `)
+          .or(agentIds.map(id => `customer_id.eq.${id},driver_id.eq.${id}`).join(","))
+          .order("created_at", { ascending: false }),
+        
+        // Baggage bookings
+        supabase
+          .from("baggage_booking")
+          .select(`
+            id,
+            created_at,
+            total_amount,
+            status,
+            user:user_id(id, full_name, email)
+          `)
+          .in("user_id", agentIds)
+          .order("created_at", { ascending: false }),
+        
+        // Handling bookings
+        supabase
+          .from("handling_bookings")
+          .select(`
+            id,
+            created_at,
+            total_price,
+            status,
+            user:user_id(id, full_name, email)
+          `)
+          .in("user_id", agentIds)
+          .order("created_at", { ascending: false }),
+        
+        // Regular bookings
+        supabase
+          .from("bookings")
+          .select(`
+            id,
+            created_at,
+            total_amount,
+            status,
+            user:user_id(id, full_name, email)
+          `)
+          .in("user_id", agentIds)
+          .order("created_at", { ascending: false })
+      ]);
+
+      // Combine all transactions
+      const allTransactions = [
+        ...(bookingsTrips.data || []).map(t => ({ ...t, type: "Trip Booking", amount: t.total_amount || t.total_price })),
+        ...(airportTransfers.data || []).map(t => ({ ...t, type: "Airport Transfer", amount: t.price, user: t.customer || t.driver })),
+        ...(baggageBookings.data || []).map(t => ({ ...t, type: "Baggage Booking", amount: t.total_amount })),
+        ...(handlingBookings.data || []).map(t => ({ ...t, type: "Handling Service", amount: t.total_price })),
+        ...(regularBookings.data || []).map(t => ({ ...t, type: "Regular Booking", amount: t.total_amount }))
+      ];
+
+      // Sort by created_at descending
+      allTransactions.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+      console.log("Fetched transaction history:", allTransactions);
+      setTransactionHistory(allTransactions);
+    } catch (error) {
+      console.error("Error fetching transaction history:", error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch transaction history. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setTransactionLoading(false);
     }
   };
 
@@ -917,6 +1031,16 @@ const handleConfirmSuspend = async () => {
           >
             Logs Aktivasi Agent
           </button>
+          <button
+            onClick={() => setActiveTab("transactions")}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              activeTab === "transactions"
+                ? "border-blue-500 text-blue-600"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+            }`}
+          >
+            Agent Transaction History
+          </button>
         </nav>
       </div>
 
@@ -1262,6 +1386,94 @@ const handleConfirmSuspend = async () => {
                         <div className="text-sm">
                           {log.activator?.email || "N/A"}
                         </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {activeTab === "transactions" && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Calendar className="h-5 w-5" />
+              Histori Transaksi Agent
+            </CardTitle>
+            <CardDescription>
+              Riwayat semua transaksi yang dilakukan oleh agent
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {transactionLoading ? (
+              <div className="flex items-center justify-center h-32">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
+                  <div className="text-lg">Loading transactions...</div>
+                </div>
+              </div>
+            ) : transactionHistory.length === 0 ? (
+              <div className="text-center py-8">
+                <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <h3 className="text-lg font-semibold mb-2">No transactions found</h3>
+                <p className="text-muted-foreground mb-4">
+                  Belum ada transaksi yang tercatat untuk agent.
+                </p>
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Tanggal & Waktu</TableHead>
+                    <TableHead>ID Transaksi</TableHead>
+                    <TableHead>Jenis Transaksi</TableHead>
+                    <TableHead>Nama Agent</TableHead>
+                    <TableHead>Email Agent</TableHead>
+                    <TableHead>Jumlah</TableHead>
+                    <TableHead>Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {transactionHistory.map((transaction) => (
+                    <TableRow key={`${transaction.type}-${transaction.id}`}>
+                      <TableCell>
+                        <div className="text-sm">
+                          {formatDate(transaction.created_at)}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {new Date(transaction.created_at).toLocaleTimeString("id-ID")}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="font-mono text-sm">
+                          {transaction.id.slice(0, 8)}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">
+                          {transaction.type}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="font-medium">
+                          {transaction.user?.full_name || "N/A"}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-sm">
+                          {transaction.user?.email || "N/A"}
+                        </div>
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        {formatCurrency(transaction.amount || 0)}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={getStatusBadgeVariant(transaction.status)}>
+                          {transaction.status || "N/A"}
+                        </Badge>
                       </TableCell>
                     </TableRow>
                   ))}

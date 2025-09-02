@@ -69,6 +69,8 @@ import TopUpAgentRequests from "./components/admin/TopUpAgentRequests";
 import HistoryTopUp from "./components/admin/HistoryTopUp";
 import TopUpDriver from "./components/admin/TopUpDriver";
 import TransportasiPage from "./pages/TransportasiPage";
+import ForgotPasswordPage from "./pages/ForgotPasswordPage";
+import ResetPasswordPage from "./pages/ResetPasswordPage";
 
 declare global {
   interface Window {
@@ -594,6 +596,8 @@ function AppContent() {
           {/* Public routes - no authentication required */}
           <Route path="/" element={<TravelPage />} />
           <Route path="/baggage" element={<AirportBaggage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
 
           <Route
             path="/airport-preview/:previewCode"

@@ -185,7 +185,7 @@ const CustomerManagement = () => {
     });
   };
 
-  const handleEditCustomer = async () => {
+ const handleEditCustomer = async () => {
   if (!selectedCustomer) return;
 
   try {
@@ -194,34 +194,26 @@ const CustomerManagement = () => {
       .from("customers")
       .update(formData)
       .eq("id", selectedCustomer.id)
-      .select();
+      .select("id, user_id, full_name") // ambil user_id untuk sync
+      .single();
 
     if (error) throw error;
 
-    // Update users table (pastikan ada relasi: email atau user_id)
-    const { error: userError } = await supabase
-      .from("users")
-      .update({
-        full_name: formData.full_name,
-      })
-      .eq("email", formData.email); // atau .eq("id", selectedCustomer.user_id)
+    // Pastikan ada user_id di customers
+    if (data?.user_id) {
+      const { error: userError } = await supabase
+        .from("users")
+        .update({ full_name: formData.full_name })
+        .eq("id", data.user_id);
 
-    if (userError) throw userError;
+      if (userError) throw userError;
+    }
 
     // Update state local customers
-    if (data && data.length > 0) {
-      const updatedCustomers = customers.map((customer) =>
-        customer.id === selectedCustomer.id ? data[0] : customer,
-      );
-      setCustomers(updatedCustomers);
-    } else {
-      const updatedCustomers = customers.map((customer) =>
-        customer.id === selectedCustomer.id
-          ? { ...customer, ...formData }
-          : customer,
-      );
-      setCustomers(updatedCustomers);
-    }
+    const updatedCustomers = customers.map((customer) =>
+      customer.id === selectedCustomer.id ? { ...customer, ...formData } : customer
+    );
+    setCustomers(updatedCustomers);
 
     setIsEditDialogOpen(false);
     setSelectedCustomer(null);
@@ -230,6 +222,7 @@ const CustomerManagement = () => {
     console.error("Error updating customer:", error);
   }
 };
+
 
 
   const handleDeleteCustomer = async () => {

@@ -299,6 +299,15 @@ const AuthModal: React.FC<ModalProps> = ({
                           Register
                         </Button>
                       </p>
+                      <p className="mt-2">
+                        <Button
+                          variant="link"
+                          className="p-0 h-auto text-primary"
+                          onClick={() => window.location.href = '/forgot-password'}
+                        >
+                          Forgot Password?
+                        </Button>
+                      </p>
                     </div>
                   </form>
                 </Form>
@@ -326,6 +335,15 @@ const AuthModal: React.FC<ModalProps> = ({
                       Login
                     </Button>
                   </p>
+                  <p className="mt-2">
+                    <Button
+                      variant="link"
+                      className="p-0 h-auto text-primary"
+                      onClick={() => window.location.href = '/forgot-password'}
+                    >
+                      Forgot Password?
+                    </Button>
+                  </p>
                 </div>
               </TabsContent>
             </Tabs>
@@ -334,16 +352,27 @@ const AuthModal: React.FC<ModalProps> = ({
             <div className="hidden md:block mt-4">
               <div className="text-sm text-muted-foreground text-center">
                 {activeTab === "login" ? (
-                  <p>
-                    Don't have an account?{" "}
-                    <Button
-                      variant="link"
-                      className="p-0 h-auto"
-                      onClick={() => setActiveTab("register")}
-                    >
-                      Register
-                    </Button>
-                  </p>
+                  <div>
+                    <p>
+                      Don't have an account?{" "}
+                      <Button
+                        variant="link"
+                        className="p-0 h-auto"
+                        onClick={() => setActiveTab("register")}
+                      >
+                        Register
+                      </Button>
+                    </p>
+                    <p className="mt-2">
+                      <Button
+                        variant="link"
+                        className="p-0 h-auto text-primary"
+                        onClick={() => window.location.href = '/forgot-password'}
+                      >
+                        Forgot Password?
+                      </Button>
+                    </p>
+                  </div>
                 ) : (
                   <p>
                     Already have an account?{" "}
