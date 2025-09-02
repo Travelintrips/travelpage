@@ -158,7 +158,7 @@ const AgentManagement = () => {
       setLoading(true);
       console.log("Fetching agents...");
 
-      // Fetch agents directly from users table with role = 'agent'
+      // Fetch agents directly from users table with role = 'agent' OR role_id = 11
       const { data: agentsData, error } = await supabase
         .from("users")
         .select(
@@ -175,7 +175,7 @@ const AgentManagement = () => {
           role
         `
         )
-        .eq("role", "agent")
+        .or("role.eq.Agent,role_id.eq.11")
         .order("created_at", { ascending: false });
 
       // Fetch active memberships to get discount percentages and membership status

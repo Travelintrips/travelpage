@@ -52,9 +52,9 @@ import {
 interface Customer {
   id: string;
   created_at: string;
-  name: string;
+  full_name: string | null;
   email: string | null;
-  phone: string | null;
+  phone_number: string | null;
   address: string | null;
   selfie_url: string | null;
   ktp_paspor_url: string | null;
@@ -71,10 +71,9 @@ const CustomerManagement = () => {
     null,
   );
   const [formData, setFormData] = useState({
-    name: "",
     full_name: "",
     email: "",
-    phone: "",
+    phone_number: "",
     address: "",
     selfie_url: "",
     ktp_paspor_url: "",
@@ -112,7 +111,6 @@ const CustomerManagement = () => {
     setFormData({
       ...formData,
       [name]: value,
-      ...(name === "name" ? { full_name: value } : {}),
     });
   };
 
@@ -158,15 +156,9 @@ const CustomerManagement = () => {
 
   const handleAddCustomer = async () => {
     try {
-      // Ensure full_name is set to name if not provided
-      const customerData = {
-        ...formData,
-        full_name: formData.full_name || formData.name,
-      };
-
       const { data, error } = await supabase
         .from("customers")
-        .insert([customerData])
+        .insert([formData])
         .select();
 
       if (error) throw error;
@@ -184,10 +176,9 @@ const CustomerManagement = () => {
 
   const resetFormData = () => {
     setFormData({
-      name: "",
       full_name: "",
       email: "",
-      phone: "",
+      phone_number: "",
       address: "",
       selfie_url: "",
       ktp_paspor_url: "",
@@ -195,39 +186,51 @@ const CustomerManagement = () => {
   };
 
   const handleEditCustomer = async () => {
-    if (!selectedCustomer) return;
+  if (!selectedCustomer) return;
 
-    try {
-      const { data, error } = await supabase
-        .from("customers")
-        .update(formData)
-        .eq("id", selectedCustomer.id)
-        .select();
+  try {
+    // Update customers table
+    const { data, error } = await supabase
+      .from("customers")
+      .update(formData)
+      .eq("id", selectedCustomer.id)
+      .select();
 
-      if (error) throw error;
+    if (error) throw error;
 
-      if (data && data.length > 0) {
-        const updatedCustomers = customers.map((customer) =>
-          customer.id === selectedCustomer.id ? data[0] : customer,
-        );
-        setCustomers(updatedCustomers);
-      } else {
-        // Fallback to local update if no data returned
-        const updatedCustomers = customers.map((customer) =>
-          customer.id === selectedCustomer.id
-            ? { ...customer, ...formData }
-            : customer,
-        );
-        setCustomers(updatedCustomers);
-      }
+    // Update users table (pastikan ada relasi: email atau user_id)
+    const { error: userError } = await supabase
+      .from("users")
+      .update({
+        full_name: formData.full_name,
+      })
+      .eq("email", formData.email); // atau .eq("id", selectedCustomer.user_id)
 
-      setIsEditDialogOpen(false);
-      setSelectedCustomer(null);
-      resetFormData();
-    } catch (error) {
-      console.error("Error updating customer:", error);
+    if (userError) throw userError;
+
+    // Update state local customers
+    if (data && data.length > 0) {
+      const updatedCustomers = customers.map((customer) =>
+        customer.id === selectedCustomer.id ? data[0] : customer,
+      );
+      setCustomers(updatedCustomers);
+    } else {
+      const updatedCustomers = customers.map((customer) =>
+        customer.id === selectedCustomer.id
+          ? { ...customer, ...formData }
+          : customer,
+      );
+      setCustomers(updatedCustomers);
     }
-  };
+
+    setIsEditDialogOpen(false);
+    setSelectedCustomer(null);
+    resetFormData();
+  } catch (error) {
+    console.error("Error updating customer:", error);
+  }
+};
+
 
   const handleDeleteCustomer = async () => {
     if (!selectedCustomer) return;
@@ -253,35 +256,39 @@ const CustomerManagement = () => {
   };
 
   const openEditDialog = (customer: Customer) => {
-    setSelectedCustomer(customer);
-    setFormData({
-      name: customer.name,
-      full_name: customer.name, // Set full_name to match name initially
-      email: customer.email || "",
-      phone: customer.phone || "",
-      address: customer.address || "",
-      selfie_url: customer.selfie_url || "",
-      ktp_paspor_url: customer.ktp_paspor_url || "",
-    });
-    setIsEditDialogOpen(true);
-  };
+  setSelectedCustomer(customer);
+  setFormData({
+    full_name: customer.full_name ?? "",
+    email: customer.email ?? "",
+    phone_number: customer.phone_number ?? "",
+    address: customer.address ?? "",
+    selfie_url: customer.selfie_url ?? "",
+    ktp_paspor_url: customer.ktp_paspor_url ?? "",
+  });
+  setIsEditDialogOpen(true);
+};
+
 
   const openDeleteDialog = (customer: Customer) => {
     setSelectedCustomer(customer);
     setIsDeleteDialogOpen(true);
   };
 
-  const filteredCustomers = customers.filter(
-    (customer) =>
-      customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (customer.email?.toLowerCase() || "").includes(
-        searchTerm.toLowerCase(),
-      ) ||
-      (customer.phone || "").includes(searchTerm) ||
-      (customer.address?.toLowerCase() || "").includes(
-        searchTerm.toLowerCase(),
-      ),
+  const filteredCustomers = customers.filter((customer) => {
+  const fullName = customer.full_name?.toLowerCase() ?? "";
+  const email = customer.email?.toLowerCase() ?? "";
+  const phone = customer.phone_number ?? "";
+  const address = customer.address?.toLowerCase() ?? "";
+  const search = searchTerm.toLowerCase();
+
+  return (
+    fullName.includes(search) ||
+    email.includes(search) ||
+    phone.includes(searchTerm) ||
+    address.includes(search)
   );
+});
+
 
   return (
     <div className="space-y-6">
@@ -339,10 +346,10 @@ const CustomerManagement = () => {
                   filteredCustomers.map((customer) => (
                     <TableRow key={customer.id}>
                       <TableCell className="font-medium">
-                        {customer.name}
+                        {customer.full_name}
                       </TableCell>
                       <TableCell>{customer.email}</TableCell>
-                      <TableCell>{customer.phone}</TableCell>
+                      <TableCell>{customer.phone_number}</TableCell>
                       <TableCell>{customer.address}</TableCell>
                       <TableCell>
                         <div className="flex space-x-2">
@@ -423,13 +430,13 @@ const CustomerManagement = () => {
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="name" className="text-right">
+              <Label htmlFor="full_name" className="text-right">
                 Name
               </Label>
               <Input
-                id="name"
-                name="name"
-                value={formData.name}
+                id="full_name"
+                name="full_name"
+                value={formData.full_name}
                 onChange={handleInputChange}
                 className="col-span-3"
               />
@@ -448,13 +455,13 @@ const CustomerManagement = () => {
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="phone" className="text-right">
+              <Label htmlFor="phone_number" className="text-right">
                 Phone
               </Label>
               <Input
-                id="phone"
-                name="phone"
-                value={formData.phone}
+                id="phone_number"
+                name="phone_number"
+                value={formData.phone_number}
                 onChange={handleInputChange}
                 className="col-span-3"
               />
@@ -603,8 +610,8 @@ const CustomerManagement = () => {
               </Label>
               <Input
                 id="edit-name"
-                name="name"
-                value={formData.name}
+                name="full_name"
+                value={formData.full_name}
                 onChange={handleInputChange}
                 className="col-span-3"
               />
@@ -628,8 +635,8 @@ const CustomerManagement = () => {
               </Label>
               <Input
                 id="edit-phone"
-                name="phone"
-                value={formData.phone}
+                name="phone_number"
+                value={formData.phone_number}
                 onChange={handleInputChange}
                 className="col-span-3"
               />
