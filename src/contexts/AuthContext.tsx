@@ -882,20 +882,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
           // If this is a SIGNED_IN event during staff creation, immediately sign out the new user
           if (event === "SIGNED_IN" && session?.user) {
-          {/*  console.log(
+          /*  console.log(
               "[AuthContext] Detected SIGNED_IN event during staff creation - blocking and restoring admin",
               { newUserId: session.user.id, newUserEmail: session.user.email },
-            );*/}
+            );*/
 
             // Immediately sign out the new user session to prevent auto-login
             try {
-           {/*   console.log(
+           /*   console.log(
                 "[AuthContext] Signing out newly created staff user immediately",
               );
               await supabase.auth.signOut({ scope: "global" });
               console.log(
                 "[AuthContext] Successfully signed out new staff user",
-              );*/}
+              );*/
             } catch (signOutError) {
               console.warn(
                 "[AuthContext] Failed to sign out new staff user:",
