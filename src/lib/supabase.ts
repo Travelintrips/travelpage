@@ -42,7 +42,7 @@ function isValidUrl(string: string): boolean {
 }
 
 // Debug logging for environment variables
-{/*console.log("Supabase configuration:", {
+/*console.log("Supabase configuration:", {
   url: supabaseUrl ? `${supabaseUrl.substring(0, 20)}...` : "undefined",
   key: supabaseAnonKey ? `${supabaseAnonKey.substring(0, 20)}...` : "undefined",
   isValidUrl: isValidUrl(supabaseUrl),
@@ -63,7 +63,7 @@ function isValidUrl(string: string): boolean {
         ? "available"
         : "unavailable",
   },
-}); */}
+}); */
 
 const hasValidCredentials =
   supabaseUrl &&
@@ -75,7 +75,7 @@ const hasValidCredentials =
 let supabase: any;
 
 if (hasValidCredentials) {
- {/* console.log("Using Supabase URL:", supabaseUrl);*/}
+ // console.log("Using Supabase URL:", supabaseUrl);
   supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
     auth: {
       persistSession: true,
@@ -94,9 +94,9 @@ if (hasValidCredentials) {
     },
   });
 } else {
-  console.warn(
-    "Using mock Supabase client. Database operations will not work.",
-  );
+//  console.warn(
+//    "Using mock Supabase client. Database operations will not work.",
+ // );
 
   supabase = {
     auth: {
@@ -228,7 +228,7 @@ if (hasValidCredentials) {
     },
     functions: {
       invoke: (functionName, options) => {
-        console.log(`Mock function invoke: ${functionName}`, options);
+    //    console.log(`Mock function invoke: ${functionName}`, options);
         return Promise.resolve({ data: { success: true }, error: null });
       },
     },
