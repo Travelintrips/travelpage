@@ -111,7 +111,7 @@ export default function BookingManagementDriver() {
       const { data, error } = await supabase
         .from("bookings")
         .select("*")
-        .eq("created_by_role", "Driver Perusahaan")
+        .in("created_by_role", ["Driver Perusahaan", "Driver Mitra"])
         .order("created_at", { ascending: false });
 
       if (error) throw error;

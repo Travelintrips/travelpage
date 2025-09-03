@@ -106,7 +106,7 @@ export default function BookingManagementCustomer() {
       const { data, error } = await supabase
         .from("bookings")
         .select("*")
-        .neq("created_by_role", "Driver Perusahaan")
+        .not("created_by_role", "eq", "Driver Perusahaan")
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -148,8 +148,21 @@ export default function BookingManagementCustomer() {
         }),
       );
 
-      setBookings(bookingsWithRelatedData);
-      setFilteredBookings(bookingsWithRelatedData);
+      // Additional filtering to exclude driver bookings
+      const customerBookings = bookingsWithRelatedData.filter(booking => {
+        // Exclude if created_by_role is "Driver Perusahaan"
+        if (booking.created_by_role === "Driver Perusahaan") {
+          return false;
+        }
+        // Exclude if user name contains "Driver" (case insensitive)
+        if (booking.user?.full_name?.toLowerCase().includes("driver")) {
+          return false;
+        }
+        return true;
+      });
+
+      setBookings(customerBookings);
+      setFilteredBookings(customerBookings);
     } catch (error) {
       console.error("Error fetching customer bookings:", error);
       toast({

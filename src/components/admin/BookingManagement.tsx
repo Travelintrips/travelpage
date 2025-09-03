@@ -106,11 +106,11 @@ export default function BookingManagement() {
         [];
 
       const customerBookingsToday = todayBookings.filter(
-        (booking) => booking.created_by_role !== "Driver Perusahaan",
+        (booking) => booking.created_by_role !== "Customer",
       ).length;
 
       const driverBookingsToday = todayBookings.filter(
-        (booking) => booking.created_by_role === "Driver Perusahaan",
+        (booking) => booking.created_by_role === "Driver Perusahaan","Driver Mitra",
       ).length;
 
       const statusCounts = bookings?.reduce(
@@ -258,7 +258,7 @@ export default function BookingManagement() {
               <TableRow>
                 <TableHead>Tanggal</TableHead>
                 <TableHead>Customer Name</TableHead>
-                <TableHead>Tipe</TableHead>
+                <TableHead>Tipe1</TableHead>
                 <TableHead>Status</TableHead>
               </TableRow>
             </TableHeader>
@@ -269,7 +269,7 @@ export default function BookingManagement() {
                   <TableCell>{booking.user?.full_name || "Unknown"}</TableCell>
                   <TableCell>
                     <Badge variant="outline">
-                      {booking.created_by_role === "Driver Perusahaan"
+                      {booking.created_by_role === "Driver Perusahaan", "Driver Mitra"
                         ? "Driver"
                         : "Customer"}
                     </Badge>
