@@ -56,41 +56,25 @@ const ResetPasswordPage: React.FC = () => {
   });
 
   useEffect(() => {
-    // Check if we have the necessary tokens in the URL
-    const accessToken = searchParams.get("access_token");
-    const refreshToken = searchParams.get("refresh_token");
-    const type = searchParams.get("type");
-    
-    console.log('Reset password URL params:', {
-      accessToken: accessToken ? 'present' : 'missing',
-      refreshToken: refreshToken ? 'present' : 'missing',
-      type,
-      allParams: Object.fromEntries(searchParams.entries())
-    });
-    
-    // If we have tokens, set the session
+  const hash = window.location.hash;
+  if (hash) {
+    const params = new URLSearchParams(hash.replace('#', ''));
+    const accessToken = params.get('access_token');
+    const refreshToken = params.get('refresh_token');
+
     if (accessToken && refreshToken) {
-      supabase.auth.setSession({
-        access_token: accessToken,
-        refresh_token: refreshToken
-      }).then(({ error }) => {
-        if (error) {
-          console.error('Error setting session:', error);
-          setError("Invalid or expired reset link. Please request a new password reset.");
-        }
-      });
-    } else if (type === 'recovery') {
-      // For recovery type, we might not have tokens in URL but in hash
-      const hash = window.location.hash;
-      console.log('Hash params:', hash);
-      
-      if (!hash.includes('access_token')) {
-        setError("Invalid or expired reset link. Please request a new password reset.");
-      }
+      supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
+        .then(({ error }) => {
+          if (error) setError("Invalid or expired reset link.");
+        });
     } else {
-      setError("Invalid or expired reset link. Please request a new password reset.");
+      setError("Invalid or expired reset link.");
     }
-  }, [searchParams]);
+  } else {
+    setError("Invalid or expired reset link.");
+  }
+}, []);
+
 
   const handleSubmit = async (data: ResetPasswordFormValues) => {
     setIsSubmitting(true);
