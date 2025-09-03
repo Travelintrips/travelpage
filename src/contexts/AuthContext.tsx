@@ -43,7 +43,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const initializeSession = useCallback(async () => {
     if (initializationRef.current) {
-    {/*  console.log("[AuthContext] Session initialization already in progress");*/}
+    //  console.log("[AuthContext] Session initialization already in progress");
       return;
     }
 
@@ -51,7 +51,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     const lastInitTime = sessionStorage.getItem("lastSessionInit");
     const now = Date.now();
     if (lastInitTime && now - parseInt(lastInitTime) < 1000) {
-    {/*  console.log("[AuthContext] Session initialization throttled");*/}
+    // console.log("[AuthContext] Session initialization throttled");
       return;
     }
     sessionStorage.setItem("lastSessionInit", now.toString());
@@ -73,7 +73,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     };
 
     try {
-    {/*  console.log("[AuthContext] Starting session initialization...");*/}
+    //  console.log("[AuthContext] Starting session initialization...");
 
       // Clear any existing timeout
       if (sessionTimeoutRef.current) {
@@ -156,7 +156,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       ])) as any;
 
       if (error || !data.session) {
-       {/* console.log("[AuthContext] No valid Supabase session found");*/}
+       // console.log("[AuthContext] No valid Supabase session found");
 
         // Try localStorage fallback only if truly offline
         const storedUser = localStorage.getItem("auth_user");
@@ -228,9 +228,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           localStorage.removeItem("userRole");
         }
       } else {
-      {/*  console.log(
+        console.log(
           "[AuthContext] Valid Supabase session found, updating state",
-        );*/}
+        );
         // Batch initial session updates to prevent flickering
         const sessionUpdates: any = {
           session: data.session,
@@ -257,15 +257,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
             currentAdminId === data.session.user.id) ||
           blockAuthChanges === "true"
         ) {
-        {/*  console.log(
-            "[AuthContext] Preserving admin role during user creation process",
-          );*/}
+        //  console.log(
+         //   "[AuthContext] Preserving admin role during user creation process",
+        //  );
           userRole = "Admin";
         } else {
           // CRITICAL: Absolute priority for Robby Dua - ALWAYS use Staff Admin role
           if (data.session.user.id === '9c5a5d3d-4d40-4011-adf4-fbdee4dc4c26' && 
               data.session.user.email === 'robbyadmin1@gmail.com') {
-          {/*  console.log("[AuthContext] ABSOLUTE PRIORITY: Forcing Staff Admin role for Robby Dua (ignoring database)");*/}
+          // console.log("[AuthContext] ABSOLUTE PRIORITY: Forcing Staff Admin role for Robby Dua (ignoring database)");
             userRole = "Staff Admin";
           }
           // CRITICAL: Only check for admin role if email contains admin or specific admin email
@@ -299,15 +299,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
                 dbTimeoutPromise,
               ])) as any;
 
-            {/*  console.log("[AuthContext] Database user data:", {
-                userId: data.session.user.id,
-                email: data.session.user.email,
-                dbUserData: dbUserData,
-                roleFromJoin: dbUserData?.role?.role_name,
-                roleFromColumn: dbUserData?.role,
-                roleId: dbUserData?.role_id,
-                fullName: dbUserData?.full_name
-              });*/}
+          //    console.log("[AuthContext] Database user data:", {
+          //      userId: data.session.user.id,
+          //      email: data.session.user.email,
+          //      dbUserData: dbUserData,
+          //      roleFromJoin: dbUserData?.role?.role_name,
+          //      roleFromColumn: dbUserData?.role,
+          //      roleId: dbUserData?.role_id,
+          //      fullName: dbUserData?.full_name
+          //    });
 
               if (dbUserData) {
                 if (dbUserData.full_name) userName = dbUserData.full_name;
@@ -319,7 +319,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
                 // First check direct role column (prioritize this for consistency)
                 if (dbUserData.role && typeof dbUserData.role === 'string' && dbUserData.role !== "Admin") {
                   determinedRole = dbUserData.role;
-                  console.log("[AuthContext] Using direct role column:", determinedRole);
+                //  console.log("[AuthContext] Using direct role column:", determinedRole);
                 }
                 // Then check role from join table
                 else if (
@@ -327,7 +327,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
                   dbUserData.role.role_name !== "Admin"
                 ) {
                   determinedRole = dbUserData.role.role_name;
-                  console.log("[AuthContext] Using role from join:", determinedRole);
+                //  console.log("[AuthContext] Using role from join:", determinedRole);
                 }
                 // Handle case where role is an object but we need the string value
                 else if (dbUserData.role && typeof dbUserData.role === 'object' && dbUserData.role.role_name) {
@@ -352,10 +352,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
                   
                   if (roleIdMapping[dbUserData.role_id]) {
                     determinedRole = roleIdMapping[dbUserData.role_id];
-                    console.log("[AuthContext] Using role_id mapping:", {
-                      role_id: dbUserData.role_id,
-                      mapped_role: determinedRole
-                    });
+                  //  console.log("[AuthContext] Using role_id mapping:", {
+                  //    role_id: dbUserData.role_id,
+                  //    mapped_role: determinedRole
+                  //  });
                   }
                 }
 
@@ -366,7 +366,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
                   } else {
                     userRole = determinedRole;
                   }
-                  console.log("[AuthContext] Final determined role:", userRole);
+                 // console.log("[AuthContext] Final determined role:", userRole);
                 } else {
                   // Force Customer role for non-admin emails
                   userRole = "Customer";
@@ -383,21 +383,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
                   "Driver Mitra",
                 ];
                 if (restrictedRoles.includes(userRole)) {
-                  console.log(
-                    "[AuthContext] RESTRICTED ROLE DETECTED - SIGNING OUT:",
-                    userRole,
-                  );
+                //  console.log(
+                 //   "[AuthContext] RESTRICTED ROLE DETECTED - SIGNING OUT:",
+                 //   userRole,
+               //   );
 
                   try {
                     await supabase.auth.signOut({ scope: "global" });
-                    console.log(
-                      "[AuthContext] Successfully signed out restricted user",
-                    );
+                  //  console.log(
+                  //    "[AuthContext] Successfully signed out restricted user",
+                 //   );
                   } catch (signOutError) {
-                    console.error(
-                      "[AuthContext] Error signing out restricted user:",
-                      signOutError,
-                    );
+                  //  console.error(
+                  //    "[AuthContext] Error signing out restricted user:",
+                  //    signOutError,
+                 //   );
                   }
 
                   // Clear all auth data
@@ -425,10 +425,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
               } else {
                 // Force Customer role if no database data for non-admin emails
                 userRole = "Customer";
-                console.log(
-                  "[AuthContext] No database data, forcing Customer role:",
-                  userRole,
-                );
+             //   console.log(
+             //     "[AuthContext] No database data, forcing Customer role:",
+             //     userRole,
+             //   );
               }
             } catch (dbError) {
               console.warn(
@@ -437,10 +437,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
               );
               // Force Customer role on database error for non-admin emails
               userRole = "Customer";
-              console.log(
-                "[AuthContext] Database error, forcing Customer role:",
-                userRole,
-              );
+            //  console.log(
+            //    "[AuthContext] Database error, forcing Customer role:",
+            //    userRole,
+            //  );
             }
 
             // Only check staff table if user is not already determined to be Customer
@@ -465,11 +465,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
                     staffTimeoutPromise,
                   ])) as any;
 
-                console.log("[AuthContext] Staff table data:", {
-                  userId: data.session.user.id,
-                  staffData: staffData,
-                  staffError: staffError
-                });
+              //  console.log("[AuthContext] Staff table data:", {
+              //    userId: data.session.user.id,
+              //    staffData: staffData,
+              //    staffError: staffError
+              //  });
 
                 if (
                   !staffError &&
@@ -478,7 +478,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
                   staffData.role !== "Admin"
                 ) {
                   userRole = staffData.role;
-                  console.log("[AuthContext] Found staff role:", userRole);
+                // console.log("[AuthContext] Found staff role:", userRole);
                   
                   // Update user info from staff table if available
                   if (staffData.full_name) userName = staffData.full_name;
@@ -502,7 +502,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         // CRITICAL: FINAL ABSOLUTE OVERRIDE for Robby Dua - ALWAYS Staff Admin
         if (data.session.user.id === '9c5a5d3d-4d40-4011-adf4-fbdee4dc4c26' && 
             data.session.user.email === 'robbyadmin1@gmail.com') {
-        {/*  console.log("[AuthContext] FINAL ABSOLUTE OVERRIDE: Setting Staff Admin role for Robby Dua (ignoring all database values)");*/}
+        // console.log("[AuthContext] FINAL ABSOLUTE OVERRIDE: Setting Staff Admin role for Robby Dua (ignoring all database values)");
           userRole = "Staff Admin";
           
           // Force update user metadata to ensure consistency
@@ -513,9 +513,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
                 role: "Staff Admin"
               }
             });
-          {/*  console.log("[AuthContext] Updated user metadata to Staff Admin for Robby Dua");*/}
+          // console.log("[AuthContext] Updated user metadata to Staff Admin for Robby Dua");
           } catch (metadataError) {
-          {/*  console.warn("[AuthContext] Failed to update metadata for Robby Dua:", metadataError);*/}
+           // console.warn("[AuthContext] Failed to update metadata for Robby Dua:", metadataError);
           }
         }
 
@@ -551,20 +551,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
         localStorage.setItem("isAdmin", isAdmin ? "true" : "false");
 
-       {/* console.log("[AuthContext] Admin status determined:", {
-          isAdminByRole,
-          isAdminEmail,
-          isAdmin,
-          userRole,
-        });
+       // console.log("[AuthContext] Admin status determined:", {
+       //   isAdminByRole,
+       //   isAdminEmail,
+      //    isAdmin,
+      //    userRole,
+      //  });
 
         // Log final user data for debugging
-        console.log("[AuthContext] Final user data object:", {
-          id: data.session.user.id,
-          role: userRole,
-          email: data.session.user.email,
-          name: userName
-        });*/}
+      //  console.log("[AuthContext] Final user data object:", {
+       //   id: data.session.user.id,
+       //   role: userRole,
+       //   email: data.session.user.email,
+       //   name: userName
+     //   });
 
         // Dispatch session restored event
         window.dispatchEvent(
@@ -580,7 +580,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         );
       }
     } catch (err) {
-      console.error("[AuthContext] Error during session initialization:", err);
+    //  console.error("[AuthContext] Error during session initialization:", err);
 
       // Enhanced fallback for production environments
       const storedUser = localStorage.getItem("auth_user");
@@ -589,7 +589,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       if (storedUser && storedUserId) {
         try {
           const userData = JSON.parse(storedUser);
-          console.log("[AuthContext] Using localStorage fallback after error");
+        //  console.log("[AuthContext] Using localStorage fallback after error");
 
           setUser({
             id: userData.id,
@@ -628,14 +628,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         isSessionReady: true,
       });
       initializationRef.current = false;
-    {/*  console.log("[AuthContext] Session initialization completed");*/}
+    //  console.log("[AuthContext] Session initialization completed");
     }
   }, []);
 
   const forceRefreshSession = useCallback(async () => {
     setIsCheckingSession(true);
     try {
-      console.log("[AuthContext] Starting force refresh session...");
+     // console.log("[AuthContext] Starting force refresh session...");
 
       // Create timeout promise with reduced duration
       const timeoutPromise = new Promise((_, reject) => {
@@ -691,7 +691,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       }
 
       // If no valid session, try refresh with timeout
-      console.log("[AuthContext] No current session, attempting refresh...");
+     // console.log("[AuthContext] No current session, attempting refresh...");
       const refreshPromise = supabase.auth.refreshSession();
       const refreshTimeoutPromise = new Promise((_, reject) => {
         setTimeout(() => reject(new Error("Refresh timeout")), 8000);
@@ -702,24 +702,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       ])) as any;
 
       if (error) {
-        console.warn("[AuthContext] Session refresh failed:", error);
+      //  console.warn("[AuthContext] Session refresh failed:", error);
         // Try to restore from localStorage as fallback
         const storedUser = localStorage.getItem("auth_user");
         if (storedUser) {
           try {
             const userData = JSON.parse(storedUser);
-            console.log(
-              "[AuthContext] Attempting to restore from localStorage:",
-              userData.email,
-            );
+          //  console.log(
+          //    "[AuthContext] Attempting to restore from localStorage:",
+          //    userData.email,
+         //   );
             // Don't clear session state, keep existing data
             setIsSessionReady(true);
             return;
           } catch (parseError) {
-            console.warn(
-              "[AuthContext] Error parsing stored user:",
-              parseError,
-            );
+          //  console.warn(
+           //   "[AuthContext] Error parsing stored user:",
+          //    parseError,
+          //  );
           }
         }
 
@@ -729,7 +729,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         setRole(null);
         setIsSessionReady(true);
       } else if (data.session) {
-        console.log("[AuthContext] Session refreshed successfully");
+    //    console.log("[AuthContext] Session refreshed successfully");
         setSession(data.session);
         setUser(data.session.user);
         setRole(data.session.user?.user_metadata?.role || null);
@@ -768,14 +768,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         );
       } else {
         // No session available
-        console.log("[AuthContext] No session available after refresh");
+      //  console.log("[AuthContext] No session available after refresh");
         setSession(null);
         setUser(null);
         setRole(null);
         setIsSessionReady(true);
       }
     } catch (error) {
-      console.error("[AuthContext] Failed to refresh session", error);
+    //  console.error("[AuthContext] Failed to refresh session", error);
       // Try localStorage fallback before clearing everything
       const storedUser = localStorage.getItem("auth_user");
       if (storedUser) {
