@@ -228,9 +228,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           localStorage.removeItem("userRole");
         }
       } else {
-        console.log(
+       /* console.log(
           "[AuthContext] Valid Supabase session found, updating state",
-        );
+        );*/
         // Batch initial session updates to prevent flickering
         const sessionUpdates: any = {
           session: data.session,
@@ -991,7 +991,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
         if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
           if (session?.user) {
-            console.log(`[AuthContext] Processing ${event} event for user:`, session.user.email);
+          //  console.log(`[AuthContext] Processing ${event} event for user:`, session.user.email);
             
             // Check if this is an admin creating a staff account
             const currentUserId = user?.id;
@@ -1003,12 +1003,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
             const currentAdminId = sessionStorage.getItem("currentAdminId");
             const blockAuthChanges = sessionStorage.getItem("blockAuthStateChanges");
 
-            console.log(
+           /* console.log(
               `[AuthContext] Session change detected - Current: ${currentUserId} (${currentUserRole}), New: ${newUserId}`,
             );
             console.log(
               `[AuthContext] Admin flags - Creating: ${adminCreatingUser}, Block: ${blockAuthChanges}`,
-            );
+            );*/
 
             // CRITICAL: Enhanced admin session protection
             const currentUserIsAdmin =
@@ -1174,7 +1174,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
             // CRITICAL FIX: Always update state for normal users, regardless of isHydrated
             // This ensures UI updates immediately after login
-            console.log(`[AuthContext] Updating auth state for user: ${session.user.email}`);
+          //  console.log(`[AuthContext] Updating auth state for user: ${session.user.email}`);
             
             // Get user role from database or metadata
             let userRole = "Customer"; // Default role
@@ -1196,7 +1196,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
             setIsLoading(false);
             setIsHydrated(true);
 
-            console.log(`[AuthContext] Auth state updated - Role: ${userRole}, User: ${session.user.email}`);
+           // console.log(`[AuthContext] Auth state updated - Role: ${userRole}, User: ${session.user.email}`);
 
             // Update localStorage with fresh data
             const userData = {
@@ -1215,7 +1215,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
             localStorage.setItem("userRole", userRole);
             localStorage.setItem("isAdmin", (userRole === "Admin" || session.user.email?.includes("admin")) ? "true" : "false");
 
-            console.log(`[AuthContext] LocalStorage updated for user: ${session.user.email}`);
+          //  console.log(`[AuthContext] LocalStorage updated for user: ${session.user.email}`);
 
             // Dispatch session restored event
             window.dispatchEvent(
@@ -1224,7 +1224,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
               }),
             );
 
-            console.log(`[AuthContext] Session restored event dispatched for: ${session.user.email}`);
+           // console.log(`[AuthContext] Session restored event dispatched for: ${session.user.email}`);
           }
         }
 
@@ -1395,9 +1395,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
                   access_token: "admin_restored_tab_switch",
                 });
 
-                console.log(
+              /*  console.log(
                   "[AuthContext] Admin session restored successfully on tab switch",
-                );
+                );*/
                 return;
               }
             } catch (parseError) {

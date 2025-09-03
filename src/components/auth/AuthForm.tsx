@@ -84,15 +84,15 @@ const AuthForm: React.FC<AuthFormProps> = ({
     if (authUserStr) {
       try {
         const authUser = JSON.parse(authUserStr);
-        console.log("Found auth user in localStorage:", authUser);
+      //  console.log("Found auth user in localStorage:", authUser);
         if (authUser && authUser.id) {
-          console.log("User found in localStorage");
+        //  console.log("User found in localStorage");
           if (onAuthStateChange) {
             onAuthStateChange(true);
           }
         }
       } catch (e) {
-        console.error("Error parsing auth_user from localStorage:", e);
+      //  console.error("Error parsing auth_user from localStorage:", e);
       }
     }
   }, [onAuthStateChange]);
@@ -126,10 +126,10 @@ const AuthForm: React.FC<AuthFormProps> = ({
   });
 
   const handleLoginSuccess = async (authData: any) => {
-    console.log(
+   /* console.log(
       "🎯 handleLoginSuccess called with session:",
       !!authData.session,
-    );
+    );*/
 
     // Prevent multiple rapid calls that cause flickering
     if (isSubmitting) {
@@ -139,10 +139,10 @@ const AuthForm: React.FC<AuthFormProps> = ({
 
     const user = authData.user;
     const userMeta = user?.user_metadata || {};
-    console.log("📋 User metadata:", userMeta);
+   // console.log("📋 User metadata:", userMeta);
 
     // Try to get user data including role from users table first
-    console.log("🔍 Fetching user data from users table...");
+  //  console.log("🔍 Fetching user data from users table...");
     const { data: userData, error: userError } = await supabase
       .from("users")
       .select("full_name, role_id, role")
@@ -155,20 +155,20 @@ const AuthForm: React.FC<AuthFormProps> = ({
     if (!userError && userData) {
       if (userData.full_name) {
         userFullName = userData.full_name.trim();
-        console.log("✅ Found name in users table during login:", userFullName);
+      //  console.log("✅ Found name in users table during login:", userFullName);
       }
       if (userData.role) {
         userRole = userData.role;
-        console.log("✅ Found role in users table during login:", userRole);
+      //  console.log("✅ Found role in users table during login:", userRole);
       } else if (userData.role_name) {
         userRole = userData.role_name;
-        console.log(
+       /* console.log(
           "✅ Found role_name in users table during login:",
           userRole,
-        );
+        );*/
       }
     } else {
-      console.log("🔍 Checking customers table for name...");
+     // console.log("🔍 Checking customers table for name...");
       // Check if user is a customer, try customers table
       const { data: customerData, error: customerError } = await supabase
         .from("customers")
@@ -196,7 +196,7 @@ const AuthForm: React.FC<AuthFormProps> = ({
 
     // If still no role found, try staff table
     if (!userRole || userRole === "Customer") {
-      console.log("🔍 Checking staff table for role...");
+    //  console.log("🔍 Checking staff table for role...");
       try {
         const { data: staffData, error: staffError } = await supabase
           .from("staff")
@@ -209,7 +209,7 @@ const AuthForm: React.FC<AuthFormProps> = ({
           console.log("✅ Found role in staff table during login:", userRole);
         }
       } catch (staffError) {
-        console.warn("⚠️ Error checking staff table:", staffError);
+      //  console.warn("⚠️ Error checking staff table:", staffError);
       }
     }
 
@@ -238,7 +238,7 @@ const AuthForm: React.FC<AuthFormProps> = ({
       name: userFullName,
     };
 
-    console.log("📋 Final user data object:", userDataObj);
+   // console.log("📋 Final user data object:", userDataObj);
 
     // Update user metadata to ensure consistency between UI and stored data
     const { error: updateMetadataError } = await supabase.auth.updateUser({
@@ -250,7 +250,7 @@ const AuthForm: React.FC<AuthFormProps> = ({
     });
 
     if (updateMetadataError) {
-      console.warn("⚠️ Failed to update user metadata:", updateMetadataError);
+    //  console.warn("⚠️ Failed to update user metadata:", updateMetadataError);
     } else {
       console.log("✅ Updated user metadata with name:", userFullName);
     }
@@ -282,7 +282,7 @@ const AuthForm: React.FC<AuthFormProps> = ({
     setIsSubmitting(true);
 
     try {
-      console.log("🚀 Login submission started with email:", data.email);
+     // console.log("🚀 Login submission started with email:", data.email);
 
       // Clear any previous session data to prevent conflicts
       localStorage.removeItem("userRole");
@@ -297,13 +297,13 @@ const AuthForm: React.FC<AuthFormProps> = ({
       sessionStorage.removeItem("loggedOut");
       sessionStorage.removeItem("forceLogout");
 
-      console.log("🔐 Attempting to sign in with email:", data.email);
+     // console.log("🔐 Attempting to sign in with email:", data.email);
       const { data: authData, error } = await supabase.auth.signInWithPassword({
         email: data.email,
         password: data.password,
       });
 
-      console.log("📡 Sign in response:", error ? "❌ Error" : "✅ Success");
+     // console.log("📡 Sign in response:", error ? "❌ Error" : "✅ Success");
       if (error) {
         console.error("❌ Login error details:", {
           message: error.message,
@@ -319,11 +319,11 @@ const AuthForm: React.FC<AuthFormProps> = ({
         return;
       }
 
-      console.log("👤 Processing user data:", {
+     /* console.log("👤 Processing user data:", {
         userId: authData.user.id,
         email: authData.user.email,
         metadata: authData.user.user_metadata,
-      });
+      });*/
 
       // Get user role from database first, then fallback to metadata
       let userRole = "Customer"; // Default to Customer
@@ -339,15 +339,15 @@ const AuthForm: React.FC<AuthFormProps> = ({
         if (!userError && userData) {
           if (userData.role) {
             userRole = userData.role;
-            console.log("✅ Found role in users table:", userRole);
+          //  console.log("✅ Found role in users table:", userRole);
           } else if (userData.role_name) {
             userRole = userData.role_name;
-            console.log("✅ Found role_name in users table:", userRole);
+          //  console.log("✅ Found role_name in users table:", userRole);
           }
         } else {
-          console.log(
+        /*  console.log(
             "🔍 No role found in users table, checking staff table...",
-          );
+          );*/
           // Check staff table for role
           const { data: staffData, error: staffError } = await supabase
             .from("staff")
@@ -357,29 +357,29 @@ const AuthForm: React.FC<AuthFormProps> = ({
 
           if (!staffError && staffData?.role) {
             userRole = staffData.role;
-            console.log("✅ Found role in staff table:", userRole);
+         //   console.log("✅ Found role in staff table:", userRole);
           } else {
             // Fallback to metadata
             userRole = authData.user?.user_metadata?.role || "Customer";
-            console.log("🔄 Using metadata role:", userRole);
+          //  console.log("🔄 Using metadata role:", userRole);
           }
         }
       } catch (error) {
-        console.warn("⚠️ Error fetching role from database:", error);
+      //  console.warn("⚠️ Error fetching role from database:", error);
         userRole = authData.user?.user_metadata?.role || "Customer";
       }
 
       // CRITICAL: Check for restricted roles IMMEDIATELY after determining role
       const restrictedRoles = ["Agent", "Driver Perusahaan", "Driver Mitra"];
       if (restrictedRoles.includes(userRole)) {
-        console.log("🚫 RESTRICTED ROLE DETECTED - BLOCKING LOGIN:", userRole);
+       // console.log("🚫 RESTRICTED ROLE DETECTED - BLOCKING LOGIN:", userRole);
 
         // Immediately sign out the user to prevent session establishment
         try {
           await supabase.auth.signOut({ scope: "global" });
-          console.log("✅ Successfully signed out restricted user");
+        //  console.log("✅ Successfully signed out restricted user");
         } catch (signOutError) {
-          console.error("❌ Error signing out restricted user:", signOutError);
+        //  console.error("❌ Error signing out restricted user:", signOutError);
         }
 
         // Clear ALL authentication data immediately
@@ -421,13 +421,13 @@ const AuthForm: React.FC<AuthFormProps> = ({
 
       const isAdmin = userRole === "Admin" || userRole === "Super Admin";
       localStorage.setItem("isAdmin", isAdmin ? "true" : "false");
-      console.log("🏷️ User role determined:", userRole, "isAdmin:", isAdmin);
+     // console.log("🏷️ User role determined:", userRole, "isAdmin:", isAdmin);
 
       // Also store the exact role for debugging
       localStorage.setItem("userRole", userRole);
 
       if (userRole === "Driver") {
-        console.log("🚗 Checking driver status...");
+       // console.log("🚗 Checking driver status...");
         const { data: driverData, error: driverError } = await supabase
           .from("drivers")
           .select("status")
@@ -435,9 +435,9 @@ const AuthForm: React.FC<AuthFormProps> = ({
           .single();
 
         if (driverError) {
-          console.error("❌ Error fetching driver status:", driverError);
+        //  console.error("❌ Error fetching driver status:", driverError);
         } else if (driverData && driverData.status === "suspended") {
-          console.log("🚫 Driver account suspended");
+        //  console.log("🚫 Driver account suspended");
           setLoginError(
             "Your account has been suspended. Please contact an administrator.",
           );
@@ -447,11 +447,11 @@ const AuthForm: React.FC<AuthFormProps> = ({
         }
       }
 
-      console.log("✅ Calling handleLoginSuccess...");
+    //  console.log("✅ Calling handleLoginSuccess...");
       await handleLoginSuccess(authData);
-      console.log("📞 Calling onLogin callback...");
+     // console.log("📞 Calling onLogin callback...");
       onLogin(data);
-      console.log("✅ onLogin callback completed");
+    //  console.log("✅ onLogin callback completed");
 
       const userMeta = authData.user?.user_metadata || {};
 
@@ -466,10 +466,10 @@ const AuthForm: React.FC<AuthFormProps> = ({
 
       if (!userError && userData?.full_name) {
         userFullName = userData.full_name.trim();
-        console.log(
+      /*  console.log(
           "Found name in users table during login process:",
           userFullName,
-        );
+        );*/
       } else {
         // Check if user is a customer, try customers table
         const { data: customerData, error: customerError } = await supabase
@@ -480,10 +480,10 @@ const AuthForm: React.FC<AuthFormProps> = ({
 
         if (!customerError && (customerData?.full_name || customerData?.name)) {
           userFullName = (customerData.full_name || customerData.name).trim();
-          console.log(
+        /*  console.log(
             "Found name in customers table during login process:",
             userFullName,
-          );
+          );*/
         } else {
           // Fallback to metadata
           if (userMeta.full_name) {
@@ -495,10 +495,10 @@ const AuthForm: React.FC<AuthFormProps> = ({
           } else {
             userFullName = "Guest"; // fallback kalau semuanya gagal
           }
-          console.log(
+         /* console.log(
             "Using fallback name during login process:",
             userFullName,
-          );
+          );*/
         }
       }
 
@@ -509,10 +509,10 @@ const AuthForm: React.FC<AuthFormProps> = ({
         userFullName === "Customer"
       ) {
         userFullName = authData.user.email?.split("@")[0] || "User";
-        console.log(
+      /*  console.log(
           "Using email username instead of empty/Customer name:",
           userFullName,
-        );
+        );*/
       }
 
       const userDataObj = {
@@ -532,27 +532,27 @@ const AuthForm: React.FC<AuthFormProps> = ({
       });
 
       if (updateMetadataError) {
-        console.warn("⚠️ Failed to update user metadata:", updateMetadataError);
+       // console.warn("⚠️ Failed to update user metadata:", updateMetadataError);
       } else {
-        console.log("✅ Updated user metadata with name:", userFullName);
+      //  console.log("✅ Updated user metadata with name:", userFullName);
       }
 
       localStorage.setItem("auth_user", JSON.stringify(userDataObj));
       localStorage.setItem("userName", userFullName);
-      console.log("Saved userName to localStorage during login:", userFullName);
+   //   console.log("Saved userName to localStorage during login:", userFullName);
 
-      console.log("🏷️ User logged in with role:", userRole);
-      console.log("🆔 User logged in successfully with ID:", authData.user.id);
+    //  console.log("🏷️ User logged in with role:", userRole);
+    //  console.log("🆔 User logged in successfully with ID:", authData.user.id);
 
-      console.log("📞 Calling onLogin callback (second time)...");
+     // console.log("📞 Calling onLogin callback (second time)...");
       onLogin(data);
-      console.log("✅ onLogin callback completed (second time)");
+     // console.log("✅ onLogin callback completed (second time)");
 
       if (onAuthStateChange) {
-        console.log("🔄 Updating auth state to true (second time)...");
+      //  console.log("🔄 Updating auth state to true (second time)...");
         onAuthStateChange(true);
       } else {
-        console.log("⚠️ No onAuthStateChange handler provided (second time)");
+       // console.log("⚠️ No onAuthStateChange handler provided (second time)");
       }
 
       // Force immediate redirect for Admin and Staff users ONLY (not Customer)
@@ -575,38 +575,38 @@ const AuthForm: React.FC<AuthFormProps> = ({
       const shouldRedirectToAdmin = adminStaffRoles.includes(resolvedUserRole) || isAdmin;
       
       if (shouldRedirectToAdmin && resolvedUserRole !== "Customer") {
-        console.log("🔀 Redirecting Admin/Staff user to admin panel", {
+      /*  console.log("🔀 Redirecting Admin/Staff user to admin panel", {
           userRole,
           resolvedUserRole,
           isAdmin,
           shouldRedirectToAdmin
-        });
+        });*/
         // Use replace: true to prevent back button issues
         navigate("/admin", { replace: true });
       } else {
-        console.log("ℹ️ No redirect needed for role:", userRole);
+       // console.log("ℹ️ No redirect needed for role:", userRole);
         // For Customer users, stay on the current page (no redirection to admin)
         if (resolvedUserRole === "Customer") {
-          console.log("✅ Customer user logged in, staying on customer interface");
+        //  console.log("✅ Customer user logged in, staying on customer interface");
         }
       }
 
       if (onClose) {
-        console.log("🚪 Closing auth form after successful login");
+      //  console.log("🚪 Closing auth form after successful login");
         onClose();
       }
     } catch (error) {
-      console.error("💥 Unexpected login error:", {
+    /*  console.error("💥 Unexpected login error:", {
         error,
         message: error instanceof Error ? error.message : "Unknown error",
         stack: error instanceof Error ? error.stack : "No stack trace",
-      });
+      });*/
       setLoginError(
         error instanceof Error ? error.message : "An unexpected error occurred",
       );
     } finally {
       setIsSubmitting(false);
-      console.log("🏁 Login submission completed, isSubmitting set to false");
+    //  console.log("🏁 Login submission completed, isSubmitting set to false");
     }
   };
 
@@ -1076,10 +1076,10 @@ const AuthForm: React.FC<AuthFormProps> = ({
       } else {
         // For other roles, keep the existing behavior
         if (onAuthStateChange) {
-          console.log("Updating auth state to true after registration");
+        //  console.log("Updating auth state to true after registration");
           onAuthStateChange(true);
         } else {
-          console.log("No onAuthStateChange handler provided for registration");
+        //  console.log("No onAuthStateChange handler provided for registration");
         }
 
         if (false) { // Disabled - all new registrations are Customer only
@@ -1093,7 +1093,7 @@ const AuthForm: React.FC<AuthFormProps> = ({
       }
 
       if (onClose) {
-        console.log("Closing auth form after successful registration");
+      //  console.log("Closing auth form after successful registration");
         onClose();
       }
     } catch (error) {
