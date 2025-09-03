@@ -990,24 +990,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         }
 
         if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
-          if (session?.user && isHydrated) {
+          if (session?.user) {
+            console.log(`[AuthContext] Processing ${event} event for user:`, session.user.email);
+            
             // Check if this is an admin creating a staff account
             const currentUserId = user?.id;
             const newUserId = session.user.id;
             const currentUserRole = role;
 
             // Check session storage flags for admin creating user
-            const adminCreatingUser =
-              sessionStorage.getItem("adminCreatingUser");
+            const adminCreatingUser = sessionStorage.getItem("adminCreatingUser");
             const currentAdminId = sessionStorage.getItem("currentAdminId");
-            const currentAdminEmail =
-              sessionStorage.getItem("currentAdminEmail");
+            const blockAuthChanges = sessionStorage.getItem("blockAuthStateChanges");
 
             console.log(
               `[AuthContext] Session change detected - Current: ${currentUserId} (${currentUserRole}), New: ${newUserId}`,
             );
             console.log(
-              `[AuthContext] Admin flags - Creating: ${adminCreatingUser}, Admin ID: ${currentAdminId}`,
+              `[AuthContext] Admin flags - Creating: ${adminCreatingUser}, Block: ${blockAuthChanges}`,
             );
 
             // CRITICAL: Enhanced admin session protection
@@ -1172,35 +1172,50 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
               }
             }
 
-            // Only update state if there's an actual change to prevent loops
-            if (
-              session.user.id !== user?.id ||
-              session.user.email !== user?.email
-            ) {
-              setSession(session);
-              setUser(session.user);
-              setRole(session.user?.user_metadata?.role || "Customer");
-              setIsSessionReady(true);
+            // CRITICAL FIX: Always update state for normal users, regardless of isHydrated
+            // This ensures UI updates immediately after login
+            console.log(`[AuthContext] Updating auth state for user: ${session.user.email}`);
+            
+            // Get user role from database or metadata
+            let userRole = "Customer"; // Default role
+            let userName = session.user.user_metadata?.name || session.user.email?.split("@")[0] || "User";
+            let userPhone = session.user.user_metadata?.phone || "";
+
+            // Check for admin users first
+            if (session.user.email?.includes("admin") || session.user.email === "divatranssoetta@gmail.com") {
+              userRole = "Admin";
+            } else if (session.user.user_metadata?.role) {
+              userRole = session.user.user_metadata.role;
             }
+
+            // CRITICAL: Force immediate state update
+            setSession(session);
+            setUser(session.user);
+            setRole(userRole);
+            setIsSessionReady(true);
+            setIsLoading(false);
+            setIsHydrated(true);
+
+            console.log(`[AuthContext] Auth state updated - Role: ${userRole}, User: ${session.user.email}`);
 
             // Update localStorage with fresh data
             const userData = {
               id: session.user.id,
               email: session.user.email,
-              name:
-                session.user.user_metadata?.name ||
-                session.user.email?.split("@")[0] ||
-                "User",
-              phone: session.user.user_metadata?.phone || "",
-              role: session.user.user_metadata?.role || "Customer",
+              name: userName,
+              phone: userPhone,
+              role: userRole,
             };
 
             localStorage.setItem("auth_user", JSON.stringify(userData));
             localStorage.setItem("userId", session.user.id);
             localStorage.setItem("userEmail", session.user.email || "");
-            localStorage.setItem("userName", userData.name);
-            localStorage.setItem("userPhone", userData.phone);
-            localStorage.setItem("userRole", userData.role);
+            localStorage.setItem("userName", userName);
+            localStorage.setItem("userPhone", userPhone);
+            localStorage.setItem("userRole", userRole);
+            localStorage.setItem("isAdmin", (userRole === "Admin" || session.user.email?.includes("admin")) ? "true" : "false");
+
+            console.log(`[AuthContext] LocalStorage updated for user: ${session.user.email}`);
 
             // Dispatch session restored event
             window.dispatchEvent(
@@ -1208,20 +1223,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
                 detail: userData,
               }),
             );
+
+            console.log(`[AuthContext] Session restored event dispatched for: ${session.user.email}`);
           }
         }
 
         if (event === "SIGNED_OUT") {
+          console.log("[AuthContext] Processing SIGNED_OUT event");
+          
           // Check if this is a sign out during admin user creation
           const adminCreatingUser = sessionStorage.getItem("adminCreatingUser");
           const currentAdminId = sessionStorage.getItem("currentAdminId");
-          const blockAuthChanges = sessionStorage.getItem(
-            "blockAuthStateChanges",
-          );
+          const blockAuthChanges = sessionStorage.getItem("blockAuthStateChanges");
           const preventAutoLogin = sessionStorage.getItem("preventAutoLogin");
-          const staffCreationInProgress = sessionStorage.getItem(
-            "staffCreationInProgress",
-          );
+          const staffCreationInProgress = sessionStorage.getItem("staffCreationInProgress");
 
           if (
             (adminCreatingUser === "true" && currentAdminId) ||
@@ -1240,9 +1255,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
             );
 
             // Restore admin session from preserved data if available
-            const preservedAdminSession = sessionStorage.getItem(
-              "preservedAdminSession",
-            );
+            const preservedAdminSession = sessionStorage.getItem("preservedAdminSession");
             if (preservedAdminSession) {
               try {
                 const adminData = JSON.parse(preservedAdminSession);
@@ -1284,10 +1297,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
             return;
           }
 
+          // CRITICAL FIX: Immediately clear all auth state for normal sign out
+          console.log("[AuthContext] Clearing auth state for normal sign out");
+          
           setSession(null);
           setUser(null);
           setRole(null);
-          setIsSessionReady(false);
+          setIsSessionReady(true); // Keep this true to prevent loading state
+          setIsLoading(false);
+          setIsHydrated(true);
 
           // Clear localStorage
           localStorage.removeItem("auth_user");
@@ -1297,6 +1315,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           localStorage.removeItem("userPhone");
           localStorage.removeItem("userRole");
           localStorage.removeItem("isAdmin");
+          
+          console.log("[AuthContext] Auth state cleared successfully");
         }
       },
     );

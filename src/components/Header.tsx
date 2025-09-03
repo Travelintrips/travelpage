@@ -226,6 +226,16 @@ const Header = () => {
     );
   }
 
+  // Debug logging for UI state
+  console.log('[Header] Render state:', {
+    isAuthenticated,
+    isLoading,
+    userRole,
+    userId,
+    showAuthenticatedUI,
+    isRestrictedRole
+  });
+
   return (
     <>
       <header className="bg-green-800 text-white py-4">
