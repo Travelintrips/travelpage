@@ -126,12 +126,12 @@ function AppContent() {
     loadTempoRoutes();
   }, []);
 
-  {/*console.log("App.tsx - Current auth state:", {
+  /*console.log("App.tsx - Current auth state:", {
     isAuthenticated,
     userRole,
     isAdmin,
     isHydrated,
-  }); */}
+  }); */
 
   // Set auth ready state when context is hydrated
   useEffect(() => {
@@ -150,9 +150,9 @@ function AppContent() {
     const recoverSession = async () => {
       const now = Date.now();
       if (now - lastRecoveryTime < RECOVERY_COOLDOWN || isRecovering) {
-      {/*  console.log(
+      /*  console.log(
           "[App] Recovery cooldown active or already recovering, skipping",
-        );*/}
+        );*/
         return;
       }
 
@@ -161,27 +161,27 @@ function AppContent() {
       // Check for loggedOut flag to prevent redirect loops
       const loggedOut = sessionStorage.getItem("loggedOut");
       if (loggedOut) {
-      {/*  console.log("[App] Logged out flag detected, forcing session ready");*/}
+      //  console.log("[App] Logged out flag detected, forcing session ready");
         sessionStorage.removeItem("loggedOut");
         setIsAuthReady(true);
         return;
       }
 
       lastRecoveryTime = now;
-     {/* console.log("[App] Starting enhanced session recovery...");*/}
+     // console.log("[App] Starting enhanced session recovery...");
 
       // Priority 1: Try Supabase session first for fresh data
       try {
-       {/* console.log("[App] Attempting fresh Supabase session recovery...");*/}
+       // console.log("[App] Attempting fresh Supabase session recovery...");
         const {
           data: { session },
           error,
         } = await supabase.auth.getSession();
 
         if (!error && session?.user) {
-         {/* console.log(
+         /* console.log(
             "[App] Fresh session found, triggering AuthContext update",
-          );*/}
+          );*/
 
           // Create consistent user data from fresh session
           const user = session.user;
@@ -215,11 +215,11 @@ function AppContent() {
             }),
           );
 
-      {/*   console.log("[App] Session recovered from fresh Supabase data");*/}
+      //  console.log("[App] Session recovered from fresh Supabase data");
           return;
         }
       } catch (error) {
-      {/*  console.warn("[App] Supabase session recovery failed:", error);*/}
+      //  console.warn("[App] Supabase session recovery failed:", error);
       }
 
       // Priority 2: Fallback to localStorage for immediate recovery
@@ -231,7 +231,7 @@ function AppContent() {
         try {
           const userData = JSON.parse(storedUser);
           if (userData && userData.id && userData.email) {
-         {/*   console.log("[App] Fallback session recovery from localStorage");*/}
+         //   console.log("[App] Fallback session recovery from localStorage");
 
             // Create consistent user data object
             const consistentUserData = {
@@ -261,11 +261,11 @@ function AppContent() {
             return;
           }
         } catch (error) {
-       {/*   console.warn("[App] Error parsing stored user data:", error);*/}
+       //   console.warn("[App] Error parsing stored user data:", error);
         }
       }
 
-     {/* console.log("[App] No valid session found during recovery");*/}
+     // console.log("[App] No valid session found during recovery");
       isRecovering = false; // Reset recovery guard
     };
 
@@ -333,7 +333,7 @@ function AppContent() {
 
     // Listen for custom session restore events
     const handleForceSessionRestore = (event: CustomEvent) => {
-    {/*  console.log("[App] Force session restore event received:", event.detail);*/}
+    //  console.log("[App] Force session restore event received:", event.detail);
       // Trigger AuthContext sync
       window.dispatchEvent(
         new CustomEvent("authStateRefreshed", { detail: event.detail }),
@@ -342,7 +342,7 @@ function AppContent() {
 
     // Listen for force session ready events
     const handleForceSessionReady = () => {
-    {/*  console.log("[App] Force session ready event received");*/}
+    //  console.log("[App] Force session ready event received");
       setIsAuthReady(true);
     };
 
@@ -386,10 +386,10 @@ function AppContent() {
       // CRITICAL: Check for restricted roles and force logout immediately
       const restrictedRoles = ["Agent", "Driver Perusahaan", "Driver Mitra"];
       if (userRole && restrictedRoles.includes(userRole)) {
-     {/*   console.log(
+     /*   console.log(
           "[App] RESTRICTED ROLE DETECTED - FORCING LOGOUT:",
           userRole,
-        );*/}
+        );*/
 
         // Clear all auth data immediately
         localStorage.removeItem("auth_user");
@@ -405,7 +405,7 @@ function AppContent() {
         supabase.auth
           .signOut({ scope: "global" })
           .then(() => {
-          {/*  console.log("[App] Successfully signed out restricted user");*/}
+          //  console.log("[App] Successfully signed out restricted user");
             window.location.href = "/";
           })
           .catch((error) => {
@@ -417,13 +417,13 @@ function AppContent() {
       }
 
       // Debug output to help diagnose issues
-    {/*  console.log("Current authentication state:", {
+    /*  console.log("Current authentication state:", {
         isAuthenticated,
         userRole,
         isAdmin,
         userEmail,
         currentPath,
-      });*/}
+      });*/
 
       // CONSOLIDATED ADMIN/STAFF ROUTING - All admin and staff roles go to admin dashboard
       const adminStaffRoles = [
@@ -440,13 +440,13 @@ function AppContent() {
         "Admin"
       ];
 
-     {/* console.log("Checking role for admin dashboard redirect:", {
+     /* console.log("Checking role for admin dashboard redirect:", {
         userRole,
         isAdmin,
         isInAdminStaffRoles: adminStaffRoles.includes(userRole),
         currentPath,
         allRoles: adminStaffRoles
-      });*/}
+      });*/
 
       // Handle role object from database join (role.role_name) or direct string
       let resolvedUserRole = userRole;
@@ -463,18 +463,18 @@ function AppContent() {
       const hasCustomerRoleId = localStorage.getItem("userRole") === "Customer";
       
       if (shouldRedirectToAdmin && !isCustomerRole && !hasCustomerRoleId) {
-     {/*   console.log(
+     /*   console.log(
           "Admin/Staff user detected, redirecting to admin dashboard",
           { userRole, resolvedUserRole, isAdmin, currentPath, shouldRedirectToAdmin },
-        );*/}
+        );*/
         // Always redirect admin/staff users to admin dashboard if they're not already there
         if (!currentPath.includes("/admin")) {
-         {/* console.log("Navigating to admin dashboard...");*/}
+         // console.log("Navigating to admin dashboard...");
           // Use navigate with replace: true to prevent back button issues
           navigate("/admin", { replace: true });
         }
       } else {
-       {/* console.log("No redirect needed for role:", { userRole, resolvedUserRole });*/}
+       // console.log("No redirect needed for role:", { userRole, resolvedUserRole });
         if (userRole === ROLES.DRIVER_PERUSAHAAN) {
           navigate("/driver-profile");
         }
@@ -483,10 +483,10 @@ function AppContent() {
         const hasCustomerRoleId = localStorage.getItem("userRole") === "Customer";
         
         if (isCustomerRole || hasCustomerRoleId) {
-         {/* console.log("Customer user detected, staying on current page", {
+         /* console.log("Customer user detected, staying on current page", {
             resolvedUserRole,
             storedRole: localStorage.getItem("userRole")
-          });*/}
+          });*/
         }
       }
     }
@@ -524,15 +524,15 @@ function AppContent() {
     // Special case for admin - check both isAdmin flag and userRole
     // This ensures that users with admin emails or admin roles can access admin routes
     if (isAdmin || userRole === ROLES.ADMIN || userRole === ROLES.SUPER_ADMIN) {
-    {/*  console.log(
+    /*  console.log(
         "Admin access granted via isAdmin flag or Admin/Super Admin role",
         { isAdmin, userRole },
-      );*/}
+      );*/
       return children;
     }
 
     if (!isAuthenticated) {
-    {/*  console.log("Not authenticated, redirecting to home");*/}
+    //  console.log("Not authenticated, redirecting to home");
       return <Navigate to="/" />;
     }
 
