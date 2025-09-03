@@ -383,21 +383,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
                   "Driver Mitra",
                 ];
                 if (restrictedRoles.includes(userRole)) {
-                //  console.log(
-                 //   "[AuthContext] RESTRICTED ROLE DETECTED - SIGNING OUT:",
-                 //   userRole,
-               //   );
+                /*  console.log(
+                    "[AuthContext] RESTRICTED ROLE DETECTED - SIGNING OUT:",
+                    userRole,
+                  );*/
 
                   try {
                     await supabase.auth.signOut({ scope: "global" });
-                  //  console.log(
-                  //    "[AuthContext] Successfully signed out restricted user",
-                 //   );
+                  /*  console.log(
+                      "[AuthContext] Successfully signed out restricted user",
+                   );*/
                   } catch (signOutError) {
-                  //  console.error(
-                  //    "[AuthContext] Error signing out restricted user:",
-                  //    signOutError,
-                 //   );
+                  /*  console.error(
+                      "[AuthContext] Error signing out restricted user:",
+                      signOutError,
+                    );*/
                   }
 
                   // Clear all auth data
@@ -425,10 +425,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
               } else {
                 // Force Customer role if no database data for non-admin emails
                 userRole = "Customer";
-             //   console.log(
-             //     "[AuthContext] No database data, forcing Customer role:",
-             //     userRole,
-             //   );
+             /*   console.log(
+                  "[AuthContext] No database data, forcing Customer role:",
+                  userRole,
+                );*/
               }
             } catch (dbError) {
               console.warn(
@@ -437,10 +437,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
               );
               // Force Customer role on database error for non-admin emails
               userRole = "Customer";
-            //  console.log(
-            //    "[AuthContext] Database error, forcing Customer role:",
-            //    userRole,
-            //  );
+            /*  console.log(
+                "[AuthContext] Database error, forcing Customer role:",
+                userRole,
+              );*/
             }
 
             // Only check staff table if user is not already determined to be Customer
@@ -465,11 +465,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
                     staffTimeoutPromise,
                   ])) as any;
 
-              //  console.log("[AuthContext] Staff table data:", {
-              //    userId: data.session.user.id,
-              //    staffData: staffData,
-              //    staffError: staffError
-              //  });
+              /*  console.log("[AuthContext] Staff table data:", {
+                  userId: data.session.user.id,
+                  staffData: staffData,
+                  staffError: staffError
+                });*/
 
                 if (
                   !staffError &&
@@ -551,20 +551,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
         localStorage.setItem("isAdmin", isAdmin ? "true" : "false");
 
-       // console.log("[AuthContext] Admin status determined:", {
-       //   isAdminByRole,
-       //   isAdminEmail,
-      //    isAdmin,
-      //    userRole,
-      //  });
+       /* console.log("[AuthContext] Admin status determined:", {
+          isAdminByRole,
+          isAdminEmail,
+        isAdmin,
+          userRole,
+        });*/
 
-        // Log final user data for debugging
-      //  console.log("[AuthContext] Final user data object:", {
-       //   id: data.session.user.id,
-       //   role: userRole,
-       //   email: data.session.user.email,
-       //   name: userName
-     //   });
+        /* Log final user data for debugging
+        console.log("[AuthContext] Final user data object:", {
+          id: data.session.user.id,
+          role: userRole,
+          email: data.session.user.email,
+          name: userName
+        });*/
 
         // Dispatch session restored event
         window.dispatchEvent(
