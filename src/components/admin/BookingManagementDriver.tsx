@@ -36,6 +36,7 @@ import PickupCustomer from "@/components/booking/PickupCustomer";
 import PreRentalInspectionForm from "@/components/booking/PreRentalInspectionForm";
 import { format } from "date-fns";
 import { useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Booking {
   id: string;
@@ -100,6 +101,7 @@ export default function BookingManagementDriver() {
   const { toast } = useToast();
   const location = useLocation();
   const navigate = useNavigate();
+  const { userRole } = useAuth();
 
   useEffect(() => {
     fetchBookings();
@@ -547,6 +549,8 @@ export default function BookingManagementDriver() {
                       </Button>
                     </>
                   )}
+                  {userRole !== "Staff" && (
+                    <>
                   <Button
                     variant="outline"
                     size="sm"
@@ -565,6 +569,8 @@ export default function BookingManagementDriver() {
                     <XCircle className="h-4 w-4" />
                     Cancel
                   </Button>
+                  </>
+                  )}
                 </TableCell>
               </TableRow>
             ))}

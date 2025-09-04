@@ -31,7 +31,7 @@ import BookingForm from "./components/booking/BookingForm";
 import ShoppingCart from "./components/booking/ShoppingCart";
 import AdminDashboard from "./components/admin/AdminDashboard";
 import AdminLayout from "./components/admin/AdminLayout";
-import StaffPage from "./components/admin/StaffPage";
+import StaffManagement from "./components/admin/StaffManagement";
 import CustomerManagement from "./components/admin/CustomerManagement";
 import DriverManagement from "./components/admin/DriverManagement";
 import CarsManagement from "./components/admin/CarsManagement";
@@ -710,7 +710,7 @@ function AppContent() {
               path="bookings/driver"
               element={<BookingManagementDriver />}
             />
-            <Route path="staff" element={<StaffPage />} />
+            <Route path="staff" element={<StaffManagement />} />
             <Route path="inspections" element={<InspectionManagement />} />
             <Route path="checklist" element={<ChecklistManagement />} />
             <Route path="damages" element={<DamageManagement />} />

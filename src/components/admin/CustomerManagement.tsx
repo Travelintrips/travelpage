@@ -48,6 +48,7 @@ import {
   Loader2,
   Upload,
 } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Customer {
   id: string;
@@ -61,6 +62,7 @@ interface Customer {
 }
 
 const CustomerManagement = () => {
+  const { userRole } = useAuth();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -287,9 +289,11 @@ const CustomerManagement = () => {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">Customer Management</h1>
-        <Button onClick={() => setIsAddDialogOpen(true)}>
-          <Plus className="h-4 w-4 mr-2" /> Add Customer
-        </Button>
+        {userRole !== "Staff" && userRole !== "Staff Traffic" && (
+          <Button onClick={() => setIsAddDialogOpen(true)}>
+            <Plus className="h-4 w-4 mr-2" /> Add Customer
+          </Button>
+        )}
       </div>
 
       <Card>
@@ -377,23 +381,25 @@ const CustomerManagement = () => {
                         </div>
                       </TableCell>
                       <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            onClick={() => openEditDialog(customer)}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className="text-destructive"
-                            onClick={() => openDeleteDialog(customer)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
+                        {userRole !== "Staff" && userRole !== "Staff Traffic" && (
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              onClick={() => openEditDialog(customer)}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="text-destructive"
+                              onClick={() => openDeleteDialog(customer)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))

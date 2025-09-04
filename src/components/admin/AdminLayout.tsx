@@ -103,7 +103,7 @@ const AdminLayout = () => {
       await supabase.auth.signOut();
       navigate("/");
     } catch (error) {
-     {/* console.error("Error signing out:", error);*/}
+     // console.error("Error signing out:", error);
     }
   };
 
@@ -180,22 +180,22 @@ const AdminLayout = () => {
 
   // Load notifications when user is authenticated (exclude Customer role)
   React.useEffect(() => {
-  {/*  console.log("[AdminLayout] Notification loading check:", { 
+  /*  console.log("[AdminLayout] Notification loading check:", { 
       isAuthenticated, 
       userId, 
       userRole, 
       shouldLoad: isAuthenticated && userId && userRole !== "Customer" 
-    });*/}
+    });*/
     
     if (isAuthenticated && userId && userRole !== "Customer") {
-    {/*  console.log("[AdminLayout] Loading notifications for user:", { userId, userRole, isAuthenticated });*/}
+    //  console.log("[AdminLayout] Loading notifications for user:", { userId, userRole, isAuthenticated });
       loadNotifications();
     } else {
-     {/* console.log("[AdminLayout] Skipping notification load:", {
+     /* console.log("[AdminLayout] Skipping notification load:", {
         reason: !isAuthenticated ? "not authenticated" : 
                 !userId ? "no userId" : 
                 userRole === "Customer" ? "customer role" : "unknown"
-      });*/}
+      });*/
     }
   }, [isAuthenticated, userId, userRole]);
 
@@ -206,7 +206,7 @@ const AdminLayout = () => {
       return;
     }
     
-   {/* console.log("[AdminLayout] Setting up realtime notifications for:", { userId, userRole });*/}
+   // console.log("[AdminLayout] Setting up realtime notifications for:", { userId, userRole });
 
     const channel = supabase
       .channel("notification_recipients")
@@ -219,7 +219,7 @@ const AdminLayout = () => {
           filter: `user_id=eq.${userId}`,
         },
         (payload) => {
-        {/*  console.log("Notification change received:", payload);*/}
+        //  console.log("Notification change received:", payload);
           // Reload notifications when changes occur
           loadNotifications();
         },
@@ -368,13 +368,16 @@ const AdminLayout = () => {
                           <CalendarDays className="h-4 w-4 text-white" />
                           <span className="ml-3">Booking Agent</span>
                         </Link>
-                        <Link
-                          to="/admin/top-up-agent"
-                          className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/top-up-agent") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
-                        >
-                          <Wallet className="h-4 w-4 text-white" />
-                          <span className="ml-3">Top Up Agent</span>
-                        </Link>
+                        {/* Hide Top Up Agent for Staff role */}
+                        {userRole !== "Staff" && (
+                          <Link
+                            to="/admin/top-up-agent"
+                            className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/top-up-agent") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
+                          >
+                            <Wallet className="h-4 w-4 text-white" />
+                            <span className="ml-3">Top Up Agent</span>
+                          </Link>
+                        )}
                         <Link
                           to="/admin/history-top-up"
                           className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/history-top-up") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
@@ -382,13 +385,16 @@ const AdminLayout = () => {
                           <Activity className="h-4 w-4 text-white" />
                           <span className="ml-3">History Top Up</span>
                         </Link>
-                        <Link
-                          to="/admin/top-up-requests"
-                          className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/top-up-requests") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
-                        >
-                          <CheckSquare className="h-4 w-4 text-white" />
-                          <span className="ml-3">Topup Agent Requests</span>
-                        </Link>
+                        {/* Hide Topup Agent Requests for Staff role */}
+                        {userRole !== "Staff" && (
+                          <Link
+                            to="/admin/top-up-requests"
+                            className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/top-up-requests") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
+                          >
+                            <CheckSquare className="h-4 w-4 text-white" />
+                            <span className="ml-3">Topup Agent Requests</span>
+                          </Link>
+                        )}
                       </div>
                     )}
                   </div>
@@ -426,7 +432,7 @@ const AdminLayout = () => {
                 </div>
 
                 {/* 5. Payments - Hide for Staff Traffic */}
-                {userRole !== "Staff Traffic" && (
+                {userRole !== "Staff Traffic" && userRole !== "Staff" && (
                   <Link
                     to="/admin/payments"
                     className={`flex items-center p-3 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/payments") ? "bg-white/20 font-medium text-white" : "text-white/80"} ${!sidebarOpen && "justify-center"}`}
@@ -437,7 +443,7 @@ const AdminLayout = () => {
                 )}
 
                 {/* Payment Methods Menu - Hide for Staff Traffic */}
-                {userRole !== "Staff Traffic" && (
+                {userRole !== "Staff Trips" && userRole !== "Staff Traffic" && userRole !== "Staff" && (
                   <div>
                     <button
                       onClick={() => setPaymentMethodsOpen(!paymentMethodsOpen)}
@@ -523,6 +529,7 @@ const AdminLayout = () => {
                   {sidebarOpen && carsDriverOpen && (
                     <div className="ml-6 mt-2 space-y-1">
                       {/* Topup Driver submenu - Show for all roles except restricted ones */}
+                      {userRole !== "Staff" && (
                       <Link
                         to="/admin/topup-driver"
                         className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/topup-driver") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
@@ -530,6 +537,7 @@ const AdminLayout = () => {
                         <Wallet className="h-4 w-4 text-white" />
                         <span className="ml-3">Topup Driver</span>
                       </Link>
+                      )}
                       <Link
                         to="/admin/cars"
                         className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/cars") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
@@ -695,7 +703,7 @@ const AdminLayout = () => {
             )}
 
             {/* Only show API Settings for non-Staff Trips and non-Staff Traffic users */}
-            {userRole !== "Staff Trips" && userRole !== "Staff Traffic" && (
+            {userRole !== "Staff Trips" && userRole !== "Staff Traffic" && userRole !== "Staff" &&  (
               <Link
                 to="/admin/api-settings"
                 className={`flex items-center p-3 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/api-settings") ? "bg-white/20 font-medium text-white" : "text-white/80"} ${!sidebarOpen ? "justify-center" : ""}`}

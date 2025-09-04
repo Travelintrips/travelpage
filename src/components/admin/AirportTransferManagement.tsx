@@ -12,6 +12,8 @@ import { Input } from "@/components/ui/input";
 import { supabase } from "@/lib/supabase";
 import { Search, RefreshCw, FileDown, Check, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+
 
 interface AirportTransfer {
   id: number;
@@ -51,6 +53,7 @@ const AirportTransferManagement = () => {
     null,
   );
   const navigate = useNavigate();
+  const { userRole } = useAuth();
 
   useEffect(() => {
     fetchTransfers();
@@ -369,13 +372,15 @@ const AirportTransferManagement = () => {
                     <th className="py-3 px-4 text-left font-medium">
                       Driver ID
                     </th>
-                    <th className="py-3 px-4 text-left font-medium">Action</th>
+                    {userRole !== "Staff" && (
+                      <th className="py-3 px-4 text-left font-medium">Actions</th>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan={14} className="py-6 text-center">
+                      <td colSpan={userRole !== "Staff" ? 14 : 13} className="py-6 text-center">
                         Loading transfers...
                       </td>
                     </tr>
@@ -485,7 +490,6 @@ const AirportTransferManagement = () => {
                             })()
                           )}
                         </td>
-
                         <td className="py-3 px-4">
                           {(() => {
                             // If this transfer has a driver_name directly, use it
@@ -513,50 +517,52 @@ const AirportTransferManagement = () => {
                             }
                           })()}
                         </td>
-                        <td className="py-3 px-4">
-                          {!transfer.driver_id &&
-                            transfer.status !== "cancelled" && (
-                              <div className="flex space-x-1">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() =>
-                                    setShowDriverSearch(transfer.id)
-                                  }
-                                >
-                                  Select Driver
-                                </Button>
-                                {selectedDriverId &&
-                                  showDriverSearch === null && (
-                                    <Button
-                                      size="sm"
-                                      variant="default"
-                                      className="bg-green-600 hover:bg-green-700 text-white"
-                                      onClick={() =>
-                                        handleProcessTransfer(
-                                          transfer.id,
-                                          selectedDriverId,
-                                        )
-                                      }
-                                    >
-                                      Assign Driver
-                                    </Button>
-                                  )}
+                        {userRole !== "Staff" && (
+                          <td className="py-3 px-4">
+                            {!transfer.driver_id &&
+                              transfer.status !== "cancelled" && (
+                                <div className="flex space-x-1">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() =>
+                                      setShowDriverSearch(transfer.id)
+                                    }
+                                  >
+                                    Select Driver
+                                  </Button>
+                                  {selectedDriverId &&
+                                    showDriverSearch === null && (
+                                      <Button
+                                        size="sm"
+                                        variant="default"
+                                        className="bg-green-600 hover:bg-green-700 text-white"
+                                        onClick={() =>
+                                          handleProcessTransfer(
+                                            transfer.id,
+                                            selectedDriverId,
+                                          )
+                                        }
+                                      >
+                                        Assign Driver
+                                      </Button>
+                                    )}
+                                </div>
+                              )}
+                            {transfer.driver_id && (
+                              <div className="flex items-center gap-1">
+                                <Check className="h-4 w-4 text-green-600" />
+                                <span className="text-xs">Assigned</span>
                               </div>
                             )}
-                          {transfer.driver_id && (
-                            <div className="flex items-center gap-1">
-                              <Check className="h-4 w-4 text-green-600" />
-                              <span className="text-xs">Assigned</span>
-                            </div>
-                          )}
-                        </td>
+                          </td>
+                        )}
                       </tr>
                     ))
                   ) : (
                     <tr>
                       <td
-                        colSpan={13}
+                        colSpan={userRole !== "Staff" ? 14 : 13}
                         className="py-6 text-center text-muted-foreground"
                       >
                         No airport transfers found

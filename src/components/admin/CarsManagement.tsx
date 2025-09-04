@@ -761,6 +761,8 @@ const CarsManagement = () => {
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">Car Management</h1>
         <div className="flex gap-2">
+        {userRole !=="Staff" && (
+          <>
           <Button
             variant="outline"
             onClick={() => setIsVehicleTypeDialogOpen(true)}
@@ -771,6 +773,8 @@ const CarsManagement = () => {
           <Button onClick={() => setIsAddDialogOpen(true)}>
             <Plus className="h-4 w-4 mr-2" /> Add Car
           </Button>
+          </>
+        )}
         </div>
       </div>
 
@@ -1012,6 +1016,7 @@ const CarsManagement = () => {
                                 : "-"}
                             </TableCell>
                             <TableCell className="text-right">
+                            {userRole !=="Staff" && (
                               <div className="flex justify-end gap-2">
                                 <Button
                                   variant="outline"
@@ -1083,6 +1088,7 @@ const CarsManagement = () => {
                                   </Button>
                                 )}
                               </div>
+                            )}
                             </TableCell>
                           </TableRow>
                         ))}

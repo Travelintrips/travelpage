@@ -253,7 +253,7 @@ const StaffPage = () => {
       <Card className="bg-white shadow-md border-0 overflow-hidden rounded-xl">
         <CardHeader className="bg-gradient-to-r from-primary-tosca/10 to-primary-dark/10 pb-4">
           <CardTitle className="text-2xl font-bold text-primary-dark">
-            Staff Management
+            Staff Management1
           </CardTitle>
         </CardHeader>
         <CardContent>
