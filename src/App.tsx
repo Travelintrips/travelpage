@@ -71,6 +71,7 @@ import TopUpDriver from "./components/admin/TopUpDriver";
 import TransportasiPage from "./pages/TransportasiPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
+import DriverDetailPage from "./pages/DriverDetailPage";
 
 declare global {
   interface Window {
@@ -751,6 +752,7 @@ function AppContent() {
               path="damage-payment/:bookingId"
               element={<DamagePaymentForm />}
             />
+            <Route path="drivers/:id" element={<DriverDetailPage />} />
           </Route>
 
           {/* Tempo routes fallback - only if not already handled */}

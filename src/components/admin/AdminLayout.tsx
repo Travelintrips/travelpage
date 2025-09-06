@@ -1016,10 +1016,9 @@ const AdminLayout = () => {
               </Button>
             </div>
           </div>
+          {/* Outlet for child routes */}
+          <Outlet />
         </div>
-
-        {/* Outlet for child routes */}
-        <Outlet />
       </div>
     </div>
   );

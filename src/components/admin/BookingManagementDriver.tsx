@@ -35,7 +35,7 @@ import PostRentalInspectionForm from "@/components/booking/PostRentalInspectionF
 import PickupCustomer from "@/components/booking/PickupCustomer";
 import PreRentalInspectionForm from "@/components/booking/PreRentalInspectionForm";
 import { format } from "date-fns";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface Booking {
@@ -461,7 +461,19 @@ export default function BookingManagementDriver() {
               <TableRow key={booking.id}>
                 <TableCell>{booking.kode_booking || booking.id}</TableCell>
                 <TableCell className="font-medium">
-                  {booking.driver?.name || "Unknown"}
+                  {booking.driver?.name ? (
+                    <button 
+                      onClick={() => {
+                        console.log('Navigating to driver:', booking.driver.id);
+                        navigate(`/admin/drivers/${booking.driver.id}`);
+                      }}
+                      className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer bg-transparent border-none p-0 font-medium"
+                    >
+                      {booking.driver.name}
+                    </button>
+                  ) : (
+                    "Unknown"
+                  )}
                 </TableCell>
                 <TableCell>{booking.vehicle_type}</TableCell>
                 <TableCell>{booking.license_plate}</TableCell>
@@ -506,13 +518,13 @@ export default function BookingManagementDriver() {
                   >
                     <Eye className="h-4 w-4" />
                   </Button>
-                  <Button
+               {/*   <Button
                     variant="ghost"
                     size="icon"
                     onClick={() => handleOpenPaymentDialog(booking)}
                   >
                     <CreditCard className="h-4 w-4" />
-                  </Button>
+                  </Button>*/}
                   {booking.status === "confirmed" && (
                     <Button
                       variant="outline"

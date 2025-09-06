@@ -190,7 +190,7 @@ const CarsManagement = () => {
             license_plate: car.license_plate,
             color: car.color,
             status: car.status,
-            daily_rate: car.price || car.daily_rate,
+            daily_rate: car.price,
             mileage: car.mileage,
             fuel_type: car.fuel_type,
             transmission: car.transmission,
@@ -254,7 +254,11 @@ const CarsManagement = () => {
         return;
       }
 
-      // Convert numeric fields
+      // Convert numeric fields and clean daily_rate
+      const cleanDailyRate = formData.daily_rate
+        ? Number(String(formData.daily_rate).replace(/[^0-9]/g, ''))
+        : 0;
+
       const vehicleData = {
         make: formData.make,
         model: formData.model,
@@ -264,7 +268,7 @@ const CarsManagement = () => {
         license_plate: formData.license_plate,
         color: formData.color,
         status: formData.status || "available",
-        price: formData.daily_rate ? parseFloat(formData.daily_rate) : 0,
+        price: cleanDailyRate,
         mileage: formData.mileage ? parseInt(formData.mileage) : null,
         fuel_type: formData.fuel_type,
         transmission: formData.transmission,
@@ -304,7 +308,7 @@ const CarsManagement = () => {
           license_plate: data[0].license_plate,
           color: data[0].color,
           status: data[0].status,
-          daily_rate: data[0].price || data[0].daily_rate,
+          daily_rate: data[0].price,
           mileage: data[0].mileage,
           fuel_type: data[0].fuel_type,
           transmission: data[0].transmission,
@@ -337,15 +341,29 @@ const CarsManagement = () => {
     if (!selectedCar) return;
 
     try {
-      // Convert numeric fields
-      const numericFormData = {
-        ...formData,
+      // Convert numeric fields and clean daily_rate
+      const cleanDailyRate = formData.daily_rate
+        ? Number(String(formData.daily_rate).replace(/[^0-9]/g, ''))
+        : null;
+
+      const updatePayload = {
+        make: formData.make,
+        model: formData.model,
         year: formData.year ? parseInt(formData.year) : null,
-        daily_rate: formData.daily_rate
-          ? parseFloat(formData.daily_rate)
-          : null,
+        license_plate: formData.license_plate,
+        color: formData.color,
+        status: formData.status,
+        price: cleanDailyRate,
         mileage: formData.mileage ? parseInt(formData.mileage) : null,
+        fuel_type: formData.fuel_type,
+        transmission: formData.transmission,
+        category: formData.category,
         seats: formData.seats ? parseInt(formData.seats) : null,
+        image: formData.image_url,
+        stnk_url: formData.stnk_url,
+        stnk_expiry: formData.stnk_expiry,
+        tax_expiry: formData.tax_expiry,
+        available: formData.is_active,
         vehicle_type_id: formData.vehicle_type_id
           ? parseInt(formData.vehicle_type_id)
           : null,
@@ -353,21 +371,19 @@ const CarsManagement = () => {
 
       const { data, error } = await supabase
         .from("vehicles")
-        .update(numericFormData)
+        .update(updatePayload)
         .eq("id", selectedCar.id)
-        .select();
+        .select("id, price")
+        .single();
 
       if (error) throw error;
 
-      if (data && data.length > 0) {
+      // Sync state list with updated data
+      if (data) {
         const updatedCars = cars.map((car) =>
-          car.id === selectedCar.id ? data[0] : car,
-        );
-        setCars(updatedCars);
-      } else {
-        // Fallback to local update if no data returned
-        const updatedCars = cars.map((car) =>
-          car.id === selectedCar.id ? { ...car, ...numericFormData } : car,
+          car.id === selectedCar.id 
+            ? { ...car, daily_rate: data.price }
+            : car
         );
         setCars(updatedCars);
       }
@@ -1012,7 +1028,7 @@ const CarsManagement = () => {
                             <TableCell>{car.tax_expiry || "-"}</TableCell>
                             <TableCell>
                               {car.daily_rate
-                                ? `Rp ${car.daily_rate.toLocaleString("id-ID")}`
+                                ? `Rp ${Number(car.daily_rate).toLocaleString("id-ID")}`
                                 : "-"}
                             </TableCell>
                             <TableCell className="text-right">
@@ -1200,16 +1216,16 @@ const CarsManagement = () => {
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="daily_rate" className="text-right">
-                Daily Rate ($)
+                Daily Rate
               </Label>
               <Input
                 id="daily_rate"
                 name="daily_rate"
                 type="number"
-                step="0.01"
                 value={formData.daily_rate}
                 onChange={handleInputChange}
                 className="col-span-3"
+                placeholder="Enter daily rate (numbers only)"
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
@@ -1443,16 +1459,16 @@ const CarsManagement = () => {
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="edit-daily_rate" className="text-right">
-                Daily Rate ($)
+                Daily Rate
               </Label>
               <Input
                 id="edit-daily_rate"
                 name="daily_rate"
                 type="number"
-                step="0.01"
                 value={formData.daily_rate}
                 onChange={handleInputChange}
                 className="col-span-3"
+                placeholder="Enter daily rate (numbers only)"
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
