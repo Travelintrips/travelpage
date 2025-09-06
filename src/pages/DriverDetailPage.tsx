@@ -26,12 +26,13 @@ interface Driver {
 
 interface BookingHistory {
   id: string;
-  kode_booking?: string;
+  code_booking?: string;
   start_date: string;
   end_date: string;
   total_amount: number;
   status: string;
   vehicle?: {
+    id: string;
     make: string;
     model: string;
     license_plate: string;
@@ -46,55 +47,7 @@ export default function DriverDetailPage() {
   const [bookingHistory, setBookingHistory] = useState<BookingHistory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Mock data untuk demo
-  const mockDriver: Driver = {
-    id: id || "1",
-    name: "Jone Doe",
-    driver_status: "standby",
-    saldo: 525000,
-  };
 
-  const mockBookingHistory: BookingHistory[] = [
-    {
-      id: "1",
-      kode_booking: "092d60c4-873e-4734-9659-2f8c52d863a2",
-      start_date: "2025-01-06",
-      end_date: "2025-01-07",
-      total_amount: 525000,
-      status: "completed",
-      vehicle: {
-        make: "Toyota",
-        model: "Avanza",
-        license_plate: "B 1097 UNS",
-      },
-    },
-    {
-      id: "2",
-      kode_booking: "abc123-def4-5678-9012-345678901234",
-      start_date: "2025-01-04",
-      end_date: "2025-01-05",
-      total_amount: 450000,
-      status: "completed",
-      vehicle: {
-        make: "Honda",
-        model: "Mobilio",
-        license_plate: "B 2345 XYZ",
-      },
-    },
-    {
-      id: "3",
-      kode_booking: "def456-ghi7-8901-2345-678901234567",
-      start_date: "2025-01-02",
-      end_date: "2025-01-03",
-      total_amount: 380000,
-      status: "cancelled",
-      vehicle: {
-        make: "Daihatsu",
-        model: "Xenia",
-        license_plate: "B 6789 ABC",
-      },
-    },
-  ];
 
   useEffect(() => {
     fetchDriverData();
@@ -104,9 +57,7 @@ export default function DriverDetailPage() {
     try {
       setIsLoading(true);
       
-      // Untuk demo, gunakan mock data
-      // Dalam implementasi nyata, fetch dari database:
-      
+      // Fetch driver data
       const { data: driverData, error: driverError } = await supabase
         .from("drivers")
         .select("id, name, driver_status, saldo")
@@ -115,40 +66,32 @@ export default function DriverDetailPage() {
 
       if (driverError) throw driverError;
 
+      // Fetch booking history with vehicle relationship
       const { data: bookingsData, error: bookingsError } = await supabase
-  .from("bookings")
-  .select(`
-    id,
-    code_booking,
-    start_date,
-    end_date,
-    total_amount,
-    status,
-    vehicle:vehicles!bookings_vehicle_id_fkey (
-      id,
-      make,
-      model,
-      license_plate
-    )
-  `)
-  .eq("driver_id", id)
-  .order("created_at", { ascending: false });
-
-
+        .from("bookings")
+        .select(`
+          id,
+          code_booking,
+          start_date,
+          end_date,
+          total_amount,
+          status,
+          vehicle:vehicles!bookings_vehicle_id_fkey (
+            id,
+            make,
+            model,
+            license_plate
+          )
+        `)
+        .eq("driver_id", id)
+        .order("created_at", { ascending: false });
 
       if (bookingsError) throw bookingsError;
 
       setDriver(driverData);
       setBookingHistory(bookingsData || []);
-      
-
-      // Simulasi delay loading
-      setTimeout(() => {
-        setDriver(mockDriver);
-        setBookingHistory(mockBookingHistory);
-        setIsLoading(false);
-      }, 500);
-    } catch (error) {
+      setIsLoading(false);
+    } catch (error: any) {
       console.error("Error fetching driver data:", error);
       toast({
         variant: "destructive",
@@ -312,7 +255,7 @@ export default function DriverDetailPage() {
                 bookingHistory.map((booking) => (
                   <TableRow key={booking.id}>
                     <TableCell className="font-medium">
-                      {booking.kode_booking || booking.id}
+                      {booking.code_booking || booking.id}
                     </TableCell>
                     <TableCell>
                       {formatDate(booking.start_date)} - {formatDate(booking.end_date)}
