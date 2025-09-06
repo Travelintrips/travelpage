@@ -1,5 +1,5 @@
 {
-  "brand": "Travelintrips",
+  "brand": "Journey",
   "common": {
     "back": "Back",
     "search": "Search",
@@ -117,7 +117,7 @@
     "securePaymentsDesc": "Multiple payment options with secure processing and transparent pricing."
   },
   "footer": {
-    "allRightsReserved": "All rights reserved-By Travelintrips"
+    "allRightsReserved": "All rights reserved-By Journey"
   },
   "language": {
     "select": "Select Language",

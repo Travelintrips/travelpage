@@ -207,7 +207,7 @@ const Header = ({
             onClick={() => navigate("/")}
           >
             <span className="text-xl font-bold">
-              {t("brand", "Travelintrips")}
+              {t("brand", "Journey")}
             </span>
             <Star className="h-4 w-4 text-yellow-400 fill-yellow-400" />
           </div>
@@ -1459,7 +1459,7 @@ const Footer = ({ t }) => {
             <p className="text-gray-300 text-sm mb-4">
               {t(
                 "footer.about.description",
-                "Travelintrips is your trusted partner for all your travel needs, providing seamless booking experiences since 2020.",
+                "Journey is your trusted partner for all your travel needs, providing seamless booking experiences since 2020.",
               )}
             </p>
             <div className="flex space-x-4">
@@ -1576,7 +1576,7 @@ const Footer = ({ t }) => {
         <div className="border-t border-green-800 pt-6 text-center text-gray-300 text-sm">
           <p>
             &copy; {new Date().getFullYear()}{" "}
-            {t("footer.copyright", "Travelintrips. All rights reserved.")}
+            {t("footer.copyright", "Journey. All rights reserved.")}
           </p>
         </div>
       </div>

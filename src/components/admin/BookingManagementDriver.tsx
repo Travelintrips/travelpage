@@ -451,7 +451,7 @@ export default function BookingManagementDriver() {
               <TableHead>Dates</TableHead>
               <TableHead>Amount</TableHead>
               <TableHead>Payment</TableHead>
-              <TableHead>Booking Status</TableHead>
+              <TableHead>Booking Status1</TableHead>
 
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
