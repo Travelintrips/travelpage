@@ -184,6 +184,7 @@ const TopUpDriver = ({
       .from("topup_requests")
       .select(`
         id,
+        proof_url,
         reference_no,
         amount,
         method,
@@ -288,6 +289,7 @@ const TopUpDriver = ({
       .select(`
         id,
         reference_no,
+        proof_url,
         amount,
         method,
         bank_name,
@@ -1072,6 +1074,7 @@ const TopUpDriver = ({
                         <TableHead>Driver Name</TableHead>
                         <TableHead>Nominal Topup</TableHead>
                         <TableHead>Method</TableHead>
+                        <TableHead>Bukti Transfer</TableHead>
                         <TableHead>Request Date</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead className="text-center">Aksi</TableHead>
@@ -1121,6 +1124,23 @@ const TopUpDriver = ({
                                 )}
                               </div>
                             </TableCell>
+                            <TableCell className="max-w-xs">
+  {request.proof_url ? (
+    <a
+      href={request.proof_url}
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      <img
+        src={request.proof_url}
+        alt="Proof"
+        className="h-12 w-12 object-cover rounded"
+      />
+    </a>
+  ) : (
+    <span>-</span>
+  )}
+</TableCell>
                             <TableCell>
                               {new Date(request.created_at).toLocaleDateString("id-ID", {
                                 year: "numeric",
@@ -1179,6 +1199,7 @@ const TopUpDriver = ({
                         <TableHead>Driver Name</TableHead>
                         <TableHead>Nominal</TableHead>
                         <TableHead>Method</TableHead>
+                        <TableHead>Bukti Transfer</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Approved/Rejected By</TableHead>
                         <TableHead>Decision Date</TableHead>
@@ -1230,6 +1251,24 @@ const TopUpDriver = ({
                                 )}
                               </div>
                             </TableCell>
+                            <TableCell className="max-w-xs">
+  {request.proof_url ? (
+    <a
+      href={request.proof_url}
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      <img
+        src={request.proof_url}
+        alt="Proof"
+        className="h-12 w-12 object-cover rounded"
+      />
+    </a>
+  ) : (
+    <span>-</span>
+  )}
+</TableCell>
+
                             <TableCell>
                               {getStatusBadge(request.status)}
                             </TableCell>
