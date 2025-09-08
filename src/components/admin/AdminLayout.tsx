@@ -117,7 +117,7 @@ const AdminLayout = () => {
 
     setNotificationsLoading(true);
     try {
-    {/*  console.log("[AdminLayout] Loading notifications for user:", userId, "with role:", userRole);*/}
+    //  console.log("[AdminLayout] Loading notifications for user:", userId, "with role:", userRole);
       const { data, error } = await supabase
         .from("notification_recipients")
         .select(
@@ -140,7 +140,7 @@ const AdminLayout = () => {
         .limit(50);
 
       if (error) {
-     {/*   console.error("[AdminLayout] Error loading notifications:", error);*/}
+     //   console.error("[AdminLayout] Error loading notifications:", error);
         return;
       }
 
@@ -148,7 +148,7 @@ const AdminLayout = () => {
       setNotifications(data || []);
       setUnreadCount(data?.filter((n) => !n.is_read).length || 0);
     } catch (error) {
-   {/*   console.error("Error loading notifications:", error);*/}
+   //  console.error("Error loading notifications:", error);
     } finally {
       setNotificationsLoading(false);
     }
@@ -166,7 +166,7 @@ const AdminLayout = () => {
         .eq("is_read", false);
 
       if (error) {
-      {/*  console.error("Error marking notifications as read:", error);*/}
+      //  console.error("Error marking notifications as read:", error);
         return;
       }
 
@@ -174,7 +174,7 @@ const AdminLayout = () => {
       setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
       setUnreadCount(0);
     } catch (error) {
-    {/*  console.error("Error marking notifications as read:", error);*/}
+    //  console.error("Error marking notifications as read:", error);
     }
   };
 

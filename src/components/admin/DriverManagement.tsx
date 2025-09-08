@@ -83,23 +83,32 @@ const DriverManagement = () => {
   const { userRole } = useAuth();
   const [searchTerm, setSearchTerm] = useState("");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(() => {
+    const saved = localStorage.getItem('driverManagement_isEditDialogOpen');
+    return saved ? JSON.parse(saved) : false;
+  });
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null);
-  const [formData, setFormData] = useState({
-    name: "",
-    email: "",
-    phone_number: "",
-    license_number: "",
-    license_expiry: "",
-    account_status: "active",
-    selfie_url: "",
-    sim_url: "",
-    stnk_url: "",
-    kk_url: "",
-    stnk_expiry: "",
-    family_phone_number: "",
-    role_id: null,
+  const [selectedDriver, setSelectedDriver] = useState<Driver | null>(() => {
+    const saved = localStorage.getItem('driverManagement_selectedDriver');
+    return saved ? JSON.parse(saved) : null;
+  });
+  const [formData, setFormData] = useState(() => {
+    const saved = localStorage.getItem('driverManagement_formData');
+    return saved ? JSON.parse(saved) : {
+      name: "",
+      email: "",
+      phone_number: "",
+      license_number: "",
+      license_expiry: "",
+      account_status: "active",
+      selfie_url: "",
+      sim_url: "",
+      stnk_url: "",
+      kk_url: "",
+      stnk_expiry: "",
+      family_phone_number: "",
+      role_id: null,
+    };
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadLoading, setUploadLoading] = useState({
@@ -112,6 +121,19 @@ const DriverManagement = () => {
   useEffect(() => {
     fetchDrivers();
   }, []);
+
+  // Save state to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem('driverManagement_isEditDialogOpen', JSON.stringify(isEditDialogOpen));
+  }, [isEditDialogOpen]);
+
+  useEffect(() => {
+    localStorage.setItem('driverManagement_selectedDriver', JSON.stringify(selectedDriver));
+  }, [selectedDriver]);
+
+  useEffect(() => {
+    localStorage.setItem('driverManagement_formData', JSON.stringify(formData));
+  }, [formData]);
 
   const fetchDrivers = async () => {
     try {
@@ -326,6 +348,11 @@ const DriverManagement = () => {
         role_id: cleanedFormData.role_id || null,
       });
 
+      // Clear localStorage after successful update
+      localStorage.removeItem('driverManagement_isEditDialogOpen');
+      localStorage.removeItem('driverManagement_selectedDriver');
+      localStorage.removeItem('driverManagement_formData');
+
       // Refresh the drivers list to ensure we have the latest data
       fetchDrivers();
     } catch (error) {
@@ -359,6 +386,11 @@ const DriverManagement = () => {
       setDrivers(filteredDrivers);
       setIsDeleteDialogOpen(false);
       setSelectedDriver(null);
+
+      // Clear localStorage after successful delete
+      localStorage.removeItem('driverManagement_isEditDialogOpen');
+      localStorage.removeItem('driverManagement_selectedDriver');
+      localStorage.removeItem('driverManagement_formData');
     } catch (error) {
       console.error("Error deleting driver:", error);
     }
@@ -828,7 +860,31 @@ const DriverManagement = () => {
       </Dialog>*/}
 
       {/* Edit Driver Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+      <Dialog open={isEditDialogOpen} onOpenChange={(open) => {
+        setIsEditDialogOpen(open);
+        if (!open) {
+          // Clear localStorage when dialog is closed
+          localStorage.removeItem('driverManagement_isEditDialogOpen');
+          localStorage.removeItem('driverManagement_selectedDriver');
+          localStorage.removeItem('driverManagement_formData');
+          setSelectedDriver(null);
+          setFormData({
+            name: "",
+            email: "",
+            phone_number: "",
+            license_number: "",
+            license_expiry: "",
+            account_status: "active",
+            selfie_url: "",
+            sim_url: "",
+            stnk_url: "",
+            kk_url: "",
+            stnk_expiry: "",
+            family_phone_number: "",
+            role_id: null,
+          });
+        }
+      }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Driver</DialogTitle>
@@ -982,7 +1038,29 @@ const DriverManagement = () => {
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => setIsEditDialogOpen(false)}
+              onClick={() => {
+                setIsEditDialogOpen(false);
+                // Clear localStorage when canceling
+                localStorage.removeItem('driverManagement_isEditDialogOpen');
+                localStorage.removeItem('driverManagement_selectedDriver');
+                localStorage.removeItem('driverManagement_formData');
+                setSelectedDriver(null);
+                setFormData({
+                  name: "",
+                  email: "",
+                  phone_number: "",
+                  license_number: "",
+                  license_expiry: "",
+                  account_status: "active",
+                  selfie_url: "",
+                  sim_url: "",
+                  stnk_url: "",
+                  kk_url: "",
+                  stnk_expiry: "",
+                  family_phone_number: "",
+                  role_id: null,
+                });
+              }}
             >
               Cancel
             </Button>

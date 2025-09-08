@@ -50,12 +50,20 @@ const HandlingServicesManagement = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedService, setSelectedService] =
-    useState<HandlingService | null>(null);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editPrices, setEditPrices] = useState({
-    sell_price: 0,
-    additional: 0,
-    basic_price: 0,
+    useState<HandlingService | null>(() => {
+      const saved = localStorage.getItem('handlingServices_selectedService');
+      return saved ? JSON.parse(saved) : null;
+    });
+  const [isDialogOpen, setIsDialogOpen] = useState(() => {
+    return localStorage.getItem('handlingServices_isDialogOpen') === 'true';
+  });
+  const [editPrices, setEditPrices] = useState(() => {
+    const saved = localStorage.getItem('handlingServices_editPrices');
+    return saved ? JSON.parse(saved) : {
+      sell_price: 0,
+      additional: 0,
+      basic_price: 0,
+    };
   });
   const { toast } = useToast();
   const { userRole } = useAuth();
@@ -63,6 +71,25 @@ const HandlingServicesManagement = () => {
   useEffect(() => {
     fetchServices();
   }, []);
+
+  // Persist selectedService to localStorage
+  useEffect(() => {
+    if (selectedService) {
+      localStorage.setItem('handlingServices_selectedService', JSON.stringify(selectedService));
+    } else {
+      localStorage.removeItem('handlingServices_selectedService');
+    }
+  }, [selectedService]);
+
+  // Persist isDialogOpen to localStorage
+  useEffect(() => {
+    localStorage.setItem('handlingServices_isDialogOpen', isDialogOpen.toString());
+  }, [isDialogOpen]);
+
+  // Persist editPrices to localStorage
+  useEffect(() => {
+    localStorage.setItem('handlingServices_editPrices', JSON.stringify(editPrices));
+  }, [editPrices]);
 
   const fetchServices = async () => {
     try {
@@ -135,7 +162,13 @@ const HandlingServicesManagement = () => {
         description: "Service prices updated successfully",
       });
 
+      // Clear localStorage when edit is successful
+      localStorage.removeItem('handlingServices_selectedService');
+      localStorage.removeItem('handlingServices_isDialogOpen');
+      localStorage.removeItem('handlingServices_editPrices');
+
       setIsDialogOpen(false);
+      setSelectedService(null);
       fetchServices();
     } catch (error) {
       console.error("Error:", error);
@@ -181,6 +214,15 @@ const HandlingServicesManagement = () => {
         title: "Success",
         description: "Service deleted successfully",
       });
+
+      // Clear localStorage if the deleted service was being edited
+      if (selectedService && selectedService.id === serviceId) {
+        localStorage.removeItem('handlingServices_selectedService');
+        localStorage.removeItem('handlingServices_isDialogOpen');
+        localStorage.removeItem('handlingServices_editPrices');
+        setSelectedService(null);
+        setIsDialogOpen(false);
+      }
 
       fetchServices();
     } catch (error) {
@@ -422,7 +464,14 @@ const HandlingServicesManagement = () => {
               <div className="flex justify-end space-x-2 pt-4">
                 <Button
                   variant="outline"
-                  onClick={() => setIsDialogOpen(false)}
+                  onClick={() => {
+                    // Clear localStorage when canceling
+                    localStorage.removeItem('handlingServices_selectedService');
+                    localStorage.removeItem('handlingServices_isDialogOpen');
+                    localStorage.removeItem('handlingServices_editPrices');
+                    setIsDialogOpen(false);
+                    setSelectedService(null);
+                  }}
                 >
                   Cancel
                 </Button>

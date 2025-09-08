@@ -1336,10 +1336,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       if (
         document.visibilityState === "visible" &&
         !initializationRef.current &&
-        isHydrated
+        isHydrated &&
+        session
       ) {
         console.log(
           "[AuthContext] Tab became visible, checking session state...",
+          
         );
 
         // Check if admin is creating user to prevent session switching

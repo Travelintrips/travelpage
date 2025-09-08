@@ -147,12 +147,22 @@ const TopUpDriver = ({
   const [manualTopupNote, setManualTopupNote] = useState("");
   const [driverSearchOpen, setDriverSearchOpen] = useState(false);
   const [driverSearchValue, setDriverSearchValue] = useState("");
+  const [activeTab, setActiveTab] = useState(() => {
+    // Restore active tab from localStorage or default to "pending"
+    return localStorage.getItem('topup-driver-active-tab') || 'pending';
+  });
   const { toast } = useToast();
   const { userId } = useAuth();
 
   useEffect(() => {
     fetchData();
   }, []);
+
+  // Save active tab to localStorage whenever it changes
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+    localStorage.setItem('topup-driver-active-tab', value);
+  };
 
   const fetchData = async () => {
     try {
@@ -1043,7 +1053,7 @@ const TopUpDriver = ({
       </Card>
 
       {/* Tabs */}
-      <Tabs defaultValue="pending" className="w-full">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="pending">Pending Requests Topup Driver</TabsTrigger>
           <TabsTrigger value="history">History Topup Driver</TabsTrigger>

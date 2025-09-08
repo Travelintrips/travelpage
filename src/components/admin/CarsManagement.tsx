@@ -88,14 +88,26 @@ const CarsManagement = () => {
   const [loading, setLoading] = useState(true);
   const { userRole } = useAuth();
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(() => {
+    const saved = localStorage.getItem('carsManagement_selectedCategory');
+    return saved ? JSON.parse(saved) : null;
+  });
   const [selectedVehicleTypeId, setSelectedVehicleTypeId] = useState<
     number | null
-  >(null);
+  >(() => {
+    const saved = localStorage.getItem('carsManagement_selectedVehicleTypeId');
+    return saved ? JSON.parse(saved) : null;
+  });
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(() => {
+    const saved = localStorage.getItem('carsManagement_isEditDialogOpen');
+    return saved ? JSON.parse(saved) : false;
+  });
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [selectedCar, setSelectedCar] = useState<CarData | null>(null);
+  const [selectedCar, setSelectedCar] = useState<CarData | null>(() => {
+    const saved = localStorage.getItem('carsManagement_selectedCar');
+    return saved ? JSON.parse(saved) : null;
+  });
 
   // Vehicle Type Management States
   const [isVehicleTypeDialogOpen, setIsVehicleTypeDialogOpen] = useState(false);
@@ -110,25 +122,28 @@ const CarsManagement = () => {
   const [vehicleTypeFormData, setVehicleTypeFormData] = useState({
     name: "",
   });
-  const [formData, setFormData] = useState({
-    model: "",
-    make: "",
-    year: "",
-    license_plate: "",
-    color: "",
-    status: "available",
-    daily_rate: "",
-    mileage: "",
-    fuel_type: "",
-    transmission: "",
-    category: "",
-    seats: "",
-    image_url: "",
-    stnk_url: "",
-    stnk_expiry: "",
-    tax_expiry: "",
-    is_active: true,
-    vehicle_type_id: "",
+  const [formData, setFormData] = useState(() => {
+    const saved = localStorage.getItem('carsManagement_formData');
+    return saved ? JSON.parse(saved) : {
+      model: "",
+      make: "",
+      year: "",
+      license_plate: "",
+      color: "",
+      status: "available",
+      daily_rate: "",
+      mileage: "",
+      fuel_type: "",
+      transmission: "",
+      category: "",
+      seats: "",
+      image_url: "",
+      stnk_url: "",
+      stnk_expiry: "",
+      tax_expiry: "",
+      is_active: true,
+      vehicle_type_id: "",
+    };
   });
 
   const [uploadLoading, setUploadLoading] = useState({
@@ -140,6 +155,31 @@ const CarsManagement = () => {
     fetchCars();
     fetchVehicleTypes();
   }, []);
+
+  // Save selected category to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem('carsManagement_selectedCategory', JSON.stringify(selectedCategory));
+  }, [selectedCategory]);
+
+  // Save selected vehicle type to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem('carsManagement_selectedVehicleTypeId', JSON.stringify(selectedVehicleTypeId));
+  }, [selectedVehicleTypeId]);
+
+  // Save edit dialog state to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem('carsManagement_isEditDialogOpen', JSON.stringify(isEditDialogOpen));
+  }, [isEditDialogOpen]);
+
+  // Save selected car to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem('carsManagement_selectedCar', JSON.stringify(selectedCar));
+  }, [selectedCar]);
+
+  // Save form data to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem('carsManagement_formData', JSON.stringify(formData));
+  }, [formData]);
 
   const fetchVehicleTypes = async () => {
     try {
@@ -456,7 +496,7 @@ const CarsManagement = () => {
   };
 
   const resetForm = () => {
-    setFormData({
+    const defaultFormData = {
       model: "",
       make: "",
       year: "",
@@ -475,7 +515,12 @@ const CarsManagement = () => {
       tax_expiry: "",
       is_active: true,
       vehicle_type_id: "",
-    });
+    };
+    setFormData(defaultFormData);
+    // Clear localStorage when resetting form
+    localStorage.removeItem('carsManagement_formData');
+    localStorage.removeItem('carsManagement_selectedCar');
+    localStorage.removeItem('carsManagement_isEditDialogOpen');
   };
 
   const filteredCars = cars.filter(
@@ -1614,7 +1659,11 @@ const CarsManagement = () => {
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => setIsEditDialogOpen(false)}
+              onClick={() => {
+                setIsEditDialogOpen(false);
+                setSelectedCar(null);
+                resetForm();
+              }}
             >
               Cancel
             </Button>

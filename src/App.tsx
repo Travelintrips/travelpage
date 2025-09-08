@@ -660,7 +660,7 @@ function AppContent() {
             }
           />
 
-          <Route
+        {/*  <Route
             path="/admin"
             element={
               <ProtectedRoute
@@ -677,7 +677,7 @@ function AppContent() {
                 <AdminLayout />
               </ProtectedRoute>
             }
-          />
+          />*/}
           <Route
             path="/admin/*"
             element={
