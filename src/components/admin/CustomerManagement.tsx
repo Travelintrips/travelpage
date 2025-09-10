@@ -64,34 +64,163 @@ interface Customer {
 const CustomerManagement = () => {
   const { userRole } = useAuth();
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(
-    null,
-  );
-  const [formData, setFormData] = useState({
-    full_name: "",
-    email: "",
-    phone_number: "",
-    address: "",
-    selfie_url: "",
-    ktp_paspor_url: "",
+  const [loading, setLoading] = useState(() => {
+    // ✅ HANYA loading true jika tidak ada cached data
+    const cachedData = sessionStorage.getItem('customerManagement_cachedData');
+    return !cachedData;
   });
+  const [backgroundRefreshing, setBackgroundRefreshing] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  
+  // Persist dialog states to prevent loss on tab switch
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(() => {
+    return sessionStorage.getItem('customerManagement_addDialogOpen') === 'true';
+  });
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(() => {
+    return sessionStorage.getItem('customerManagement_editDialogOpen') === 'true';
+  });
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(() => {
+    return sessionStorage.getItem('customerManagement_deleteDialogOpen') === 'true';
+  });
+  
+  // Persist selected customer
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(() => {
+    const stored = sessionStorage.getItem('customerManagement_selectedCustomer');
+    return stored ? JSON.parse(stored) : null;
+  });
+  
+  // Persist form data
+  const [formData, setFormData] = useState(() => {
+    const stored = sessionStorage.getItem('customerManagement_formData');
+    return stored ? JSON.parse(stored) : {
+      full_name: "",
+      email: "",
+      phone_number: "",
+      address: "",
+      selfie_url: "",
+      ktp_paspor_url: "",
+    };
+  });
+  
   const [uploadLoading, setUploadLoading] = useState({
     selfie: false,
     ktp_paspor: false,
   });
 
   useEffect(() => {
-    fetchCustomers();
+    // ✅ Deteksi apakah ini navigation baru atau tab switch
+    const isNewNavigation = !sessionStorage.getItem('customerManagement_visited');
+    sessionStorage.setItem('customerManagement_visited', 'true');
+    
+    // ✅ PRIORITAS: Load cached data first untuk mencegah loading screen
+    const cachedData = sessionStorage.getItem('customerManagement_cachedData');
+    if (cachedData) {
+      try {
+        const parsedData = JSON.parse(cachedData);
+        setCustomers(parsedData);
+        setLoading(false);
+        console.log('[CustomerManagement] Loaded cached data, NO LOADING SCREEN');
+        
+        // ✅ Jika ini navigation baru (bukan tab switch), refresh data di background
+        if (isNewNavigation) {
+          console.log('[CustomerManagement] New navigation detected - background refresh');
+          setTimeout(() => fetchCustomers(true), 100); // Background refresh
+        }
+        return;
+      } catch (error) {
+        console.warn('[CustomerManagement] Failed to parse cached data:', error);
+      }
+    }
+
+    // ✅ HANYA fetch dengan loading jika benar-benar first time dan navigation baru
+    if (!cachedData && isNewNavigation) {
+      console.log('[CustomerManagement] First time navigation - fetching with loading...');
+      fetchCustomers();
+    } else {
+      // ✅ SELALU set loading false untuk tab switch
+      console.log('[CustomerManagement] Tab switch detected - NO LOADING');
+      setLoading(false);
+    }
   }, []);
 
-  const fetchCustomers = async () => {
+  // Persist dialog states to sessionStorage
+  useEffect(() => {
+    sessionStorage.setItem('customerManagement_addDialogOpen', isAddDialogOpen.toString());
+  }, [isAddDialogOpen]);
+
+  useEffect(() => {
+    sessionStorage.setItem('customerManagement_editDialogOpen', isEditDialogOpen.toString());
+  }, [isEditDialogOpen]);
+
+  useEffect(() => {
+    sessionStorage.setItem('customerManagement_deleteDialogOpen', isDeleteDialogOpen.toString());
+  }, [isDeleteDialogOpen]);
+
+  useEffect(() => {
+    sessionStorage.setItem('customerManagement_selectedCustomer', JSON.stringify(selectedCustomer));
+  }, [selectedCustomer]);
+
+  useEffect(() => {
+    sessionStorage.setItem('customerManagement_formData', JSON.stringify(formData));
+  }, [formData]);
+
+  // Cleanup sessionStorage on component unmount
+  useEffect(() => {
+    return () => {
+      // ✅ Reset visited flag ketika navigate away dari CustomerManagement
+      // Ini memungkinkan loading spinner muncul ketika navigate ke menu lain lalu kembali
+      sessionStorage.removeItem('customerManagement_visited');
+      
+      // Only clear dialog states if no dialogs are open
+      if (!isAddDialogOpen && !isEditDialogOpen && !isDeleteDialogOpen) {
+        clearDialogStates();
+      }
+    };
+  }, []);
+
+  // Add visibility change handler to prevent unnecessary refetch
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        // DISABLE semua refetch ketika kembali dari tab/app lain
+        console.log('[CustomerManagement] Tab visible - DISABLED refetch to prevent UI disruption');
+        return; // Skip semua logic refetch
+        
+        // Don't refetch if we already have data and it's recent
+        const lastFetchTime = sessionStorage.getItem('customerManagement_lastFetch');
+        const now = Date.now();
+        const VISIBILITY_COOLDOWN = 15000; // 15 seconds cooldown
+        
+        if (lastFetchTime && (now - parseInt(lastFetchTime)) < VISIBILITY_COOLDOWN) {
+          console.log('[CustomerManagement] Tab visible but data is recent, skipping refetch');
+          return;
+        }
+        
+        // Background refresh without showing loading UI
+        if (customers.length > 0) {
+          console.log('[CustomerManagement] Tab visible, doing background refresh...');
+          fetchCustomers(true); // Background refresh
+        } else {
+          console.log('[CustomerManagement] Tab visible and no data, fetching...');
+          fetchCustomers(); // Normal fetch with loading
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [customers.length]);
+
+  const fetchCustomers = async (isBackgroundRefresh = false) => {
     try {
-      setLoading(true);
+      // ✅ DISABLE loading spinner untuk mencegah gangguan UI
+      // Hanya set loading jika benar-benar initial load dan tidak ada data
+      if (!isBackgroundRefresh && customers.length === 0) {
+        setLoading(true);
+      }
 
       const { data, error } = await supabase
         .from("customers")
@@ -101,9 +230,18 @@ const CustomerManagement = () => {
       if (error) throw error;
 
       setCustomers(data || []);
+      
+      // Cache the data for future use
+      sessionStorage.setItem('customerManagement_cachedData', JSON.stringify(data || []));
+      
+      // ✅ SELALU set loading false untuk mencegah loading spinner
       setLoading(false);
+      
+      // Update last fetch time
+      sessionStorage.setItem('customerManagement_lastFetch', Date.now().toString());
     } catch (error) {
       console.error("Error fetching customers:", error);
+      // ✅ SELALU set loading false bahkan saat error
       setLoading(false);
     }
   };
@@ -166,66 +304,82 @@ const CustomerManagement = () => {
       if (error) throw error;
 
       if (data && data.length > 0) {
-        setCustomers([data[0], ...customers]);
+        const newCustomers = [data[0], ...customers];
+        setCustomers(newCustomers);
+        // Update cache with new data
+        sessionStorage.setItem('customerManagement_cachedData', JSON.stringify(newCustomers));
       }
 
       setIsAddDialogOpen(false);
       resetFormData();
+      clearDialogStates();
     } catch (error) {
       console.error("Error adding customer:", error);
     }
   };
 
   const resetFormData = () => {
-    setFormData({
+    const emptyFormData = {
       full_name: "",
       email: "",
       phone_number: "",
       address: "",
       selfie_url: "",
       ktp_paspor_url: "",
-    });
+    };
+    setFormData(emptyFormData);
+    sessionStorage.setItem('customerManagement_formData', JSON.stringify(emptyFormData));
   };
 
- const handleEditCustomer = async () => {
-  if (!selectedCustomer) return;
+  const clearDialogStates = () => {
+    sessionStorage.removeItem('customerManagement_addDialogOpen');
+    sessionStorage.removeItem('customerManagement_editDialogOpen');
+    sessionStorage.removeItem('customerManagement_deleteDialogOpen');
+    sessionStorage.removeItem('customerManagement_selectedCustomer');
+    sessionStorage.removeItem('customerManagement_formData');
+  };
 
-  try {
-    // Update customers table
-    const { data, error } = await supabase
-      .from("customers")
-      .update(formData)
-      .eq("id", selectedCustomer.id)
-      .select("id, user_id, full_name") // ambil user_id untuk sync
-      .single();
+  const handleEditCustomer = async () => {
+    if (!selectedCustomer) return;
 
-    if (error) throw error;
+    try {
+      // Update customers table
+      const { data, error } = await supabase
+        .from("customers")
+        .update(formData)
+        .eq("id", selectedCustomer.id)
+        .select("id, user_id, full_name") // ambil user_id untuk sync
+        .single();
 
-    // Pastikan ada user_id di customers
-    if (data?.user_id) {
-      const { error: userError } = await supabase
-        .from("users")
-        .update({ full_name: formData.full_name })
-        .eq("id", data.user_id);
+      if (error) throw error;
 
-      if (userError) throw userError;
+      // Pastikan ada user_id di customers
+      if (data?.user_id) {
+        const { error: userError } = await supabase
+          .from("users")
+          .update({ full_name: formData.full_name })
+          .eq("id", data.user_id);
+
+        if (userError) throw userError;
+      }
+
+      // Update state local customers
+      const updatedCustomers = customers.map((customer) =>
+        customer.id === selectedCustomer.id ? { ...customer, ...formData } : customer
+      );
+      setCustomers(updatedCustomers);
+      
+      // Update cache with new data
+      sessionStorage.setItem('customerManagement_cachedData', JSON.stringify(updatedCustomers));
+
+      setIsEditDialogOpen(false);
+      setSelectedCustomer(null);
+      resetFormData();
+      clearDialogStates();
+    } catch (error) {
+      console.error("Error updating customer:", error);
     }
-
-    // Update state local customers
-    const updatedCustomers = customers.map((customer) =>
-      customer.id === selectedCustomer.id ? { ...customer, ...formData } : customer
-    );
-    setCustomers(updatedCustomers);
-
-    setIsEditDialogOpen(false);
-    setSelectedCustomer(null);
-    resetFormData();
-  } catch (error) {
-    console.error("Error updating customer:", error);
-  }
-};
-
-
+  };
 
   const handleDeleteCustomer = async () => {
     if (!selectedCustomer) return;
@@ -243,26 +397,29 @@ const CustomerManagement = () => {
       );
 
       setCustomers(filteredCustomers);
+      // Update cache with new data
+      sessionStorage.setItem('customerManagement_cachedData', JSON.stringify(filteredCustomers));
+      
       setIsDeleteDialogOpen(false);
       setSelectedCustomer(null);
+      clearDialogStates();
     } catch (error) {
       console.error("Error deleting customer:", error);
     }
   };
 
   const openEditDialog = (customer: Customer) => {
-  setSelectedCustomer(customer);
-  setFormData({
-    full_name: customer.full_name ?? "",
-    email: customer.email ?? "",
-    phone_number: customer.phone_number ?? "",
-    address: customer.address ?? "",
-    selfie_url: customer.selfie_url ?? "",
-    ktp_paspor_url: customer.ktp_paspor_url ?? "",
-  });
-  setIsEditDialogOpen(true);
-};
-
+    setSelectedCustomer(customer);
+    setFormData({
+      full_name: customer.full_name ?? "",
+      email: customer.email ?? "",
+      phone_number: customer.phone_number ?? "",
+      address: customer.address ?? "",
+      selfie_url: customer.selfie_url ?? "",
+      ktp_paspor_url: customer.ktp_paspor_url ?? "",
+    });
+    setIsEditDialogOpen(true);
+  };
 
   const openDeleteDialog = (customer: Customer) => {
     setSelectedCustomer(customer);
@@ -270,20 +427,19 @@ const CustomerManagement = () => {
   };
 
   const filteredCustomers = customers.filter((customer) => {
-  const fullName = customer.full_name?.toLowerCase() ?? "";
-  const email = customer.email?.toLowerCase() ?? "";
-  const phone = customer.phone_number ?? "";
-  const address = customer.address?.toLowerCase() ?? "";
-  const search = searchTerm.toLowerCase();
+    const fullName = customer.full_name?.toLowerCase() ?? "";
+    const email = customer.email?.toLowerCase() ?? "";
+    const phone = customer.phone_number ?? "";
+    const address = customer.address?.toLowerCase() ?? "";
+    const search = searchTerm.toLowerCase();
 
-  return (
-    fullName.includes(search) ||
-    email.includes(search) ||
-    phone.includes(searchTerm) ||
-    address.includes(search)
-  );
-});
-
+    return (
+      fullName.includes(search) ||
+      email.includes(search) ||
+      phone.includes(searchTerm) ||
+      address.includes(search)
+    );
+  });
 
   return (
     <div className="space-y-6">
@@ -412,14 +568,20 @@ const CustomerManagement = () => {
           <div className="text-sm text-muted-foreground">
             Showing {filteredCustomers.length} of {customers.length} customers
           </div>
-          <Button variant="outline" onClick={fetchCustomers}>
+          <Button variant="outline" onClick={() => fetchCustomers()}>
             Refresh
           </Button>
         </CardFooter>
       </Card>
 
       {/* Add Customer Dialog */}
-      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+      <Dialog open={isAddDialogOpen} onOpenChange={(open) => {
+        setIsAddDialogOpen(open);
+        if (!open) {
+          resetFormData();
+          clearDialogStates();
+        }
+      }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add New Customer</DialogTitle>
@@ -585,7 +747,11 @@ const CustomerManagement = () => {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+            <Button variant="outline" onClick={() => {
+              setIsAddDialogOpen(false);
+              resetFormData();
+              clearDialogStates();
+            }}>
               Cancel
             </Button>
             <Button onClick={handleAddCustomer}>Add Customer</Button>
@@ -594,7 +760,14 @@ const CustomerManagement = () => {
       </Dialog>
 
       {/* Edit Customer Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+      <Dialog open={isEditDialogOpen} onOpenChange={(open) => {
+        setIsEditDialogOpen(open);
+        if (!open) {
+          setSelectedCustomer(null);
+          resetFormData();
+          clearDialogStates();
+        }
+      }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Customer</DialogTitle>
@@ -762,7 +935,12 @@ const CustomerManagement = () => {
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => setIsEditDialogOpen(false)}
+              onClick={() => {
+                setIsEditDialogOpen(false);
+                setSelectedCustomer(null);
+                resetFormData();
+                clearDialogStates();
+              }}
             >
               Cancel
             </Button>
@@ -774,7 +952,13 @@ const CustomerManagement = () => {
       {/* Delete Customer Dialog */}
       <AlertDialog
         open={isDeleteDialogOpen}
-        onOpenChange={setIsDeleteDialogOpen}
+        onOpenChange={(open) => {
+          setIsDeleteDialogOpen(open);
+          if (!open) {
+            setSelectedCustomer(null);
+            clearDialogStates();
+          }
+        }}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -785,7 +969,11 @@ const CustomerManagement = () => {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setIsDeleteDialogOpen(false)}>
+            <AlertDialogCancel onClick={() => {
+              setIsDeleteDialogOpen(false);
+              setSelectedCustomer(null);
+              clearDialogStates();
+            }}>
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction

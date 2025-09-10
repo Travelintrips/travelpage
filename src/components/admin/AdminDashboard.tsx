@@ -134,6 +134,10 @@ const AdminDashboard = () => {
     [],
   );
   const [loading, setLoading] = useState(true);
+  const [selectedChartTab, setSelectedChartTab] = useState(() => {
+    // Restore selected chart tab from sessionStorage
+    return sessionStorage.getItem('adminDashboardSelectedTab') || 'vehicle-status';
+  });
 
   const [searchQuery, setSearchQuery] = useState("");
   const [filterOptions, setFilterOptions] = useState<FilterOptions>({
@@ -165,9 +169,38 @@ const AdminDashboard = () => {
     }
   };
 
+  // Save selected chart tab to sessionStorage whenever it changes
+  useEffect(() => {
+    sessionStorage.setItem('adminDashboardSelectedTab', selectedChartTab);
+  }, [selectedChartTab]);
+
+  // Save selected chart tab to sessionStorage whenever it changes
+  useEffect(() => {
+    sessionStorage.setItem('adminDashboardSelectedTab', selectedChartTab);
+  }, [selectedChartTab]);
+
   useEffect(() => {
     // Only fetch dashboard data for non-Staff Trips users
     if (userRole === "Staff Trips") {
+      setLoading(false);
+      return;
+    }
+
+    // Add cooldown to prevent excessive data fetching
+    const lastFetchTime = sessionStorage.getItem('adminDashboardLastFetch');
+    const now = Date.now();
+    const FETCH_COOLDOWN = 30000; // 30 seconds cooldown
+    
+    if (lastFetchTime && (now - parseInt(lastFetchTime)) < FETCH_COOLDOWN) {
+      console.log('[AdminDashboard] Fetch cooldown active, skipping data reload');
+      setLoading(false);
+      return;
+    }
+
+    // Prevent data reload if we already have data and user role hasn't actually changed
+    const storedUserRole = sessionStorage.getItem('lastDashboardUserRole');
+    if (storedUserRole === userRole && dashboardStats.totalVehicles > 0) {
+      console.log('[AdminDashboard] User role unchanged and data exists, skipping reload');
       setLoading(false);
       return;
     }
@@ -578,6 +611,10 @@ const AdminDashboard = () => {
         setBookingData(bookingTableData);
         setFilteredBookingData(bookingTableData);
         setLoading(false);
+        
+        // Update last fetch time and user role
+        sessionStorage.setItem('adminDashboardLastFetch', Date.now().toString());
+        sessionStorage.setItem('lastDashboardUserRole', userRole || '');
       } catch (error) {
         console.error("Error fetching dashboard data:", error);
         setLoading(false);
@@ -754,6 +791,8 @@ const AdminDashboard = () => {
               bookingTrendData={chartData.bookingTrendData}
               paymentMethodData={chartData.paymentMethodData}
               isLoading={loading}
+              selectedTab={selectedChartTab}
+              onTabChange={setSelectedChartTab}
             />
 
             {/* Vehicle Inventory Section */}

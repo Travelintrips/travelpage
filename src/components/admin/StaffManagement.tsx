@@ -60,7 +60,11 @@ export default function StaffManagement() {
   const [users, setUsers] = useState<User[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(() => {
+    // ✅ HANYA loading true jika tidak ada cached data
+    const cachedData = sessionStorage.getItem('staffManagement_cachedData');
+    return !cachedData;
+  });
   const [isOpen, setIsOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [currentUser, setCurrentUser] = useState<Partial<User>>({});
@@ -115,7 +119,41 @@ export default function StaffManagement() {
   const [roleId, setRoleId] = useState<number | null>(null);
 
   useEffect(() => {
-    fetchUsers();
+    // ✅ Deteksi apakah ini navigation baru atau tab switch
+    const isNewNavigation = !sessionStorage.getItem('staffManagement_visited');
+    sessionStorage.setItem('staffManagement_visited', 'true');
+    
+    // ✅ PRIORITAS: Load cached data first untuk mencegah loading screen
+    const cachedData = sessionStorage.getItem('staffManagement_cachedData');
+    if (cachedData) {
+      try {
+        const parsedData = JSON.parse(cachedData);
+        setUsers(parsedData);
+        setFilteredUsers(parsedData);
+        setIsLoading(false);
+        console.log('[StaffManagement] Loaded cached data, NO LOADING SCREEN');
+        
+        // ✅ Jika ini navigation baru (bukan tab switch), refresh data di background
+        if (isNewNavigation) {
+          console.log('[StaffManagement] New navigation detected - background refresh');
+          setTimeout(() => fetchUsers(true), 100); // Background refresh
+        }
+        return;
+      } catch (error) {
+        console.warn('[StaffManagement] Failed to parse cached data:', error);
+      }
+    }
+
+    // ✅ HANYA fetch dengan loading jika benar-benar first time dan navigation baru
+    if (!cachedData && isNewNavigation) {
+      console.log('[StaffManagement] First time navigation - fetching with loading...');
+      fetchUsers();
+    } else {
+      // ✅ SELALU set loading false untuk tab switch
+      console.log('[StaffManagement] Tab switch detected - NO LOADING');
+      setIsLoading(false);
+    }
+    
     fetchRoles();
   }, []);
 
@@ -161,9 +199,13 @@ export default function StaffManagement() {
     setFilteredUsers(filtered);
   }, [users, searchTerm, roleFilter, ethnicityFilter, religionFilter]);
 
-  const fetchUsers = async () => {
+  const fetchUsers = async (isBackgroundRefresh = false) => {
     try {
-      setIsLoading(true);
+      // ✅ DISABLE loading spinner untuk mencegah gangguan UI
+      // Hanya set loading jika benar-benar initial load dan tidak ada data
+      if (!isBackgroundRefresh && users.length === 0) {
+        setIsLoading(true);
+      }
       console.log("[StaffManagement] Starting to fetch users...");
 
       // Get roles data first for filtering and mapping
@@ -320,6 +362,10 @@ export default function StaffManagement() {
       console.log("[StaffManagement] Final combined users data:", transformedUsers.length);
       setUsers(transformedUsers);
       setFilteredUsers(transformedUsers);
+      
+      // Cache the data for future use
+      sessionStorage.setItem('staffManagement_cachedData', JSON.stringify(transformedUsers));
+      
     } catch (error) {
       console.error("[StaffManagement] Error fetching users:", error);
       toast({
@@ -331,6 +377,7 @@ export default function StaffManagement() {
       setUsers([]);
       setFilteredUsers([]);
     } finally {
+      // ✅ SELALU set loading false untuk mencegah loading spinner
       setIsLoading(false);
     }
   };
@@ -881,6 +928,14 @@ export default function StaffManagement() {
     }
   };
 
+  useEffect(() => {
+    return () => {
+      // ✅ Reset visited flag ketika navigate away dari StaffManagement
+      // Ini memungkinkan loading spinner muncul ketika navigate ke menu lain lalu kembali
+      sessionStorage.removeItem('staffManagement_visited');
+    };
+  }, []);
+
   return (
     <div className="p-6 bg-white dark:bg-gray-800 rounded-lg shadow-md">
       <div className="flex justify-between items-center mb-6">
@@ -934,38 +989,30 @@ export default function StaffManagement() {
             onValueChange={(value) => setRoleFilter(value || "")}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Filter by role" />
+              <SelectValue placeholder="Filter by role1" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Roles</SelectItem>
-              {roles
-                .filter((role) => {
-                  const excludedRoles = ["Dispatcher", "Pengawas"];
-                  if (userRole === "Super Admin") {
-                    return [
-                      "Staff",
-                      "Staff Trips",
-                      "Staff Admin",
-                      "Staff Traffic",
-                    ].includes(role.role_name) && !excludedRoles.includes(role.role_name);
-                  } else {
-                    return [
-                      "Staff",
-                      "Staff Trips",
-                      "Staff Admin",
-                      "Staff Traffic",
-                    ].includes(role.role_name) && !excludedRoles.includes(role.role_name);
-                  }
-                })
-                .map((role) => (
-                  <SelectItem
-                    key={role.role_id}
-                    value={role.role_id.toString()}
-                  >
-                    {role.role_name}
-                  </SelectItem>
-                ))}
-            </SelectContent>
+  <SelectItem value="all">All Roles</SelectItem>
+  {roles
+    .filter((role) => {
+      const excludedRoles = ["dispatcher", "pengawas"];
+      const allowedRoles = [
+        "staff",
+        "staff trips",
+        "staff admin",
+        "staff traffic",
+      ];
+
+      const roleName = role.role_name.toLowerCase().trim();
+      return allowedRoles.includes(roleName) && !excludedRoles.includes(roleName);
+    })
+    .map((role) => (
+      <SelectItem key={role.role_id} value={role.role_id.toString()}>
+        {role.role_name}
+      </SelectItem>
+    ))}
+</SelectContent>
+
           </Select>
           <Input
             placeholder="Filter by ethnicity"
@@ -1054,7 +1101,7 @@ export default function StaffManagement() {
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Phone</TableHead>
-                <TableHead>Family Phone</TableHead>
+             {/*   <TableHead>Family Phone</TableHead> */}
                 <TableHead>Role</TableHead>
                 <TableHead>Ethnicity</TableHead>
                 <TableHead>Religion</TableHead>
@@ -1104,13 +1151,12 @@ export default function StaffManagement() {
                   <TableCell>
                     {user.staff?.phone || user.phone_number || "-"}
                   </TableCell>
-                  <TableCell>
+                {/*  <TableCell>
                     {user.staff?.reference_phone || user.staff?.family_phone_number || "-"}
-                  </TableCell>
+                  </TableCell>*/}
                   <TableCell>
                     <Badge variant="outline">
-                      {roles.find((role) => role.role_id === user.role_id)
-                        ?.role_name || "No Role"}
+                      {user.role?.role_name || "No Role"}
                     </Badge>
                   </TableCell>
                   <TableCell>{user.staff?.ethnicity || "-"}</TableCell>
@@ -1255,7 +1301,7 @@ export default function StaffManagement() {
               )}
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="role" className="text-right">
-                  Role <span className="text-red-500">*</span>
+                  Role1 <span className="text-red-500">*</span>
                 </Label>
                 <Select
                   value={roleId?.toString() || ""}

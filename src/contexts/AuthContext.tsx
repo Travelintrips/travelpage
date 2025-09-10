@@ -42,118 +42,128 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [contextReady, setContextReady] = useState(false);
 
   const initializeSession = useCallback(async () => {
-    if (initializationRef.current) {
-    //  console.log("[AuthContext] Session initialization already in progress");
-      return;
-    }
+  if (initializationRef.current) {
+    // console.log("[AuthContext] Session initialization already in progress");
+    return;
+  }
 
-    // Add additional guard to prevent rapid re-initialization
-    const lastInitTime = sessionStorage.getItem("lastSessionInit");
-    const now = Date.now();
-    if (lastInitTime && now - parseInt(lastInitTime) < 1000) {
+  // ✅ GUARD KETAT: Kalau session + user + role sudah valid, langsung skip
+  if (session && user && role && isSessionReady) {
+    console.log("[AuthContext] Session already valid, skipping initialization", {
+      hasSession: !!session,
+      hasUser: !!user, 
+      hasRole: !!role,
+      isReady: isSessionReady
+    });
+    return;
+  }
+
+  // Throttle (1 detik)
+  const lastInitTime = sessionStorage.getItem("lastSessionInit");
+  const now = Date.now();
+  if (lastInitTime && now - parseInt(lastInitTime) < 1000) {
     // console.log("[AuthContext] Session initialization throttled");
-      return;
-    }
-    sessionStorage.setItem("lastSessionInit", now.toString());
+    return;
+  }
+  sessionStorage.setItem("lastSessionInit", now.toString());
 
-    initializationRef.current = true;
+  initializationRef.current = true;
+
+  // ✅ Loading hanya ditrigger kalau belum hydrated
+  if (!isHydrated) {
     setIsLoading(true);
     setIsSessionReady(false);
+  }
 
-    // Prevent flickering by batching state updates
-    const batchedStateUpdate = (updates: any) => {
-      Object.keys(updates).forEach((key) => {
-        if (key === "session") setSession(updates[key]);
-        if (key === "user") setUser(updates[key]);
-        if (key === "role") setRole(updates[key]);
-        if (key === "isLoading") setIsLoading(updates[key]);
-        if (key === "isHydrated") setIsHydrated(updates[key]);
-        if (key === "isSessionReady") setIsSessionReady(updates[key]);
-      });
-    };
+  // Prevent flickering by batching state updates
+  const batchedStateUpdate = (updates: any) => {
+    Object.keys(updates).forEach((key) => {
+      if (key === "session") setSession(updates[key]);
+      if (key === "user") setUser(updates[key]);
+      if (key === "role") setRole(updates[key]);
+      if (key === "isLoading") setIsLoading(updates[key]);
+      if (key === "isHydrated") setIsHydrated(updates[key]);
+      if (key === "isSessionReady") setIsSessionReady(updates[key]);
+    });
+  };
 
-    try {
-    //  console.log("[AuthContext] Starting session initialization...");
+  try {
+    // console.log("[AuthContext] Starting session initialization...");
 
-      // Clear any existing timeout
-      if (sessionTimeoutRef.current) {
-        clearTimeout(sessionTimeoutRef.current);
-      }
+    // Clear any existing timeout
+    if (sessionTimeoutRef.current) {
+      clearTimeout(sessionTimeoutRef.current);
+    }
 
-      // Check if we're in a production environment without proper Supabase config
-      const isProductionWithoutSupabase =
-        typeof window !== "undefined" &&
-        window.location.hostname !== "localhost" &&
-        (!import.meta.env.VITE_SUPABASE_URL ||
-          import.meta.env.VITE_SUPABASE_URL === "" ||
-          import.meta.env.VITE_SUPABASE_URL.includes("placeholder"));
+    // ✅ Production guard
+    const isProductionWithoutSupabase =
+      typeof window !== "undefined" &&
+      window.location.hostname !== "localhost" &&
+      (!import.meta.env.VITE_SUPABASE_URL ||
+        import.meta.env.VITE_SUPABASE_URL === "" ||
+        import.meta.env.VITE_SUPABASE_URL.includes("placeholder"));
 
-      if (isProductionWithoutSupabase) {
-        console.warn(
-          "[AuthContext] Production environment detected without proper Supabase configuration",
-        );
-        // Try to restore from localStorage immediately
-        const storedUser = localStorage.getItem("auth_user");
-        const storedUserId = localStorage.getItem("userId");
+    if (isProductionWithoutSupabase) {
+      console.warn(
+        "[AuthContext] Production environment detected without proper Supabase configuration",
+      );
+      // Restore dari localStorage
+      const storedUser = localStorage.getItem("auth_user");
+      const storedUserId = localStorage.getItem("userId");
 
-        if (storedUser && storedUserId) {
-          try {
-            const userData = JSON.parse(storedUser);
-            console.log(
-              "[AuthContext] Restoring session from localStorage in production",
-            );
+      if (storedUser && storedUserId) {
+        try {
+          const userData = JSON.parse(storedUser);
+          console.log("[AuthContext] Restoring session from localStorage");
 
-            setUser({
-              id: userData.id,
-              email: userData.email,
-              user_metadata: {
-                name: userData.name || "User",
-                role: userData.role || "Customer",
-                phone: userData.phone || "",
-              },
-            });
-            setRole(userData.role || "Customer");
-            setSession({
-              user: userData,
-              access_token: "production_fallback",
-            });
+          setUser({
+            id: userData.id,
+            email: userData.email,
+            user_metadata: {
+              name: userData.name || "User",
+              role: userData.role || "Customer",
+              phone: userData.phone || "",
+            },
+          });
+          setRole(userData.role || "Customer");
+          setSession({
+            user: userData,
+            access_token: "production_fallback",
+          });
 
-            setIsLoading(false);
-            setIsHydrated(true);
-            setIsSessionReady(true);
-            initializationRef.current = false;
-            return;
-          } catch (parseError) {
-            console.warn(
-              "[AuthContext] Error parsing stored user in production:",
-              parseError,
-            );
-          }
+          setIsLoading(false);
+          setIsHydrated(true);
+          setIsSessionReady(true);
+          initializationRef.current = false;
+          return;
+        } catch (parseError) {
+          console.warn("[AuthContext] Error parsing stored user:", parseError);
         }
-
-        // No stored session, set as unauthenticated - batch updates to prevent flickering
-        batchedStateUpdate({
-          session: null,
-          user: null,
-          role: null,
-          isLoading: false,
-          isHydrated: true,
-          isSessionReady: true,
-        });
-        initializationRef.current = false;
-        return;
       }
 
-      // Get current session from Supabase with timeout
-      const sessionPromise = supabase.auth.getSession();
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error("Session check timeout")), 3000);
+      // Kalau gak ada session tersimpan
+      batchedStateUpdate({
+        session: null,
+        user: null,
+        role: null,
+        isLoading: false,
+        isHydrated: true,
+        isSessionReady: true,
       });
+      initializationRef.current = false;
+      return;
+    }
 
-      const { data, error } = (await Promise.race([
-        sessionPromise,
-        timeoutPromise,
-      ])) as any;
+    // ✅ Get current session dari Supabase dengan timeout
+    const sessionPromise = supabase.auth.getSession();
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error("Session check timeout")), 3000);
+    });
+
+    const { data, error } = (await Promise.race([
+      sessionPromise,
+      timeoutPromise,
+    ])) as any;
 
       if (error || !data.session) {
        // console.log("[AuthContext] No valid Supabase session found");
@@ -248,9 +258,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         // Check if this is during admin user creation to preserve admin role
         const adminCreatingUser = sessionStorage.getItem("adminCreatingUser");
         const currentAdminId = sessionStorage.getItem("currentAdminId");
-        const blockAuthChanges = sessionStorage.getItem(
-          "blockAuthStateChanges",
-        );
+        const blockAuthChanges = sessionStorage.getItem("blockAuthStateChanges");
 
         if (
           (adminCreatingUser === "true" &&
@@ -854,13 +862,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
        {/* console.log(`[AuthContext] Auth state changed: ${event}`);*/}
 
         // CRITICAL: Block all auth state changes during staff creation
-        const blockAuthChanges = sessionStorage.getItem(
-          "blockAuthStateChanges",
-        );
+        const blockAuthChanges = sessionStorage.getItem("blockAuthStateChanges");
         const preventAutoLogin = sessionStorage.getItem("preventAutoLogin");
-        const staffCreationInProgress = sessionStorage.getItem(
-          "staffCreationInProgress",
-        );
+        const staffCreationInProgress = sessionStorage.getItem("staffCreationInProgress");
         const adminCreatingUser = sessionStorage.getItem("adminCreatingUser");
         const currentAdminId = sessionStorage.getItem("currentAdminId");
 
@@ -904,9 +908,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
             }
 
             // Restore admin session from preserved data or localStorage
-            const preservedAdminSession = sessionStorage.getItem(
-              "preservedAdminSession",
-            );
+            const preservedAdminSession = sessionStorage.getItem("preservedAdminSession");
 
             let adminData = null;
             if (preservedAdminSession) {
@@ -1001,7 +1003,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
             // Check session storage flags for admin creating user
             const adminCreatingUser = sessionStorage.getItem("adminCreatingUser");
             const currentAdminId = sessionStorage.getItem("currentAdminId");
-            const blockAuthChanges = sessionStorage.getItem("blockAuthStateChanges");
 
            /* console.log(
               `[AuthContext] Session change detected - Current: ${currentUserId} (${currentUserRole}), New: ${newUserId}`,
@@ -1236,13 +1237,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           const currentAdminId = sessionStorage.getItem("currentAdminId");
           const blockAuthChanges = sessionStorage.getItem("blockAuthStateChanges");
           const preventAutoLogin = sessionStorage.getItem("preventAutoLogin");
-          const staffCreationInProgress = sessionStorage.getItem("staffCreationInProgress");
 
           if (
             (adminCreatingUser === "true" && currentAdminId) ||
             blockAuthChanges === "true" ||
-            preventAutoLogin === "true" ||
-            staffCreationInProgress === "true"
+            preventAutoLogin === "true"
           ) {
             console.log(
               "[AuthContext] Sign out during admin user creation - maintaining admin session",
@@ -1250,7 +1249,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
                 adminCreatingUser,
                 blockAuthChanges,
                 preventAutoLogin,
-                staffCreationInProgress,
               },
             );
 
@@ -1321,71 +1319,73 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       },
     );
 
-    // Enhanced visibility change listener with admin session protection and throttling
-    let lastVisibilityChangeTime = 0;
-    const VISIBILITY_THROTTLE = 2000; // 2 second throttle
+    // Enhanced visibility change handler with immediate session rehydration and throttling
+    let lastVisibilityTime = 0;
+    const VISIBILITY_THROTTLE = 10000; // Increased to 10 second throttle for visibility changes
+    let isRecovering = false;
 
     const handleVisibilityChange = async () => {
       const now = Date.now();
-      if (now - lastVisibilityChangeTime < VISIBILITY_THROTTLE) {
+      if (now - lastVisibilityTime < VISIBILITY_THROTTLE) {
         console.log("[AuthContext] Visibility change throttled");
         return;
       }
-      lastVisibilityChangeTime = now;
+      lastVisibilityTime = now;
 
-      if (
-        document.visibilityState === "visible" &&
-        !initializationRef.current &&
-        isHydrated &&
-        session
-      ) {
-        console.log(
-          "[AuthContext] Tab became visible, checking session state...",
-          
-        );
-
-        // Check if admin is creating user to prevent session switching
-        const adminCreatingUser = sessionStorage.getItem("adminCreatingUser");
-        const currentAdminId = sessionStorage.getItem("currentAdminId");
-        const currentAdminEmail = sessionStorage.getItem("currentAdminEmail");
-
-        // Enhanced admin session protection
-        const currentUserIsAdmin =
-          role === "Admin" ||
-          user?.email?.includes("admin") ||
-          user?.email === "divatranssoetta@gmail.com" ||
-          localStorage.getItem("isAdmin") === "true";
-
-        if (adminCreatingUser === "true" && currentAdminId) {
+      if (document.visibilityState === "visible" && isHydrated) {
+        // ✅ GUARD KETAT: Kalau session + user + role sudah valid, langsung skip
+        const currentIsAuthenticated = !!session && !!user;
+        const currentUserId = user?.id;
+        const currentUserRole = role;
+        
+        if (currentIsAuthenticated && currentUserId && currentUserRole) {
           console.log(
-            "[AuthContext] Admin creating user detected, maintaining admin session",
+            "[AuthContext] Tab visible, auth state complete — skip recovery",
+            { hasSession: !!session, hasUser: !!user, hasRole: !!role }
           );
+          return;
+        }
 
-          // Restore admin session from localStorage
-          const storedAdminUser = localStorage.getItem("auth_user");
-          if (storedAdminUser) {
-            try {
-              const adminUserData = JSON.parse(storedAdminUser);
-              if (
-                adminUserData.id === currentAdminId &&
-                adminUserData.role === "Admin"
-              ) {
-                console.log(
-                  "[AuthContext] Restoring admin session on tab switch",
-                );
+        console.log(
+          "[AuthContext] Tab became visible, auth state incomplete — checking if recovery needed...",
+          { hasSession: !!session, hasUser: !!user, hasRole: !!role }
+        );
+        
+        const needsRecovery = !currentIsAuthenticated || !currentUserId || !currentUserRole;
 
-                setUser({
-                  id: adminUserData.id,
-                  email: adminUserData.email,
-                  user_metadata: {
-                    name: adminUserData.name,
-                    role: adminUserData.role,
-                    phone: adminUserData.phone || "",
-                  },
-                });
-                setRole(adminUserData.role);
-                setSession({
-                  user: {
+        if (needsRecovery && !isRecovering) {
+          isRecovering = true; // Set flag untuk mencegah multiple recovery
+          
+          // Check if admin is creating user to prevent session switching
+          const adminCreatingUser = sessionStorage.getItem("adminCreatingUser");
+          const currentAdminId = sessionStorage.getItem("currentAdminId");
+
+          // Enhanced admin session protection
+          const currentUserIsAdmin =
+            role === "Admin" ||
+            user?.email?.includes("admin") ||
+            user?.email === "divatranssoetta@gmail.com" ||
+            localStorage.getItem("isAdmin") === "true";
+
+          if (adminCreatingUser === "true" && currentAdminId) {
+            console.log(
+              "[AuthContext] Admin creating user detected, maintaining admin session",
+            );
+
+            // Restore admin session from localStorage
+            const storedAdminUser = localStorage.getItem("auth_user");
+            if (storedAdminUser) {
+              try {
+                const adminUserData = JSON.parse(storedAdminUser);
+                if (
+                  adminUserData.id === currentAdminId &&
+                  adminUserData.role === "Admin"
+                ) {
+                  console.log(
+                    "[AuthContext] Restoring admin session on tab switch",
+                  );
+
+                  setUser({
                     id: adminUserData.id,
                     email: adminUserData.email,
                     user_metadata: {
@@ -1393,146 +1393,123 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
                       role: adminUserData.role,
                       phone: adminUserData.phone || "",
                     },
-                  },
-                  access_token: "admin_restored_tab_switch",
-                });
+                  });
+                  setRole(adminUserData.role);
+                  setSession({
+                    user: {
+                      id: adminUserData.id,
+                      email: adminUserData.email,
+                      user_metadata: {
+                        name: adminUserData.name,
+                        role: adminUserData.role,
+                        phone: adminUserData.phone || "",
+                      },
+                    },
+                    access_token: "admin_restored_tab_switch",
+                  });
 
-              /*  console.log(
-                  "[AuthContext] Admin session restored successfully on tab switch",
-                );*/
-                return;
+                  console.log(
+                    "[AuthContext] Admin session restored successfully on tab switch",
+                  );
+                  isRecovering = false; // Reset flag
+                  return;
+                }
+              } catch (parseError) {
+                console.warn(
+                  "[AuthContext] Failed to parse stored admin user on tab switch:",
+                  parseError,
+                );
+                isRecovering = false; // Reset flag on error
               }
-            } catch (parseError) {
-              console.warn(
-                "[AuthContext] Failed to parse stored admin user on tab switch:",
-                parseError,
-              );
             }
           }
-        }
 
-        // Additional protection for admin users even without creation flags
-        if (currentUserIsAdmin) {
-          console.log(
-            "[AuthContext] Current user is admin, protecting session on tab switch",
-            { role, userEmail: user?.email, userId: user?.id },
-          );
+          // Additional protection for admin users even without creation flags
+          if (currentUserIsAdmin) {
+            console.log(
+              "[AuthContext] Current user is admin, protecting session on tab switch",
+              { role, userEmail: user?.email, userId: user?.id },
+            );
 
-          // Check if Supabase session matches current admin user
-          try {
-            const {
-              data: { session },
-            } = await supabase.auth.getSession();
+            // ✅ HINDARI panggil supabase.auth.getSession() kalau admin
+            // Force maintain admin session from localStorage
+            const storedUser = localStorage.getItem("auth_user");
+            if (storedUser) {
+              try {
+                const adminUserData = JSON.parse(storedUser);
+                if (
+                  adminUserData.role === "Admin" &&
+                  adminUserData.id === user?.id
+                ) {
+                  console.log(
+                    "[AuthContext] Maintaining admin session from localStorage on tab switch",
+                  );
+                  // Don't reinitialize session, keep current admin state
+                  return;
+                }
+              } catch (parseError) {
+                console.warn(
+                  "[AuthContext] Error parsing stored admin user:",
+                  parseError,
+                );
+              }
+            }
 
-            if (session?.user?.id && session.user.id !== user?.id) {
+            // For admin users, don't proceed with session reinitialization
+            isRecovering = false; // Reset flag
+            return;
+          }
+
+          // ✅ HANYA untuk non-admin users yang benar-benar butuh recovery
+          setTimeout(async () => {
+            if (!initializationRef.current && isHydrated && !currentUserIsAdmin) {
+              // ✅ HINDARI trigger initializeSession kalau state sudah valid
+              const recheckAuth = !!session && !!user && !!role;
+              if (recheckAuth) {
+                console.log("[AuthContext] Auth state now valid, skipping recovery");
+                return;
+              }
+
               console.log(
-                "[AuthContext] Admin session mismatch on tab switch, maintaining admin session",
-                { currentUserId: user?.id, sessionUserId: session.user.id },
+                "[AuthContext] Non-admin session state incomplete, attempting recovery...",
               );
-
-              // Force maintain admin session from localStorage
+              
+              // ✅ HINDARI panggil initializeSession → cukup restore dari localStorage
               const storedUser = localStorage.getItem("auth_user");
               if (storedUser) {
                 try {
-                  const adminUserData = JSON.parse(storedUser);
-                  if (
-                    adminUserData.role === "Admin" &&
-                    adminUserData.id === user?.id
-                  ) {
-                    console.log(
-                      "[AuthContext] Maintaining admin session from localStorage on tab switch",
-                    );
-                    // Don't reinitialize session, keep current admin state
-                    return;
-                  }
+                  const userData = JSON.parse(storedUser);
+                  console.log("[AuthContext] Restoring from localStorage instead of full recovery");
+                  
+                  setUser({
+                    id: userData.id,
+                    email: userData.email,
+                    user_metadata: {
+                      name: userData.name,
+                      role: userData.role,
+                      phone: userData.phone || "",
+                    },
+                  });
+                  setRole(userData.role);
+                  setSession({
+                    user: userData,
+                    access_token: "localStorage_restore",
+                  });
+                  setIsSessionReady(true);
+                  
+                  console.log("[AuthContext] Session restored from localStorage");
+                  isRecovering = false; // Reset flag
+                  return;
                 } catch (parseError) {
-                  console.warn(
-                    "[AuthContext] Error parsing stored admin user:",
-                    parseError,
-                  );
+                  console.warn("[AuthContext] Error parsing stored user:", parseError);
                 }
               }
+              
+              // Fallback ke initializeSession hanya kalau localStorage gagal
+              await initializeSession();
             }
-          } catch (error) {
-            console.warn(
-              "[AuthContext] Error checking session on admin tab switch:",
-              error,
-            );
-          }
-
-          // For admin users, don't proceed with session reinitialization
-          return;
+          }, 500);
         }
-
-        // Add small delay to prevent rapid fire (for non-admin users only)
-        setTimeout(async () => {
-          if (!initializationRef.current && isHydrated && !currentUserIsAdmin) {
-            try {
-              const {
-                data: { session },
-              } = await supabase.auth.getSession();
-
-              // Only update if session state has changed and not during admin user creation
-              if (
-                session?.user?.id !== user?.id &&
-                adminCreatingUser !== "true"
-              ) {
-                console.log(
-                  "[AuthContext] Non-admin session state changed, reinitializing...",
-                );
-                await initializeSession();
-              } else if (adminCreatingUser === "true") {
-                console.log(
-                  "[AuthContext] BLOCKING session reinitialization during admin user creation",
-                );
-                // Force maintain admin session during user creation
-                const storedAdminUser = localStorage.getItem("auth_user");
-                if (storedAdminUser) {
-                  try {
-                    const adminUserData = JSON.parse(storedAdminUser);
-                    if (adminUserData.role === "Admin") {
-                      console.log(
-                        "[AuthContext] Maintaining admin session during user creation",
-                      );
-                      setUser({
-                        id: adminUserData.id,
-                        email: adminUserData.email,
-                        user_metadata: {
-                          name: adminUserData.name,
-                          role: "Admin",
-                          phone: adminUserData.phone || "",
-                        },
-                      });
-                      setRole("Admin");
-                      setSession({
-                        user: {
-                          id: adminUserData.id,
-                          email: adminUserData.email,
-                          user_metadata: {
-                            name: adminUserData.name,
-                            role: "Admin",
-                            phone: adminUserData.phone || "",
-                          },
-                        },
-                        access_token: "admin_maintained_during_creation",
-                      });
-                    }
-                  } catch (parseError) {
-                    console.warn(
-                      "Error parsing admin user during creation:",
-                      parseError,
-                    );
-                  }
-                }
-              }
-            } catch (error) {
-              console.warn(
-                "[AuthContext] Error checking session on visibility change:",
-                error,
-              );
-            }
-          }
-        }, 500);
       }
     };
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   Card,
   CardContent,
@@ -48,8 +48,10 @@ import {
   X,
   Tag,
   Settings,
+  Wrench,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import MaintenanceDialog from "./MaintenanceDialog";
 
 interface VehicleType {
   id: number;
@@ -122,6 +124,9 @@ const CarsManagement = () => {
   const [vehicleTypeFormData, setVehicleTypeFormData] = useState({
     name: "",
   });
+  
+  // Maintenance Dialog State
+  const [isMaintenanceDialogOpen, setIsMaintenanceDialogOpen] = useState(false);
   const [formData, setFormData] = useState(() => {
     const saved = localStorage.getItem('carsManagement_formData');
     return saved ? JSON.parse(saved) : {
@@ -151,9 +156,20 @@ const CarsManagement = () => {
     stnk: false,
   });
 
+  // Add ref to track if data has been loaded to prevent unnecessary refetches
+  const dataLoadedRef = useRef(false);
+  const lastFetchTimeRef = useRef(0);
+  const FETCH_COOLDOWN = 30000; // 30 seconds cooldown between fetches
+
   useEffect(() => {
-    fetchCars();
-    fetchVehicleTypes();
+    // Only fetch if data hasn't been loaded or enough time has passed
+    const now = Date.now();
+    if (!dataLoadedRef.current || (now - lastFetchTimeRef.current > FETCH_COOLDOWN)) {
+      fetchCars();
+      fetchVehicleTypes();
+      dataLoadedRef.current = true;
+      lastFetchTimeRef.current = now;
+    }
   }, []);
 
   // Save selected category to localStorage whenever it changes
@@ -196,9 +212,17 @@ const CarsManagement = () => {
     }
   };
 
-  const fetchCars = async () => {
+  const fetchCars = async (forceRefresh = false) => {
     try {
+      // Prevent unnecessary fetches unless forced
+      const now = Date.now();
+      if (!forceRefresh && dataLoadedRef.current && (now - lastFetchTimeRef.current < FETCH_COOLDOWN)) {
+        console.log('[CarsManagement] Skipping fetch due to cooldown');
+        return;
+      }
+      
       setLoading(true);
+      lastFetchTimeRef.current = now;
 
       const { data, error } = await supabase
         .from("vehicles")
@@ -818,12 +842,19 @@ const CarsManagement = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 bg-white">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">Car Management</h1>
         <div className="flex gap-2">
         {userRole !=="Staff" && (
           <>
+          <Button
+            variant="outline"
+            onClick={() => setIsMaintenanceDialogOpen(true)}
+            className="flex items-center"
+          >
+            <Wrench className="h-4 w-4 mr-2" /> Manage Maintenance
+          </Button>
           <Button
             variant="outline"
             onClick={() => setIsVehicleTypeDialogOpen(true)}
@@ -1167,11 +1198,17 @@ const CarsManagement = () => {
             {sortedModels.length} models
             {searchTerm && ` (filtered by "${searchTerm}")`}
           </div>
-          <Button variant="outline" onClick={fetchCars}>
+          <Button variant="outline" onClick={() => fetchCars(true)}>
             Refresh
           </Button>
         </CardFooter>
       </Card>
+
+      {/* Maintenance Dialog */}
+      <MaintenanceDialog
+        open={isMaintenanceDialogOpen}
+        onOpenChange={setIsMaintenanceDialogOpen}
+      />
 
       {/* Add Car Dialog */}
       <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>

@@ -144,7 +144,7 @@ const AdminLayout = () => {
         return;
       }
 
-      console.log("[AdminLayout] Loaded notifications:", data?.length || 0, "notifications");
+     // console.log("[AdminLayout] Loaded notifications:", data?.length || 0, "notifications");
       setNotifications(data || []);
       setUnreadCount(data?.filter((n) => !n.is_read).length || 0);
     } catch (error) {
@@ -180,22 +180,19 @@ const AdminLayout = () => {
 
   // Load notifications when user is authenticated (exclude Customer role)
   React.useEffect(() => {
-  /*  console.log("[AdminLayout] Notification loading check:", { 
-      isAuthenticated, 
-      userId, 
-      userRole, 
-      shouldLoad: isAuthenticated && userId && userRole !== "Customer" 
-    });*/
+    // Add cooldown to prevent excessive notification loading
+    const lastNotificationLoad = sessionStorage.getItem('lastNotificationLoad');
+    const now = Date.now();
+    const NOTIFICATION_COOLDOWN = 15000; // 15 seconds cooldown
+    
+    if (lastNotificationLoad && (now - parseInt(lastNotificationLoad)) < NOTIFICATION_COOLDOWN) {
+     // console.log('[AdminLayout] Notification load cooldown active, skipping');
+      return;
+    }
     
     if (isAuthenticated && userId && userRole !== "Customer") {
-    //  console.log("[AdminLayout] Loading notifications for user:", { userId, userRole, isAuthenticated });
       loadNotifications();
-    } else {
-     /* console.log("[AdminLayout] Skipping notification load:", {
-        reason: !isAuthenticated ? "not authenticated" : 
-                !userId ? "no userId" : 
-                userRole === "Customer" ? "customer role" : "unknown"
-      });*/
+      sessionStorage.setItem('lastNotificationLoad', now.toString());
     }
   }, [isAuthenticated, userId, userRole]);
 

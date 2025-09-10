@@ -50,6 +50,8 @@ interface DashboardChartsProps {
   bookingTrendData: BookingTrendData[];
   paymentMethodData: PaymentMethodData[];
   isLoading: boolean;
+  selectedTab?: string;
+  onTabChange?: (tab: string) => void;
 }
 
 const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884D8"];
@@ -60,6 +62,8 @@ const DashboardCharts: React.FC<DashboardChartsProps> = ({
   bookingTrendData,
   paymentMethodData,
   isLoading,
+  selectedTab = "vehicle-status",
+  onTabChange,
 }) => {
   if (isLoading) {
     return (
@@ -89,7 +93,7 @@ const DashboardCharts: React.FC<DashboardChartsProps> = ({
 
   return (
     <div className="grid grid-cols-1 gap-6 mt-6">
-      <Tabs defaultValue="vehicle-status" className="w-full">
+      <Tabs value={selectedTab} onValueChange={onTabChange} className="w-full">
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="vehicle-status">Vehicle Status</TabsTrigger>
           <TabsTrigger value="payment-comparison">

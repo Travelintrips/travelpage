@@ -164,7 +164,7 @@ const TopUpAgentRequests = () => {
 
       // Fetch regular top-up requests history
       const { data: topupData, error: topupError } = await supabase
-        .from("v_topup_requests")
+        .from("topup_requests")
         .select("*")
         .eq("request_by_role", "Agent")
         .in("status", ["verified", "rejected"])
@@ -385,7 +385,7 @@ const TopUpAgentRequests = () => {
           </TabsTrigger>
           <TabsTrigger value="history" className="flex items-center gap-2">
             <History className="h-4 w-4" />
-            Topup History
+            Topup History1
           </TabsTrigger>
         </TabsList>
 

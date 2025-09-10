@@ -298,24 +298,27 @@ const TopUpDriver = ({
       .from("v_topup_requests")
       .select(`
         id,
-        reference_no,
-        proof_url,
+        user_id,
         amount,
         method,
         bank_name,
-        created_at,
+        destination_account,
+        proof_url,
+        reference_no,
         status,
         note,
+        created_at,
         verified_at,
         verified_by,
-        user_id,
+        sender_bank,
         request_by_role,
+        account_holder_received,
+        sender_account,
+        sender_name,
         user_email,
         user_full_name,
-        verifier_email,
-        verifier_full_name,
-        saldo_awal,
-        saldo_akhir
+        admin_email,
+        admin_full_name
       `)
       .in("status", ["verified", "rejected"])
       .order("created_at", { ascending: false });
@@ -333,7 +336,28 @@ const TopUpDriver = ({
 
     console.log("[TopUpDriver] Raw history data (from view):", requests);
 
-    // Step 2: Ambil phone numbers dari users table
+    // Step 2: Ambil admin names dari users table berdasarkan admin_id
+    const adminIds = requests?.map((r: any) => r.admin_id).filter(Boolean) || [];
+    let adminNamesMap: Record<string, any> = {};
+
+    if (adminIds.length > 0) {
+      const { data: admins, error: adminsError } = await supabase
+        .from("users")
+        .select("id, full_name, email")
+        .in("id", adminIds);
+
+      if (adminsError) {
+        console.error("Error fetching admin names:", adminsError);
+        // Don't throw error, just continue without admin names
+      } else {
+        adminNamesMap = (admins || []).reduce((acc: any, admin: any) => {
+          acc[admin.id] = admin;
+          return acc;
+        }, {});
+      }
+    }
+
+    // Step 3: Ambil phone numbers dari users table
     const userIds = requests?.map((r: any) => r.user_id).filter(Boolean) || [];
     let usersPhoneMap: Record<string, string> = {};
 
@@ -354,7 +378,7 @@ const TopUpDriver = ({
       }
     }
 
-    // Step 3: Filter + map dengan phone numbers
+    // Step 4: Filter + map dengan admin names dan phone numbers
     const filteredHistory =
       requests
         ?.filter((request: any) => {
@@ -377,16 +401,19 @@ const TopUpDriver = ({
             request.request_by_role === "Driver Mitra"
           );
         })
-        .map((request: any) => ({
-          ...request,
-          driver_name: request.user_full_name || "Unknown Driver",
-          driver_email: request.user_email || "Unknown",
-          driver_phone: usersPhoneMap[request.user_id] || "-",
-          admin_name: request.verifier_full_name || "Unknown Admin",
-          admin_email: request.verifier_email || "Unknown",
-        })) || [];
+        .map((request: any) => {
+          const adminInfo = adminNamesMap[request.admin_id];
+          return {
+            ...request,
+            driver_name: request.users?.full_name || "Unknown Driver",
+            driver_email: request.users?.email || "Unknown",
+            driver_phone: request.users?.phone_number || "-",
+            admin_name: adminInfo?.full_name || request.admin_name || "System Admin", // Prioritas: dari users table, lalu dari kolom admin_name
+            admin_email: adminInfo?.email || "Unknown",
+          };
+        });
 
-    console.log("[TopUpDriver] Filtered history:", filteredHistory);
+    console.log("[TopUpDriver] Filtered history with admin names:", filteredHistory);
     setHistoryRequests(filteredHistory);
   } catch (error) {
     console.error("Error fetching history requests:", error);
@@ -1118,10 +1145,12 @@ const TopUpDriver = ({
                               </div>
                             </TableCell>
                             <TableCell>
-                              <span className="font-medium text-green-600">
-                                Rp {request.amount.toLocaleString()}
-                              </span>
-                            </TableCell>
+  <span className="font-medium text-green-600">
+    Rp {(Number(request?.amount) || 0).toLocaleString()}
+  </span>
+</TableCell>
+
+
                             <TableCell>
                               <div className="flex flex-col">
                                 <span className="font-medium">
@@ -1205,7 +1234,7 @@ const TopUpDriver = ({
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Topup Code</TableHead>
+                        <TableHead>Topup Code1</TableHead>
                         <TableHead>Driver Name</TableHead>
                         <TableHead>Nominal</TableHead>
                         <TableHead>Method</TableHead>
@@ -1235,18 +1264,17 @@ const TopUpDriver = ({
                               {request.reference_no || request.id.slice(0, 8)}
                             </TableCell>
                             <TableCell>
-                              <div className="flex flex-col">
-                                <span className="font-medium">
-                                  {request.driver_name}
-                                </span>
-                                <span className="text-sm text-gray-500">
-                                  {request.driver_email}
-                                </span>
-                              </div>
-                            </TableCell>
+  <div className="flex flex-col">
+    <span className="font-medium">{request.user_full_name}</span>
+    <span className="text-sm text-gray-500">{request.user_email}</span>
+  </div>
+</TableCell>
+
+
+
                             <TableCell>
                               <span className="font-medium text-green-600">
-                                Rp {request.amount.toLocaleString()}
+                                Rp {(Number(request?.amount) || 0).toLocaleString()}
                               </span>
                             </TableCell>
                             <TableCell>
@@ -1283,15 +1311,14 @@ const TopUpDriver = ({
                               {getStatusBadge(request.status)}
                             </TableCell>
                             <TableCell>
-                              <div className="flex flex-col">
-                                <span className="font-medium">
-                                  {request.admin_name || "-"}
-                                </span>
-                                <span className="text-sm text-gray-500">
-                                  {request.admin_email || "-"}
-                                </span>
-                              </div>
-                            </TableCell>
+  <div className="flex flex-col">
+    <span className="font-medium">
+      {request.admin_full_name || "Unknown Admin"}
+    </span>
+  </div>
+</TableCell>
+
+
                             <TableCell>
                               {request.verified_at
                                 ? new Date(request.verified_at).toLocaleDateString("id-ID", {
@@ -1493,7 +1520,7 @@ const TopUpDriver = ({
                 <div>
                   <Label className="text-sm font-medium">Driver Name</Label>
                   <p className="text-sm text-gray-600">
-                    {selectedRequest.driver_name}
+                    {selectedRequest.user_full_name}
                   </p>
                 </div>
                 <div>
@@ -1505,15 +1532,15 @@ const TopUpDriver = ({
                 <div>
                   <Label className="text-sm font-medium">Driver Email</Label>
                   <p className="text-sm text-gray-600">
-                    {selectedRequest.driver_email}
+                    {selectedRequest.user_email}
                   </p>
                 </div>
-                <div>
+               {/* <div>
                   <Label className="text-sm font-medium">Driver Phone</Label>
                   <p className="text-sm text-gray-600">
                     {selectedRequest.driver_phone}
                   </p>
-                </div>
+                </div>*/}
                 <div>
                   <Label className="text-sm font-medium">Request Date</Label>
                   <p className="text-sm text-gray-600">
@@ -1530,7 +1557,7 @@ const TopUpDriver = ({
                 <div>
                   <Label className="text-sm font-medium">Amount</Label>
                   <p className="text-lg font-bold text-green-600">
-                    Rp {selectedRequest.amount.toLocaleString()}
+                    Rp {(selectedRequest.amount ?? 0).toLocaleString("id-ID")}
                   </p>
                 </div>
               </div>
@@ -1554,7 +1581,7 @@ const TopUpDriver = ({
                     <div>
                       <Label className="text-sm font-medium">Verified By</Label>
                       <p className="text-sm text-gray-600">
-                        {selectedRequest.admin_name || "Unknown"}
+                        {selectedRequest.admin_full_name || "Unknown"}
                       </p>
                     </div>
                   </div>
@@ -1617,7 +1644,7 @@ const TopUpDriver = ({
                 <div>
                   <Label className="text-sm font-medium">Amount</Label>
                   <p className="text-lg font-bold text-green-600">
-                    Rp {selectedRequest.amount.toLocaleString()}
+                    Rp {(selectedRequest.amount ?? 0).toLocaleString("id-ID")}
                   </p>
                 </div>
                 <div>
