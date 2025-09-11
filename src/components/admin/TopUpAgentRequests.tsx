@@ -122,7 +122,7 @@ const TopUpAgentRequests = () => {
       setLoading(true);
 
       const { data, error } = await supabase
-        .from("v_topup_requests")
+        .from("topup_requests")
         .select("*")
         .eq("request_by_role", "Agent")
         .eq("status", "pending")
@@ -162,33 +162,117 @@ const TopUpAgentRequests = () => {
     try {
       setHistoryLoading(true);
 
-      // Fetch regular top-up requests history
-      const { data: topupData, error: topupError } = await supabase
-        .from("topup_requests")
-        .select("*")
+      console.log("[TopUpAgentRequests] Fetching history from v_topup_requests view...");
+
+      // ✅ Fetch dari v_topup_requests view sesuai permintaan user
+      const { data: historyData, error: historyError } = await supabase
+        .from("v_topup_requests")
+        .select(`
+          id,
+          user_id,
+          amount,
+          method,
+          bank_name,
+          destination_account,
+          proof_url,
+          reference_no,
+          status,
+          note,
+          created_at,
+          verified_at,
+          verified_by,
+          sender_bank,
+          request_by_role,
+          account_holder_received,
+          sender_account,
+          sender_name,
+          user_email,
+          user_full_name,
+          admin_email,
+          admin_full_name
+        `)
         .eq("request_by_role", "Agent")
         .in("status", ["verified", "rejected"])
         .order("created_at", { ascending: false });
 
-      if (topupError) throw topupError;
+      if (historyError) {
+        console.error("[TopUpAgentRequests] History error:", historyError);
+        throw historyError;
+      }
 
-      const requestData = (topupData ?? []).map((r: any) => ({
-        ...r,
-        // kolom dari view dengan default empty strings:
-        user_full_name: r.user_full_name ?? "",
-        user_email: r.user_email ?? "",
-        verified_by_name: r.verifier_full_name ?? "",
-        status: r.status ?? "",
-        method: r.method ?? "",
-        bank_name: r.bank_name ?? "",
-        reference_no: r.reference_no ?? "",
-        sender_name: r.sender_name ?? "",
-        sender_account: r.sender_account ?? "",
-        sender_bank: r.sender_bank ?? "",
-      }));
+      console.log("[TopUpAgentRequests] Raw data from v_topup_requests:", historyData);
+      console.log("[TopUpAgentRequests] Found", historyData?.length || 0, "Agent history records");
 
-      setHistoryRequests(requestData);
+      // ✅ If no Agent data found, try alternative role names
+      let finalHistoryData = historyData;
+      if (!historyData || historyData.length === 0) {
+        console.log("[TopUpAgentRequests] No 'Agent' data found, trying alternative role names...");
+        
+        const { data: altHistoryData, error: altHistoryError } = await supabase
+          .from("v_topup_requests")
+          .select(`
+            id,
+            user_id,
+            amount,
+            method,
+            bank_name,
+            destination_account,
+            proof_url,
+            reference_no,
+            status,
+            note,
+            created_at,
+            verified_at,
+            verified_by,
+            sender_bank,
+            request_by_role,
+            account_holder_received,
+            sender_account,
+            sender_name,
+            user_email,
+            user_full_name,
+            admin_email,
+            admin_full_name
+          `)
+          .or("request_by_role.eq.agent,request_by_role.ilike.%agent%")
+          .in("status", ["verified", "rejected"])
+          .order("created_at", { ascending: false });
 
+        if (!altHistoryError && altHistoryData) {
+          finalHistoryData = altHistoryData;
+          console.log("[TopUpAgentRequests] Found alternative agent data:", altHistoryData.length);
+        }
+      }
+
+      // ✅ Transform data sesuai dengan struktur v_topup_requests
+      const transformedHistory = (finalHistoryData || []).map((request: any) => {
+        return {
+          id: request.id,
+          reference_no: request.reference_no || `TOP-${request.id}`,
+          user_id: request.user_id,
+          amount: request.amount || 0,
+          method: request.method || "bank_transfer",
+          bank_name: request.bank_name || "BCA",
+          sender_name: request.sender_name || request.user_full_name || "Unknown Sender",
+          sender_account: request.sender_account || "-",
+          sender_bank: request.sender_bank || "BCA",
+          proof_url: request.proof_url,
+          status: request.status,
+          note: request.note,
+          created_at: request.created_at,
+          verified_at: request.verified_at || request.created_at,
+          verified_by: request.verified_by,
+          // ✅ Data langsung dari v_topup_requests view
+          user_full_name: request.user_full_name || "Unknown Agent",
+          user_email: request.user_email || "unknown@email.com",
+          admin_full_name: request.admin_full_name || "System Admin",
+          admin_email: request.admin_email || "system@admin.com",
+          verified_by_name: request.admin_full_name || "System Admin",
+        };
+      });
+
+      console.log("[TopUpAgentRequests] Final transformed history:", transformedHistory);
+      setHistoryRequests(transformedHistory);
 
     } catch (error) {
       console.error("Error fetching history requests:", error);
@@ -584,9 +668,9 @@ const TopUpAgentRequests = () => {
                           <div className="flex flex-col space-y-1">
                             <span
                               className="font-medium text-xs truncate max-w-[120px]"
-                              title={request.user_full_name}
+                              title={request.sender_name}
                             >
-                              {request.user_full_name}
+                              {request.sender_name}
                             </span>
                             <span
                               className="text-xs text-gray-500 truncate max-w-[120px]"
@@ -817,7 +901,7 @@ const TopUpAgentRequests = () => {
                     <TableHeader>
                       <TableRow>
                         <TableHead className="min-w-[120px] text-xs font-medium">
-                          Code/Ref
+                          Code/Ref1
                         </TableHead>
                         <TableHead className="min-w-[140px] text-xs font-medium">
                           Agent
@@ -841,7 +925,7 @@ const TopUpAgentRequests = () => {
                           Created At
                         </TableHead>
                         <TableHead className="min-w-[140px] text-xs font-medium">
-                          Verified By/At
+                          Verified By/At1
                         </TableHead>
                         <TableHead className="min-w-[100px] text-xs font-medium">
                           Note
@@ -957,9 +1041,9 @@ const TopUpAgentRequests = () => {
                                 <div className="flex flex-col space-y-1">
                                   <span
                                     className="text-xs font-medium truncate max-w-[120px]"
-                                    title={request.verified_by_name || "Unknown"}
+                                    title={request.admin_full_name || "Unknown"}
                                   >
-                                    {request.verified_by_name || "Unknown"}
+                                    {request.admin_full_name || "Unknown"}
                                   </span>
                                   <span className="text-xs text-gray-500 whitespace-nowrap">
                                     {new Date(

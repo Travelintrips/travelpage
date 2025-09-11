@@ -2,8 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Fix for Tempo devtools CSS access issues */
 @layer base {
+  /* Ensure CSS custom properties are accessible */
   :root {
+    /* Tempo devtools compatibility */
+    --tempo-safe-access: true;
+    
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
 
@@ -83,6 +88,11 @@
   }
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
+  }
+  
+  /* Tempo devtools safe CSS access */
+  .tempo-safe-styles {
+    --tempo-css-accessible: true;
   }
 }
 

@@ -30,6 +30,15 @@ export default defineConfig({
       "react-dom": "react-dom",
     },
   },
+  css: {
+    // Fix CSS access issues for Tempo devtools
+    devSourcemap: true,
+    preprocessorOptions: {
+      css: {
+        charset: false
+      }
+    }
+  },
   define: {
     global: "globalThis",
     "process.env.NODE_DEBUG": "false",
@@ -66,7 +75,8 @@ export default defineConfig({
     ),
   },
   server: {
-    allowedHosts: true,
+    // @ts-ignore
+    allowedHosts: process.env.TEMPO === "true" ? true : undefined,
     hmr: {
       protocol: process.env.TEMPO === "true" ? "wss" : "ws",
     },

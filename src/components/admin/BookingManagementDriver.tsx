@@ -27,6 +27,7 @@ import {
   Activity,
   ClipboardCheck,
   Search,
+  Flag,
   X,
   CheckCircle,
   XCircle,
@@ -357,7 +358,7 @@ export default function BookingManagementDriver() {
     setFilteredBookings(bookings);
   };
 
-  const handleCompleteBooking = async (booking: Booking) => {
+  const handleFinishBooking = async (booking: Booking) => {
     try {
       const { error } = await supabase
         .from("bookings")
@@ -367,8 +368,33 @@ export default function BookingManagementDriver() {
       if (error) throw error;
 
       toast({
-        title: "Booking completed",
+        title: "Booking finished",
         description: "Booking status has been updated to completed",
+      });
+
+      fetchBookings();
+    } catch (error) {
+      console.error("Error finishing booking:", error);
+      toast({
+        variant: "destructive",
+        title: "Error finishing booking",
+        description: error.message,
+      });
+    }
+  };
+
+  const handleCompleteBooking = async (booking: Booking) => {
+    try {
+      const { error } = await supabase
+        .from("bookings")
+        .update({ status: "confirmed" })
+        .eq("id", booking.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Booking confirmed",
+        description: "Booking status has been updated to confirmed",
       });
 
       fetchBookings();
@@ -511,29 +537,22 @@ export default function BookingManagementDriver() {
                 <TableCell>{getStatusBadge(booking.status)}</TableCell>
 
                 <TableCell className="text-right flex items-center justify-end space-x-1">
-                  <Button
+              {/*    <Button
                     variant="ghost"
                     size="icon"
                     onClick={() => handleViewDetails(booking)}
                   >
                     <Eye className="h-4 w-4" />
-                  </Button>
-               {/*   <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleOpenPaymentDialog(booking)}
-                  >
-                    <CreditCard className="h-4 w-4" />
                   </Button>*/}
                   {booking.status === "confirmed" && (
                     <Button
                       variant="outline"
                       size="sm"
                       className="flex items-center gap-1"
-                      onClick={() => handlePickupVehicle(booking)}
+                      onClick={() => handleFinishBooking(booking)}
                     >
-                      <Car className="h-4 w-4" />
-                      Picked Up
+                      <Flag className="h-4 w-4" />
+                      Finish
                     </Button>
                   )}
                   {booking.status === "onride" && (
@@ -570,7 +589,7 @@ export default function BookingManagementDriver() {
                     onClick={() => handleCompleteBooking(booking)}
                   >
                     <CheckCircle className="h-4 w-4" />
-                    Complete
+                    Confirmation
                   </Button>
                   <Button
                     variant="outline"
