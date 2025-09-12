@@ -383,7 +383,7 @@ export default function BookingManagementDriver() {
     }
   };
 
-  const handleCompleteBooking = async (booking: Booking) => {
+  const handleConfirmBooking = async (booking: Booking) => {
     try {
       const { error } = await supabase
         .from("bookings")
@@ -477,7 +477,7 @@ export default function BookingManagementDriver() {
               <TableHead>Dates</TableHead>
               <TableHead>Amount</TableHead>
               <TableHead>Payment</TableHead>
-              <TableHead>Booking Status1</TableHead>
+              <TableHead>Booking Status</TableHead>
 
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
@@ -586,7 +586,7 @@ export default function BookingManagementDriver() {
                     variant="outline"
                     size="sm"
                     className="flex items-center gap-1 bg-green-100 hover:bg-green-200 text-green-800 border-green-300"
-                    onClick={() => handleCompleteBooking(booking)}
+                    onClick={() => handleConfirmBooking(booking)}
                   >
                     <CheckCircle className="h-4 w-4" />
                     Confirmation

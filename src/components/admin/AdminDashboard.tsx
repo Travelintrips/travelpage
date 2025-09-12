@@ -305,7 +305,7 @@ const AdminDashboard = () => {
         const bookedVehicles =
           vehicles?.filter(
             (vehicle) =>
-              vehicle.status !== "available" && vehicle.status !== "Available",
+              vehicle.status !== "available" && vehicle.status !== "available",
           ).length || 0;
 
         const onRideVehicles =
@@ -314,7 +314,7 @@ const AdminDashboard = () => {
           ).length || 0;
 
         const maintenanceVehicles =
-          vehicles?.filter((vehicle) => vehicle.status === "Maintenance")
+          vehicles?.filter((vehicle) => vehicle.status === "maintenance")
             .length || 0;
 
         // Only count vehicles where is_available is true
