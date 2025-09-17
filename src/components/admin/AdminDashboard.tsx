@@ -104,7 +104,7 @@ interface FilterOptions {
 }
 
 const AdminDashboard = () => {
-  const { userRole } = useAuth();
+  const { userRole, isAuthenticated, isSessionReady, isLoading: authLoading } = useAuth();
   const [dashboardStats, setDashboardStats] = useState<DashboardStats>({
     totalVehicles: 0,
     bookedVehicles: 0,
@@ -133,26 +133,36 @@ const AdminDashboard = () => {
   const [filteredBookingData, setFilteredBookingData] = useState<BookingData[]>(
     [],
   );
-  const [loading, setLoading] = useState(true);
-  const [selectedChartTab, setSelectedChartTab] = useState(() => {
-    // Restore selected chart tab from sessionStorage
-    return sessionStorage.getItem('adminDashboardSelectedTab') || 'vehicle-status';
+  const [loading, setLoading] = useState(() => {
+    // ✅ HANYA loading true jika tidak ada cached data
+    const cachedData = sessionStorage.getItem('adminDashboard_cachedStats');
+    return !cachedData && userRole !== "Staff Trips";
   });
-
-  const [searchQuery, setSearchQuery] = useState("");
+  
+  // Add missing state variables
+  const [selectedChartTab, setSelectedChartTab] = useState(() => {
+    return sessionStorage.getItem('adminDashboardSelectedTab') || 'vehicles';
+  });
+  
   const [filterOptions, setFilterOptions] = useState<FilterOptions>({
     date: "",
     vehicleType: "",
     bookingStatus: "",
     paymentType: "",
   });
+  
+  const [searchQuery, setSearchQuery] = useState("");
+  
   const [sortConfig, setSortConfig] = useState<{
-    key: keyof BookingData | "";
+    key: keyof BookingData | null;
     direction: "asc" | "desc";
   }>({
-    key: "",
-    direction: "desc",
+    key: null,
+    direction: "asc",
   });
+  
+  // Add ref to track if fetch is in progress
+  const [isFetching, setIsFetching] = useState(false);
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -174,476 +184,491 @@ const AdminDashboard = () => {
     sessionStorage.setItem('adminDashboardSelectedTab', selectedChartTab);
   }, [selectedChartTab]);
 
-  // Save selected chart tab to sessionStorage whenever it changes
+  // FIXED: Fetch data when auth is ready and authenticated with proper caching
   useEffect(() => {
-    sessionStorage.setItem('adminDashboardSelectedTab', selectedChartTab);
-  }, [selectedChartTab]);
+    if (isAuthenticated && isSessionReady && !authLoading && userRole !== "Staff Trips") {
+      console.log('[AdminDashboard] Auth ready, checking cached data...');
+      
+      // ✅ Load cached data first untuk mencegah loading screen
+      const cachedStats = sessionStorage.getItem('adminDashboard_cachedStats');
+      const cachedChartData = sessionStorage.getItem('adminDashboard_cachedChartData');
+      const cachedBookingData = sessionStorage.getItem('adminDashboard_cachedBookingData');
+      
+      if (cachedStats && cachedChartData && cachedBookingData) {
+        try {
+          setDashboardStats(JSON.parse(cachedStats));
+          setChartData(JSON.parse(cachedChartData));
+          const bookingData = JSON.parse(cachedBookingData);
+          setBookingData(bookingData);
+          setFilteredBookingData(bookingData);
+          setLoading(false);
+          console.log('[AdminDashboard] Loaded cached data, NO LOADING SCREEN');
+          
+          // Background refresh to get latest data after a short delay
+          setTimeout(() => fetchDashboardData(true), 500);
+          return;
+        } catch (error) {
+          console.warn('[AdminDashboard] Failed to parse cached data:', error);
+        }
+      }
 
+      // Fetch data if no cache
+      fetchDashboardData();
+    } else if (userRole === "Staff Trips") {
+      setLoading(false);
+    } else if (!authLoading && !isAuthenticated) {
+      // Not authenticated, clear loading state but don't reset data
+      setLoading(false);
+    }
+  }, [isAuthenticated, isSessionReady, authLoading, userRole]);
+
+  // FIXED: Add visibility change handler with proper debouncing
   useEffect(() => {
-    // Only fetch dashboard data for non-Staff Trips users
-    if (userRole === "Staff Trips") {
-      setLoading(false);
-      return;
-    }
-
-    // Add cooldown to prevent excessive data fetching
-    const lastFetchTime = sessionStorage.getItem('adminDashboardLastFetch');
-    const now = Date.now();
-    const FETCH_COOLDOWN = 30000; // 30 seconds cooldown
-    
-    if (lastFetchTime && (now - parseInt(lastFetchTime)) < FETCH_COOLDOWN) {
-      console.log('[AdminDashboard] Fetch cooldown active, skipping data reload');
-      setLoading(false);
-      return;
-    }
-
-    // Prevent data reload if we already have data and user role hasn't actually changed
-    const storedUserRole = sessionStorage.getItem('lastDashboardUserRole');
-    if (storedUserRole === userRole && dashboardStats.totalVehicles > 0) {
-      console.log('[AdminDashboard] User role unchanged and data exists, skipping reload');
-      setLoading(false);
-      return;
-    }
-
-    const fetchDashboardData = async () => {
-      try {
-        setLoading(true);
-
-        // Fetch vehicles data
-        const { data: vehicles, error: vehiclesError } = await supabase
-          .from("vehicles")
-          .select("*");
-
-        if (vehiclesError) throw vehiclesError;
-
-        console.log("Vehicles data:", vehicles); // Debug log to check vehicles data
-
-        // Fetch all required data separately to avoid foreign key issues
-        // Only fetch users data if user is Admin to avoid permission issues
-        const fetchPromises = [
-          supabase.from("bookings").select("*"),
-          supabase.from("customers").select("*"),
-        ];
-
-        // Only fetch staff and users data if user has admin privileges
-        if (userRole === "Admin") {
-          fetchPromises.push(supabase.from("staff").select("*"));
-          fetchPromises.push(supabase.from("users").select("*"));
-        }
-
-        const results = await Promise.all(fetchPromises);
-        let bookingsResult, customersResult, staffResult, usersResult;
-
-        if (userRole === "Admin") {
-          [bookingsResult, customersResult, staffResult, usersResult] = results;
-        } else {
-          [bookingsResult, customersResult] = results;
-          staffResult = { data: [], error: null };
-          usersResult = { data: [], error: null };
-        }
-
-        if (bookingsResult.error) {
-          console.error("Error fetching bookings:", bookingsResult.error);
-          throw bookingsResult.error;
-        }
-        if (customersResult.error) {
-          console.error("Error fetching customers:", customersResult.error);
-          throw customersResult.error;
-        }
-        if (staffResult && staffResult.error) {
-          console.error("Error fetching staff:", staffResult.error);
-          throw staffResult.error;
-        }
-        if (usersResult && usersResult.error) {
-          console.error("Error fetching users:", usersResult.error);
-          throw usersResult.error;
-        }
-
-        const bookings = bookingsResult.data || [];
-        const customers = customersResult.data || [];
-        const staff = staffResult ? staffResult.data || [] : [];
-        const users = usersResult ? usersResult.data || [] : [];
-
-        console.log("Bookings data:", bookings); // Debug log
-        console.log("Customers data:", customers); // Debug log
-        console.log("Staff data:", staff); // Debug log
-        console.log("Users data:", users); // Debug log
-
-        // Fetch payments data
-        const { data: payments, error: paymentsError } = await supabase
-          .from("payments")
-          .select("*");
-
-        if (paymentsError) throw paymentsError;
-
-        // Get current month payments
-        const now = new Date();
-        const startOfMonth = new Date(
-          now.getFullYear(),
-          now.getMonth(),
-          1,
-        ).toISOString();
-        const endOfMonth = new Date(
-          now.getFullYear(),
-          now.getMonth() + 1,
-          0,
-        ).toISOString();
-
-        const { data: monthlyPayments, error: monthlyPaymentsError } =
-          await supabase
-            .from("payments")
-            .select("*")
-            .gte("created_at", startOfMonth)
-            .lte("created_at", endOfMonth);
-
-        if (monthlyPaymentsError) throw monthlyPaymentsError;
-
-        // Calculate dashboard statistics from real data
-        const totalVehicles = vehicles?.length || 0;
-
-        // Get all vehicles that don't have 'available' status
-        const bookedVehicles =
-          vehicles?.filter(
-            (vehicle) =>
-              vehicle.status !== "available" && vehicle.status !== "available",
-          ).length || 0;
-
-        const onRideVehicles =
-          bookings?.filter(
-            (booking) => booking.status.toLowerCase() === "onride",
-          ).length || 0;
-
-        const maintenanceVehicles =
-          vehicles?.filter((vehicle) => vehicle.status === "maintenance")
-            .length || 0;
-
-        // Only count vehicles where is_available is true
-        const availableVehiclesCount =
-          vehicles?.filter(
-            (vehicle) =>
-              vehicle.is_available === true || vehicle.is_available === "true",
-          ).length || 0;
-
-        console.log("Available vehicles count:", availableVehiclesCount);
-        console.log(
-          "Vehicles with status=true:",
-          vehicles?.filter((vehicle) => vehicle.status === true).length || 0,
-        );
-        console.log(
-          "Vehicles with is_available=true:",
-          vehicles?.filter((vehicle) => vehicle.is_available === true).length ||
-            0,
-        );
-        console.log(
-          "Vehicles with available=true:",
-          vehicles?.filter((vehicle) => vehicle.available === true).length || 0,
-        );
-
-        const paidPayments =
-          payments?.filter(
-            (payment) =>
-              payment.status === "Paid" || payment.status === "Completed",
-          ) || [];
-
-        const unpaidPayments =
-          payments?.filter(
-            (payment) =>
-              payment.status === "Unpaid" || payment.status === "Partial",
-          ) || [];
-
-        const totalPaidAmount = paidPayments.reduce(
-          (sum, payment) => sum + (payment.amount || 0),
-          0,
-        );
-
-        const totalUnpaidAmount = unpaidPayments.reduce(
-          (sum, payment) => sum + (payment.amount || 0),
-          0,
-        );
-
-        // Calculate monthly payments total
-        const monthlyPaidPayments =
-          monthlyPayments?.filter(
-            (payment) =>
-              payment.status === "Paid" || payment.status === "Completed",
-          ) || [];
-
-        const monthlyTotalAmount = monthlyPaidPayments.reduce(
-          (sum, payment) => sum + (payment.amount || 0),
-          0,
-        );
-
-        // Prepare chart data
-        // 1. Vehicle Status Pie Chart
-        const vehicleStatusData = [
-          { name: "Booked", value: bookedVehicles },
-          { name: "On Ride", value: onRideVehicles },
-          { name: "Available", value: availableVehiclesCount },
-          { name: "Maintenance", value: maintenanceVehicles },
-        ];
-
-        // 2. Payment Data for Bar Chart
-        const months = [
-          "Jan",
-          "Feb",
-          "Mar",
-          "Apr",
-          "May",
-          "Jun",
-          "Jul",
-          "Aug",
-          "Sep",
-          "Oct",
-          "Nov",
-          "Dec",
-        ];
-        const paymentData = [];
-
-        // Group payments by month
-        const paidByMonth = {};
-        const unpaidByMonth = {};
-
-        // Initialize all months with zero
-        months.forEach((month) => {
-          paidByMonth[month] = 0;
-          unpaidByMonth[month] = 0;
-        });
-
-        // Aggregate paid payments by month
-        paidPayments.forEach((payment) => {
-          if (payment.created_at) {
-            const date = new Date(payment.created_at);
-            const month = months[date.getMonth()];
-            paidByMonth[month] += payment.amount || 0;
-          }
-        });
-
-        // Aggregate unpaid payments by month
-        unpaidPayments.forEach((payment) => {
-          if (payment.created_at) {
-            const date = new Date(payment.created_at);
-            const month = months[date.getMonth()];
-            unpaidByMonth[month] += payment.amount || 0;
-          }
-        });
-
-        // Create payment data array for chart
-        months.forEach((month) => {
-          paymentData.push({
-            name: month,
-            paid: paidByMonth[month],
-            unpaid: unpaidByMonth[month],
-          });
-        });
-
-        // 3. Booking Trend Line Chart
-        const bookingsByDate = {};
-        const last30Days = [];
-
-        // Generate last 30 days
-        for (let i = 29; i >= 0; i--) {
-          const date = new Date();
-          date.setDate(date.getDate() - i);
-          const dateStr = date.toISOString().split("T")[0];
-          bookingsByDate[dateStr] = 0;
-          last30Days.push(dateStr);
-        }
-
-        // Count bookings by date
-        bookings?.forEach((booking) => {
-          if (booking.created_at) {
-            const dateStr = new Date(booking.created_at)
-              .toISOString()
-              .split("T")[0];
-            if (bookingsByDate[dateStr] !== undefined) {
-              bookingsByDate[dateStr] += 1;
-            }
-          }
-        });
-
-        const bookingTrendData = last30Days.map((date) => ({
-          date: date,
-          bookings: bookingsByDate[date],
-        }));
-
-        // 4. Payment Method Doughnut Chart
-        const paymentMethodCounts = {
-          Cash: 0,
-          "Bank Transfer": 0,
-          "Credit Card": 0,
-          "Debit Card": 0,
-          Other: 0,
-        };
-
-        payments?.forEach((payment) => {
-          const method = payment.payment_method || "Other";
-          if (paymentMethodCounts[method] !== undefined) {
-            paymentMethodCounts[method] += 1;
-          } else {
-            paymentMethodCounts["Other"] += 1;
-          }
-        });
-
-        const paymentMethodData = Object.entries(paymentMethodCounts).map(
-          ([name, value]) => ({
-            name,
-            value,
-          }),
-        );
-
-        // Set dashboard stats with real data
-        setDashboardStats({
-          totalVehicles,
-          bookedVehicles,
-          onRideVehicles,
-          maintenanceVehicles,
-          availableVehicles: availableVehiclesCount,
-          totalPayments: {
-            count: paidPayments.length,
-            amount: totalPaidAmount,
-            monthlyAmount: monthlyTotalAmount,
-          },
-          totalUnpaid: {
-            count: unpaidPayments.length,
-            amount: totalUnpaidAmount,
-          },
-        });
-
-        // Set chart data
-        setChartData({
-          vehicleStatusData,
-          paymentData,
-          bookingTrendData,
-          paymentMethodData,
-        });
-
-        // Connect bookings with customer and user data
-        const enhancedBookings = bookings.map((booking) => {
-          // Find the user associated with this booking (only if users data is available)
-          const user =
-            users && users.length > 0
-              ? users.find((user) => user.id === booking.user_id)
-              : null;
-
-          // Find the customer associated with this booking's user_id
-          const customer = customers.find(
-            (customer) => customer.user_id === booking.user_id,
-          );
-
-          // Find the staff member who might be handling this booking
-          const staffMember =
-            staff && staff.length > 0
-              ? staff.find((s) => s.id === booking.driver_id)
-              : null;
-
-          // Get customer name from multiple possible sources
-          let customerName = "Unknown Customer";
-          if (customer?.full_name) {
-            customerName = customer.full_name;
-          } else if (customer?.name) {
-            customerName = customer.name;
-          } else if (user?.full_name) {
-            customerName = user.full_name;
-          } else if (user?.first_name && user?.last_name) {
-            customerName = `${user.first_name} ${user.last_name}`;
-          } else if (user?.first_name) {
-            customerName = user.first_name;
-          }
-
-          // Get customer email
-          const customerEmail = customer?.email || user?.email || "No email";
-
-          // Get customer phone
-          const customerPhone =
-            customer?.phone || user?.phone || user?.phone_number || "No phone";
-
-          // Get staff name
-          let staffName = null;
-          if (staffMember) {
-            // Try to get staff name from staff table first, then from users if available
-            if (users && users.length > 0) {
-              const staffUser = users.find((u) => u.id === staffMember.user_id);
-              staffName =
-                staffUser?.full_name ||
-                staffMember.full_name ||
-                staffMember.name ||
-                "Unknown Staff";
-            } else {
-              staffName =
-                staffMember.full_name || staffMember.name || "Unknown Staff";
-            }
-          }
-
-          return {
-            ...booking,
-            customerName,
-            customerEmail,
-            customerPhone,
-            staffName,
-          };
-        });
-
-        console.log("Enhanced bookings:", enhancedBookings); // Debug log
-
-        // Transform bookings data for the table
-        const bookingTableData: BookingData[] = enhancedBookings.map(
-          (booking) => ({
-            id: booking.id,
-            vehicleType: booking.vehicle_type || "",
-            bookingStatus: (booking.status as any) || "Booked",
-            paymentStatus: (booking.payment_status as any) || "Unpaid",
-            nominalPaid: booking.paid_amount || booking.amount_paid || 0,
-            nominalUnpaid: Math.max(
-              0,
-              booking.total_amount -
-                (booking.paid_amount || booking.amount_paid || 0),
-            ),
-            customer: booking.customerName,
-            customerEmail: booking.customerEmail,
-            customerPhone: booking.customerPhone,
-            staffName: booking.staffName,
-            startDate: booking.start_date || "",
-            endDate: booking.end_date || "",
-            createdAt: booking.created_at || "",
-          }),
-        );
-
-        setBookingData(bookingTableData);
-        setFilteredBookingData(bookingTableData);
-        setLoading(false);
+    const handleVisibilityChange = () => {
+      if (!document.hidden && isAuthenticated && isSessionReady && !authLoading && userRole !== "Staff Trips") {
+        console.log('[AdminDashboard] Tab became visible, refetching dashboard data...');
         
-        // Update last fetch time and user role
-        sessionStorage.setItem('adminDashboardLastFetch', Date.now().toString());
-        sessionStorage.setItem('lastDashboardUserRole', userRole || '');
-      } catch (error) {
-        console.error("Error fetching dashboard data:", error);
-        setLoading(false);
-
-        // Initialize with empty data if there's an error
-        setDashboardStats({
-          totalVehicles: 0,
-          bookedVehicles: 0,
-          onRideVehicles: 0,
-          maintenanceVehicles: 0,
-          availableVehicles: 0,
-          totalPayments: {
-            count: 0,
-            amount: 0,
-            monthlyAmount: 0,
-          },
-          totalUnpaid: {
-            count: 0,
-            amount: 0,
-          },
-        });
-
-        setBookingData([]);
-        setFilteredBookingData([]);
+        // Always do background refresh when tab becomes visible
+        fetchDashboardData(true); // Background refresh without loading spinner
       }
     };
 
-    fetchDashboardData();
-  }, [userRole]);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [isAuthenticated, isSessionReady, authLoading, userRole]);
+
+  // FIXED: Modified fetchDashboardData with proper loading state management, caching, and retry logic
+  const fetchDashboardData = async (isBackgroundRefresh = false, retryCount = 0) => {
+    // Don't fetch if not authenticated or if Staff Trips or already fetching
+    if (!isAuthenticated || !isSessionReady || authLoading || userRole === "Staff Trips" || isFetching) {
+      console.log('[AdminDashboard] Skipping fetch - auth not ready, Staff Trips user, or already fetching');
+      return;
+    }
+
+    // Prevent duplicate fetches
+    setIsFetching(true);
+
+    try {
+      // Only show loading spinner for initial load, not background refresh
+      if (!isBackgroundRefresh && (dashboardStats.totalVehicles === 0)) {
+        setLoading(true);
+      }
+
+      console.log('[AdminDashboard] Starting dashboard data fetch...');
+
+      // FIXED: Add retry logic for network failures
+      const fetchWithRetry = async (query, maxRetries = 3) => {
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+          try {
+            const result = await query();
+            return result;
+          } catch (error) {
+            console.warn(`[AdminDashboard] Fetch attempt ${attempt} failed:`, error);
+            
+            if (attempt === maxRetries) {
+              throw error;
+            }
+            
+            // Wait before retry (exponential backoff)
+            const delay = Math.min(1000 * Math.pow(attempt - 1, 2), 5000);
+            await new Promise(resolve => setTimeout(resolve, delay));
+          }
+        }
+      };
+
+      // Fetch vehicles data with retry
+      const { data: vehicles, error: vehiclesError } = await fetchWithRetry(() => 
+        supabase.from("vehicles").select("*")
+      );
+
+      if (vehiclesError) throw vehiclesError;
+
+      console.log("Vehicles data:", vehicles); // Debug log to check vehicles data
+
+      // Fetch all required data separately to avoid foreign key issues
+      // Only fetch users data if user is Admin to avoid permission issues
+      const fetchPromises = [
+        () => supabase.from("bookings").select("*"),
+        () => supabase.from("customers").select("*"),
+      ];
+
+      // Only fetch staff and users data if user has admin privileges
+      if (userRole === "Admin") {
+        fetchPromises.push(() => supabase.from("staff").select("*"));
+        fetchPromises.push(() => supabase.from("users").select("*"));
+      }
+
+      const results = await Promise.all(
+        fetchPromises.map(query => fetchWithRetry(query))
+      );
+      
+      let bookingsResult, customersResult, staffResult, usersResult;
+
+      if (userRole === "Admin") {
+        [bookingsResult, customersResult, staffResult, usersResult] = results;
+      } else {
+        [bookingsResult, customersResult] = results;
+        staffResult = { data: [], error: null };
+        usersResult = { data: [], error: null };
+      }
+
+      if (bookingsResult.error) {
+        console.error("Error fetching bookings:", bookingsResult.error);
+        throw bookingsResult.error;
+      }
+      if (customersResult.error) {
+        console.error("Error fetching customers:", customersResult.error);
+        throw customersResult.error;
+      }
+      if (staffResult && staffResult.error) {
+        console.error("Error fetching staff:", staffResult.error);
+        throw staffResult.error;
+      }
+      if (usersResult && usersResult.error) {
+        console.error("Error fetching users:", usersResult.error);
+        throw usersResult.error;
+      }
+
+      const bookings = bookingsResult.data || [];
+      const customers = customersResult.data || [];
+      const staff = staffResult ? staffResult.data || [] : [];
+      const users = usersResult ? usersResult.data || [] : [];
+
+      console.log("Bookings data:", bookings); // Debug log
+      console.log("Customers data:", customers); // Debug log
+      console.log("Staff data:", staff); // Debug log
+      console.log("Users data:", users); // Debug log
+
+      // Fetch payments data with retry
+      const { data: payments, error: paymentsError } = await fetchWithRetry(() =>
+        supabase.from("payments").select("*")
+      );
+
+      if (paymentsError) throw paymentsError;
+
+      // Get current month payments with retry
+      const now = new Date();
+      const startOfMonth = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        1,
+      ).toISOString();
+      const endOfMonth = new Date(
+        now.getFullYear(),
+        now.getMonth() + 1,
+        0,
+      ).toISOString();
+
+      const { data: monthlyPayments, error: monthlyPaymentsError } = await fetchWithRetry(() =>
+        supabase
+          .from("payments")
+          .select("*")
+          .gte("created_at", startOfMonth)
+          .lte("created_at", endOfMonth)
+      );
+
+      if (monthlyPaymentsError) throw monthlyPaymentsError;
+
+      // Calculate dashboard statistics from real data
+      const totalVehicles = vehicles?.length || 0;
+
+      // Get all vehicles that don't have 'available' status
+      const bookedVehicles = 
+        vehicles?.filter(
+          (vehicle) => 
+            vehicle.status !== "available" && vehicle.status !== "available",
+        ).length || 0;
+
+      const onRideVehicles = 
+        bookings?.filter(
+          (booking) => booking.status.toLowerCase() === "onride",
+        ).length || 0;
+
+      const maintenanceVehicles = 
+        vehicles?.filter((vehicle) => vehicle.status === "maintenance")
+          .length || 0;
+
+      // Only count vehicles where is_available is true
+      const availableVehiclesCount = 
+        vehicles?.filter(
+          (vehicle) => 
+            vehicle.is_available === true || vehicle.is_available === "true",
+        ).length || 0;
+
+      console.log("Available vehicles count:", availableVehiclesCount);
+      console.log(
+        "Vehicles with status=true:",
+        vehicles?.filter((vehicle) => vehicle.status === true).length || 0,
+      );
+      console.log(
+        "Vehicles with is_available=true:",
+        vehicles?.filter((vehicle) => vehicle.is_available === true).length ||
+          0,
+      );
+      console.log(
+        "Vehicles with available=true:",
+        vehicles?.filter((vehicle) => vehicle.available === true).length || 0,
+      );
+
+      const paidPayments = 
+        payments?.filter(
+          (payment) => 
+            payment.status === "Paid" || payment.status === "Completed",
+        ) || [];
+
+      const unpaidPayments = 
+        payments?.filter(
+          (payment) => 
+            payment.status === "Unpaid" || payment.status === "Partial",
+        ) || [];
+
+      const totalPaidAmount = paidPayments.reduce(
+        (sum, payment) => sum + (payment.amount || 0),
+        0,
+      );
+
+      const totalUnpaidAmount = unpaidPayments.reduce(
+        (sum, payment) => sum + (payment.amount || 0),
+        0,
+      );
+
+      // Calculate monthly payments total
+      const monthlyPaidPayments = 
+        monthlyPayments?.filter(
+          (payment) => 
+            payment.status === "Paid" || payment.status === "Completed",
+        ) || [];
+
+      const monthlyTotalAmount = monthlyPaidPayments.reduce(
+        (sum, payment) => sum + (payment.amount || 0),
+        0,
+      );
+
+      // Prepare chart data
+      // 1. Vehicle Status Pie Chart
+      const vehicleStatusData = [
+        { name: "Booked", value: bookedVehicles },
+        { name: "On Ride", value: onRideVehicles },
+        { name: "Available", value: availableVehiclesCount },
+        { name: "Maintenance", value: maintenanceVehicles },
+      ];
+
+      // 2. Payment Data for Bar Chart
+      const months = [
+        "Jan",
+        "Feb",
+        "Mar",
+        "Apr",
+        "May",
+        "Jun",
+        "Jul",
+        "Aug",
+        "Sep",
+        "Oct",
+        "Nov",
+        "Dec",
+      ];
+      const paymentData = [];
+
+      // Group payments by month
+      const paidByMonth = {};
+      const unpaidByMonth = {};
+
+      // Initialize all months with zero
+      months.forEach((month) => {
+        paidByMonth[month] = 0;
+        unpaidByMonth[month] = 0;
+      });
+
+      // Aggregate paid payments by month
+      paidPayments.forEach((payment) => {
+        if (payment.created_at) {
+          const date = new Date(payment.created_at);
+          const month = months[date.getMonth()];
+          paidByMonth[month] += payment.amount || 0;
+        }
+      });
+
+      // Aggregate unpaid payments by month
+      unpaidPayments.forEach((payment) => {
+        if (payment.created_at) {
+          const date = new Date(payment.created_at);
+          const month = months[date.getMonth()];
+          unpaidByMonth[month] += payment.amount || 0;
+        }
+      });
+
+      // Create payment data array for chart
+      months.forEach((month) => {
+        paymentData.push({
+          name: month,
+          paid: paidByMonth[month],
+          unpaid: unpaidByMonth[month],
+        });
+      });
+
+      // 3. Booking Trend Line Chart
+      const bookingsByDate = {};
+      const last30Days = [];
+
+      // Generate last 30 days
+      for (let i = 29; i >= 0; i--) {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        const dateStr = date.toISOString().split("T")[0];
+        bookingsByDate[dateStr] = 0;
+        last30Days.push(dateStr);
+      }
+
+      // Count bookings by date
+      bookings?.forEach((booking) => {
+        if (booking.created_at) {
+          const dateStr = new Date(booking.created_at)
+            .toISOString()
+            .split("T")[0];
+          if (bookingsByDate[dateStr] !== undefined) {
+            bookingsByDate[dateStr] += 1;
+          }
+        }
+      });
+
+      const bookingTrendData = last30Days.map((date) => ({
+        date: date,
+        bookings: bookingsByDate[date],
+      }));
+
+      // 4. Payment Method Doughnut Chart
+      const paymentMethodCounts = {
+        Cash: 0,
+        "Bank Transfer": 0,
+        "Credit Card": 0,
+        "Debit Card": 0,
+        Other: 0,
+      };
+
+      payments?.forEach((payment) => {
+        const method = payment.payment_method || "Other";
+        if (paymentMethodCounts[method] !== undefined) {
+          paymentMethodCounts[method] += 1;
+        } else {
+          paymentMethodCounts["Other"] += 1;
+        }
+      });
+
+      const paymentMethodData = Object.entries(paymentMethodCounts).map(
+        ([name, value]) => ({
+          name,
+          value,
+        }),
+      );
+
+      // Prepare booking table data
+      const bookingTableData: BookingData[] = bookings?.map((booking) => {
+        // Find customer data
+        const customer = customers?.find(c => c.user_id === booking.user_id);
+        const user = users?.find(u => u.id === booking.user_id);
+        
+        // Find staff data if available
+        const staffMember = staff?.find(s => s.user_id === booking.staff_id);
+        
+        // Find payment data for this booking
+        const bookingPayments = payments?.filter(p => p.booking_id === booking.id) || [];
+        const paidAmount = bookingPayments
+          .filter(p => p.status === 'Paid' || p.status === 'Completed')
+          .reduce((sum, p) => sum + (p.amount || 0), 0);
+        const unpaidAmount = bookingPayments
+          .filter(p => p.status === 'Unpaid' || p.status === 'Partial')
+          .reduce((sum, p) => sum + (p.amount || 0), 0);
+
+        return {
+          id: booking.id,
+          vehicleType: booking.vehicle_type || 'Unknown',
+          bookingStatus: booking.status === 'confirmed' ? 'Booked' : 
+                        booking.status === 'onride' ? 'On Ride' :
+                        booking.status === 'completed' ? 'Completed' : 'Cancelled',
+          paymentStatus: paidAmount > 0 && unpaidAmount === 0 ? 'Paid' :
+                        paidAmount > 0 && unpaidAmount > 0 ? 'Partial' : 'Unpaid',
+          nominalPaid: paidAmount,
+          nominalUnpaid: unpaidAmount,
+          customer: customer?.full_name || user?.full_name || 'Unknown Customer',
+          customerEmail: customer?.email || user?.email || '',
+          customerPhone: customer?.phone_number || user?.phone || '',
+          staffName: staffMember?.full_name || null,
+          startDate: booking.start_date || booking.created_at,
+          endDate: booking.end_date || booking.created_at,
+          createdAt: booking.created_at,
+        };
+      }) || [];
+
+      // Set dashboard stats with real data
+      const newDashboardStats = {
+        totalVehicles,
+        bookedVehicles,
+        onRideVehicles,
+        maintenanceVehicles,
+        availableVehicles: availableVehiclesCount,
+        totalPayments: {
+          count: paidPayments.length,
+          amount: totalPaidAmount,
+          monthlyAmount: monthlyTotalAmount,
+        },
+        totalUnpaid: {
+          count: unpaidPayments.length,
+          amount: totalUnpaidAmount,
+        },
+      };
+
+      // Set chart data
+      const newChartData = {
+        vehicleStatusData,
+        paymentData,
+        bookingTrendData,
+        paymentMethodData,
+      };
+
+      setDashboardStats(newDashboardStats);
+      setChartData(newChartData);
+      setBookingData(bookingTableData);
+      setFilteredBookingData(bookingTableData);
+      
+      // Cache the data for future use
+      sessionStorage.setItem('adminDashboard_cachedStats', JSON.stringify(newDashboardStats));
+      sessionStorage.setItem('adminDashboard_cachedChartData', JSON.stringify(newChartData));
+      sessionStorage.setItem('adminDashboard_cachedBookingData', JSON.stringify(bookingTableData));
+      
+      console.log('[AdminDashboard] Dashboard data fetch completed successfully');
+    } catch (error) {
+      console.error("[AdminDashboard] Error fetching dashboard data:", error);
+
+      // FIXED: Better error handling - check if it's a network error
+      const isNetworkError = error?.message?.includes('Failed to fetch') || 
+                            error?.message?.includes('NetworkError') ||
+                            error?.message?.includes('fetch');
+
+      if (isNetworkError && retryCount < 2) {
+        console.log(`[AdminDashboard] Network error detected, retrying... (attempt ${retryCount + 1})`);
+        
+        // Wait before retry
+        setTimeout(() => {
+          fetchDashboardData(isBackgroundRefresh, retryCount + 1);
+        }, 2000 * (retryCount + 1)); // Exponential backoff
+        
+        return; // Don't reset loading state yet
+      }
+
+      // FIXED: Don't reset data to zero on error, just log the error
+      console.warn("[AdminDashboard] Keeping existing data due to fetch error");
+      
+      // Show user-friendly error message for network issues
+      if (isNetworkError) {
+        console.warn("[AdminDashboard] Network connectivity issue detected. Using cached data if available.");
+      }
+    } finally {
+      // CRITICAL: Always reset loading states
+      setLoading(false);
+      setIsFetching(false);
+    }
+  };
 
   return (
     <div className="bg-background">
@@ -718,6 +743,7 @@ const AdminDashboard = () => {
           </div>
         ) : (
           <>
+          
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               <StatCard
                 title="Total Vehicles"
@@ -783,8 +809,10 @@ const AdminDashboard = () => {
                 bgColor="linear-gradient(135deg, #fb7185 0%, #e11d48 100%)"
               />
             </div>
+            
 
             {/* Charts Section */}
+            
             <DashboardCharts
               vehicleStatusData={chartData.vehicleStatusData}
               paymentData={chartData.paymentData}
@@ -794,10 +822,11 @@ const AdminDashboard = () => {
               selectedTab={selectedChartTab}
               onTabChange={setSelectedChartTab}
             />
-
+ 
             {/* Vehicle Inventory Section */}
-            <div className="mt-8">
-              <Card>
+            
+          {/*  <div className="mt-8">
+             <Card>
                 <CardHeader>
                   <CardTitle>Vehicle Inventory</CardTitle>
                   <CardDescription>
@@ -817,20 +846,21 @@ const AdminDashboard = () => {
                   </Button>
                 </CardFooter>
               </Card>
-            </div>
-
+            </div>*/}
+            
             {/* Detailed Data Table Section */}
-            <div className="mt-8">
+            
+           <div className="mt-8">
               <Card>
-                <CardHeader>
-                  <CardTitle>Detailed Booking Data</CardTitle>
+          {   /*   <CardHeader>*/}
+             {/*     <CardTitle>Detailed Booking Data</CardTitle>
                   <CardDescription>
                     Comprehensive view of all bookings with filtering and
                     sorting options
-                  </CardDescription>
+                  </CardDescription>*/}
 
                   {/* Filtering Controls */}
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
+             {/*     <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
                     <div>
                       <label className="text-sm font-medium mb-1 block">
                         Date Filter
@@ -912,10 +942,10 @@ const AdminDashboard = () => {
                         <option value="Unpaid">Unpaid</option>
                       </select>
                     </div>
-                  </div>
+                  </div>*/}
 
                   {/* Search and Reset Filters */}
-                  <div className="flex flex-col sm:flex-row gap-2 mt-4">
+             {/*     <div className="flex flex-col sm:flex-row gap-2 mt-4">
                     <div className="relative flex-1">
                       <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                       <Input
@@ -997,8 +1027,8 @@ const AdminDashboard = () => {
                     >
                       Apply Filters
                     </Button>
-                  </div>
-                </CardHeader>
+                  </div>*/}
+             {/*   </CardHeader>*/}
 
                 <CardContent>
                   <div className="rounded-md border">
@@ -1287,10 +1317,12 @@ const AdminDashboard = () => {
                 </CardContent>
               </Card>
             </div>
+            
           </>
         )}
       </div>
     </div>
+        
   );
 };
 

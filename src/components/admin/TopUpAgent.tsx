@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   Card,
   CardContent,
@@ -71,7 +71,14 @@ interface TopUpTransaction {
 const TopUpAgent = () => {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [transactions, setTransactions] = useState<TopUpTransaction[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [isFetching, setIsFetching] = useState(false);
+  
+  // Add refs to prevent duplicate fetches and track initialization
+  const fetchInProgress = useRef(false);
+  const lastFetchTime = useRef(0);
+  const isInitialized = useRef(false);
+  
   const [searchTerm, setSearchTerm] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState<string>("");
@@ -81,13 +88,86 @@ const TopUpAgent = () => {
   const { toast } = useToast();
   const { userId } = useAuth();
 
+  // FIXED: Single useEffect to handle all initialization logic with caching
   useEffect(() => {
-    fetchAgents();
-    fetchTransactions();
-  }, []);
+    // Prevent multiple initializations
+    if (isInitialized.current) {
+      console.log('[TopUpAgent] Already initialized, skipping...');
+      return;
+    }
 
-  const fetchAgents = async () => {
+    if (userId) {
+      console.log('[TopUpAgent] Auth ready, initializing component...');
+      isInitialized.current = true;
+      
+      // Check for cached data first
+      const cachedAgents = sessionStorage.getItem('topUpAgent_cachedAgents');
+      const cachedTransactions = sessionStorage.getItem('topUpAgent_cachedTransactions');
+      
+      if (cachedAgents && cachedTransactions) {
+        try {
+          const parsedAgents = JSON.parse(cachedAgents);
+          const parsedTransactions = JSON.parse(cachedTransactions);
+          
+          if (parsedAgents && parsedAgents.length > 0) {
+            setAgents(parsedAgents);
+            setTransactions(parsedTransactions);
+            console.log('[TopUpAgent] Loaded cached data, NO LOADING SCREEN');
+            
+            // Background refresh to get latest data
+            setTimeout(() => {
+              fetchAgents(true);
+              fetchTransactions(true);
+            }, 100);
+            return;
+          }
+        } catch (error) {
+          console.warn('[TopUpAgent] Failed to parse cached data:', error);
+        }
+      }
+
+      // Fetch data if no cache or cache is empty
+      console.log('[TopUpAgent] No cached data, fetching fresh data...');
+      fetchAgents();
+      fetchTransactions();
+    }
+  }, [userId]);
+
+  // FIXED: Add visibility change handler to refetch data when tab becomes visible
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden && userId) {
+        const now = Date.now();
+        // Only refetch if more than 30 seconds have passed since last fetch
+        if (now - lastFetchTime.current > 30000 && !fetchInProgress.current) {
+          console.log('[TopUpAgent] Tab became visible, doing background refresh...');
+          fetchAgents(true);
+          fetchTransactions(true);
+        } else {
+          console.log('[TopUpAgent] Skipping refresh - too recent or already fetching');
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [userId]);
+
+  // FIXED: Modified fetchAgents with caching and proper loading state management
+  const fetchAgents = async (isBackgroundRefresh = false) => {
+    // Prevent duplicate fetches
+    if (fetchInProgress.current) {
+      console.log('[TopUpAgent] Agents fetch already in progress, skipping...');
+      return;
+    }
+
     try {
+      // Only show loading spinner for initial load when no data exists
+      if (!isBackgroundRefresh && agents.length === 0) {
+        console.log('[TopUpAgent] Showing loading spinner for initial load');
+        setLoading(true);
+      }
+
       const { data, error } = await supabase
         .from("users")
         .select(
@@ -114,6 +194,14 @@ const TopUpAgent = () => {
           .filter((user: any) => user.role_name === "Agent") || [];
 
       setAgents(agentData);
+      
+      // ✅ Cache the data untuk mencegah loading screen di navigasi berikutnya
+      try {
+        sessionStorage.setItem('topUpAgent_cachedAgents', JSON.stringify(agentData));
+        console.log('[TopUpAgent] Agents data cached successfully');
+      } catch (cacheError) {
+        console.warn('[TopUpAgent] Failed to cache agents data:', cacheError);
+      }
     } catch (error) {
       console.error("Error fetching agents:", error);
       toast({
@@ -121,49 +209,67 @@ const TopUpAgent = () => {
         description: "Failed to fetch agents",
         variant: "destructive",
       });
+    } finally {
+      if (!isBackgroundRefresh) {
+        setLoading(false);
+      }
     }
   };
 
-  const fetchTransactions = async () => {
-  try {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from("histori_transaksi")
-      .select(
-        `
+  // FIXED: Modified fetchTransactions with caching and proper loading state management
+  const fetchTransactions = async (isBackgroundRefresh = false) => {
+    try {
+      // Only show loading spinner for initial load when no data exists
+      if (!isBackgroundRefresh && transactions.length === 0) {
+        setLoading(true);
+      }
+
+      const { data, error } = await supabase
+        .from("histori_transaksi")
+        .select(
+          `
         *,
         users!histori_transaksi_user_id_fkey(
           full_name,
           email
         )
       `,
-      )
-      .eq("jenis_transaksi", "Topup Manual Agent") // ⬅ filter exact match
-      .order("trans_date", { ascending: false })
-      .limit(100);
+        )
+        .eq("jenis_transaksi", "Topup Manual Agent") // ⬅ filter exact match
+        .order("trans_date", { ascending: false })
+        .limit(100);
 
-    if (error) throw error;
+      if (error) throw error;
 
-    const transactionData =
-      data?.map((transaction: any) => ({
-        ...transaction,
-        agent_name: transaction.users?.full_name || "Unknown",
-        agent_email: transaction.users?.email || "Unknown",
-      })) || [];
+      const transactionData =
+        data?.map((transaction: any) => ({
+          ...transaction,
+          agent_name: transaction.users?.full_name || "Unknown",
+          agent_email: transaction.users?.email || "Unknown",
+        })) || [];
 
-    setTransactions(transactionData);
-  } catch (error) {
-    console.error("Error fetching transactions:", error);
-    toast({
-      title: "Error",
-      description: "Failed to fetch transactions",
-      variant: "destructive",
-    });
-  } finally {
-    setLoading(false);
-  }
-};
-
+      setTransactions(transactionData);
+      
+      // ✅ Cache the data untuk mencegah loading screen di navigasi berikutnya
+      try {
+        sessionStorage.setItem('topUpAgent_cachedTransactions', JSON.stringify(transactionData));
+        console.log('[TopUpAgent] Transactions data cached successfully');
+      } catch (cacheError) {
+        console.warn('[TopUpAgent] Failed to cache transactions data:', cacheError);
+      }
+    } catch (error) {
+      console.error("Error fetching transactions:", error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch transactions",
+        variant: "destructive",
+      });
+    } finally {
+      if (!isBackgroundRefresh) {
+        setLoading(false);
+      }
+    }
+  };
 
   const handleTopUp = async () => {
     if (!selectedAgent || !topUpAmount || parseFloat(topUpAmount) <= 0) {

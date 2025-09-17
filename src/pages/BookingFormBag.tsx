@@ -117,11 +117,47 @@ const BookingForm = ({
   console.log("[BookingForm] selectedSize:", selectedSize, typeof selectedSize);
   // Safely get shopping cart context with error handling
   const shoppingCartContext = useShoppingCart();
+  
+  // Provide fallback values if cart context fails
   const {
-    addToCart,
-    isTabRecentlyActivated,
-    isLoading: cartLoading,
-  } = shoppingCartContext;
+    addToCart = async () => ({ success: false, error: "Cart not available" }),
+    isTabRecentlyActivated = false,
+    isLoading: cartLoading = false,
+  } = shoppingCartContext || {};
+
+  // Add cart readiness check with timeout
+  const [isCartReady, setIsCartReady] = useState(false);
+  const [cartInitTimeout, setCartInitTimeout] = useState(false);
+
+  // Initialize cart readiness check
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+    
+    // If cart is already not loading, mark as ready
+    if (!cartLoading) {
+      setIsCartReady(true);
+      return;
+    }
+
+    // Set a timeout to prevent infinite loading
+    timeoutId = setTimeout(() => {
+      console.warn('[BookingForm] Cart initialization timeout, forcing ready state');
+      setCartInitTimeout(true);
+      setIsCartReady(true);
+    }, 5000); // 5 second timeout
+
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [cartLoading]);
+
+  // Update cart ready state when loading changes
+  useEffect(() => {
+    if (!cartLoading) {
+      setIsCartReady(true);
+      setCartInitTimeout(false);
+    }
+  }, [cartLoading]);
 
   // Get auth context - render immediately, don't block on session state
   const { isHydrated, isLoading } = useAuth();
@@ -835,28 +871,27 @@ const BookingForm = ({
       // 🎯 CRITICAL: Enhanced cart readiness check before adding to cart
       console.log("[BookingForm] Checking cart readiness before submission...");
 
-      // Wait for cart to be ready if it's still loading
-      if (cartLoading) {
-        console.log("[BookingForm] Cart is still loading, waiting...");
+      // Wait for cart to be ready with timeout protection
+      if (!isCartReady && !cartInitTimeout) {
+        console.log("[BookingForm] Cart not ready, waiting with timeout...");
+        
         let retryCount = 0;
         const maxRetries = 10;
+        const retryDelay = 500;
 
-        while (cartLoading && retryCount < maxRetries) {
-          await new Promise((resolve) => setTimeout(resolve, 500));
+        while (!isCartReady && !cartInitTimeout && retryCount < maxRetries) {
+          await new Promise((resolve) => setTimeout(resolve, retryDelay));
           retryCount++;
           console.log(
             `[BookingForm] Waiting for cart... attempt ${retryCount}/${maxRetries}`,
           );
         }
 
-        if (cartLoading) {
-          console.error(
-            "[BookingForm] Cart failed to initialize after waiting",
+        // Final check - if still not ready after timeout, proceed anyway
+        if (!isCartReady && !cartInitTimeout) {
+          console.warn(
+            "[BookingForm] Cart failed to initialize after waiting, proceeding anyway",
           );
-          alert(
-            "❌ Sistem keranjang belum siap. Silakan refresh halaman dan coba lagi.",
-          );
-          return;
         }
       }
 
@@ -1810,7 +1845,7 @@ const BookingForm = ({
       // Try to get user data from customers table first
       const { data: customerData, error: customerError } = await supabase
         .from("customers")
-        .select("name, email, phone")
+        .select("name, email, phone_number")
         .eq("user_id", userId)
         .single();
 
@@ -1824,11 +1859,11 @@ const BookingForm = ({
         if (customerData.email && !watch("email")) {
           setValue("email", customerData.email);
         }
-        if (customerData.phone && !watch("phone")) {
-          setValue("phone", customerData.phone);
+        if (customerData.phone && !watch("phone_number")) {
+          setValue("phone_number", customerData.phone_number);
           console.log(
             "[BookingFormBag] Set phone from customer data:",
-            customerData.phone,
+            customerData.phone_number,
           );
         }
         return;
@@ -1837,7 +1872,7 @@ const BookingForm = ({
       // If no customer data, try users table
       const { data: userData, error: userError } = await supabase
         .from("users")
-        .select("name, email, phone")
+        .select("name, email, phone_number")
         .eq("id", userId)
         .single();
 
@@ -1851,11 +1886,11 @@ const BookingForm = ({
         if (userData.email && !watch("email")) {
           setValue("email", userData.email);
         }
-        if (userData.phone && !watch("phone")) {
-          setValue("phone", userData.phone);
+        if (userData.phone && !watch("phone_number")) {
+          setValue("phone_number", userData.phone_number);
           console.log(
             "[BookingFormBag] Set phone from user data:",
-            userData.phone,
+            userData.phone_number,
           );
         }
       }
@@ -1883,8 +1918,8 @@ const BookingForm = ({
         if (prefilledData.email && !watch("email")) {
           setValue("email", prefilledData.email);
         }
-        if (prefilledData.phone && !watch("phone")) {
-          setValue("phone", prefilledData.phone);
+        if (prefilledData.phone_number && !watch("phone_number")) {
+          setValue("phone_number", prefilledData.phone_number);
         }
         return; // If prefilledData exists, use it and return
       }
@@ -1903,24 +1938,24 @@ const BookingForm = ({
         if (userEmail && !watch("email")) {
           setValue("email", userEmail);
         }
-        if (userPhone && !watch("phone")) {
-          setValue("phone", userPhone);
+        if (userPhone && !watch("phone_number")) {
+          setValue("phone_number", userPhone);
         }
 
         // Priority 3: localStorage fallback
-        const storedPhone = localStorage.getItem("userPhone");
-        if (!userPhone && storedPhone && !watch("phone")) {
+        const storedPhone = localStorage.getItem("userPhoneNumber"); // konsisten pakai userPhoneNumber
+        if (!userPhone && storedPhone && !watch("phone_number")) {
           console.log(
-            "[BookingFormBag] Using stored phone from localStorage:",
+            "[BookingFormBag] Using stored phone_number from localStorage:",
             storedPhone,
           );
-          setValue("phone", storedPhone);
+          setValue("phone_number", storedPhone);
         }
 
         // Priority 4: Database lookup (lowest priority)
-        if (!userPhone && !storedPhone && !watch("phone")) {
+        if (!userPhone && !storedPhone && !watch("phone_number")) {
           console.log(
-            "[BookingFormBag] Phone not found in auth context or localStorage, fetching from database",
+            "[BookingFormBag] phone_number not found in auth context or localStorage, fetching from database",
           );
           await fetchUserProfile();
         }
@@ -2273,11 +2308,11 @@ const BookingForm = ({
           }}
           disabled={
             step === steps.length - 1
-              ? isSubmitting || isTabRecentlyActivated || cartLoading
+              ? isSubmitting || isTabRecentlyActivated || (!isCartReady && !cartInitTimeout)
               : !isStepValid() ||
                 isSubmitting ||
                 isTabRecentlyActivated ||
-                cartLoading
+                (!isCartReady && !cartInitTimeout)
           }
           className="bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
         >
@@ -2288,7 +2323,7 @@ const BookingForm = ({
             </>
           ) : isTabRecentlyActivated ? (
             "⏳ Menunggu sesi..."
-          ) : cartLoading ? (
+          ) : (!isCartReady && !cartInitTimeout) ? (
             "⏳ Menyiapkan keranjang..."
           ) : step === steps.length - 1 ? (
             "Book Now"

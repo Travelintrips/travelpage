@@ -52,6 +52,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import MaintenanceDialog from "./MaintenanceDialog";
+import { Badge } from "@/components/ui/badge";
 
 interface VehicleType {
   id: number;
@@ -87,8 +88,30 @@ interface CarData {
 const CarsManagement = () => {
   const [cars, setCars] = useState<CarData[]>([]);
   const [vehicleTypes, setVehicleTypes] = useState<VehicleType[]>([]);
-  const [loading, setLoading] = useState(true);
-  const { userRole } = useAuth();
+  
+  // FIXED: Better loading state initialization
+  const [loading, setLoading] = useState(false);
+  
+  const { userRole, isAuthenticated, isSessionReady, isLoading: authLoading } = useAuth();
+  
+  // ✅ Add KPI states
+  const [kpiData, setKpiData] = useState({
+    totalCars: 0,
+    availableCars: 0,
+    rentedCars: 0,
+    maintenanceCars: 0,
+    inactiveCars: 0,
+    stnkExpired: 0,
+    taxExpired: 0,
+  });
+  const [kpiLoading, setKpiLoading] = useState(true);
+
+  // ✅ FIXED: Add filtering states with better logic
+  const [cardFilter, setCardFilter] = useState<string | null>(null);
+  const [filteredVehicles, setFilteredVehicles] = useState<CarData[]>([]);
+  const [isFilterActive, setIsFilterActive] = useState(false);
+  const vehicleListRef = useRef<HTMLDivElement>(null);
+
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(() => {
     const saved = localStorage.getItem('carsManagement_selectedCategory');
@@ -156,21 +179,67 @@ const CarsManagement = () => {
     stnk: false,
   });
 
-  // Add ref to track if data has been loaded to prevent unnecessary refetches
+  // Add ref to track if fetch is in progress
+  const [isFetching, setIsFetching] = useState(false);
   const dataLoadedRef = useRef(false);
   const lastFetchTimeRef = useRef(0);
   const FETCH_COOLDOWN = 30000; // 30 seconds cooldown between fetches
 
+  // ✅ FIXED: Fetch data when auth is ready and authenticated with proper caching
   useEffect(() => {
-    // Only fetch if data hasn't been loaded or enough time has passed
-    const now = Date.now();
-    if (!dataLoadedRef.current || (now - lastFetchTimeRef.current > FETCH_COOLDOWN)) {
+    if (isAuthenticated && isSessionReady && !authLoading) {
+      console.log('[CarsManagement] Auth ready, checking for cached data...');
+      
+      // ✅ Load cached data first untuk mencegah loading screen
+      const cachedCars = sessionStorage.getItem('carsManagement_cachedCars');
+      const cachedKpiData = sessionStorage.getItem('carsManagement_cachedKpiData');
+      
+      if (cachedCars && cachedKpiData) {
+        try {
+          const parsedCars = JSON.parse(cachedCars);
+          const parsedKpiData = JSON.parse(cachedKpiData);
+          
+          if (parsedCars && parsedCars.length >= 0) {
+            setCars(parsedCars);
+            setKpiData(parsedKpiData);
+            setKpiLoading(false);
+            console.log('[CarsManagement] Loaded cached data, NO LOADING SCREEN');
+            
+            // Background refresh to get latest data
+            setTimeout(() => {
+              fetchCars(true);
+              fetchKpiData(true);
+            }, 100);
+            return;
+          }
+        } catch (error) {
+          console.warn('[CarsManagement] Failed to parse cached data:', error);
+        }
+      }
+
+      // Fetch data if no cache or cache is empty
+      console.log('[CarsManagement] No cached data, fetching fresh data...');
       fetchCars();
       fetchVehicleTypes();
-      dataLoadedRef.current = true;
-      lastFetchTimeRef.current = now;
+      fetchKpiData();
     }
-  }, []);
+  }, [isAuthenticated, isSessionReady, authLoading]);
+
+  // ✅ FIXED: Add visibility change handler to refetch data when tab becomes visible
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden && isAuthenticated && isSessionReady && !authLoading) {
+        console.log('[CarsManagement] Tab became visible, doing background refresh...');
+        
+        // Always do background refresh when tab becomes visible
+        fetchCars(true); // Background refresh without loading spinner
+        fetchKpiData(true);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [isAuthenticated, isSessionReady, authLoading]);
 
   // Save selected category to localStorage whenever it changes
   useEffect(() => {
@@ -197,6 +266,24 @@ const CarsManagement = () => {
     localStorage.setItem('carsManagement_formData', JSON.stringify(formData));
   }, [formData]);
 
+  // ✅ Add realtime subscription for vehicles table changes
+  useEffect(() => {
+    const subscription = supabase
+      .channel('vehicles-changes')
+      .on('postgres_changes', 
+        { event: '*', schema: 'public', table: 'vehicles' }, 
+        () => {
+          console.log('[CarsManagement] Vehicles table changed, refreshing KPI data...');
+          fetchKpiData();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
   const fetchVehicleTypes = async () => {
     try {
       const { data, error } = await supabase
@@ -212,17 +299,25 @@ const CarsManagement = () => {
     }
   };
 
-  const fetchCars = async (forceRefresh = false) => {
+  // FIXED: Modified fetchCars with proper loading state management and caching
+  const fetchCars = async (isBackgroundRefresh = false) => {
+    // Don't fetch if not authenticated or already fetching
+    if (!isAuthenticated || !isSessionReady || authLoading || isFetching) {
+      console.log('[CarsManagement] Skipping fetch - auth not ready or already fetching');
+      return;
+    }
+
+    // Prevent duplicate fetches
+    setIsFetching(true);
+
     try {
-      // Prevent unnecessary fetches unless forced
-      const now = Date.now();
-      if (!forceRefresh && dataLoadedRef.current && (now - lastFetchTimeRef.current < FETCH_COOLDOWN)) {
-        console.log('[CarsManagement] Skipping fetch due to cooldown');
-        return;
+      // Only show loading spinner for initial load when no data exists
+      if (!isBackgroundRefresh && cars.length === 0) {
+        console.log('[CarsManagement] Showing loading spinner for initial load');
+        setLoading(true);
+      } else {
+        console.log('[CarsManagement] Background refresh, no loading spinner');
       }
-      
-      setLoading(true);
-      lastFetchTimeRef.current = now;
 
       const { data, error } = await supabase
         .from("vehicles")
@@ -264,7 +359,7 @@ const CarsManagement = () => {
             stnk_url: car.stnk_url,
             stnk_expiry: car.stnk_expiry,
             tax_expiry: car.tax_expiry,
-            is_active: car.available !== false,
+            is_active: car.is_active !== false,
             vehicle_type_id: car.vehicle_type_id,
             vehicle_type_name: vehicleTypeData
               ? vehicleTypeData.name
@@ -273,12 +368,126 @@ const CarsManagement = () => {
         }) || [];
 
       setCars(mappedData);
-      setLoading(false);
-
-      console.log("Fetched cars:", mappedData);
+      
+      // Cache the data for future use
+      sessionStorage.setItem('carsManagement_cachedCars', JSON.stringify(mappedData));
+      
+      console.log('[CarsManagement] Cars data fetch completed successfully');
     } catch (error) {
       console.error("Error fetching cars:", error);
+      
+      // Don't reset data to empty on error, just log the error
+      console.warn("[CarsManagement] Keeping existing data due to fetch error");
+    } finally {
+      // CRITICAL: Always reset loading states
       setLoading(false);
+      setIsFetching(false);
+    }
+  };
+
+  // ✅ Add KPI data fetch function with caching
+  const fetchKpiData = async (isBackgroundRefresh = false) => {
+    // Don't fetch if not authenticated or already fetching
+    if (!isAuthenticated || !isSessionReady || authLoading) {
+      console.log('[CarsManagement] Skipping KPI fetch - auth not ready');
+      return;
+    }
+
+    try {
+      // Only show loading spinner for initial load
+      if (!isBackgroundRefresh && kpiData.totalCars === 0) {
+        setKpiLoading(true);
+      }
+
+      const todayISO = new Date().toISOString().slice(0, 10);
+
+      // Use Promise.all for parallel queries
+      const [
+        totalCarsResult,
+        availableResult,
+        rentedResult,
+        maintenanceResult,
+        inactiveResult,
+        stnkExpiredResult,
+        taxExpiredResult
+      ] = await Promise.all([
+        // Total Cars
+        supabase
+          .from('vehicles')
+          .select('*', { count: 'exact', head: true }),
+        
+        // Available
+        supabase
+          .from('vehicles')
+          .select('*', { count: 'exact', head: true })
+          .eq('status', 'available'),
+        
+        // Rented
+        supabase
+          .from('vehicles')
+          .select('*', { count: 'exact', head: true })
+          .eq('status', 'rented'),
+        
+        // Maintenance
+        supabase
+          .from('vehicles')
+          .select('*', { count: 'exact', head: true })
+          .eq('status', 'maintenance'),
+        
+        // Inactive
+        supabase
+          .from('vehicles')
+          .select('*', { count: 'exact', head: true })
+          .or('is_active.eq.false,is_active.is.null'),
+        
+        // STNK Expired
+        supabase
+          .from('vehicles')
+          .select('*', { count: 'exact', head: true })
+          .not('stnk_expiry', 'is', null)
+          .lt('stnk_expiry', todayISO),
+        
+        // Tax Expired
+        supabase
+          .from('vehicles')
+          .select('*', { count: 'exact', head: true })
+          .not('tax_expiry', 'is', null)
+          .lt('tax_expiry', todayISO)
+      ]);
+
+      // Check for errors
+      if (totalCarsResult.error) throw totalCarsResult.error;
+      if (availableResult.error) throw availableResult.error;
+      if (rentedResult.error) throw rentedResult.error;
+      if (maintenanceResult.error) throw maintenanceResult.error;
+      if (inactiveResult.error) throw inactiveResult.error;
+      if (stnkExpiredResult.error) throw stnkExpiredResult.error;
+      if (taxExpiredResult.error) throw taxExpiredResult.error;
+
+      const newKpiData = {
+        totalCars: totalCarsResult.count || 0,
+        availableCars: availableResult.count || 0,
+        rentedCars: rentedResult.count || 0,
+        maintenanceCars: maintenanceResult.count || 0,
+        inactiveCars: inactiveResult.count || 0,
+        stnkExpired: stnkExpiredResult.count || 0,
+        taxExpired: taxExpiredResult.count || 0,
+      };
+
+      setKpiData(newKpiData);
+      
+      // Cache the KPI data
+      sessionStorage.setItem('carsManagement_cachedKpiData', JSON.stringify(newKpiData));
+
+      console.log('[CarsManagement] KPI Data fetch completed successfully');
+
+    } catch (error) {
+      console.error("Error fetching KPI data:", error);
+      
+      // Don't reset data on error, just log the error
+      console.warn("[CarsManagement] Keeping existing KPI data due to fetch error");
+    } finally {
+      setKpiLoading(false);
     }
   };
 
@@ -547,19 +756,36 @@ const CarsManagement = () => {
     localStorage.removeItem('carsManagement_isEditDialogOpen');
   };
 
-  const filteredCars = cars.filter(
-    (car) =>
-      (car.model.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        car.make.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        car.license_plate?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        car.color?.toLowerCase().includes(searchTerm.toLowerCase())) &&
-      (selectedCategory === null || car.category === selectedCategory) &&
-      (selectedVehicleTypeId === null ||
-        car.vehicle_type_id === selectedVehicleTypeId),
-  );
+  // ✅ FIXED: Update filtered cars logic to work with card filter
+  const getDisplayedCars = () => {
+    if (isFilterActive && filteredVehicles.length >= 0) {
+      // When card filter is active, show filtered vehicles
+      return filteredVehicles.filter(
+        (car) =>
+          (car.model.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            car.make.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            car.license_plate?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            car.color?.toLowerCase().includes(searchTerm.toLowerCase()))
+      );
+    } else {
+      // Normal filtering when no card filter is active
+      return cars.filter(
+        (car) =>
+          (car.model.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            car.make.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            car.license_plate?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            car.color?.toLowerCase().includes(searchTerm.toLowerCase())) &&
+          (selectedCategory === null || car.category === selectedCategory) &&
+          (selectedVehicleTypeId === null ||
+            car.vehicle_type_id === selectedVehicleTypeId)
+      );
+    }
+  };
+
+  const displayedCars = getDisplayedCars();
 
   // Group cars by model
-  const groupedCars = filteredCars.reduce<Record<string, CarData[]>>(
+  const groupedCars = displayedCars.reduce<Record<string, CarData[]>>(
     (acc, car) => {
       const model = car.model;
       if (!acc[model]) {
@@ -841,6 +1067,133 @@ const CarsManagement = () => {
     setIsDeleteVehicleTypeDialogOpen(true);
   };
 
+  // ✅ FIXED: Function to clear filter
+  const clearFilter = () => {
+    console.log('[CarsManagement] Clearing card filter');
+    setCardFilter(null);
+    setIsFilterActive(false);
+    setFilteredVehicles([]);
+  };
+
+  // ✅ FIXED: Function to get filter display name
+  const getFilterDisplayName = (filterType: string) => {
+    switch (filterType) {
+      case "available": return "Available Cars";
+      case "rented": return "Rented Cars";
+      case "maintenance": return "Maintenance Cars";
+      case "inactive": return "Inactive Cars";
+      case "stnk_expired": return "STNK Expired";
+      case "tax_expired": return "Tax Expired";
+      default: return filterType;
+    }
+  };
+
+  // ✅ FIXED: Improved function to handle card click and filter vehicles
+  const handleCardClick = async (filterType: string) => {
+    try {
+      console.log(`[CarsManagement] Filtering by: ${filterType}`);
+      setCardFilter(filterType);
+      setIsFilterActive(true);
+      
+      let query = supabase.from("vehicles").select(`
+        *,
+        vehicle_types(id, name)
+      `);
+      
+      const today = new Date().toISOString().split('T')[0];
+      
+      // Apply card filter
+      switch (filterType) {
+        case "available":
+          query = query.eq("status", "available").eq("is_active", true);
+          break;
+        case "rented":
+          query = query.eq("status", "rented");
+          break;
+        case "maintenance":
+          query = query.eq("status", "maintenance");
+          break;
+        case "inactive":
+          query = query.eq("is_active", false);
+          break;
+        case "stnk_expired":
+          query = query.not("stnk_expiry", "is", null).lt("stnk_expiry", today);
+          break;
+        case "tax_expired":
+          query = query.not("tax_expiry", "is", null).lt("tax_expiry", today);
+          break;
+        default:
+          // No additional filter for total
+          break;
+      }
+      
+      // Apply existing category filter if active
+      if (selectedCategory) {
+        query = query.eq("category", selectedCategory);
+      }
+      
+      // Apply existing vehicle type filter if active
+      if (selectedVehicleTypeId) {
+        query = query.eq("vehicle_type_id", selectedVehicleTypeId);
+      }
+      
+      const { data, error } = await query.order("created_at", { ascending: false });
+      
+      if (error) {
+        console.error("Error filtering vehicles:", error);
+        throw error;
+      }
+      
+      // Map the data to match CarData structure
+      const mappedData = data?.map((car) => {
+        const vehicleTypeData = car.vehicle_types as {
+          id: number;
+          name: string;
+        } | null;
+
+        return {
+          id: car.id.toString(),
+          created_at: car.created_at,
+          model: car.model || "",
+          make: car.make || "",
+          year: car.year || new Date().getFullYear(),
+          license_plate: car.license_plate,
+          color: car.color,
+          status: car.status,
+          daily_rate: car.price,
+          mileage: car.mileage,
+          fuel_type: car.fuel_type,
+          transmission: car.transmission,
+          category: car.category || car.type,
+          seats: car.seats,
+          image_url: car.image || car.image_url,
+          stnk_url: car.stnk_url,
+          stnk_expiry: car.stnk_expiry,
+          tax_expiry: car.tax_expiry,
+          is_active: car.is_active !== false,
+          vehicle_type_id: car.vehicle_type_id,
+          vehicle_type_name: vehicleTypeData?.name,
+        };
+      }) || [];
+      
+      console.log(`[CarsManagement] Filtered ${mappedData.length} vehicles for ${filterType}`);
+      setFilteredVehicles(mappedData);
+      
+      // Scroll to vehicle list section with smooth animation
+      setTimeout(() => {
+        vehicleListRef.current?.scrollIntoView({ 
+          behavior: 'smooth',
+          block: 'start'
+        });
+      }, 100);
+      
+    } catch (error) {
+      console.error("Error filtering vehicles:", error);
+      setIsFilterActive(false);
+      setCardFilter(null);
+    }
+  };
+
   return (
     <div className="space-y-6 bg-white">
       <div className="flex justify-between items-center">
@@ -914,129 +1267,226 @@ const CarsManagement = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
+      {/* ✅ FIXED: Clickable KPI Cards - First Row - Status KPIs */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <Card 
+          onClick={() => handleCardClick("available")} 
+          className="cursor-pointer hover:shadow-lg hover:scale-105 transition-all duration-200 border-2 hover:border-green-300"
+        >
           <CardHeader className="pb-2">
-            <CardTitle className="text-lg">Available Cars</CardTitle>
+            <CardTitle className="text-lg text-green-700">Available Cars</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">
-              {
-                cars.filter(
-                  (car) =>
-                    (car.status === "available" || !car.status) &&
-                    car.is_active !== false,
-                ).length
-              }
+            <div className="text-3xl font-bold text-green-600">
+              {kpiLoading ? (
+                <Loader2 className="h-8 w-8 animate-spin" />
+              ) : (
+                kpiData.availableCars
+              )}
             </div>
+            <p className="text-xs text-muted-foreground mt-1">Click to filter</p>
           </CardContent>
         </Card>
-        <Card>
+        
+        <Card 
+          onClick={() => handleCardClick("rented")} 
+          className="cursor-pointer hover:shadow-lg hover:scale-105 transition-all duration-200 border-2 hover:border-blue-300"
+        >
           <CardHeader className="pb-2">
-            <CardTitle className="text-lg">Rented Cars</CardTitle>
+            <CardTitle className="text-lg text-blue-700">Rented Cars</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">
-              {
-                cars.filter(
-                  (car) =>
-                    (car.status === "rented" ||
-                      car.status === "booked" ||
-                      car.status === "onride") &&
-                    car.is_active !== false,
-                ).length
-              }
+            <div className="text-3xl font-bold text-blue-600">
+              {kpiLoading ? (
+                <Loader2 className="h-8 w-8 animate-spin" />
+              ) : (
+                kpiData.rentedCars
+              )}
             </div>
+            <p className="text-xs text-muted-foreground mt-1">Click to filter</p>
           </CardContent>
         </Card>
-        <Card>
+        
+        <Card 
+          onClick={() => handleCardClick("maintenance")} 
+          className="cursor-pointer hover:shadow-lg hover:scale-105 transition-all duration-200 border-2 hover:border-yellow-300"
+        >
           <CardHeader className="pb-2">
-            <CardTitle className="text-lg">Maintenance</CardTitle>
+            <CardTitle className="text-lg text-yellow-700">Maintenance</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">
-              {
-                cars.filter(
-                  (car) =>
-                    car.status === "maintenance" && car.is_active !== false,
-                ).length
-              }
+            <div className="text-3xl font-bold text-yellow-600">
+              {kpiLoading ? (
+                <Loader2 className="h-8 w-8 animate-spin" />
+              ) : (
+                kpiData.maintenanceCars
+              )}
             </div>
+            <p className="text-xs text-muted-foreground mt-1">Click to filter</p>
           </CardContent>
         </Card>
-        <Card>
+        
+        <Card 
+          onClick={() => handleCardClick("inactive")} 
+          className="cursor-pointer hover:shadow-lg hover:scale-105 transition-all duration-200 border-2 hover:border-gray-300"
+        >
           <CardHeader className="pb-2">
-            <CardTitle className="text-lg">Inactive Cars</CardTitle>
+            <CardTitle className="text-lg text-gray-700">Inactive Cars</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">
-              {cars.filter((car) => car.is_active === false).length}
+            <div className="text-3xl font-bold text-gray-600">
+              {kpiLoading ? (
+                <Loader2 className="h-8 w-8 animate-spin" />
+              ) : (
+                kpiData.inactiveCars
+              )}
             </div>
+            <p className="text-xs text-muted-foreground mt-1">Click to filter</p>
           </CardContent>
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
-          <div className="flex justify-between items-center">
-            <div>
-              <CardTitle>Cars</CardTitle>
-              <CardDescription>Manage your car fleet</CardDescription>
-            </div>
-            <div className="relative w-64">
-              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search cars..."
-                className="pl-8"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-              {searchTerm && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="absolute right-0 top-0 h-9 w-9"
-                  onClick={() => setSearchTerm("")}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
+      {/* ✅ FIXED: Second Row - Additional KPIs */}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+        <Card className="border-2">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg">Total Cars</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold">
+              {kpiLoading ? (
+                <Loader2 className="h-8 w-8 animate-spin" />
+              ) : (
+                kpiData.totalCars
               )}
             </div>
-          </div>
-          {searchTerm && (
-            <div className="mt-2 text-sm text-muted-foreground">
-              Search results for:{" "}
-              <span className="font-medium">"{searchTerm}"</span>
-            </div>
-          )}
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="flex justify-center items-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <span className="ml-2">Loading cars...</span>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {filteredCars.length === 0 ? (
-                <div className="text-center py-8">
-                  {searchTerm ? (
-                    <div>
-                      <p>No cars found matching "{searchTerm}"</p>
-                      <Button
-                        variant="link"
-                        onClick={() => setSearchTerm("")}
-                        className="mt-2"
-                      >
-                        Clear search
-                      </Button>
-                    </div>
-                  ) : (
-                    "No cars found"
-                  )}
-                </div>
+            <p className="text-xs text-muted-foreground mt-1">All vehicles</p>
+          </CardContent>
+        </Card>
+        
+        <Card 
+          onClick={() => handleCardClick("stnk_expired")} 
+          className="cursor-pointer hover:shadow-lg hover:scale-105 transition-all duration-200 border-2 hover:border-red-300"
+        >
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg text-red-600">STNK Expired</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold text-red-600">
+              {kpiLoading ? (
+                <Loader2 className="h-8 w-8 animate-spin" />
               ) : (
-                sortedModels.map((model) => (
+                kpiData.stnkExpired
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">Click to filter</p>
+          </CardContent>
+        </Card>
+        
+        <Card 
+          onClick={() => handleCardClick("tax_expired")} 
+          className="cursor-pointer hover:shadow-lg hover:scale-105 transition-all duration-200 border-2 hover:border-red-300"
+        >
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg text-red-600">Tax Expired</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold text-red-600">
+              {kpiLoading ? (
+                <Loader2 className="h-8 w-8 animate-spin" />
+              ) : (
+                kpiData.taxExpired
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">Click to filter</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* ✅ FIXED: Filter Status Badge */}
+      {isFilterActive && cardFilter && (
+        <div className="flex items-center justify-center">
+          <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-lg px-4 py-2">
+            <Badge variant="secondary" className="text-sm font-medium">
+              Filter: {getFilterDisplayName(cardFilter)}
+            </Badge>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={clearFilter}
+              className="h-7 px-3 text-xs"
+            >
+              <X className="h-3 w-3 mr-1" />
+              Clear
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* ✅ FIXED: Vehicle List Section with ref for scrolling */}
+      <div ref={vehicleListRef} className="space-y-4">
+        <Card>
+          <CardHeader>
+            <div className="flex justify-between items-center">
+              <div>
+                <CardTitle>
+                  Vehicle List {isFilterActive && `(${displayedCars.length} filtered)`}
+                </CardTitle>
+                <CardDescription>Manage your car fleet</CardDescription>
+              </div>
+              <div className="relative w-64">
+                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search cars..."
+                  className="pl-8"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+                {searchTerm && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-0 top-0 h-9 w-9"
+                    onClick={() => setSearchTerm("")}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+            </div>
+            {searchTerm && (
+              <div className="mt-2 text-sm text-muted-foreground">
+                Search results for:{" "}
+                <span className="font-medium">"{searchTerm}"</span>
+              </div>
+            )}
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <div className="flex justify-center items-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <span className="ml-2">Loading cars...</span>
+              </div>
+            ) : displayedCars.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                {isFilterActive ? (
+                  <div>
+                    <p>No vehicles found for the selected filter.</p>
+                    <Button 
+                      variant="outline" 
+                      onClick={clearFilter}
+                      className="mt-2"
+                    >
+                      Clear Filter
+                    </Button>
+                  </div>
+                ) : (
+                  "No vehicles found."
+                )}
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {sortedModels.map((model) => (
                   <div
                     key={model}
                     className="border rounded-lg overflow-hidden"
@@ -1150,7 +1600,6 @@ const CarsManagement = () => {
                                       className="h-4 w-4"
                                     >
                                       <path d="M5 12h14" />
-                                      <path d="M12 5v14" />
                                     </svg>
                                   ) : (
                                     <svg
@@ -1187,22 +1636,22 @@ const CarsManagement = () => {
                       </TableBody>
                     </Table>
                   </div>
-                ))
-              )}
+                ))}
+              </div>
+            )}
+          </CardContent>
+          <CardFooter className="flex justify-between">
+            <div className="text-sm text-muted-foreground">
+              Showing {displayedCars.length} of {cars.length} cars
+              {searchTerm && ` (filtered by "${searchTerm}")`}
+              {isFilterActive && ` (${getFilterDisplayName(cardFilter)})`}
             </div>
-          )}
-        </CardContent>
-        <CardFooter className="flex justify-between">
-          <div className="text-sm text-muted-foreground">
-            Showing {filteredCars.length} of {cars.length} cars in{" "}
-            {sortedModels.length} models
-            {searchTerm && ` (filtered by "${searchTerm}")`}
-          </div>
-          <Button variant="outline" onClick={() => fetchCars(true)}>
-            Refresh
-          </Button>
-        </CardFooter>
-      </Card>
+            <Button variant="outline" onClick={() => fetchCars(true)}>
+              Refresh
+            </Button>
+          </CardFooter>
+        </Card>
+      </div>
 
       {/* Maintenance Dialog */}
       <MaintenanceDialog

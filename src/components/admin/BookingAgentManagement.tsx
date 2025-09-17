@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   Card,
   CardContent,
@@ -97,10 +97,15 @@ interface Agent {
 
 const BookingAgentManagement = () => {
   const { userName, userRole } = useAuth();
-  const [handlingBookings, setHandlingBookings] = useState<HandlingBooking[]>(
-    [],
-  );
-  const [loading, setLoading] = useState(true);
+  const [handlingBookings, setHandlingBookings] = useState<HandlingBooking[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [isFetching, setIsFetching] = useState(false);
+  
+  // Add refs to prevent duplicate fetches and track initialization
+  const fetchInProgress = useRef(false);
+  const lastFetchTime = useRef(0);
+  const isInitialized = useRef(false);
+
   const [searchTerm, setSearchTerm] = useState("");
   const [agentFilter, setAgentFilter] = useState("all");
   const [paymentMethodFilter, setPaymentMethodFilter] = useState("all");
@@ -112,14 +117,107 @@ const BookingAgentManagement = () => {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [agentsLoading, setAgentsLoading] = useState(false);
 
+  // FIXED: Single useEffect to handle all initialization logic with caching
   useEffect(() => {
-    fetchHandlingBookings();
-    fetchAgents();
-  }, []);
+    // Prevent multiple initializations
+    if (isInitialized.current) {
+      console.log('[BookingAgentManagement] Already initialized, skipping...');
+      return;
+    }
 
-  const fetchHandlingBookings = async () => {
+    if (userName && userRole) {
+      console.log('[BookingAgentManagement] Auth ready, initializing component...');
+      isInitialized.current = true;
+      
+      // Check for cached data first
+      const cachedBookings = sessionStorage.getItem('bookingAgentManagement_cachedBookings');
+      const cachedAgents = sessionStorage.getItem('bookingAgentManagement_cachedAgents');
+      
+      if (cachedBookings) {
+        try {
+          const parsedBookings = JSON.parse(cachedBookings);
+          if (parsedBookings && parsedBookings.length >= 0) { // Allow empty arrays
+            setHandlingBookings(parsedBookings);
+            console.log('[BookingAgentManagement] Loaded cached bookings, NO LOADING SCREEN');
+          }
+        } catch (error) {
+          console.warn('[BookingAgentManagement] Failed to parse cached bookings:', error);
+        }
+      }
+      
+      if (cachedAgents) {
+        try {
+          const parsedAgents = JSON.parse(cachedAgents);
+          if (parsedAgents && parsedAgents.length >= 0) { // Allow empty arrays
+            setAgents(parsedAgents);
+            console.log('[BookingAgentManagement] Loaded cached agents');
+          }
+        } catch (error) {
+          console.warn('[BookingAgentManagement] Failed to parse cached agents:', error);
+        }
+      }
+
+      // Always do background refresh to get latest data
+      if (cachedBookings || cachedAgents) {
+        setTimeout(() => {
+          fetchHandlingBookings(true);
+          fetchAgents(true);
+        }, 100);
+      } else {
+        // Fetch data if no cache
+        console.log('[BookingAgentManagement] No cached data, fetching fresh data...');
+        fetchHandlingBookings();
+        fetchAgents();
+      }
+    }
+  }, [userName, userRole]);
+
+  // FIXED: Add visibility change handler to refetch data when tab becomes visible
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden && userName && userRole) {
+        const now = Date.now();
+        // Only refetch if more than 30 seconds have passed since last fetch
+        if (now - lastFetchTime.current > 30000 && !fetchInProgress.current) {
+          console.log('[BookingAgentManagement] Tab became visible, doing background refresh...');
+          fetchHandlingBookings(true); // Background refresh without loading spinner
+        } else {
+          console.log('[BookingAgentManagement] Skipping refresh - too recent or already fetching');
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [userName, userRole]);
+
+  const fetchHandlingBookings = async (isBackgroundRefresh = false) => {
+    // Prevent duplicate fetches
+    if (fetchInProgress.current) {
+      console.log('[BookingAgentManagement] Fetch already in progress, skipping...');
+      return;
+    }
+
+    // Additional check: don't fetch if we just fetched recently (less than 5 seconds ago)
+    const now = Date.now();
+    if (now - lastFetchTime.current < 5000 && handlingBookings.length > 0) {
+      console.log('[BookingAgentManagement] Recent fetch detected, skipping...');
+      return;
+    }
+
+    fetchInProgress.current = true;
+    lastFetchTime.current = now;
+
     try {
-      setLoading(true);
+      // Only show loading spinner for initial load when no data exists
+      if (!isBackgroundRefresh && handlingBookings.length === 0) {
+        console.log('[BookingAgentManagement] Showing loading spinner for initial load');
+        setLoading(true);
+      } else {
+        console.log('[BookingAgentManagement] Background refresh, no loading spinner');
+      }
+
+      setIsFetching(true);
       console.log("Fetching handling bookings created by agents...");
 
       // First, try to fetch bookings with created_by_role filter
@@ -178,6 +276,14 @@ const BookingAgentManagement = () => {
       console.log("Number of agent bookings found:", data?.length || 0);
       setHandlingBookings(data || []);
 
+      // ✅ Cache the data untuk mencegah loading screen di navigasi berikutnya
+      try {
+        sessionStorage.setItem('bookingAgentManagement_cachedBookings', JSON.stringify(data || []));
+        console.log('[BookingAgentManagement] Data cached successfully');
+      } catch (cacheError) {
+        console.warn('[BookingAgentManagement] Failed to cache data:', cacheError);
+      }
+
       if (!data || data.length === 0) {
         console.log("No agent bookings found in database");
       }
@@ -195,18 +301,32 @@ const BookingAgentManagement = () => {
         if (!allError && allData) {
           console.log("Final fallback successful:", allData);
           setHandlingBookings(allData);
+          
+          // Cache fallback data too
+          try {
+            sessionStorage.setItem('bookingAgentManagement_cachedBookings', JSON.stringify(allData));
+          } catch (cacheError) {
+            console.warn('[BookingAgentManagement] Failed to cache fallback data:', cacheError);
+          }
         }
       } catch (fallbackError) {
         console.error("All fallback attempts failed:", fallbackError);
       }
     } finally {
+      // CRITICAL: Always reset loading states
       setLoading(false);
+      setIsFetching(false);
+      fetchInProgress.current = false;
     }
   };
 
-  const fetchAgents = async () => {
+  const fetchAgents = async (isBackgroundRefresh = false) => {
     try {
-      setAgentsLoading(true);
+      // Only show loading spinner for initial load when no data exists
+      if (!isBackgroundRefresh && agents.length === 0) {
+        setAgentsLoading(true);
+      }
+      
       console.log("Fetching agents from users table...");
 
       // Fetch users with Agent role
@@ -229,10 +349,20 @@ const BookingAgentManagement = () => {
 
       console.log("Successfully fetched agents:", agentsList);
       setAgents(agentsList);
+      
+      // ✅ Cache the agents data untuk mencegah loading screen di navigasi berikutnya
+      try {
+        sessionStorage.setItem('bookingAgentManagement_cachedAgents', JSON.stringify(agentsList));
+        console.log('[BookingAgentManagement] Agents data cached successfully');
+      } catch (cacheError) {
+        console.warn('[BookingAgentManagement] Failed to cache agents data:', cacheError);
+      }
     } catch (error) {
       console.error("Unexpected error fetching agents:", error);
     } finally {
-      setAgentsLoading(false);
+      if (!isBackgroundRefresh) {
+        setAgentsLoading(false);
+      }
     }
   };
 
@@ -579,7 +709,7 @@ const BookingAgentManagement = () => {
                   <TableHead>Passengers</TableHead>
                   <TableHead>Payment Method</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Price</TableHead>
+                  <TableHead>Total Amount</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>

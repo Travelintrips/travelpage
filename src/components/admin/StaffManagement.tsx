@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import {
   Table,
@@ -57,14 +57,19 @@ interface Role {
 }
 
 export default function StaffManagement() {
+  const { userRole, isAuthenticated, isSessionReady, isLoading: authLoading } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
-  const [isLoading, setIsLoading] = useState(() => {
-    // ✅ HANYA loading true jika tidak ada cached data
-    const cachedData = sessionStorage.getItem('staffManagement_cachedData');
-    return !cachedData;
-  });
+  
+  // FIXED: Better loading state initialization
+  const [isLoading, setIsLoading] = useState(false);
+  
+  // Add ref to track if fetch is in progress and prevent duplicates
+  const [isFetching, setIsFetching] = useState(false);
+  const fetchInProgress = useRef(false);
+  const lastFetchTime = useRef(0);
+  
   const [isOpen, setIsOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [currentUser, setCurrentUser] = useState<Partial<User>>({});
@@ -110,7 +115,6 @@ export default function StaffManagement() {
   const [religionFilter, setReligionFilter] = useState("");
 
   const { toast } = useToast();
-  const { userRole } = useAuth();
 
   // Form state
   const [email, setEmail] = useState("");
@@ -118,44 +122,58 @@ export default function StaffManagement() {
   const [password, setPassword] = useState("");
   const [roleId, setRoleId] = useState<number | null>(null);
 
+  // FIXED: Fetch data when auth is ready and authenticated
   useEffect(() => {
-    // ✅ Deteksi apakah ini navigation baru atau tab switch
-    const isNewNavigation = !sessionStorage.getItem('staffManagement_visited');
-    sessionStorage.setItem('staffManagement_visited', 'true');
-    
-    // ✅ PRIORITAS: Load cached data first untuk mencegah loading screen
-    const cachedData = sessionStorage.getItem('staffManagement_cachedData');
-    if (cachedData) {
-      try {
-        const parsedData = JSON.parse(cachedData);
-        setUsers(parsedData);
-        setFilteredUsers(parsedData);
-        setIsLoading(false);
-        console.log('[StaffManagement] Loaded cached data, NO LOADING SCREEN');
-        
-        // ✅ Jika ini navigation baru (bukan tab switch), refresh data di background
-        if (isNewNavigation) {
-          console.log('[StaffManagement] New navigation detected - background refresh');
-          setTimeout(() => fetchUsers(true), 100); // Background refresh
+    if (isAuthenticated && isSessionReady && !authLoading) {
+      console.log('[StaffManagement] Auth ready, checking for cached data...');
+      
+      // Only fetch if we don't have data yet
+      if (users.length === 0) {
+        // ✅ Load cached data first untuk mencegah loading screen
+        const cachedData = sessionStorage.getItem('staffManagement_cachedData');
+        if (cachedData) {
+          try {
+            const parsedData = JSON.parse(cachedData);
+            if (parsedData && parsedData.length > 0) {
+              setUsers(parsedData);
+              setFilteredUsers(parsedData);
+              console.log('[StaffManagement] Loaded cached data, NO LOADING SCREEN');
+              
+              // Background refresh to get latest data
+              setTimeout(() => fetchUsers(true), 100);
+              return;
+            }
+          } catch (error) {
+            console.warn('[StaffManagement] Failed to parse cached data:', error);
+          }
         }
-        return;
-      } catch (error) {
-        console.warn('[StaffManagement] Failed to parse cached data:', error);
+
+        // Fetch data if no cache or cache is empty
+        console.log('[StaffManagement] No cached data, fetching fresh data...');
+        fetchUsers();
+        fetchRoles();
       }
     }
+  }, [isAuthenticated, isSessionReady, authLoading]);
 
-    // ✅ HANYA fetch dengan loading jika benar-benar first time dan navigation baru
-    if (!cachedData && isNewNavigation) {
-      console.log('[StaffManagement] First time navigation - fetching with loading...');
-      fetchUsers();
-    } else {
-      // ✅ SELALU set loading false untuk tab switch
-      console.log('[StaffManagement] Tab switch detected - NO LOADING');
-      setIsLoading(false);
-    }
-    
-    fetchRoles();
-  }, []);
+  // FIXED: Add visibility change handler to refetch data when tab becomes visible
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden && isAuthenticated && isSessionReady && !authLoading) {
+        const now = Date.now();
+        // Only refetch if more than 30 seconds have passed since last fetch
+        if (now - lastFetchTime.current > 30000 && !fetchInProgress.current) {
+          console.log('[StaffManagement] Tab became visible, doing background refresh...');
+          fetchUsers(true); // Background refresh without loading spinner
+        } else {
+          console.log('[StaffManagement] Skipping refresh - too recent or already fetching');
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [isAuthenticated, isSessionReady, authLoading]);
 
   // Filter effect
   useEffect(() => {
@@ -199,13 +217,33 @@ export default function StaffManagement() {
     setFilteredUsers(filtered);
   }, [users, searchTerm, roleFilter, ethnicityFilter, religionFilter]);
 
+  // FIXED: Modified fetchUsers with proper loading state management
   const fetchUsers = async (isBackgroundRefresh = false) => {
+    // Don't fetch if not authenticated or already fetching
+    if (!isAuthenticated || !isSessionReady || authLoading) {
+      console.log('[StaffManagement] Skipping fetch - auth not ready');
+      return;
+    }
+
+    // Prevent duplicate fetches
+    if (fetchInProgress.current) {
+      console.log('[StaffManagement] Fetch already in progress, skipping...');
+      return;
+    }
+
+    fetchInProgress.current = true;
+    lastFetchTime.current = Date.now();
+    setIsFetching(true);
+
     try {
-      // ✅ DISABLE loading spinner untuk mencegah gangguan UI
-      // Hanya set loading jika benar-benar initial load dan tidak ada data
+      // Only show loading spinner for initial load when no data exists
       if (!isBackgroundRefresh && users.length === 0) {
+        console.log('[StaffManagement] Showing loading spinner for initial load');
         setIsLoading(true);
+      } else {
+        console.log('[StaffManagement] Background refresh, no loading spinner');
       }
+
       console.log("[StaffManagement] Starting to fetch users...");
 
       // Get roles data first for filtering and mapping
@@ -226,9 +264,9 @@ export default function StaffManagement() {
       let allowedRoleIds: number[] = [];
 
       if (userRole === "Super Admin") {
-        allowedRoleNames = ["Staff", "Staff Trips", "Staff Admin", "Staff Traffic"];
+        allowedRoleNames = ["Staff", "Staff Trips", "Staff Admin", "Staff Traffic", "Staff Ias"];
       } else {
-        allowedRoleNames = ["Staff", "Staff Trips", "Staff Admin", "Staff Traffic"];
+        allowedRoleNames = ["Staff", "Staff Trips", "Staff Admin", "Staff Traffic", "Staff Ias"];
       }
 
       // Filter out excluded roles
@@ -360,12 +398,16 @@ export default function StaffManagement() {
       }
 
       console.log("[StaffManagement] Final combined users data:", transformedUsers.length);
+      console.log("[StaffManagement] Sample user data:", transformedUsers[0]);
       setUsers(transformedUsers);
       setFilteredUsers(transformedUsers);
       
       // Cache the data for future use
       sessionStorage.setItem('staffManagement_cachedData', JSON.stringify(transformedUsers));
       
+      console.log('[StaffManagement] Staff data fetch completed successfully');
+      console.log('[StaffManagement] Users state will be set to:', transformedUsers.length, 'users');
+      console.log('[StaffManagement] FilteredUsers state will be set to:', transformedUsers.length, 'users');
     } catch (error) {
       console.error("[StaffManagement] Error fetching users:", error);
       toast({
@@ -373,12 +415,14 @@ export default function StaffManagement() {
         title: "Error fetching users",
         description: error.message || "Failed to fetch staff data",
       });
-      // Set empty arrays to show "No staff members found" message
-      setUsers([]);
-      setFilteredUsers([]);
+      
+      // Don't reset data to empty on error, just log the error
+      console.warn("[StaffManagement] Keeping existing data due to fetch error");
     } finally {
-      // ✅ SELALU set loading false untuk mencegah loading spinner
+      // CRITICAL: Always reset loading states
       setIsLoading(false);
+      setIsFetching(false);
+      fetchInProgress.current = false;
     }
   };
 
@@ -936,6 +980,15 @@ export default function StaffManagement() {
     };
   }, []);
 
+  console.log('[StaffManagement] Render - Current state:', {
+    isLoading,
+    usersLength: users.length,
+    filteredUsersLength: filteredUsers.length,
+    isAuthenticated,
+    isSessionReady,
+    authLoading
+  });
+
   return (
     <div className="p-6 bg-white dark:bg-gray-800 rounded-lg shadow-md">
       <div className="flex justify-between items-center mb-6">
@@ -989,7 +1042,7 @@ export default function StaffManagement() {
             onValueChange={(value) => setRoleFilter(value || "")}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Filter by role1" />
+              <SelectValue placeholder="Filter by role" />
             </SelectTrigger>
             <SelectContent>
   <SelectItem value="all">All Roles</SelectItem>
@@ -1085,9 +1138,14 @@ export default function StaffManagement() {
         )}
       </div>
 
+      {/* FIXED: Better loading and empty state handling */}
       {isLoading ? (
         <div className="flex justify-center items-center h-64">
           <p>Loading staff members...</p>
+        </div>
+      ) : users.length === 0 ? (
+        <div className="flex justify-center items-center h-64">
+          <p className="text-gray-500">No staff members found</p>
         </div>
       ) : (
         <div className="overflow-x-auto">
@@ -1101,7 +1159,6 @@ export default function StaffManagement() {
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Phone</TableHead>
-             {/*   <TableHead>Family Phone</TableHead> */}
                 <TableHead>Role</TableHead>
                 <TableHead>Ethnicity</TableHead>
                 <TableHead>Religion</TableHead>
@@ -1110,130 +1167,126 @@ export default function StaffManagement() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredUsers.map((user) => (
-                <TableRow key={user.id}>
-                  <TableCell>
-                    <Avatar className="h-10 w-10">
-                      <AvatarImage
-                        src={
-                          getImageUrl(user.staff?.selfie_url, "selfies") ||
-                          undefined
-                        }
-                        alt={user.full_name || "Staff"}
-                        className="object-cover"
-                        onError={(e) => {
-                          console.log(
-                            "Image failed to load:",
-                            e.currentTarget.src,
-                          );
-                          console.log("Original path:", user.staff?.selfie_url);
-                        }}
-                        onLoad={(e) => {
-                          console.log(
-                            "Image loaded successfully:",
-                            e.currentTarget.src,
-                          );
-                        }}
-                      />
-                      <AvatarFallback className="bg-gray-200 text-gray-600">
-                        {user.full_name
-                          ?.split(" ")
-                          .map((n) => n[0])
-                          .join("")
-                          .toUpperCase() || "S"}
-                      </AvatarFallback>
-                    </Avatar>
+              {filteredUsers.length === 0 ? (
+                <TableRow>
+                  <TableCell
+                    colSpan={9}
+                    className="text-center py-8 text-gray-500"
+                  >
+                    No staff members match the current filters
                   </TableCell>
-                  <TableCell className="font-medium">
-                    {user.full_name}
-                  </TableCell>
-                  <TableCell>{user.email}</TableCell>
-                  <TableCell>
-                    {user.staff?.phone || user.phone_number || "-"}
-                  </TableCell>
-                {/*  <TableCell>
-                    {user.staff?.reference_phone || user.staff?.family_phone_number || "-"}
-                  </TableCell>*/}
-                  <TableCell>
-                    <Badge variant="outline">
-                      {user.role?.role_name || "No Role"}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>{user.staff?.ethnicity || "-"}</TableCell>
-                  <TableCell>{user.staff?.religion || "-"}</TableCell>
-                  <TableCell>
-                    <div className="flex gap-1">
-                      {user.staff?.ktp_url && (
-                        <a
-                          href={
-                            getImageUrl(user.staff.ktp_url, "documents") || "#"
+                </TableRow>
+              ) : (
+                filteredUsers.map((user) => (
+                  <TableRow key={user.id}>
+                    <TableCell>
+                      <Avatar className="h-10 w-10">
+                        <AvatarImage
+                          src={
+                            getImageUrl(user.staff?.selfie_url, "selfies") ||
+                            undefined
                           }
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="hover:opacity-80"
-                        >
-                          <Badge
-                            variant="secondary"
-                            className="text-xs cursor-pointer hover:bg-blue-200 bg-blue-100 text-blue-800"
+                          alt={user.full_name || "Staff"}
+                          className="object-cover"
+                          onError={(e) => {
+                            console.log(
+                              "Image failed to load:",
+                              e.currentTarget.src,
+                            );
+                            console.log("Original path:", user.staff?.selfie_url);
+                          }}
+                          onLoad={(e) => {
+                            console.log(
+                              "Image loaded successfully:",
+                              e.currentTarget.src,
+                            );
+                          }}
+                        />
+                        <AvatarFallback className="bg-gray-200 text-gray-600">
+                          {user.full_name
+                            ?.split(" ")
+                            .map((n) => n[0])
+                            .join("")
+                            .toUpperCase() || "S"}
+                        </AvatarFallback>
+                      </Avatar>
+                    </TableCell>
+                    <TableCell className="font-medium">
+                      {user.full_name}
+                    </TableCell>
+                    <TableCell>{user.email}</TableCell>
+                    <TableCell>
+                      {user.staff?.phone || user.phone_number || "-"}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline">
+                        {user.role?.role_name || "No Role"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{user.staff?.ethnicity || "-"}</TableCell>
+                    <TableCell>{user.staff?.religion || "-"}</TableCell>
+                    <TableCell>
+                      <div className="flex gap-1">
+                        {user.staff?.ktp_url && (
+                          <a
+                            href={
+                              getImageUrl(user.staff.ktp_url, "documents") || "#"
+                            }
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="hover:opacity-80"
                           >
-                            KTP
-                          </Badge>
-                        </a>
-                      )}
-                      {user.staff?.sim_url && (
-                        <a
-                          href={
-                            getImageUrl(user.staff.sim_url, "documents") || "#"
-                          }
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="hover:opacity-80"
-                        >
-                          <Badge
-                            variant="secondary"
-                            className="text-xs cursor-pointer hover:bg-green-200 bg-green-100 text-green-800"
+                            <Badge
+                              variant="secondary"
+                              className="text-xs cursor-pointer hover:bg-blue-200 bg-blue-100 text-blue-800"
+                            >
+                              KTP
+                            </Badge>
+                          </a>
+                        )}
+                        {user.staff?.sim_url && (
+                          <a
+                            href={
+                              getImageUrl(user.staff.sim_url, "documents") || "#"
+                            }
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="hover:opacity-80"
                           >
-                            SIM
-                          </Badge>
-                        </a>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {userRole?.trim().toLowerCase() !== "staff" && (
-                      <>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleOpenDialog(user)}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        {userRole?.trim().toLowerCase() === "super admin" && (
+                            <Badge
+                              variant="secondary"
+                              className="text-xs cursor-pointer hover:bg-green-200 bg-green-100 text-green-800"
+                            >
+                              SIM
+                            </Badge>
+                          </a>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {userRole?.trim().toLowerCase() !== "staff" && (
+                        <>
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => handleDeleteUser(user.id)}
+                            onClick={() => handleOpenDialog(user)}
                           >
-                            <Trash2 className="h-4 w-4 text-red-500" />
+                            <Pencil className="h-4 w-4" />
                           </Button>
-                        )}
-                      </>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-              {filteredUsers.length === 0 && (
-                <TableRow>
-                  <TableCell
-                    colSpan={10}
-                    className="text-center py-8 text-gray-500"
-                  >
-                    {users.length === 0
-                      ? "No staff members found"
-                      : "No staff members match the current filters"}
-                  </TableCell>
-                </TableRow>
+                          {userRole?.trim().toLowerCase() === "super admin" && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleDeleteUser(user.id)}
+                            >
+                              <Trash2 className="h-4 w-4 text-red-500" />
+                            </Button>
+                          )}
+                        </>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))
               )}
             </TableBody>
           </Table>
@@ -1301,7 +1354,7 @@ export default function StaffManagement() {
               )}
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="role" className="text-right">
-                  Role1 <span className="text-red-500">*</span>
+                  Role <span className="text-red-500">*</span>
                 </Label>
                 <Select
                   value={roleId?.toString() || ""}

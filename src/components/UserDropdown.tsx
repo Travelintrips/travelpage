@@ -136,82 +136,29 @@ const UserDropdown = () => {
     effectiveRole === "Admin";
   const displayRole = effectiveIsAdmin ? "Admin" : effectiveRole;
 
- {/* console.log("[UserDropdown] Role resolution:", {
-    contextRole: role,
-    authUserRole,
-    storedRole,
-    effectiveRole,
-    displayRole,
-  });*/}
-
   const handleNavigate = (path: string) => {
     navigate(path);
   };
 
-  const clearAuthStorage = () => {
-    // Clear all localStorage items
-    localStorage.removeItem("auth_user");
-    localStorage.removeItem("userId");
-    localStorage.removeItem("userRole");
-    localStorage.removeItem("userEmail");
-    localStorage.removeItem("isAdmin");
-    localStorage.removeItem("userName");
-    localStorage.removeItem("shopping_cart");
-    localStorage.removeItem("booking_data");
-    localStorage.removeItem("recent_bookings");
-    localStorage.removeItem("selected_vehicle");
-    localStorage.removeItem("payment_data");
-    localStorage.removeItem("airport_transfer_data");
-    localStorage.removeItem("baggage_data");
-    localStorage.removeItem("driverData");
-
-    // Clear Supabase auth tokens
-    localStorage.removeItem("supabase.auth.token");
-    localStorage.removeItem("sb-refresh-token");
-    localStorage.removeItem("sb-access-token");
-    localStorage.removeItem("sb-auth-token");
-    localStorage.removeItem("supabase.auth.data");
-    localStorage.removeItem("supabase.auth.expires_at");
-    localStorage.removeItem("supabase.auth.expires_in");
-    localStorage.removeItem("supabase.auth.refresh_token");
-    localStorage.removeItem("supabase.auth.access_token");
-    localStorage.removeItem("supabase.auth.provider_token");
-    localStorage.removeItem("supabase.auth.provider_refresh_token");
-
-    // Clear session storage
-    try {
-      sessionStorage.clear();
-    } catch (e) {
-    {/*  console.warn("[UserDropdown] Error clearing session storage:", e);*/}
-    }
-
-    // Set logout flags
-    sessionStorage.setItem("forceLogout", "true");
-    sessionStorage.setItem("loggedOut", "true");
-  };
-
+  // FIXED: Complete and clean logout function
   const handleLogout = async () => {
-  {/*  console.log("[Logout] Starting logout process...");*/}
-
-    // Buat Promise race: paksa lanjut jika signOut terlalu lama
-    const timeout = new Promise<void>((resolve) => setTimeout(resolve, 2000)); // 2 detik
+    console.log("[UserDropdown] Starting complete logout process...");
 
     try {
-      await Promise.race([supabase.auth.signOut(), timeout]);
-    } catch (err) {
-      console.warn("[Logout] Supabase signOut failed:", err);
-    } finally {
-      console.log("[Logout] Forcing cleanup...");
-
-      // Sinkronisasi antar tab
-      localStorage.setItem("logout", Date.now().toString());
-
-      // Bersihkan state dan storage
+      // Use AuthContext signOut which handles everything including reload
+      await signOut();
+      
+      console.log("[UserDropdown] Logout completed successfully");
+    } catch (error) {
+      console.error("[UserDropdown] Logout error:", error);
+      
+      // Force cleanup and reload even if signOut fails
+      sessionStorage.setItem("loggedOut", "true");
       localStorage.clear();
-      sessionStorage.clear();
-
-      // Paksa redirect
-      window.location.href = "/";
+      sessionStorage.setItem("loggedOut", "true"); // Keep only logout flag
+      
+      // Force reload to ensure clean state
+      window.location.reload();
     }
   };
 

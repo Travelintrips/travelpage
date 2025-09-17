@@ -10,6 +10,7 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 import {
   BarChart,
   Bar,
@@ -38,6 +39,7 @@ interface DashboardData {
 const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884D8"];
 
 export default function DashboardStats() {
+  const { isAuthenticated, isSessionReady, isLoading: authLoading } = useAuth();
   const [data, setData] = useState<DashboardData>({
     totalUsers: 0,
     totalVehicles: 0,
@@ -52,19 +54,47 @@ export default function DashboardStats() {
   const { toast } = useToast();
 
   useEffect(() => {
-    fetchDashboardData();
-    // Set up an interval to refresh data every 60 seconds instead of continuous updates
-    const intervalId = setInterval(() => {
+    if (isAuthenticated && isSessionReady && !authLoading) {
+      console.log('[DashboardStats] Auth ready, fetching dashboard data...');
       fetchDashboardData();
-    }, 60000);
+    } else if (!authLoading && !isAuthenticated) {
+      // Not authenticated, clear loading state
+      setIsLoading(false);
+      setData({
+        totalUsers: 0,
+        totalVehicles: 0,
+        totalBookings: 0,
+        totalRevenue: 0,
+        recentBookings: [],
+        bookingsByStatus: [],
+        revenueByMonth: [],
+        vehicleUtilization: [],
+      });
+    }
+  }, [isAuthenticated, isSessionReady, authLoading]);
 
-    // Clean up the interval when component unmounts
-    return () => clearInterval(intervalId);
-  }, []);
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden && isAuthenticated && isSessionReady && !authLoading) {
+        console.log('[DashboardStats] Tab became visible, refetching dashboard data...');
+        fetchDashboardData();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [isAuthenticated, isSessionReady, authLoading]);
 
   const fetchDashboardData = async () => {
+    // Don't fetch if not authenticated
+    if (!isAuthenticated || !isSessionReady || authLoading) {
+      console.log('[DashboardStats] Skipping fetch - auth not ready');
+      return;
+    }
+
     try {
       setIsLoading(true);
+      console.log('[DashboardStats] Starting dashboard data fetch...');
 
       // Fetch total users
       const { count: userCount, error: userError } = await supabase
@@ -200,8 +230,10 @@ export default function DashboardStats() {
         revenueByMonth,
         vehicleUtilization,
       });
+
+      console.log('[DashboardStats] Dashboard data fetch completed successfully');
     } catch (error) {
-      console.error("Error fetching dashboard data:", error);
+      console.error("[DashboardStats] Error fetching dashboard data:", error);
       toast({
         variant: "destructive",
         title: "Error fetching dashboard data",

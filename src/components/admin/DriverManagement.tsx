@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   Card,
   CardContent,
@@ -46,6 +46,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { supabase } from "@/lib/supabase";
+import { Badge } from "@/components/ui/badge";
 import {
   UserCog,
   Pencil,
@@ -55,8 +56,12 @@ import {
   Loader2,
   Upload,
   Camera,
+  Users,
+  UserCheck,
+  TrendingDown,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSearchParams } from "react-router-dom";
 
 interface Driver {
   id: string;
@@ -77,10 +82,35 @@ interface Driver {
   saldo: number | null;
 }
 
+interface DriverStats {
+  total_drivers: number;
+  active_drivers: number;
+  online_drivers: number;
+  minus_saldo_total: number;
+  minus_balance_driver_count: number;
+}
+
 const DriverManagement = () => {
   const [drivers, setDrivers] = useState<Driver[]>([]);
-  const [loading, setLoading] = useState(true);
-  const { userRole } = useAuth();
+  
+  // FIXED: Better loading state initialization
+  const [loading, setLoading] = useState(false);
+  
+  const [driverStats, setDriverStats] = useState<DriverStats>({
+    total_drivers: 0,
+    active_drivers: 0,
+    online_drivers: 0,
+    minus_saldo_total: 0,
+    minus_balance_driver_count: 0,
+  });
+  const [statsLoading, setStatsLoading] = useState(false);
+  
+  const { userRole, isAuthenticated, isSessionReady, isLoading: authLoading } = useAuth();
+  
+  // Add URL search params for filtering
+  const [searchParams, setSearchParams] = useSearchParams();
+  const currentFilter = searchParams.get('filter') || 'all';
+  
   const [searchTerm, setSearchTerm] = useState("");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(() => {
@@ -118,9 +148,77 @@ const DriverManagement = () => {
     kk: false,
   });
 
+  // Add refs to prevent duplicate fetches and track initialization
+  const fetchInProgress = useRef(false);
+  const lastFetchTime = useRef(0);
+  const isInitialized = useRef(false);
+  const [isFetching, setIsFetching] = useState(false);
+
+  // FIXED: Single useEffect to handle all initialization logic with caching
   useEffect(() => {
-    fetchDrivers();
-  }, []);
+    // Prevent multiple initializations
+    if (isInitialized.current) {
+      console.log('[DriverManagement] Already initialized, skipping...');
+      return;
+    }
+
+    if (isAuthenticated && isSessionReady && !authLoading) {
+      console.log('[DriverManagement] Auth ready, initializing component...');
+      isInitialized.current = true;
+      
+      // Check for cached data first
+      const cachedDrivers = sessionStorage.getItem('driverManagement_cachedDrivers');
+      const cachedStats = sessionStorage.getItem('driverManagement_cachedStats');
+      
+      if (cachedDrivers && cachedStats) {
+        try {
+          const parsedDrivers = JSON.parse(cachedDrivers);
+          const parsedStats = JSON.parse(cachedStats);
+          
+          if (parsedDrivers && parsedDrivers.length >= 0) {
+            setDrivers(parsedDrivers);
+            setDriverStats(parsedStats);
+            setStatsLoading(false);
+            console.log('[DriverManagement] Loaded cached data, NO LOADING SCREEN');
+            
+            // Background refresh to get latest data
+            setTimeout(() => {
+              fetchDrivers(true);
+              fetchDriverStats(true);
+            }, 100);
+            return;
+          }
+        } catch (error) {
+          console.warn('[DriverManagement] Failed to parse cached data:', error);
+        }
+      }
+
+      // Fetch data if no cache or cache is empty
+      console.log('[DriverManagement] No cached data, fetching fresh data...');
+      fetchDrivers();
+      fetchDriverStats();
+    }
+  }, [isAuthenticated, isSessionReady, authLoading]);
+
+  // FIXED: Add visibility change handler to refetch data when tab becomes visible
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden && isAuthenticated && isSessionReady && !authLoading) {
+        const now = Date.now();
+        // Only refetch if more than 30 seconds have passed since last fetch
+        if (now - lastFetchTime.current > 30000 && !fetchInProgress.current) {
+          console.log('[DriverManagement] Tab became visible, doing background refresh...');
+          fetchDrivers(true); // Background refresh without loading spinner
+          fetchDriverStats(true);
+        } else {
+          console.log('[DriverManagement] Skipping refresh - too recent or already fetching');
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [isAuthenticated, isSessionReady, authLoading]);
 
   // Save state to localStorage whenever it changes
   useEffect(() => {
@@ -135,9 +233,107 @@ const DriverManagement = () => {
     localStorage.setItem('driverManagement_formData', JSON.stringify(formData));
   }, [formData]);
 
-  const fetchDrivers = async () => {
+  const formatRupiah = (amount: number) => {
+    return new Intl.NumberFormat('id-ID', {
+      style: 'currency',
+      currency: 'IDR',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(amount);
+  };
+
+  // FIXED: Modified fetchDriverStats with caching and proper loading state management
+  const fetchDriverStats = async (isBackgroundRefresh = false) => {
+    // Prevent duplicate fetches
+    if (fetchInProgress.current) {
+      console.log('[DriverManagement] Stats fetch already in progress, skipping...');
+      return;
+    }
+
+    // Don't fetch if not authenticated
+    if (!isAuthenticated || !isSessionReady || authLoading) {
+      console.log('[DriverManagement] Skipping stats fetch - auth not ready');
+      return;
+    }
+
+    fetchInProgress.current = true;
+    lastFetchTime.current = Date.now();
+
     try {
-      setLoading(true);
+      // Only show loading spinner for initial load
+      if (!isBackgroundRefresh && driverStats.total_drivers === 0) {
+        console.log('[DriverManagement] Showing loading spinner for stats initial load');
+        setStatsLoading(true);
+      } else {
+        console.log('[DriverManagement] Background stats refresh, no loading spinner');
+      }
+
+      const { data, error } = await supabase.rpc('get_driver_kpis');
+      
+      if (error) {
+        console.error("Error fetching driver stats:", error);
+        throw error;
+      }
+
+      const newStats = data || {
+        total_drivers: 0,
+        active_drivers: 0,
+        online_drivers: 0,
+        minus_saldo_total: 0,
+        minus_balance_driver_count: 0,
+      };
+
+      console.log("Driver stats:", newStats);
+      setDriverStats(newStats);
+      
+      // ✅ Cache the stats data untuk mencegah loading screen di navigasi berikutnya
+      try {
+        sessionStorage.setItem('driverManagement_cachedStats', JSON.stringify(newStats));
+        console.log('[DriverManagement] Stats data cached successfully');
+      } catch (cacheError) {
+        console.warn('[DriverManagement] Failed to cache stats data:', cacheError);
+      }
+      
+      console.log('[DriverManagement] Driver stats fetch completed successfully');
+    } catch (error) {
+      console.error("Error fetching driver stats:", error);
+      
+      // Don't reset data on error, just log the error
+      console.warn("[DriverManagement] Keeping existing stats data due to fetch error");
+    } finally {
+      // CRITICAL: Always reset loading states
+      setStatsLoading(false);
+      fetchInProgress.current = false;
+    }
+  };
+
+  // FIXED: Modified fetchDrivers with caching and proper loading state management
+  const fetchDrivers = async (isBackgroundRefresh = false) => {
+    // Prevent duplicate fetches
+    if (fetchInProgress.current) {
+      console.log('[DriverManagement] Drivers fetch already in progress, skipping...');
+      return;
+    }
+
+    // Don't fetch if not authenticated or already fetching
+    if (!isAuthenticated || !isSessionReady || authLoading || isFetching) {
+      console.log('[DriverManagement] Skipping fetch - auth not ready or already fetching');
+      return;
+    }
+
+    fetchInProgress.current = true;
+    lastFetchTime.current = Date.now();
+    setIsFetching(true);
+
+    try {
+      // Only show loading spinner for initial load when no data exists
+      if (!isBackgroundRefresh && drivers.length === 0) {
+        console.log('[DriverManagement] Showing loading spinner for initial load');
+        setLoading(true);
+      } else {
+        console.log('[DriverManagement] Background refresh, no loading spinner');
+      }
+
       console.log("Fetching drivers...");
 
       const { data, error } = await supabase
@@ -151,11 +347,28 @@ const DriverManagement = () => {
       }
 
       console.log("Fetched drivers:", data);
-      setDrivers(data || []);
-      setLoading(false);
+      const driversData = data || [];
+      setDrivers(driversData);
+      
+      // ✅ Cache the drivers data untuk mencegah loading screen di navigasi berikutnya
+      try {
+        sessionStorage.setItem('driverManagement_cachedDrivers', JSON.stringify(driversData));
+        console.log('[DriverManagement] Drivers data cached successfully');
+      } catch (cacheError) {
+        console.warn('[DriverManagement] Failed to cache drivers data:', cacheError);
+      }
+      
+      console.log('[DriverManagement] Drivers data fetch completed successfully');
     } catch (error) {
       console.error("Error fetching drivers:", error);
+      
+      // Don't reset data to empty on error, just log the error
+      console.warn("[DriverManagement] Keeping existing data due to fetch error");
+    } finally {
+      // CRITICAL: Always reset loading states
       setLoading(false);
+      setIsFetching(false);
+      fetchInProgress.current = false;
     }
   };
 
@@ -216,233 +429,72 @@ const DriverManagement = () => {
     };
   };
 
-  const handleAddDriver = async () => {
-    try {
-      // Clean the form data to convert empty date strings to null
-      const cleanedFormData = cleanDateFields(formData);
+  // FIXED: Enhanced filtering logic that combines search and KPI filter
+  const getFilteredDrivers = () => {
+    let filtered = drivers;
 
-      const { data, error } = await supabase
-        .from("drivers")
-        .insert([cleanedFormData])
-        .select();
-
-      if (error) throw error;
-
-      if (data && data.length > 0) {
-        setDrivers([data[0], ...drivers]);
-      }
-
-      setIsAddDialogOpen(false);
-      setFormData({
-        name: "",
-        email: "",
-        phone_number: "",
-        license_number: "",
-        license_expiry: "",
-        account_status: "active",
-        selfie_url: "",
-        sim_url: "",
-        stnk_url: "",
-        kk_url: "",
-        stnk_expiry: "",
-        family_phone_number: "",
-        role_id: null,
-      });
-    } catch (error) {
-      console.error("Error adding driver:", error);
+    // Apply KPI filter first
+    switch (currentFilter) {
+      case 'active':
+        filtered = drivers.filter(driver => driver.account_status === 'active');
+        break;
+      case 'online':
+        filtered = drivers.filter(driver => driver.is_online === true);
+        break;
+      case 'negativeBalance':
+        filtered = drivers.filter(driver => (driver.saldo || 0) < 0);
+        break;
+      case 'all':
+      default:
+        filtered = drivers;
+        break;
     }
-  };
 
-  const handleEditDriver = async () => {
-    if (!selectedDriver) return;
-
-    try {
-      setIsSubmitting(true);
-      console.log("Updating driver with data:", formData);
-
-      // Create a clean object with only the fields that have values
-      const cleanedFormData = Object.fromEntries(
-        Object.entries(formData).filter(([_, value]) => value !== ""),
+    // Then apply search filter
+    if (searchTerm) {
+      filtered = filtered.filter(
+        (driver) =>
+          driver.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (driver.email?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
+          (driver.phone_number || "").includes(searchTerm) ||
+          (driver.license_number?.toLowerCase() || "").includes(
+            searchTerm.toLowerCase(),
+          ),
       );
+    }
 
-      console.log("Cleaned form data:", cleanedFormData);
+    return filtered;
+  };
 
-      // First update in Supabase
-      const { data, error } = await supabase
-        .from("drivers")
-        .update(cleanedFormData)
-        .eq("id", selectedDriver.id)
-        .select();
+  const filteredDrivers = getFilteredDrivers();
 
-      if (error) {
-        console.error("Supabase update error:", error);
-        throw error;
-      }
-
-      console.log("Update response:", data);
-
-      // Then send webhook notification using fetch API
-      try {
-        const response = await fetch(
-          "https://script.google.com/u/0/home/projects/1_W_OfEJ43eTHjqi-ONeA1omY2ZtJa1d4co-mMzj6qIkUJG7i1O2npSQC/edit",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: "Bearer " + import.meta.env.VITE_SUPABASE_ANON_KEY,
-            },
-            body: JSON.stringify({
-              ...cleanedFormData,
-              id: selectedDriver.id,
-              event_type: "driver.updated",
-            }),
-          },
-        );
-
-        if (response.ok) {
-          const webhookData = await response.json();
-          console.log("Webhook notification sent successfully:", webhookData);
-        } else {
-          console.error(
-            "Error sending webhook notification:",
-            await response.text(),
-          );
-        }
-      } catch (webhookError) {
-        console.error("Failed to send webhook notification:", webhookError);
-        // Continue with the process even if webhook fails
-      }
-
-      if (data && data.length > 0) {
-        const updatedDrivers = drivers.map((driver) =>
-          driver.id === selectedDriver.id ? data[0] : driver,
-        );
-        setDrivers(updatedDrivers);
-        console.log("Driver updated successfully");
-      } else {
-        // Fallback to local update if no data returned
-        const updatedDrivers = drivers.map((driver) =>
-          driver.id === selectedDriver.id
-            ? { ...driver, ...cleanedFormData }
-            : driver,
-        );
-        setDrivers(updatedDrivers);
-        console.log("Driver updated locally (no data returned from server)");
-      }
-
-      setIsEditDialogOpen(false);
-      setSelectedDriver(null);
-      setFormData({
-        name: "",
-        email: "",
-        phone_number: "",
-        license_number: "",
-        license_expiry: "",
-        account_status: "active",
-        selfie_url: "",
-        sim_url: "",
-        stnk_url: "",
-        kk_url: "",
-        stnk_expiry: "",
-        family_phone_number: "",
-        role_id: cleanedFormData.role_id || null,
-      });
-
-      // Clear localStorage after successful update
-      localStorage.removeItem('driverManagement_isEditDialogOpen');
-      localStorage.removeItem('driverManagement_selectedDriver');
-      localStorage.removeItem('driverManagement_formData');
-
-      // Refresh the drivers list to ensure we have the latest data
-      fetchDrivers();
-    } catch (error) {
-      console.error("Error updating driver:", error);
-      alert("Failed to update driver: " + (error.message || "Unknown error"));
-    } finally {
-      setIsSubmitting(false);
+  // FIXED: Handle KPI card clicks with proper URL management
+  const handleKPICardClick = (filterType: string) => {
+    if (currentFilter === filterType) {
+      // If clicking the same filter, clear it
+      setSearchParams({});
+    } else {
+      // Set new filter
+      setSearchParams({ filter: filterType });
     }
   };
 
-  const handleDeleteDriver = async () => {
-    if (!selectedDriver) return;
-
-    if (userRole !== "Super Admin") {
-      alert("Only Super Admin can delete drivers");
-      return;
-    }
-
-    try {
-      const { error } = await supabase
-        .from("drivers")
-        .delete()
-        .eq("id", selectedDriver.id);
-
-      if (error) throw error;
-
-      const filteredDrivers = drivers.filter(
-        (driver) => driver.id !== selectedDriver.id,
-      );
-
-      setDrivers(filteredDrivers);
-      setIsDeleteDialogOpen(false);
-      setSelectedDriver(null);
-
-      // Clear localStorage after successful delete
-      localStorage.removeItem('driverManagement_isEditDialogOpen');
-      localStorage.removeItem('driverManagement_selectedDriver');
-      localStorage.removeItem('driverManagement_formData');
-    } catch (error) {
-      console.error("Error deleting driver:", error);
-    }
+  // FIXED: Clear all filters
+  const handleClearFilters = () => {
+    setSearchParams({});
+    setSearchTerm("");
   };
 
-  const openEditDialog = (driver: Driver) => {
-    console.log("Opening edit dialog for driver:", driver);
-    setSelectedDriver(driver);
-    setFormData({
-      name: driver.name,
-      email: driver.email || "",
-      phone_number: driver.phone_number || "",
-      license_number: driver.license_number || "",
-      license_expiry: driver.license_expiry || "",
-      account_status: driver.account_status || "active",
-      selfie_url: driver.selfie_url || "",
-      sim_url: driver.sim_url || "",
-      stnk_url: driver.stnk_url || "",
-      kk_url: driver.kk_url || "",
-      stnk_expiry: driver.stnk_expiry || "",
-      family_phone_number: driver.family_phone_number || "",
-      role_id: driver.role_id || null,
-    });
-    setIsSubmitting(false);
-    setIsEditDialogOpen(true);
-  };
-
-  const openDeleteDialog = (driver: Driver) => {
-    setSelectedDriver(driver);
-    setIsDeleteDialogOpen(true);
-  };
-
-  const filteredDrivers = drivers.filter(
-    (driver) =>
-      driver.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (driver.email?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
-      (driver.phone_number || "").includes(searchTerm) ||
-      (driver.license_number?.toLowerCase() || "").includes(
-        searchTerm.toLowerCase(),
-      ),
-  );
-
-  const FileUploadField = ({
-    label,
-    id,
-    fileType,
-    accept = "image/*",
-  }: {
-    label: string;
-    id: string;
-    fileType: "selfie" | "sim" | "stnk" | "kk";
-    accept?: string;
+  const FileUploadField = ({ 
+    label, 
+    id, 
+    fileType, 
+    accept = "image/*" 
+  }: { 
+    label: string; 
+    id: string; 
+    fileType: "selfie" | "sim" | "stnk" | "kk"; 
+    accept?: string; 
   }) => (
     <div className="grid grid-cols-4 items-center gap-4">
       <Label htmlFor={id} className="text-right">
@@ -503,13 +555,288 @@ const DriverManagement = () => {
     </div>
   );
 
+  const openEditDialog = (driver: Driver) => {
+    setSelectedDriver(driver);
+    setFormData({
+      name: driver.name || "",
+      email: driver.email || "",
+      phone_number: driver.phone_number || "",
+      license_number: driver.license_number || "",
+      license_expiry: driver.license_expiry || "",
+      account_status: driver.account_status || "active",
+      selfie_url: driver.selfie_url || "",
+      sim_url: driver.sim_url || "",
+      stnk_url: driver.stnk_url || "",
+      kk_url: driver.kk_url || "",
+      stnk_expiry: driver.stnk_expiry || "",
+      family_phone_number: driver.family_phone_number || "",
+      role_id: null, // This would need to be fetched from the driver data if available
+    });
+    setIsEditDialogOpen(true);
+  };
+
+  const openDeleteDialog = (driver: Driver) => {
+    setSelectedDriver(driver);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const handleEditDriver = async () => {
+    if (!selectedDriver) return;
+
+    setIsSubmitting(true);
+    try {
+      const cleanedData = cleanDateFields(formData);
+      
+      const { error } = await supabase
+        .from("drivers")
+        .update({
+          name: cleanedData.name,
+          email: cleanedData.email,
+          phone_number: cleanedData.phone_number,
+          license_number: cleanedData.license_number,
+          license_expiry: cleanedData.license_expiry,
+          account_status: cleanedData.account_status,
+          selfie_url: cleanedData.selfie_url,
+          sim_url: cleanedData.sim_url,
+          stnk_url: cleanedData.stnk_url,
+          kk_url: cleanedData.kk_url,
+          stnk_expiry: cleanedData.stnk_expiry,
+          family_phone_number: cleanedData.family_phone_number,
+        })
+        .eq("id", selectedDriver.id);
+
+      if (error) throw error;
+
+      // Refresh the drivers list
+      await fetchDrivers();
+      
+      // Close dialog and clear state
+      setIsEditDialogOpen(false);
+      setSelectedDriver(null);
+      
+      // Clear localStorage
+      localStorage.removeItem('driverManagement_isEditDialogOpen');
+      localStorage.removeItem('driverManagement_selectedDriver');
+      localStorage.removeItem('driverManagement_formData');
+      
+      // Reset form
+      setFormData({
+        name: "",
+        email: "",
+        phone_number: "",
+        license_number: "",
+        license_expiry: "",
+        account_status: "active",
+        selfie_url: "",
+        sim_url: "",
+        stnk_url: "",
+        kk_url: "",
+        stnk_expiry: "",
+        family_phone_number: "",
+        role_id: null,
+      });
+
+      console.log("Driver updated successfully");
+    } catch (error) {
+      console.error("Error updating driver:", error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteDriver = async () => {
+    if (!selectedDriver) return;
+
+    try {
+      const { error } = await supabase
+        .from("drivers")
+        .delete()
+        .eq("id", selectedDriver.id);
+
+      if (error) throw error;
+
+      // Refresh the drivers list
+      await fetchDrivers();
+      await fetchDriverStats();
+      
+      // Close dialog and clear state
+      setIsDeleteDialogOpen(false);
+      setSelectedDriver(null);
+
+      console.log("Driver deleted successfully");
+    } catch (error) {
+      console.error("Error deleting driver:", error);
+    }
+  };
+
+  useEffect(() => {
+  const fetchDriverStats = async () => {
+    setStatsLoading(true);
+
+    try {
+      const { data, error } = await supabase
+        .from("drivers")
+        .select("id, account_status, is_online, saldo");
+
+      if (error) throw error;
+
+      const totalDrivers = data?.length ?? 0;
+      const activeDrivers = data?.filter(d => d.account_status === "active").length ?? 0;
+      const onlineDrivers = data?.filter(d => d.is_online === true).length ?? 0;
+
+      // ✅ hitung saldo minus
+      const minusBalances = data?.filter(d => (d.saldo ?? 0) < 0) ?? [];
+      const minusSaldoTotal = minusBalances.reduce(
+        (acc, curr) => acc + (curr.saldo ?? 0),
+        0
+      );
+      const minusBalanceDriverCount = minusBalances.length;
+
+      setDriverStats({
+        total_drivers: totalDrivers,
+        active_drivers: activeDrivers,
+        online_drivers: onlineDrivers,
+        minus_saldo_total: minusSaldoTotal,
+        minus_balance_driver_count: minusBalanceDriverCount,
+      });
+    } catch (err) {
+      console.error("Error fetching driver stats:", err);
+    } finally {
+      setStatsLoading(false);
+    }
+  };
+
+  fetchDriverStats();
+}, []);
+
+
+
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">Driver Management</h1>
-        {/*   <Button onClick={() => setIsAddDialogOpen(true)}>
-          <Plus className="h-4 w-4 mr-2" /> Add Driver
-        </Button>*/}
+      </div>
+
+      {/* FIXED: Driver Statistics Cards - All Clickable with Visual Feedback */}
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <Card 
+          className={`bg-gradient-to-br from-slate-500 to-slate-600 text-white cursor-pointer transition-all hover:scale-105 hover:shadow-lg ${
+            currentFilter === 'all' ? 'ring-4 ring-white ring-opacity-50 shadow-xl' : ''
+          }`}
+          onClick={() => handleKPICardClick('all')}
+        >
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Drivers</CardTitle>
+            <Users className="h-4 w-4" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+  {statsLoading ? (
+    <Loader2 className="h-6 w-6 animate-spin" />
+  ) : (
+    driverStats.total_drivers
+  )}
+</div>
+
+            <p className="text-xs text-slate-100">
+              All registered drivers
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card 
+          className={`bg-gradient-to-br from-blue-500 to-blue-600 text-white cursor-pointer transition-all hover:scale-105 hover:shadow-lg ${
+            currentFilter === 'active' ? 'ring-4 ring-white ring-opacity-50 shadow-xl' : ''
+          }`}
+          onClick={() => handleKPICardClick('active')}
+        >
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Driver Active</CardTitle>
+            <Users className="h-4 w-4" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {statsLoading ? (
+                <Loader2 className="h-6 w-6 animate-spin" />
+              ) : (
+                driverStats.active_drivers
+              )}
+            </div>
+            <p className="text-xs text-blue-100">
+              Drivers with active account
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card 
+          className={`bg-gradient-to-br from-green-500 to-green-600 text-white cursor-pointer transition-all hover:scale-105 hover:shadow-lg ${
+            currentFilter === 'online' ? 'ring-4 ring-white ring-opacity-50 shadow-xl' : ''
+          }`}
+          onClick={() => handleKPICardClick('online')}
+        >
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Driver Online</CardTitle>
+            <UserCheck className="h-4 w-4" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+  {statsLoading ? (
+    <Loader2 className="h-6 w-6 animate-spin" />
+  ) : (
+    driverStats.online_drivers
+  )}
+</div>
+            <p className="text-xs text-green-100">
+              Drivers currently online
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-red-500 to-red-600 text-white">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Saldo Minus</CardTitle>
+            <TrendingDown className="h-4 w-4" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {statsLoading ? (
+                <Loader2 className="h-6 w-6 animate-spin" />
+              ) : (
+                <span className={driverStats.minus_saldo_total < 0 ? "text-red-100" : "text-white"}>
+                  {formatRupiah(driverStats.minus_saldo_total || 0)}
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-red-100">
+              Total negative balance
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card 
+          className={`bg-gradient-to-br from-orange-500 to-orange-600 text-white cursor-pointer transition-all hover:scale-105 hover:shadow-lg ${
+            currentFilter === 'negativeBalance' ? 'ring-4 ring-white ring-opacity-50 shadow-xl' : ''
+          }`}
+          onClick={() => handleKPICardClick('negativeBalance')}
+        >
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Drivers with Negative Balance</CardTitle>
+            <TrendingDown className="h-4 w-4" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {statsLoading ? (
+                <Loader2 className="h-6 w-6 animate-spin" />
+              ) : (
+                driverStats.minus_balance_driver_count
+              )}
+            </div>
+            <p className="text-xs text-orange-100">
+              Drivers with negative balance
+            </p>
+          </CardContent>
+        </Card>
       </div>
 
       <Card>
@@ -517,16 +844,43 @@ const DriverManagement = () => {
           <div className="flex justify-between items-center">
             <div>
               <CardTitle>Drivers</CardTitle>
-              <CardDescription>Manage your driver database</CardDescription>
+              <CardDescription>
+                Manage your driver database
+                {currentFilter !== 'all' && (
+                  <span className="ml-2 text-blue-600 font-medium">
+                    (Filtered by: {
+                      currentFilter === 'active' ? 'Active Drivers' :
+                      currentFilter === 'online' ? 'Online Drivers' :
+                      currentFilter === 'negativeBalance' ? 'Negative Balance Drivers' :
+                      'All Drivers'
+                    })
+                  </span>
+                )}
+              </CardDescription>
             </div>
-            <div className="relative w-64">
-              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search drivers..."
-                className="pl-8"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
+            <div className="flex items-center gap-4">
+              {/* FIXED: Clear Filters Button - Shows when any filter is active */}
+              {(currentFilter !== 'all' || searchTerm) && (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={handleClearFilters}
+                  className="text-red-600 border-red-200 hover:bg-red-50"
+                >
+                  Clear Filters
+                </Button>
+              )}
+              
+              {/* FIXED: Search Input - Works on filtered results */}
+              <div className="relative w-64">
+                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search drivers..."
+                  className="pl-8"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
             </div>
           </div>
         </CardHeader>
@@ -558,8 +912,11 @@ const DriverManagement = () => {
               <TableBody>
                 {filteredDrivers.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={12} className="text-center py-8">
-                      No drivers found
+                    <TableCell colSpan={13} className="text-center py-8">
+                      {searchTerm || currentFilter !== 'all' ? 
+                        "No drivers found matching the current filters" : 
+                        "No drivers found"
+                      }
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -659,12 +1016,7 @@ const DriverManagement = () => {
                         <span
                           className={`font-medium ${(driver.saldo || 0) >= 0 ? "text-green-600" : "text-red-600"}`}
                         >
-                          {new Intl.NumberFormat('id-ID', {
-                            style: 'currency',
-                            currency: 'IDR',
-                            minimumFractionDigits: 0,
-                            maximumFractionDigits: 0
-                          }).format(driver.saldo || 0)}
+                          {formatRupiah(driver.saldo || 0)}
                         </span>
                       </TableCell>
                       <TableCell className="text-right">
@@ -698,168 +1050,29 @@ const DriverManagement = () => {
         <CardFooter className="flex justify-between">
           <div className="text-sm text-muted-foreground">
             Showing {filteredDrivers.length} of {drivers.length} drivers
+            {currentFilter !== 'all' && (
+              <span className="text-blue-600 ml-1">
+                (filtered by {
+                  currentFilter === 'active' ? 'active status' :
+                  currentFilter === 'online' ? 'online status' :
+                  currentFilter === 'negativeBalance' ? 'negative balance' :
+                  'all'
+                })
+              </span>
+            )}
           </div>
-          <Button variant="outline" onClick={fetchDrivers}>
-            Refresh
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => fetchDriverStats()}>
+              Refresh Stats
+            </Button>
+            <Button variant="outline" onClick={() => fetchDrivers()}>
+              Refresh
+            </Button>
+          </div>
         </CardFooter>
       </Card>
 
-      {/* Add Driver Dialog */}
-      {/*    <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Add New Driver</DialogTitle>
-            <DialogDescription>
-              Fill in the details to add a new driver to the database.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="role_id" className="text-right">
-                Select Driver Role
-              </Label>
-              <select
-                id="role_id"
-                name="role_id"
-                value={formData.role_id?.toString() || ""}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    role_id: parseInt(e.target.value),
-                  })
-                }
-                className="col-span-3 border border-gray-300 rounded px-3 py-2"
-              >
-                <option value="">Pilih Role</option>
-                <option value="2">Driver Mitra</option>
-                <option value="3">Driver Perusahaan</option>
-              </select>
-            </div>
-
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="name" className="text-right">
-                Name
-              </Label>
-              <Input
-                id="name"
-                name="name"
-                value={formData.name}
-                onChange={handleInputChange}
-                className="col-span-3"
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="email" className="text-right">
-                Email
-              </Label>
-              <Input
-                id="email"
-                name="email"
-                type="email"
-                value={formData.email}
-                onChange={handleInputChange}
-                className="col-span-3"
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="phone" className="text-right">
-                Phone
-              </Label>
-              <Input
-                id="phone"
-                name="phone"
-                value={formData.phone}
-                onChange={handleInputChange}
-                className="col-span-3"
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="reference_phone" className="text-right">
-                Reference Phone
-              </Label>
-              <Input
-                id="reference_phone"
-                name="reference_phone"
-                value={formData.reference_phone}
-                onChange={handleInputChange}
-                className="col-span-3"
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="license_number" className="text-right">
-                License Number
-              </Label>
-              <Input
-                id="license_number"
-                name="license_number"
-                value={formData.license_number}
-                onChange={handleInputChange}
-                className="col-span-3"
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="license_expiry" className="text-right">
-                License Expiry
-              </Label>
-              <Input
-                id="license_expiry"
-                name="license_expiry"
-                type="date"
-                value={formData.license_expiry}
-                onChange={handleInputChange}
-                className="col-span-3"
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="stnk_expiry" className="text-right">
-                STNK Expiry
-              </Label>
-              <Input
-                id="stnk_expiry"
-                name="stnk_expiry"
-                type="date"
-                value={formData.stnk_expiry}
-                onChange={handleInputChange}
-                className="col-span-3"
-              />
-            </div>
-            <FileUploadField label="Selfie" id="selfie" fileType="selfie" />
-            <FileUploadField label="SIM" id="sim" fileType="sim" />
-            <FileUploadField label="STNK" id="stnk" fileType="stnk" />
-            <FileUploadField label="Kartu Keluarga" id="kk" fileType="kk" />
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="status" className="text-right">
-                Account Status
-              </Label>
-              <Select
-                name="status"
-                value={formData.account_status}
-                onValueChange={(value) =>
-                  setFormData({ ...formData, account_status: value })
-                }
-              >
-                <SelectTrigger id="status" className="col-span-3">
-                  <SelectValue placeholder="Select status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="suspended">Suspended</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-         
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleAddDriver}>Add Driver</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>*/}
-
-      {/* Edit Driver Dialog */}
+      {/* FIXED: Edit Driver Dialog - Keep existing functionality */}
       <Dialog open={isEditDialogOpen} onOpenChange={(open) => {
         setIsEditDialogOpen(open);
         if (!open) {
@@ -946,7 +1159,7 @@ const DriverManagement = () => {
               </Label>
               <Input
                 id="edit-phone_number"
-                name="phone"
+                name="phone_number"
                 value={formData.phone_number}
                 onChange={handleInputChange}
                 className="col-span-3"
@@ -1082,7 +1295,7 @@ const DriverManagement = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Driver Dialog */}
+      {/* FIXED: Delete Driver Dialog - Keep existing functionality */}
       <AlertDialog
         open={isDeleteDialogOpen}
         onOpenChange={setIsDeleteDialogOpen}

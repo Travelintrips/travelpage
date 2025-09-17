@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   Card,
   CardContent,
@@ -100,7 +100,14 @@ const HistoryTopUp = () => {
   const [transactions, setTransactions] = useState<TopUpTransaction[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [historiTransaksi, setHistoriTransaksi] = useState<HistoriTransaksi[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  
+  // Add refs to prevent duplicate fetches and track initialization
+  const fetchInProgress = useRef(false);
+  const lastFetchTime = useRef(0);
+  const isInitialized = useRef(false);
+  
   const [activeTab, setActiveTab] = useState("history");
   const [searchTerm, setSearchTerm] = useState("");
   const [agentFilter, setAgentFilter] = useState("");
@@ -112,7 +119,45 @@ const HistoryTopUp = () => {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const { toast } = useToast();
 
+  // FIXED: Single useEffect to handle all initialization logic with caching
   useEffect(() => {
+    // Prevent multiple initializations
+    if (isInitialized.current) {
+      console.log('[HistoryTopUp] Already initialized, skipping...');
+      return;
+    }
+
+    console.log('[HistoryTopUp] Initializing component...');
+    isInitialized.current = true;
+    
+    // Check for cached data first
+    const cachedTransactions = sessionStorage.getItem('historyTopUp_cachedTransactions');
+    const cachedAgents = sessionStorage.getItem('historyTopUp_cachedAgents');
+    
+    if (cachedTransactions && cachedAgents) {
+      try {
+        const parsedTransactions = JSON.parse(cachedTransactions);
+        const parsedAgents = JSON.parse(cachedAgents);
+        
+        if (parsedTransactions && parsedAgents) {
+          setTransactions(parsedTransactions);
+          setAgents(parsedAgents);
+          console.log('[HistoryTopUp] Loaded cached data, NO LOADING SCREEN');
+          
+          // Background refresh to get latest data
+          setTimeout(() => {
+            fetchTransactions(true);
+            fetchAgents(true);
+          }, 100);
+          return;
+        }
+      } catch (error) {
+        console.warn('[HistoryTopUp] Failed to parse cached data:', error);
+      }
+    }
+
+    // Fetch data if no cache or cache is empty
+    console.log('[HistoryTopUp] No cached data, fetching fresh data...');
     fetchTransactions();
     fetchAgents();
   }, []);
@@ -123,9 +168,48 @@ const HistoryTopUp = () => {
     }
   }, [activeTab]);
 
-  const fetchTransactions = async () => {
+  // FIXED: Add visibility change handler to refetch data when tab becomes visible
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        const now = Date.now();
+        // Only refetch if more than 30 seconds have passed since last fetch
+        if (now - lastFetchTime.current > 30000 && !fetchInProgress.current) {
+          console.log('[HistoryTopUp] Tab became visible, doing background refresh...');
+          fetchTransactions(true);
+          fetchAgents(true);
+          if (activeTab === "topup-by-admin") {
+            fetchHistoriTransaksi(true);
+          }
+        } else {
+          console.log('[HistoryTopUp] Skipping refresh - too recent or already fetching');
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [activeTab]);
+
+  // FIXED: Modified fetchTransactions with caching and proper loading state management
+  const fetchTransactions = async (isBackgroundRefresh = false) => {
+    // Prevent duplicate fetches
+    if (fetchInProgress.current) {
+      console.log('[HistoryTopUp] Transactions fetch already in progress, skipping...');
+      return;
+    }
+
+    fetchInProgress.current = true;
+    lastFetchTime.current = Date.now();
+
     try {
-      setLoading(true);
+      // Only show loading spinner for initial load when no data exists
+      if (!isBackgroundRefresh && transactions.length === 0) {
+        console.log('[HistoryTopUp] Showing loading spinner for initial load');
+        setLoading(true);
+      } else {
+        console.log('[HistoryTopUp] Background refresh, no loading spinner');
+      }
 
       // Fetch top-up requests without foreign key joins
       const { data: topupData, error: topupError } = await supabase
@@ -235,6 +319,14 @@ const HistoryTopUp = () => {
 
       console.log("Final filtered transaction data:", transactionData);
       setTransactions(transactionData);
+      
+      // ✅ Cache the data untuk mencegah loading screen di navigasi berikutnya
+      try {
+        sessionStorage.setItem('historyTopUp_cachedTransactions', JSON.stringify(transactionData));
+        console.log('[HistoryTopUp] Transactions data cached successfully');
+      } catch (cacheError) {
+        console.warn('[HistoryTopUp] Failed to cache transactions data:', cacheError);
+      }
     } catch (error) {
       console.error("Error fetching transactions:", error);
       toast({
@@ -243,7 +335,9 @@ const HistoryTopUp = () => {
         variant: "destructive",
       });
     } finally {
+      // CRITICAL: Always reset loading states
       setLoading(false);
+      fetchInProgress.current = false;
     }
   };
 

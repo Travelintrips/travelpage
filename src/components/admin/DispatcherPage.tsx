@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import {
   Table,
@@ -42,7 +42,8 @@ interface DispatcherUser {
 const DispatcherPage = () => {
   const [users, setUsers] = useState<DispatcherUser[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<DispatcherUser[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isFetching, setIsFetching] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [ethnicityFilter, setEthnicityFilter] = useState("");
   const [religionFilter, setReligionFilter] = useState("");
@@ -52,7 +53,16 @@ const DispatcherPage = () => {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [editFormData, setEditFormData] = useState<Partial<DispatcherUser>>({});
   const { toast } = useToast();
-  const { userRole } = useAuth();
+  const { userRole, user, loading: authLoading } = useAuth();
+
+  // Derive auth state from useAuth hook
+  const isAuthenticated = !!user;
+  const isSessionReady = !authLoading;
+
+  // Add ref to prevent duplicate fetches and track initialization
+  const fetchInProgress = useRef(false);
+  const lastFetchTime = useRef(0);
+  const isInitialized = useRef(false);
 
   // Helper function to get image URL from Supabase Storage
   const getImageUrl = (
@@ -80,56 +90,124 @@ const DispatcherPage = () => {
       const { data } = supabase.storage.from(bucket).getPublicUrl(cleanPath);
       return data.publicUrl;
     } catch (error) {
-      console.error(`Error getting image URL for ${path}:`, error);
+     // console.error(`Error getting image URL for ${path}:`, error);
       return null;
     }
   };
 
+  // FIXED: Single useEffect to handle all initialization logic with caching
   useEffect(() => {
-    fetchUsers();
-  }, []);
+    // Prevent multiple initializations
+    if (isInitialized.current) {
+      console.log('[DispatcherPage] Already initialized, skipping...');
+      return;
+    }
 
-  // Filter effect
+    if (isAuthenticated && isSessionReady) {
+      console.log('[DispatcherPage] Auth ready, initializing component...');
+      isInitialized.current = true;
+      
+      // Check for cached data first (sessionStorage then localStorage)
+      let cachedData = sessionStorage.getItem('dispatcherPage_cachedUsers');
+      if (!cachedData) {
+        cachedData = localStorage.getItem('dispatcherPage_cachedUsers');
+        console.log('[DispatcherPage] No sessionStorage, trying localStorage...');
+      }
+      
+      if (cachedData) {
+        try {
+          const parsedData = JSON.parse(cachedData);
+          if (parsedData && Array.isArray(parsedData)) { // Allow empty arrays
+            setUsers(parsedData);
+            setFilteredUsers(parsedData);
+            console.log('[DispatcherPage] Loaded cached data, NO LOADING SCREEN');
+            
+            // Background refresh to get latest data
+            setTimeout(() => fetchUsers(true), 100);
+            return;
+          }
+        } catch (error) {
+          console.warn('[DispatcherPage] Failed to parse cached data:', error);
+        }
+      }
+
+      // Fetch data if no cache or cache is empty
+      console.log('[DispatcherPage] No cached data, fetching fresh data...');
+      fetchUsers();
+    }
+  }, [isAuthenticated, isSessionReady]);
+
+  // FIXED: Add visibility change handler to refetch data when tab becomes visible
   useEffect(() => {
-    let filtered = users;
+    const handleVisibilityChange = () => {
+      if (!document.hidden && isAuthenticated && isSessionReady && !authLoading) {
+        const now = Date.now();
+        // Only refetch if more than 30 seconds have passed since last fetch
+        if (now - lastFetchTime.current > 30000 && !fetchInProgress.current) {
+          console.log('[DispatcherPage] Tab became visible, doing background refresh...');
+          fetchUsers(true); // Background refresh without loading spinner
+        } else {
+          console.log('[DispatcherPage] Skipping refresh - too recent or already fetching');
+        }
+      }
+    };
 
-    // Search filter
-    if (searchTerm) {
-      filtered = filtered.filter(
-        (user) =>
-          user.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          user.phone_number?.includes(searchTerm),
-      );
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [isAuthenticated, isSessionReady, authLoading]);
+
+  // FIXED: Modified fetchUsers with better error handling and fallback
+  const fetchUsers = async (isBackgroundRefresh = false) => {
+    // Don't fetch if not authenticated or already fetching
+    if (!isAuthenticated || !isSessionReady || authLoading) {
+      console.log('[DispatcherPage] Skipping fetch - auth not ready');
+      return;
     }
 
-    // Ethnicity filter
-    if (ethnicityFilter) {
-      filtered = filtered.filter(
-        (user) =>
-          user.ethnicity?.toLowerCase() === ethnicityFilter.toLowerCase(),
-      );
+    // Prevent duplicate fetches with more robust checking
+    if (fetchInProgress.current) {
+      console.log('[DispatcherPage] Fetch already in progress, skipping...');
+      return;
     }
 
-    // Religion filter
-    if (religionFilter) {
-      filtered = filtered.filter(
-        (user) => user.religion?.toLowerCase() === religionFilter.toLowerCase(),
-      );
+    // Additional check: don't fetch if we just fetched recently (less than 5 seconds ago)
+    const now = Date.now();
+    if (now - lastFetchTime.current < 5000 && users.length > 0) {
+      console.log('[DispatcherPage] Recent fetch detected, skipping...');
+      return;
     }
 
-    setFilteredUsers(filtered);
-  }, [users, searchTerm, ethnicityFilter, religionFilter]);
+    fetchInProgress.current = true;
 
-  const fetchUsers = async () => {
     try {
-      setIsLoading(true);
+      // Only show loading spinner for initial load when no data exists
+      if (!isBackgroundRefresh && users.length === 0) {
+        console.log('[DispatcherPage] Showing loading spinner for initial load');
+        setIsLoading(true);
+      } else {
+        console.log('[DispatcherPage] Background refresh, no loading spinner');
+      }
 
-      // Fetch users with role information (only role_id 8)
+      setIsFetching(true);
+
+      // FIXED: Fetch only Dispatcher users with role_id = 8 and role_name = "Dispatcher"
+      console.log('[DispatcherPage] Fetching users with Dispatcher role only...');
+      
+      // First, let's check what roles exist and find the correct Dispatcher role
+      const { data: rolesData, error: rolesError } = await supabase
+        .from("roles")
+        .select("*");
+        
+      if (rolesError) {
+        console.error("Error fetching roles:", rolesError);
+      } else {
+        console.log("Available roles:", rolesData);
+      }
+
+      // FIXED: Fetch only users with role_id = 8 (Dispatcher role)
       const { data: usersData, error: usersError } = await supabase
         .from("users")
-        .select(
-          `
+        .select(`
           id,
           full_name,
           email,
@@ -138,36 +216,122 @@ const DispatcherPage = () => {
           religion,
           selfie_photo_url,
           ktp_url,
-          roles!fk_users_roles(role_name)
-        `,
-        )
-        .eq("role_id", 8); // Only get users with role_id 8
+          role_id,
+          roles (
+            id,
+            role_name
+          )
+        `)
+        .eq("role_id", 8); // Only fetch users with role_id = 8
+
+      console.log('[DispatcherPage] Users with role_id=8 fetched:', usersData?.length || 0);
+      console.log('[DispatcherPage] Sample user data:', usersData?.[0]);
 
       if (usersError) {
         throw usersError;
       }
 
-      // Transform the data to flatten the role information
-      const transformedUsers =
-        usersData?.map((user) => ({
-          ...user,
-          role_name: user.roles?.role_name || null,
-        })) || [];
+      if (usersData) {
+        // Transform and filter to ensure only Dispatcher role users
+        const transformedUsers = (usersData || [])
+          .map((user) => ({
+            ...user,
+            role_name: user.roles?.role_name || null,
+          }))
+          .filter((user) => {
+            // Double check: only include users with role_id = 8 AND role_name contains "Dispatcher"
+            const isDispatcher = user.role_id === 8 && 
+              (user.role_name?.toLowerCase().includes('dispatcher') || 
+               user.role_name?.toLowerCase() === 'dispatcher');
+            
+            if (!isDispatcher) {
+              console.log('[DispatcherPage] Filtering out non-dispatcher user:', user.full_name, 'Role:', user.role_name);
+            }
+            
+            return isDispatcher;
+          });
 
-      console.log("Fetched dispatcher users:", transformedUsers);
-      setUsers(transformedUsers);
-      setFilteredUsers(transformedUsers);
-    } catch (error) {
+        console.log('[DispatcherPage] Final filtered Dispatcher users:', transformedUsers.length);
+        console.log('[DispatcherPage] Dispatcher users sample:', transformedUsers[0]);
+
+        setUsers(transformedUsers);
+        setFilteredUsers(transformedUsers);
+
+        // ✅ FIXED: Update lastFetchTime only on successful fetch
+        lastFetchTime.current = Date.now();
+        
+        // ✅ Cache the data in both sessionStorage and localStorage
+        try {
+          const dataToCache = JSON.stringify(transformedUsers);
+          sessionStorage.setItem('dispatcherPage_cachedUsers', dataToCache);
+          localStorage.setItem('dispatcherPage_cachedUsers', dataToCache);
+          console.log('[DispatcherPage] Data cached successfully in both storages');
+        } catch (cacheError) {
+          console.warn('[DispatcherPage] Failed to cache data:', cacheError);
+        }
+        
+        console.log('[DispatcherPage] Users fetched successfully:', transformedUsers.length);
+      }
+    } catch (error: any) {
       console.error("Error fetching users:", error);
+      
+      // ✅ FIXED: Add fallback to prevent stuck loading
+      if (!isBackgroundRefresh) {
+        // Set empty arrays to show "No users found" instead of stuck loading
+        setUsers([]);
+        setFilteredUsers([]);
+      }
+      
       toast({
         variant: "destructive",
         title: "Error fetching users",
-        description: error.message || "Failed to fetch user data",
+        description: error?.message || "Failed to fetch user data",
       });
     } finally {
+      // CRITICAL: Always reset loading states
       setIsLoading(false);
+      setIsFetching(false);
+      fetchInProgress.current = false;
     }
   };
+
+  useEffect(() => {
+    if (!users.length) {
+      setFilteredUsers([]);
+      return;
+    }
+
+    let filtered = users;
+
+    // Apply search filter
+    if (searchTerm) {
+      const searchLower = searchTerm.toLowerCase();
+      filtered = filtered.filter(
+        (user) =>
+          user.full_name?.toLowerCase().includes(searchLower) ||
+          user.email?.toLowerCase().includes(searchLower) ||
+          user.phone_number?.toLowerCase().includes(searchLower)
+      );
+    }
+
+    // Apply ethnicity filter
+    if (ethnicityFilter) {
+      const ethnicityLower = ethnicityFilter.toLowerCase();
+      filtered = filtered.filter((user) =>
+        user.ethnicity?.toLowerCase().includes(ethnicityLower)
+      );
+    }
+
+    // Apply religion filter
+    if (religionFilter) {
+      const religionLower = religionFilter.toLowerCase();
+      filtered = filtered.filter((user) =>
+        user.religion?.toLowerCase().includes(religionLower)
+      );
+    }
+
+    setFilteredUsers(filtered);
+  }, [users, searchTerm, ethnicityFilter, religionFilter]);
 
   const handleView = (user: DispatcherUser) => {
     setSelectedUser(user);
@@ -222,11 +386,11 @@ const DispatcherPage = () => {
   const handleConfirmDelete = async () => {
     if (!selectedUser) return;
 
-    if (userRole !== "Super Admin") {
+    if (userRole !== "Staff") {
       toast({
         variant: "destructive",
         title: "Access Denied",
-        description: "Only Super Admin can delete dispatchers",
+        description: "Only Staff can delete dispatchers",
       });
       return;
     }
@@ -338,9 +502,14 @@ const DispatcherPage = () => {
             )}
           </div>
 
+          {/* FIXED: Better loading and empty state handling */}
           {isLoading ? (
             <div className="flex justify-center items-center h-64">
               <p>Loading users...</p>
+            </div>
+          ) : users.length === 0 ? (
+            <div className="flex justify-center items-center h-64">
+              <p className="text-gray-500">No users found</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -362,124 +531,122 @@ const DispatcherPage = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredUsers.map((user) => (
-                    <TableRow key={user.id}>
-                      <TableCell>
-                        <Avatar className="h-10 w-10">
-                          <AvatarImage
-                            src={
-                              getImageUrl(user.selfie_photo_url, "selfies") ||
-                              undefined
-                            }
-                            alt={user.full_name || "User"}
-                            className="object-cover"
-                          />
-                          <AvatarFallback className="bg-gray-200 text-gray-600">
-                            {user.full_name
-                              ?.split(" ")
-                              .map((n) => n[0])
-                              .join("")
-                              .toUpperCase() || "U"}
-                          </AvatarFallback>
-                        </Avatar>
-                      </TableCell>
-                      <TableCell className="font-medium">
-                        {user.full_name || "-"}
-                      </TableCell>
-                      <TableCell>{user.email || "-"}</TableCell>
-                      <TableCell>{user.phone_number || "-"}</TableCell>
-                      <TableCell>{user.ethnicity || "-"}</TableCell>
-                      <TableCell>{user.religion || "-"}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline">
-                          {user.role_name || "No Role"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-1">
-                          {user.selfie_photo_url && (
-                            <a
-                              href={
-                                getImageUrl(user.selfie_photo_url, "selfies") ||
-                                "#"
-                              }
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="hover:opacity-80"
-                            >
-                              <Badge
-                                variant="secondary"
-                                className="text-xs cursor-pointer hover:bg-blue-200 bg-blue-100 text-blue-800"
-                              >
-                                Selfie
-                              </Badge>
-                            </a>
-                          )}
-                          {user.ktp_url && (
-                            <a
-                              href={
-                                getImageUrl(user.ktp_url, "documents") || "#"
-                              }
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="hover:opacity-80"
-                            >
-                              <Badge
-                                variant="secondary"
-                                className="text-xs cursor-pointer hover:bg-green-200 bg-green-100 text-green-800"
-                              >
-                                KTP
-                              </Badge>
-                            </a>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-  {userRole !== "Staff" && (
-    <div className="flex gap-1">
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => handleView(user)}
-        className="h-8 w-8 p-0 hover:bg-blue-100"
-      >
-        <Eye className="h-4 w-4 text-blue-600" />
-      </Button>
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => handleEdit(user)}
-        className="h-8 w-8 p-0 hover:bg-green-100"
-      >
-        <Edit className="h-4 w-4 text-green-600" />
-      </Button>
-      {userRole === "Super Admin" && (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => handleDelete(user)}
-          className="h-8 w-8 p-0 hover:bg-red-100"
-        >
-          <Trash2 className="h-4 w-4 text-red-600" />
-        </Button>
-      )}
-    </div>
-  )}
-</TableCell>
-
-                    </TableRow>
-                  ))}
-                  {filteredUsers.length === 0 && (
+                  {filteredUsers.length === 0 ? (
                     <TableRow>
                       <TableCell
                         colSpan={9}
                         className="text-center py-8 text-gray-500"
                       >
-                        {users.length === 0
-                          ? "No users found"
-                          : "No users match the current filters"}
+                        No users match the current filters
                       </TableCell>
                     </TableRow>
+                  ) : (
+                    filteredUsers.map((user) => (
+                      <TableRow key={user.id}>
+                        <TableCell>
+                          <Avatar className="h-10 w-10">
+                            <AvatarImage
+                              src={
+                                getImageUrl(user.selfie_photo_url, "selfies") ||
+                                undefined
+                              }
+                              alt={user.full_name || "User"}
+                              className="object-cover"
+                            />
+                            <AvatarFallback className="bg-gray-200 text-gray-600">
+                              {user.full_name
+                                ?.split(" ")
+                                .map((n) => n[0])
+                                .join("")
+                                .toUpperCase() || "U"}
+                            </AvatarFallback>
+                          </Avatar>
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          {user.full_name || "-"}
+                        </TableCell>
+                        <TableCell>{user.email || "-"}</TableCell>
+                        <TableCell>{user.phone_number || "-"}</TableCell>
+                        <TableCell>{user.ethnicity || "-"}</TableCell>
+                        <TableCell>{user.religion || "-"}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline">
+                            {user.role_name || "No Role"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-1">
+                            {user.selfie_photo_url && (
+                              <a
+                                href={
+                                  getImageUrl(user.selfie_photo_url, "selfies") ||
+                                  "#"
+                                }
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="hover:opacity-80"
+                              >
+                                <Badge
+                                  variant="secondary"
+                                  className="text-xs cursor-pointer hover:bg-blue-200 bg-blue-100 text-blue-800"
+                                >
+                                  Selfie
+                                </Badge>
+                              </a>
+                            )}
+                            {user.ktp_url && (
+                              <a
+                                href={
+                                  getImageUrl(user.ktp_url, "documents") || "#"
+                                }
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="hover:opacity-80"
+                              >
+                                <Badge
+                                  variant="secondary"
+                                  className="text-xs cursor-pointer hover:bg-green-200 bg-green-100 text-green-800"
+                                >
+                                  KTP
+                                </Badge>
+                              </a>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {userRole !== "Staff" && (
+                            <div className="flex gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleView(user)}
+                                className="h-8 w-8 p-0 hover:bg-blue-100"
+                              >
+                                <Eye className="h-4 w-4 text-blue-600" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleEdit(user)}
+                                className="h-8 w-8 p-0 hover:bg-green-100"
+                              >
+                                <Edit className="h-4 w-4 text-green-600" />
+                              </Button>
+                              {userRole === "Super Admin" && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleDelete(user)}
+                                  className="h-8 w-8 p-0 hover:bg-red-100"
+                                >
+                                  <Trash2 className="h-4 w-4 text-red-600" />
+                                </Button>
+                              )}
+                            </div>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))
                   )}
                 </TableBody>
               </Table>

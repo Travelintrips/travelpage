@@ -68,29 +68,16 @@ const CheckoutPage: React.FC = () => {
     isLoading,
   } = useAuth();
 
-  // 🎯 BLOCKING GUARD: Prevent rendering until session is hydrated
-  if (!isHydrated || isLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center max-w-md mx-auto p-6">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500 mx-auto mb-6"></div>
-          <h2 className="text-xl font-semibold text-gray-800 mb-2">
-            Loading session...
-          </h2>
-          <p className="text-sm text-gray-600 mb-4">
-            Please wait while we restore your session
-          </p>
-        </div>
-      </div>
-    );
-  }
+  // FIXED: Move ALL hooks to the top before any conditional returns
   const { cartItems, totalAmount, clearCart } = useShoppingCart();
+  
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>(
     () => {
       // Try to restore from sessionStorage
       return sessionStorage.getItem("checkout-payment-method") || "";
     },
   );
+  
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [selectedBank, setSelectedBank] = useState<any | null>(() => {
     // Try to restore from sessionStorage
@@ -160,6 +147,23 @@ const CheckoutPage: React.FC = () => {
       phone: "",
     };
   });
+
+  // 🎯 BLOCKING GUARD: Prevent rendering until session is hydrated
+  if (!isHydrated || isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center max-w-md mx-auto p-6">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500 mx-auto mb-6"></div>
+          <h2 className="text-xl font-semibold text-gray-800 mb-2">
+            Loading session...
+          </h2>
+          <p className="text-sm text-gray-600 mb-4">
+            Please wait while we restore your session
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   // WhatsApp message sending function
   const sendWhatsAppMessage = async (
@@ -1520,7 +1524,9 @@ const CheckoutPage: React.FC = () => {
               error_hint: transferError.hint,
               validation: {
                 id_is_uuid: isValidUUID(transferBookingData.id),
-                booking_id_is_uuid: isValidUUID(transferBookingData.booking_id),
+                booking_id_is_uuid: isValidUUID(
+                  transferBookingData.booking_id,
+                ),
                 payment_id_is_uuid: isValidUUID(paymentId),
                 code_booking_valid: isValidBookingCode(
                   transferBookingData.code_booking,
@@ -1655,11 +1661,21 @@ const CheckoutPage: React.FC = () => {
             }
 
             // Link to payment_bookings table using the SAME booking_id from handling_bookings
+            console.log("🔗 Linking payment_bookings with:", {
+              payment_id: paymentId,
+              booking_id: handlingBooking.id,
+              booking_type: "handling",
+              code_booking: handlingBooking.code_booking,
+            });
             await linkPaymentBooking(
               paymentId,
               handlingBooking.id.toString(),
               "handling",
               handlingBooking.code_booking,
+            );
+            console.log(
+              "✅ Successfully linked payment_bookings with booking_id:",
+              handlingBooking.id,
             );
           } else {
             // Create new handling booking

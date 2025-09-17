@@ -1,4 +1,4 @@
-import React, { Suspense, useState, useEffect, useMemo } from "react";
+import React, { Suspense, useState, useEffect, useMemo, useCallback } from "react";
 import ProfilePage from "./pages/ProfilePage";
 import BookingsPage from "./pages/BookingsPage";
 import ApiSettings from "./components/admin/ApiSettings";
@@ -72,6 +72,7 @@ import TransportasiPage from "./pages/TransportasiPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import DriverDetailPage from "./pages/DriverDetailPage";
+import IasBookingGroup from "./components/admin/IasBookingGroup";
 
 declare global {
   interface Window {
@@ -88,10 +89,10 @@ const ROLES = {
   CUSTOMER: "Customer",
   DRIVER_MITRA: "Driver Mitra",
   DRIVER_PERUSAHAAN: "Driver Perusahaan",
+  STAFF_IAS: "Staff Ias",
 };
 
 function AppContent() {
-  // All hooks must be called at the top level and in the same order every render
   const {
     isAuthenticated,
     userRole,
@@ -107,7 +108,16 @@ function AppContent() {
   const [routes, setRoutes] = useState<any[]>([]);
   const [tempoRoutesLoaded, setTempoRoutesLoaded] = useState(false);
 
-  // Load tempo routes dynamically - moved to top level
+  // Move useRoutes call to top level - CRITICAL for hook order consistency
+  const tempoRoutes = useMemo(() => {
+    if (!tempoRoutesLoaded || !import.meta.env.VITE_TEMPO || routes.length === 0) {
+      return [];
+    }
+    return routes;
+  }, [tempoRoutesLoaded, routes]);
+
+  const renderedTempoRoutes = useRoutes(tempoRoutes);
+
   useEffect(() => {
     const loadTempoRoutes = async () => {
       try {
@@ -127,315 +137,162 @@ function AppContent() {
     loadTempoRoutes();
   }, []);
 
-  /*console.log("App.tsx - Current auth state:", {
-    isAuthenticated,
-    userRole,
-    isAdmin,
-    isHydrated,
-  }); */
-
-  // Set auth ready state when context is hydrated
   useEffect(() => {
-    if (isHydrated) {
+    if (isHydrated && isSessionReady) {
       setIsAuthReady(true);
     }
-  }, [isHydrated]);
+  }, [isHydrated, isSessionReady]);
 
-  // Enhanced session recovery with global trigger and immediate Supabase rehydration
   useEffect(() => {
     let recoveryTimeout: NodeJS.Timeout;
     let lastRecoveryTime = 0;
-    const RECOVERY_COOLDOWN = 3000; // Increased cooldown to prevent loops
-    let isRecovering = false; // Add recovery guard
+    const RECOVERY_COOLDOWN = 5000;
+    let isRecovering = false;
 
     const recoverSession = async () => {
       const now = Date.now();
       if (now - lastRecoveryTime < RECOVERY_COOLDOWN || isRecovering) {
-        console.log(
-          "[App] Recovery cooldown active or already recovering, skipping",
-        );
         return;
       }
-
-      // ✅ GUARD KETAT: Kalau auth state sudah valid, langsung skip
-      if (isAuthenticated && userId && userRole) {
-        console.log("[App] Auth state already valid, skipping recovery", {
-          isAuthenticated,
-          hasUserId: !!userId,
-          hasUserRole: !!userRole
-        });
+      if (isAuthenticated && userId && userRole && isSessionReady) {
         return;
       }
-
       isRecovering = true;
+      lastRecoveryTime = now;
 
-      // Check for loggedOut flag to prevent redirect loops
       const loggedOut = sessionStorage.getItem("loggedOut");
       if (loggedOut) {
         sessionStorage.removeItem("loggedOut");
         setIsAuthReady(true);
+        isRecovering = false;
         return;
       }
 
-      lastRecoveryTime = now;
-      console.log("[App] Starting enhanced session recovery...");
-
-      // Priority 1: Try Supabase session first for fresh data
       try {
-        console.log("[App] Attempting fresh Supabase session recovery...");
-        const {
-          data: { session },
-          error,
-        } = await supabase.auth.getSession();
-
+        const { data: { session }, error } = await supabase.auth.getSession();
         if (!error && session?.user) {
-          console.log(
-            "[App] Fresh session found, triggering AuthContext update",
-          );
-
-          // Create consistent user data from fresh session
           const user = session.user;
           const userMeta = user.user_metadata || {};
-          const isAdminEmail =
-            user.email?.includes("admin") ||
-            user.email === "divatranssoetta@gmail.com";
+          const isAdminEmail = user.email?.includes("admin") || user.email === "divatranssoetta@gmail.com";
 
           const consistentUserData = {
             id: user.id,
             email: user.email || "",
             role: isAdminEmail ? "Admin" : userMeta.role || "Customer",
-            name:
-              userMeta.full_name ||
-              userMeta.name ||
-              user.email?.split("@")[0] ||
-              "User",
+            name: userMeta.full_name || userMeta.name || user.email?.split("@")[0] || "User",
           };
 
-          // Dispatch event to trigger AuthContext update with fresh data
           window.dispatchEvent(
             new CustomEvent("forceSessionRestore", {
               detail: consistentUserData,
-            }),
+            })
           );
-
-          // Also dispatch session restored event for components
-          window.dispatchEvent(
-            new CustomEvent("sessionRestored", {
-              detail: consistentUserData,
-            }),
-          );
-
-          console.log("[App] Session recovered from fresh Supabase data");
-          isRecovering = false; // Reset recovery guard
+          isRecovering = false;
           return;
         }
-      } catch (error) {
-        console.warn("[App] Supabase session recovery failed:", error);
-        isRecovering = false; // Reset recovery guard on error
-      }
+      } catch (error) {}
 
-      // Priority 2: Fallback to localStorage for immediate recovery
       const storedUser = localStorage.getItem("auth_user");
-      const storedUserName = localStorage.getItem("userName");
-      const storedUserRole = localStorage.getItem("userRole");
-
       if (storedUser && (!isAuthenticated || !userId)) {
         try {
           const userData = JSON.parse(storedUser);
           if (userData && userData.id && userData.email) {
-            console.log("[App] Fallback session recovery from localStorage");
-
-            // Create consistent user data object
             const consistentUserData = {
               id: userData.id,
               email: userData.email,
-              role: storedUserRole || userData.role || "Customer",
-              name:
-                storedUserName ||
-                userData.name ||
-                userData.email?.split("@")[0] ||
-                "User",
+              role: userData.role || "Customer",
+              name: userData.name || userData.email?.split("@")[0] || "User",
             };
 
-            // Dispatch event to trigger AuthContext update
             window.dispatchEvent(
               new CustomEvent("forceSessionRestore", {
                 detail: consistentUserData,
-              }),
+              })
             );
-
-            // Also dispatch session restored event for components
-            window.dispatchEvent(
-              new CustomEvent("sessionRestored", {
-                detail: consistentUserData,
-              }),
-            );
+            isRecovering = false;
             return;
           }
-        } catch (error) {
-          console.warn("[App] Error parsing stored user data:", error);
-          isRecovering = false; // Reset recovery guard on error
-        }
+        } catch (error) {}
       }
 
-      console.log("[App] No valid session found during recovery");
-      isRecovering = false; // Reset recovery guard
+      isRecovering = false;
     };
 
-    // Enhanced visibility change handler with immediate session rehydration and throttling
     let lastVisibilityTime = 0;
-    const VISIBILITY_THROTTLE = 5000; // 5 second throttle for visibility changes
+    const VISIBILITY_THROTTLE = 10000;
 
     const handleVisibilityChange = async () => {
       const now = Date.now();
       if (now - lastVisibilityTime < VISIBILITY_THROTTLE) {
-        console.log("[App] Visibility change throttled");
         return;
       }
       lastVisibilityTime = now;
 
       if (document.visibilityState === "visible" && isHydrated) {
-        // ✅ GUARD KETAT: Kalau auth state sudah valid, langsung skip
-        if (isAuthenticated && userId && userRole) {
-          console.log(
-            "[App] Tab visible, auth state valid — skip session recovery"
-          );
+        if (isAuthenticated && userId && userRole && isSessionReady) {
           return;
         }
 
-        console.log(
-          "[App] Tab became visible, auth state incomplete — checking if recovery needed...",
-          { isAuthenticated, userId: !!userId, userRole: !!userRole }
-        );
-
-        // Clear any existing timeout
-        if (recoveryTimeout) clearTimeout(recoveryTimeout);
-
-        const needsRecovery = !isAuthenticated || !userId || !userRole;
-
+        const needsRecovery = !isAuthenticated || !userId || !userRole || !isSessionReady;
         if (needsRecovery && !isRecovering) {
-          console.log(
-            "[App] Session state incomplete, triggering recovery",
-            { isAuthenticated, userId: !!userId, userRole: !!userRole }
-          );
-          await recoverSession();
+          if (recoveryTimeout) clearTimeout(recoveryTimeout);
+          recoveryTimeout = setTimeout(async () => {
+            if ((!isAuthenticated || !userRole || !userId || !isSessionReady) && !isRecovering && isHydrated) {
+              await recoverSession();
+            }
+          }, 1000);
         }
-
-        // Debounced recovery fallback - hanya kalau masih butuh
-        recoveryTimeout = setTimeout(async () => {
-          if (
-            (!isAuthenticated || !userRole || !userId) &&
-            !isRecovering &&
-            isHydrated
-          ) {
-            console.log(
-              "[App] Final auth state check failed, attempting recovery"
-            );
-            await recoverSession();
-          }
-        }, 1000);
       }
     };
 
-    // Listen for custom session restore events
     const handleForceSessionRestore = (event: CustomEvent) => {
-      //  console.log("[App] Force session restore event received:", event.detail);
-      // Trigger AuthContext sync
       window.dispatchEvent(
-        new CustomEvent("authStateRefreshed", { detail: event.detail }),
+        new CustomEvent("authStateRefreshed", { detail: event.detail })
       );
     };
 
-    // Listen for force session ready events
     const handleForceSessionReady = () => {
-      //  console.log("[App] Force session ready event received");
       setIsAuthReady(true);
     };
 
-    // Initial recovery attempt
-    recoverSession();
+    if (isHydrated && (!isAuthenticated || !userId || !userRole || !isSessionReady)) {
+      recoverSession();
+    }
 
-    // Listen for visibility changes and custom events
     document.addEventListener("visibilitychange", handleVisibilityChange);
-    window.addEventListener(
-      "forceSessionRestore",
-      handleForceSessionRestore as EventListener,
-    );
-    window.addEventListener(
-      "forceSessionReady",
-      handleForceSessionReady as EventListener,
-    );
+    window.addEventListener("forceSessionRestore", handleForceSessionRestore as EventListener);
+    window.addEventListener("forceSessionReady", handleForceSessionReady as EventListener);
 
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
-      window.removeEventListener(
-        "forceSessionRestore",
-        handleForceSessionRestore as EventListener,
-      );
-      window.removeEventListener(
-        "forceSessionReady",
-        handleForceSessionReady as EventListener,
-      );
+      window.removeEventListener("forceSessionRestore", handleForceSessionRestore as EventListener);
+      window.removeEventListener("forceSessionReady", handleForceSessionReady as EventListener);
       if (recoveryTimeout) clearTimeout(recoveryTimeout);
-      isRecovering = false; // Reset recovery guard on cleanup
     };
-  }, [isAuthenticated, isLoading, userRole, userId, isHydrated]);
+  }, [isAuthenticated, userId, userRole, isSessionReady, isHydrated]);
 
-  // Role-based redirects
   useEffect(() => {
-    if (isAuthenticated && !isLoading) {
+    if (isAuthenticated && !isLoading && isAuthReady) {
       const currentPath = window.location.pathname;
-
-      // Clear any logout flags to ensure proper authentication state
       sessionStorage.removeItem("loggedOut");
 
-      // CRITICAL: Check for restricted roles and force logout immediately
       const restrictedRoles = ["Agent", "Driver Perusahaan", "Driver Mitra"];
       if (userRole && restrictedRoles.includes(userRole)) {
-        // console.log(
-        //   "[App] RESTRICTED ROLE DETECTED - FORCING LOGOUT:",
-        //   userRole,
-        // );
-
-        // Clear all auth data immediately
-        localStorage.removeItem("auth_user");
-        localStorage.removeItem("userId");
-        localStorage.removeItem("userEmail");
-        localStorage.removeItem("userName");
-        localStorage.removeItem("userPhone");
-        localStorage.removeItem("userRole");
-        localStorage.removeItem("isAdmin");
+        localStorage.clear();
         sessionStorage.clear();
-
-        // Sign out from Supabase and force page reload
-        supabase.auth
-          .signOut({ scope: "global" })
-          .then(() => {
-            // console.log("[App] Successfully signed out restricted user");
-            window.location.href = "/";
-          })
-          .catch((error) => {
-            console.error("[App] Error signing out restricted user:", error);
-            window.location.href = "/";
-          });
-
-        return; // Stop further execution
+        supabase.auth.signOut({ scope: "global" }).then(() => {
+          window.location.href = "/";
+        }).catch(() => {
+          window.location.href = "/";
+        });
+        return;
       }
 
-      // Debug output to help diagnose issues
-      // console.log("Current authentication state:", {
-      //   isAuthenticated,
-      //   userRole,
-      //   isAdmin,
-      //   userEmail,
-      //   currentPath,
-      // });
-
-      // CONSOLIDATED ADMIN/STAFF ROUTING - All admin and staff roles go to admin dashboard
       const adminStaffRoles = [
         ROLES.ADMIN,
         ROLES.SUPER_ADMIN,
         ROLES.STAFF,
+        ROLES.STAFF_IAS,
         ROLES.STAFF_TRIPS,
         ROLES.STAFF_TRAFFIC,
         "Staff Admin",
@@ -443,76 +300,39 @@ function AppContent() {
         "Staff Trips",
         "Staff Traffic",
         "Staff",
+        "Staff Ias",
         "Admin"
       ];
 
-      // console.log("Checking role for admin dashboard redirect:", {
-      //   userRole,
-      //   isAdmin,
-      //   isInAdminStaffRoles: adminStaffRoles.includes(userRole),
-      //   currentPath,
-      //   allRoles: adminStaffRoles
-      // });
-
-      // Handle role object from database join (role.role_name) or direct string
       let resolvedUserRole = userRole;
       if (userRole && typeof userRole === 'object' && userRole.role_name) {
         resolvedUserRole = userRole.role_name;
       }
 
-      // Check if user should be redirected to admin dashboard
       const shouldRedirectToAdmin = adminStaffRoles.includes(resolvedUserRole) || isAdmin;
-      
-      // CRITICAL FIX: Only redirect to admin if user is actually admin/staff AND not a customer
-      // Prevent redirection for Customer role users and role_id 10
       const isCustomerRole = resolvedUserRole === "Customer" || resolvedUserRole === ROLES.CUSTOMER;
       const hasCustomerRoleId = localStorage.getItem("userRole") === "Customer";
       
       if (shouldRedirectToAdmin && !isCustomerRole && !hasCustomerRoleId) {
-        // console.log(
-        //   "Admin/Staff user detected, redirecting to admin dashboard",
-        //   { userRole, resolvedUserRole, isAdmin, currentPath, shouldRedirectToAdmin },
-        // );
-        // Always redirect admin/staff users to admin dashboard if they're not already there
         if (!currentPath.includes("/admin")) {
-          // console.log("Navigating to admin dashboard...");
-          // Use navigate with replace: true to prevent back button issues
           navigate("/admin", { replace: true });
         }
-      } else {
-        // console.log("No redirect needed for role:", { userRole, resolvedUserRole });
-        if (userRole === ROLES.DRIVER_PERUSAHAAN) {
-          navigate("/driver-profile");
-        }
-        // For Customer role, stay on current page (no redirection)
-        const isCustomerRole = resolvedUserRole === "Customer" || resolvedUserRole === ROLES.CUSTOMER;
-        const hasCustomerRoleId = localStorage.getItem("userRole") === "Customer";
-        
-        if (isCustomerRole || hasCustomerRoleId) {
-          // console.log("Customer user detected, staying on current page", {
-          //   resolvedUserRole,
-          //   storedRole: localStorage.getItem("userRole")
-          // });
-        }
+      } else if (userRole === ROLES.DRIVER_PERUSAHAAN) {
+        navigate("/driver-profile", { replace: true });
       }
     }
-  }, [isAuthenticated, isLoading, userRole, isAdmin, userEmail, navigate]);
+  }, [isAuthenticated, isLoading, userRole, isAdmin, userEmail, navigate, isAuthReady]);
 
-  // Add timeout to prevent infinite loading
   useEffect(() => {
-    if (!isSessionReady) {
+    if (!isSessionReady && !isLoading) {
       const timeout = setTimeout(() => {
-        console.warn(
-          "[App] Session loading timeout reached, forcing ready state",
-        );
-        // Force session ready if it takes too long
         setIsAuthReady(true);
         window.dispatchEvent(new CustomEvent("forceSessionReady"));
-      }, 5000); // Reduced to 5 second timeout
+      }, 8000);
 
       return () => clearTimeout(timeout);
     }
-  }, [isSessionReady]);
+  }, [isSessionReady, isLoading]);
 
   const ProtectedRoute = ({
     children,
@@ -523,70 +343,37 @@ function AppContent() {
     requiredRole?: string;
     allowedRoles?: string[];
   }) => {
-    if (isLoading) {
+    if (!isAuthReady || isLoading) {
       return <div>Loading...</div>;
     }
 
-    // Special case for admin - check both isAdmin flag and userRole
-    // This ensures that users with admin emails or admin roles can access admin routes
+    if (!isAuthReady || isLoading) {
+      return <div>Loading...</div>;
+    }
+
     if (isAdmin || userRole === ROLES.ADMIN || userRole === ROLES.SUPER_ADMIN) {
-      // console.log(
-      //   "Admin access granted via isAdmin flag or Admin/Super Admin role",
-      //   { isAdmin, userRole },
-      // );
       return children;
     }
 
     if (!isAuthenticated) {
-      // console.log("Not authenticated, redirecting to home");
-      return <Navigate to="/" />;
+      return <Navigate to="/" replace />;
     }
-
-    console.log("Protected route check:", {
-      userRole,
-      requiredRole,
-      allowedRoles,
-      isAdmin,
-    });
 
     if (requiredRole && userRole !== requiredRole) {
-      console.log(
-        `Access denied: User role ${userRole} does not match required role ${requiredRole}`,
-      );
-      return <Navigate to="/" />;
+      return <Navigate to="/" replace />;
     }
 
-    // Handle role object from database join (role.role_name) or direct string
     let resolvedUserRole = userRole;
     if (userRole && typeof userRole === 'object' && userRole.role_name) {
       resolvedUserRole = userRole.role_name;
     }
 
     if (allowedRoles && !allowedRoles.includes(resolvedUserRole || "")) {
-      console.log(
-        `Access denied: User role ${resolvedUserRole} is not in allowed roles [${allowedRoles.join(", ")}]`,
-      );
-      return <Navigate to="/" />;
+      return <Navigate to="/" replace />;
     }
 
     return children;
   };
-
-  // Move useRoutes call outside of JSX to prevent hooks order violation
-  // Only call useRoutes when tempo routes are loaded and available
-  const tempoRoutes = useMemo(() => {
-    if (
-      !tempoRoutesLoaded ||
-      !import.meta.env.VITE_TEMPO ||
-      routes.length === 0
-    ) {
-      return null;
-    }
-    return routes;
-  }, [tempoRoutesLoaded, routes]);
-
-  // Use useRoutes conditionally but consistently
-  const renderedTempoRoutes = useRoutes(tempoRoutes || []);
 
   return (
     <div className="min-h-screen w-full">
@@ -597,32 +384,19 @@ function AppContent() {
           </div>
         }
       >
-        {/* Main application routes */}
         <Routes>
-          {/* Public routes - no authentication required */}
           <Route path="/" element={<TravelPage />} />
           <Route path="/baggage" element={<AirportBaggage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
-
-          <Route
-            path="/airport-preview/:previewCode"
-            element={<AirportTransferPreview />}
-          />
-
+          <Route path="/airport-preview/:previewCode" element={<AirportTransferPreview />} />
           <Route path="/payment/form/:id" element={<PaymentFormPage />} />
           <Route path="/payment/form/:id/*" element={<PaymentFormPage />} />
           <Route path="/payment/:id" element={<PaymentDetailsPage />} />
           <Route path="/thank-you/:paymentId" element={<ThankYouPage />} />
           <Route path="/checkout" element={<CheckoutPage />} />
-          <Route
-            path="/damage-payment/:bookingId"
-            element={<DamagePaymentForm />}
-          />
-          <Route
-            path="damage-payment/:bookingId"
-            element={<DamagePaymentForm />}
-          />
+          <Route path="/damage-payment/:bookingId" element={<DamagePaymentForm />} />
+          <Route path="damage-payment/:bookingId" element={<DamagePaymentForm />} />
           <Route path="/home" element={<RentCar />} />
           <Route path="/sub-account" element={<TravelPage />} />
           <Route path="/rentcar" element={<RentCar />} />
@@ -646,6 +420,7 @@ function AppContent() {
           <Route path="/things-to-do" element={<ActivitiesPage />} />
           <Route path="/handling" element={<HandlingPage />} />
           <Route path="/transportasi" element={<TransportasiPage />} />
+          
           <Route
             path="/new-booking"
             element={
@@ -658,6 +433,7 @@ function AppContent() {
                   ROLES.STAFF_TRAFFIC,
                   "Staff Admin",
                   "Super Admin",
+                  "Staff Ias",
                 ]}
               >
                 <NewBookingPage />
@@ -665,24 +441,6 @@ function AppContent() {
             }
           />
 
-        {/*  <Route
-            path="/admin"
-            element={
-              <ProtectedRoute
-                allowedRoles={[
-                  ROLES.ADMIN,
-                  ROLES.SUPER_ADMIN,
-                  ROLES.STAFF,
-                  ROLES.STAFF_TRIPS,
-                  ROLES.STAFF_TRAFFIC,
-                  "Staff Admin",
-                  "Super Admin",
-                ]}
-              >
-                <AdminLayout />
-              </ProtectedRoute>
-            }
-          />*/}
           <Route
             path="/admin/*"
             element={
@@ -691,6 +449,7 @@ function AppContent() {
                   ROLES.ADMIN,
                   ROLES.SUPER_ADMIN,
                   ROLES.STAFF,
+                  ROLES.STAFF_IAS,
                   ROLES.STAFF_TRIPS,
                   ROLES.STAFF_TRAFFIC,
                   "Staff Admin",
@@ -704,27 +463,19 @@ function AppContent() {
             <Route index element={<AdminDashboard />} />
             <Route path="dashboard" element={<AdminDashboard />} />
             <Route path="customers" element={<CustomerManagement />} />
+            <Route path="concierge-group" element={<IasBookingGroup />} />
             <Route path="drivers" element={<DriverManagement />} />
             <Route path="cars" element={<CarsManagement />} />
             <Route path="payments" element={<Payments />} />
             <Route path="bookings" element={<BookingManagement />} />
-            <Route
-              path="bookings/customer"
-              element={<BookingManagementCustomer />}
-            />
-            <Route
-              path="bookings/driver"
-              element={<BookingManagementDriver />}
-            />
+            <Route path="bookings/customer" element={<BookingManagementCustomer />} />
+            <Route path="bookings/driver" element={<BookingManagementDriver />} />
             <Route path="staff" element={<StaffManagement />} />
             <Route path="inspections" element={<InspectionManagement />} />
             <Route path="checklist" element={<ChecklistManagement />} />
             <Route path="damages" element={<DamageManagement />} />
             <Route path="vehicle-inventory" element={<VehicleInventory />} />
-            <Route
-              path="airport-transfer"
-              element={<AirportTransferManagement />}
-            />
+            <Route path="airport-transfer" element={<AirportTransferManagement />} />
             <Route path="api-settings" element={<ApiSettings />} />
             <Route path="dispatcher" element={<DispatcherPage />} />
             <Route path="data-agent" element={<AgentManagement />} />
@@ -734,40 +485,23 @@ function AppContent() {
             <Route path="top-up-requests" element={<TopUpAgentRequests />} />
             <Route path="topup-driver" element={<TopUpDriver />} />
             <Route path="price-km" element={<PriceKMManagement />} />
-            <Route
-              path="payment-methods"
-              element={<PaymentMethodsManagement />}
-            />
+            <Route path="payment-methods" element={<PaymentMethodsManagement />} />
             <Route path="paylabs-settings" element={<PaylabsSettings />} />
-            <Route
-              path="baggage-booking"
-              element={<BaggageBookingManagement />}
-            />
+            <Route path="baggage-booking" element={<BaggageBookingManagement />} />
             <Route path="price-baggage" element={<PriceBaggage />} />
             <Route path="chart" element={<ChartManagement />} />
-            <Route
-              path="handling-booking"
-              element={<HandlingBookingManagement />}
-            />
-            <Route
-              path="handling-services"
-              element={<HandlingServicesManagement />}
-            />
-            <Route
-              path="damage-payment/:bookingId"
-              element={<DamagePaymentForm />}
-            />
+            <Route path="handling-booking" element={<HandlingBookingManagement />} />
+            <Route path="handling-services" element={<HandlingServicesManagement />} />
+            <Route path="damage-payment/:bookingId" element={<DamagePaymentForm />} />
             <Route path="drivers/:id" element={<DriverDetailPage />} />
           </Route>
 
-          {/* Tempo routes fallback - only if not already handled */}
           {import.meta.env.VITE_TEMPO && <Route path="/tempobook/*" />}
 
-          <Route path="*" element={<Navigate to="/" />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
 
-        {/* Tempo routes for storyboards - rendered separately */}
-       {/* {tempoRoutes && renderedTempoRoutes}*/}
+        {tempoRoutesLoaded && tempoRoutes.length > 0 && renderedTempoRoutes}
       </Suspense>
       <Toaster />
     </div>
@@ -775,9 +509,7 @@ function AppContent() {
 }
 
 function App() {
-  // Clear any stale authentication flags on initial load
   React.useEffect(() => {
-    // Remove any session flags that might interfere with authentication
     sessionStorage.removeItem("forceLogout");
   }, []);
 

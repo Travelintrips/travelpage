@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Card,
   CardContent,
@@ -91,7 +91,14 @@ interface Agent {
 
 const AgentManagement = () => {
   const [agents, setAgents] = useState<Agent[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [isFetching, setIsFetching] = useState(false);
+  
+  // Add refs to prevent duplicate fetches and track initialization
+  const fetchInProgress = useRef(false);
+  const lastFetchTime = useRef(0);
+  const isInitialized = useRef(false);
+  
   const [searchTerm, setSearchTerm] = useState("");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [statusToggleLoading, setStatusToggleLoading] = useState<string | null>(
@@ -126,41 +133,89 @@ const AgentManagement = () => {
   const isSuperAdmin = userRole === "Super Admin";
   const { toast } = useToast();
 
+  // FIXED: Single useEffect to handle all initialization logic with caching
   useEffect(() => {
-    fetchAgents();
-    if (activeTab === "logs") {
-      fetchAgentLogs();
-    }
-    if (activeTab === "transactions") {
-      fetchTransactionHistory();
+    // Prevent multiple initializations
+    if (isInitialized.current) {
+      console.log('[AgentManagement] Already initialized, skipping...');
+      return;
     }
 
-    // Subscribe to real-time updates for memberships table
-    const membershipSubscription = supabase
-      .channel('memberships-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'memberships'
-        },
-        () => {
-          console.log('Membership data changed, refreshing agents...');
-          fetchAgents();
+    if (isAdmin || userRole) {
+      console.log('[AgentManagement] Auth ready, initializing component...');
+      isInitialized.current = true;
+      
+      // Check for cached data first
+      const cachedData = sessionStorage.getItem('agentManagement_cachedAgents');
+      if (cachedData) {
+        try {
+          const parsedData = JSON.parse(cachedData);
+          if (parsedData && parsedData.length > 0) {
+            setAgents(parsedData);
+            console.log('[AgentManagement] Loaded cached data, NO LOADING SCREEN');
+            
+            // Background refresh to get latest data
+            setTimeout(() => fetchAgents(true), 100);
+            return;
+          }
+        } catch (error) {
+          console.warn('[AgentManagement] Failed to parse cached data:', error);
         }
-      )
-      .subscribe();
+      }
 
-    // Cleanup subscription on unmount
-    return () => {
-      membershipSubscription.unsubscribe();
+      // Fetch data if no cache or cache is empty
+      console.log('[AgentManagement] No cached data, fetching fresh data...');
+      fetchAgents();
+    }
+  }, [isAdmin, userRole]);
+
+  // FIXED: Add visibility change handler to refetch data when tab becomes visible
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden && (isAdmin || userRole)) {
+        const now = Date.now();
+        // Only refetch if more than 30 seconds have passed since last fetch
+        if (now - lastFetchTime.current > 30000 && !fetchInProgress.current) {
+          console.log('[AgentManagement] Tab became visible, doing background refresh...');
+          fetchAgents(true); // Background refresh without loading spinner
+        } else {
+          console.log('[AgentManagement] Skipping refresh - too recent or already fetching');
+        }
+      }
     };
-  }, [activeTab]);
 
-  const fetchAgents = async () => {
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [isAdmin, userRole]);
+
+  // FIXED: Modified fetchAgents with caching and proper loading state management
+  const fetchAgents = async (isBackgroundRefresh = false) => {
+    // Prevent duplicate fetches
+    if (fetchInProgress.current) {
+      console.log('[AgentManagement] Fetch already in progress, skipping...');
+      return;
+    }
+
+    // Additional check: don't fetch if we just fetched recently (less than 5 seconds ago)
+    const now = Date.now();
+    if (now - lastFetchTime.current < 5000 && agents.length > 0) {
+      console.log('[AgentManagement] Recent fetch detected, skipping...');
+      return;
+    }
+
+    fetchInProgress.current = true;
+    lastFetchTime.current = now;
+
     try {
-      setLoading(true);
+      // Only show loading spinner for initial load when no data exists
+      if (!isBackgroundRefresh && agents.length === 0) {
+        console.log('[AgentManagement] Showing loading spinner for initial load');
+        setLoading(true);
+      } else {
+        console.log('[AgentManagement] Background refresh, no loading spinner');
+      }
+
+      setIsFetching(true);
       console.log("Fetching agents...");
 
       // Fetch agents directly from users table with role = 'agent' OR role_id = 11
@@ -327,10 +382,21 @@ const AgentManagement = () => {
       );
 
       setAgents(agentsWithStats);
+      
+      // ✅ Cache the data untuk mencegah loading screen di navigasi berikutnya
+      try {
+        sessionStorage.setItem('agentManagement_cachedAgents', JSON.stringify(agentsWithStats));
+        console.log('[AgentManagement] Data cached successfully');
+      } catch (cacheError) {
+        console.warn('[AgentManagement] Failed to cache data:', cacheError);
+      }
     } catch (error) {
       console.error("Error:", error);
     } finally {
+      // CRITICAL: Always reset loading states
       setLoading(false);
+      setIsFetching(false);
+      fetchInProgress.current = false;
     }
   };
 
@@ -821,8 +887,6 @@ const handleConfirmSuspend = async () => {
     setAgentToSuspend(null);
   }
 };
-
-
 
   const handleActivateMembership = async () => {
     if (!membershipForm.agent_id) {

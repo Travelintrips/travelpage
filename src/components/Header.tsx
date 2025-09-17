@@ -16,6 +16,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -37,7 +38,7 @@ interface Notification {
 
 const Header = () => {
   // Always call all hooks at the top level in the same order
-  const { isAuthenticated, isLoading, userRole, userId } = useAuth();
+  const { isAuthenticated, isLoading, userRole, userId, user, isSessionReady } = useAuth();
   const { cartCount } = useShoppingCart();
   const [mounted, setMounted] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -47,49 +48,50 @@ const Header = () => {
   // Define restricted roles as a constant to avoid dependency issues
   const restrictedRoles = ["Agent", "Driver Perusahaan", "Driver Mitra"];
   const isRestrictedRole = userRole && restrictedRoles.includes(userRole);
-  const showAuthenticatedUI = isAuthenticated && !isLoading;
+  
+  // SIMPLIFIED: Show authenticated UI when user is authenticated and component is mounted
+  const showAuthenticatedUI = mounted && isAuthenticated && !isRestrictedRole;
 
   // Load notifications function
   const loadNotifications = async () => {
-  if (!userId || !isAuthenticated) return;
+    if (!userId || !isAuthenticated) return;
 
-  setNotificationsLoading(true);
-  try {
-    const { data, error } = await supabase
-      .from("notification_recipients") // ✅ fix typo
-      .select(
-        `
-        id,
-        notification_id,
-        is_read,
-        created_at,
-        notification:notifications(
-          message,
-          type,
-          booking_id,
-          code_booking,
-          metadata
+    setNotificationsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("notification_recipients") // ✅ fix typo
+        .select(
+          `
+          id,
+          notification_id,
+          is_read,
+          created_at,
+          notification:notifications(
+            message,
+            type,
+            booking_id,
+            code_booking,
+            metadata
+          )
+        `,
         )
-      `,
-      )
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false })
-      .limit(50);
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(50);
 
-    if (error) {
+      if (error) {
+        console.error("Error loading notifications:", error);
+        return;
+      }
+
+      setNotifications(data || []);
+      setUnreadCount(data?.filter((n) => !n.is_read).length || 0);
+    } catch (error) {
       console.error("Error loading notifications:", error);
-      return;
+    } finally {
+      setNotificationsLoading(false);
     }
-
-    setNotifications(data || []);
-    setUnreadCount(data?.filter((n) => !n.is_read).length || 0);
-  } catch (error) {
-    console.error("Error loading notifications:", error);
-  } finally {
-    setNotificationsLoading(false);
-  }
-};
-
+  };
 
   // Mark all notifications as read
   const markAllAsRead = async () => {
@@ -144,14 +146,14 @@ const Header = () => {
 
   // Load notifications when user is authenticated (exclude Customer role)
   useEffect(() => {
-    if (isAuthenticated && userId && mounted && userRole !== "Customer") {
+    if (showAuthenticatedUI && userId && userRole !== "Customer") {
       loadNotifications();
     }
-  }, [isAuthenticated, userId, mounted, userRole]);
+  }, [showAuthenticatedUI, userId, userRole]);
 
   // Subscribe to realtime notifications (exclude Customer role)
   useEffect(() => {
-    if (!isAuthenticated || !userId || !mounted || userRole === "Customer")
+    if (!showAuthenticatedUI || !userId || userRole === "Customer")
       return;
 
     const channel = supabase
@@ -175,11 +177,11 @@ const Header = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [isAuthenticated, userId, mounted, userRole]);
+  }, [showAuthenticatedUI, userId, userRole]);
 
   // Force logout restricted users immediately - always call useEffect with consistent dependencies
   useEffect(() => {
-    if (isAuthenticated && userRole && restrictedRoles.includes(userRole)) {
+    if (mounted && isAuthenticated && userRole && restrictedRoles.includes(userRole)) {
       console.log(
         "[Header] Restricted role detected, forcing logout:",
         userRole,
@@ -209,10 +211,10 @@ const Header = () => {
           window.location.reload();
         });
     }
-  }, [isAuthenticated, userRole]);
+  }, [mounted, isAuthenticated, userRole]);
 
-  // Show loading state instead of returning null to prevent hook order issues
-  if (!mounted) {
+  // SIMPLIFIED: Show loading only when not mounted or still loading initial session
+  if (!mounted || (isLoading && !isSessionReady)) {
     return (
       <header className="bg-green-800 text-white py-4">
         <div className="container mx-auto flex justify-between items-center px-4">
@@ -221,6 +223,10 @@ const Header = () => {
               Journey *
             </Link>
           </div>
+          <div className="flex items-center space-x-4">
+            <div className="animate-pulse bg-green-700 rounded px-4 py-2 w-20 h-8"></div>
+            <div className="animate-pulse bg-green-700 rounded px-4 py-2 w-20 h-8"></div>
+          </div>
         </div>
       </header>
     );
@@ -228,10 +234,13 @@ const Header = () => {
 
   // Debug logging for UI state
   console.log('[Header] Render state:', {
+    mounted,
     isAuthenticated,
     isLoading,
     userRole,
     userId,
+    user: !!user,
+    isSessionReady,
     showAuthenticatedUI,
     isRestrictedRole
   });
@@ -335,6 +344,9 @@ const Header = () => {
                         </Button>
                       )}
                     </DialogTitle>
+                    <DialogDescription>
+                      Daftar notifikasi terbaru untuk akun Anda
+                    </DialogDescription>
                   </DialogHeader>
                   <div className="max-h-64 overflow-y-auto space-y-2">
                     {notificationsLoading ? (
@@ -409,10 +421,10 @@ const Header = () => {
                                 {notification.notification?.message}
                               </p>
                               {notification.notification?.code_booking && (
-  <p className="text-sm text-gray-800 font-mono mt-1">
-    Kode: {notification.notification.code_booking}
-  </p>
-)}
+                                <p className="text-sm text-gray-800 font-mono mt-1">
+                                  Kode: {notification.notification.code_booking}
+                                </p>
+                              )}
                               <p className="text-xs text-gray-400 mt-2">
                                 {new Date(
                                   notification.created_at,

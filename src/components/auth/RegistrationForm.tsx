@@ -493,13 +493,16 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({
             email: data.email,
             password: data.password,
             options: {
-              data: {
-                full_name: data.name,
-                role: "Customer", // FORCE Customer role for all new registrations
-                role_id: "10", // Customer role_id is always 10
-                phone: data.phone,
-              },
-            },
+    data: {
+      full_name: data.name,
+      role: "Customer",   // user metadata
+      role_id: "10",
+      phone: data.phone,
+    },
+    app_metadata: {
+      role: "Customer"    // ini penting supaya JWT & RLS baca role
+    }
+  },
           },
         );
 
@@ -773,14 +776,14 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({
           </div>
         )}
         {/* Note for Customer role */}
-        {registerForm.watch("role") === "Customer" && (
-          <div className="p-4 bg-blue-50 border border-blue-200 rounded-md">
+     {/*    {registerForm.watch("role") === "Customer" && (
+         <div className="p-4 bg-blue-50 border border-blue-200 rounded-md">
             <p className="text-sm text-blue-700">
               Selfie verification has been moved to your profile page. You can
               add your selfie after registration.
             </p>
           </div>
-        )}
+        )}*/}
 
         {registerError && (
           <div className="text-sm text-destructive mb-2">{registerError}</div>

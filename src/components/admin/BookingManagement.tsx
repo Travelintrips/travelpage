@@ -23,6 +23,7 @@ import {
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Booking {
   id: string;
@@ -52,6 +53,7 @@ interface BookingStats {
 }
 
 export default function BookingManagement() {
+  const { isAuthenticated, isSessionReady, isLoading: authLoading } = useAuth();
   const [recentBookings, setRecentBookings] = useState<Booking[]>([]);
   const [stats, setStats] = useState<BookingStats>({
     totalCustomerToday: 0,
@@ -66,12 +68,37 @@ export default function BookingManagement() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    fetchDashboardData();
-  }, []);
+    if (isAuthenticated && isSessionReady && !authLoading) {
+      console.log('[BookingManagement] Auth ready, fetching booking data...');
+      fetchDashboardData();
+    } else if (!authLoading && !isAuthenticated) {
+      // Not authenticated, clear loading state
+      setIsLoading(false);
+    }
+  }, [isAuthenticated, isSessionReady, authLoading]);
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden && isAuthenticated && isSessionReady && !authLoading) {
+        console.log('[BookingManagement] Tab became visible, refetching booking data...');
+        fetchDashboardData();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [isAuthenticated, isSessionReady, authLoading]);
 
   const fetchDashboardData = async () => {
+    // Don't fetch if not authenticated
+    if (!isAuthenticated || !isSessionReady || authLoading) {
+      console.log('[BookingManagement] Skipping fetch - auth not ready');
+      return;
+    }
+
     try {
       setIsLoading(true);
+      console.log('[BookingManagement] Starting booking data fetch...');
 
       // Fetch all bookings
       const { data: bookings, error } = await supabase
@@ -130,14 +157,20 @@ export default function BookingManagement() {
         totalDriverToday: driverBookingsToday,
         ...statusCounts,
       });
+
+      console.log('[BookingManagement] Booking data fetch completed successfully');
     } catch (error) {
-      console.error("Error fetching dashboard data:", error);
+      console.error("[BookingManagement] Error fetching dashboard data:", error);
       toast({
         variant: "destructive",
         title: "Error fetching data",
         description: error.message,
       });
+      
+      // Don't reset data on error, just log it
+      console.warn("[BookingManagement] Keeping existing data due to fetch error");
     } finally {
+      // CRITICAL: Always reset loading state
       setIsLoading(false);
     }
   };

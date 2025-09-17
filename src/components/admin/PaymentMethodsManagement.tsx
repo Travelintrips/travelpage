@@ -70,12 +70,12 @@ interface PaymentMethod {
 
 const PaymentMethodsManagement = () => {
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [currentMethod, setCurrentMethod] = useState<PaymentMethod | null>(
     null,
   );
-  const { userRole } = useAuth();
+  const { userRole, isAuthenticated, isSessionReady, isLoading: authLoading } = useAuth();
   const [formData, setFormData] = useState({
     name: "",
     type: "manual",
@@ -93,13 +93,73 @@ const PaymentMethodsManagement = () => {
     branch: "",
   });
 
-  useEffect(() => {
-    fetchPaymentMethods();
-  }, []);
+  // Add ref to track if fetch is in progress
+  const [isFetching, setIsFetching] = useState(false);
 
-  const fetchPaymentMethods = async () => {
+  useEffect(() => {
+    if (isAuthenticated && isSessionReady && !authLoading) {
+      console.log('[PaymentMethodsManagement] Auth ready, checking for cached data...');
+      
+      // ✅ Load cached data first untuk mencegah loading screen
+      const cachedMethods = sessionStorage.getItem('paymentMethodsManagement_cachedMethods');
+      
+      if (cachedMethods) {
+        try {
+          const parsedMethods = JSON.parse(cachedMethods);
+          
+          if (parsedMethods && parsedMethods.length >= 0) {
+            setPaymentMethods(parsedMethods);
+            console.log('[PaymentMethodsManagement] Loaded cached data, NO LOADING SCREEN');
+            
+            // Background refresh to get latest data
+            setTimeout(() => fetchPaymentMethods(true), 100);
+            return;
+          }
+        } catch (error) {
+          console.warn('[PaymentMethodsManagement] Failed to parse cached data:', error);
+        }
+      }
+
+      // Fetch data if no cache or cache is empty
+      console.log('[PaymentMethodsManagement] No cached data, fetching fresh data...');
+      fetchPaymentMethods();
+    }
+  }, [isAuthenticated, isSessionReady, authLoading]);
+
+  // FIXED: Add visibility change handler to refetch data when tab becomes visible
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden && isAuthenticated && isSessionReady && !authLoading) {
+        console.log('[PaymentMethodsManagement] Tab became visible, doing background refresh...');
+        
+        // Always do background refresh when tab becomes visible
+        fetchPaymentMethods(true); // Background refresh without loading spinner
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [isAuthenticated, isSessionReady, authLoading]);
+
+  const fetchPaymentMethods = async (isBackgroundRefresh = false) => {
+    // Don't fetch if not authenticated or already fetching
+    if (!isAuthenticated || !isSessionReady || authLoading || isFetching) {
+      console.log('[PaymentMethodsManagement] Skipping fetch - auth not ready or already fetching');
+      return;
+    }
+
+    // Prevent duplicate fetches
+    setIsFetching(true);
+
     try {
-      setLoading(true);
+      // Only show loading spinner for initial load when no data exists
+      if (!isBackgroundRefresh && paymentMethods.length === 0) {
+        console.log('[PaymentMethodsManagement] Showing loading spinner for initial load');
+        setLoading(true);
+      } else {
+        console.log('[PaymentMethodsManagement] Background refresh, no loading spinner');
+      }
+
       const { data, error } = await supabase
         .from("payment_methods")
         .select("*")
@@ -108,11 +168,22 @@ const PaymentMethodsManagement = () => {
 
       if (error) throw error;
 
-      setPaymentMethods(data || []);
+      const methodsData = data || [];
+      setPaymentMethods(methodsData);
+      
+      // Cache the payment methods data
+      sessionStorage.setItem('paymentMethodsManagement_cachedMethods', JSON.stringify(methodsData));
+      
+      console.log('[PaymentMethodsManagement] Payment methods fetch completed successfully');
     } catch (error) {
       console.error("Error fetching payment methods:", error);
+      
+      // Don't reset data to empty on error, just log the error
+      console.warn("[PaymentMethodsManagement] Keeping existing data due to fetch error");
     } finally {
+      // CRITICAL: Always reset loading states
       setLoading(false);
+      setIsFetching(false);
     }
   };
 

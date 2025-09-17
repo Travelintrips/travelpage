@@ -49,27 +49,75 @@ export function ShoppingCartProvider({
   const [cartLoaded, setCartLoaded] = useState(false);
   const [isTabRecentlyActivated, setIsTabRecentlyActivated] = useState(false);
 
-  const loadCartItems = async () => {
+  const loadCartItems = async (retryCount = 0) => {
     if (isLoading || !userId) return;
     setIsLoading(true);
 
     try {
-      const { data, error } = await supabase
-        .from("shopping_cart")
-        .select("*")
-        .eq("user_id", userId)
-        .neq("status", "paid");
+      // FIXED: Simplified timeout handling without Promise.race
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => {
+        controller.abort();
+      }, 10000); // 10 second timeout
 
-      if (error) {
-        console.error("[ShoppingCart] Error loading cart:", error);
-      } else {
-        setCartItems(data || []);
-        setCartLoaded(true);
-        console.log("[ShoppingCart] Cart loaded:", data?.length || 0);
+      try {
+        const { data, error } = await supabase
+          .from("shopping_cart")
+          .select("*")
+          .eq("user_id", userId)
+          .neq("status", "paid")
+          .abortSignal(controller.signal);
+
+        clearTimeout(timeoutId);
+
+        if (error) {
+          console.error("[ShoppingCart] Error loading cart:", error);
+          
+          // FIXED: Better error handling - check if it's a network error
+          const isNetworkError = error?.message?.includes('Failed to fetch') || 
+                                error?.message?.includes('NetworkError') ||
+                                error?.message?.includes('fetch');
+
+          if (isNetworkError && retryCount < 2) {
+            console.log(`[ShoppingCart] Network error detected, retrying... (attempt ${retryCount + 1})`);
+            
+            // Wait before retry
+            setTimeout(() => {
+              loadCartItems(retryCount + 1);
+            }, 2000 * (retryCount + 1)); // Exponential backoff
+            
+            return; // Don't reset loading state yet
+          }
+
+          // If not a network error or max retries reached, proceed with empty cart
+          console.warn("[ShoppingCart] Using empty cart due to persistent errors");
+          setCartItems([]);
+          setCartLoaded(true);
+        } else {
+          setCartItems(data || []);
+          setCartLoaded(true);
+          console.log("[ShoppingCart] Cart loaded:", data?.length || 0);
+        }
+      } catch (fetchError) {
+        clearTimeout(timeoutId);
+        
+        if (fetchError.name === 'AbortError') {
+          console.warn("[ShoppingCart] Cart loading timed out, using empty cart");
+          setCartItems([]);
+          setCartLoaded(true);
+        } else {
+          throw fetchError;
+        }
       }
     } catch (err) {
       console.error("[ShoppingCart] Unexpected error:", err);
+      
+      // FIXED: Always provide fallback empty cart to prevent infinite loading
+      console.warn("[ShoppingCart] Setting empty cart due to error");
+      setCartItems([]);
+      setCartLoaded(true);
     } finally {
+      // CRITICAL: Always reset loading state
       setIsLoading(false);
     }
   };
@@ -169,6 +217,18 @@ export function ShoppingCartProvider({
     if (userId && !cartLoaded && !isLoading) {
       loadCartItems();
     }
+    
+    // FIXED: Add timeout to force cart ready state if loading takes too long
+    const initTimeout = setTimeout(() => {
+      if (isLoading && !cartLoaded) {
+        console.warn('[ShoppingCart] Forcing cart ready state due to timeout');
+        setIsLoading(false);
+        setCartLoaded(true);
+        setCartItems([]);
+      }
+    }, 8000); // 8 second timeout
+
+    return () => clearTimeout(initTimeout);
   }, [userId, cartLoaded, isLoading]);
 
   // Subscribe to realtime changes

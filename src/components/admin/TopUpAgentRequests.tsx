@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   Card,
   CardContent,
@@ -84,9 +84,14 @@ interface TopUpRequest {
 const TopUpAgentRequests = () => {
   const [requests, setRequests] = useState<TopUpRequest[]>([]);
   const [historyRequests, setHistoryRequests] = useState<TopUpRequest[]>([]);
-
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
+  
+  // Add refs to prevent duplicate fetches and track initialization
+  const fetchInProgress = useRef(false);
+  const lastFetchTime = useRef(0);
+  const isInitialized = useRef(false);
+  
   const [activeTab, setActiveTab] = useState("requests");
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -107,9 +112,43 @@ const TopUpAgentRequests = () => {
   const { toast } = useToast();
   const { userId, userRole } = useAuth();
 
+  // FIXED: Single useEffect to handle all initialization logic with caching
   useEffect(() => {
-    fetchRequests();
-  }, []);
+    // Prevent multiple initializations
+    if (isInitialized.current) {
+      console.log('[TopUpAgentRequests] Already initialized, skipping...');
+      return;
+    }
+
+    if (userId && userRole) {
+      console.log('[TopUpAgentRequests] Auth ready, initializing component...');
+      isInitialized.current = true;
+      
+      // Check for cached data first
+      const cachedRequests = sessionStorage.getItem('topUpAgentRequests_cachedRequests');
+      
+      if (cachedRequests) {
+        try {
+          const parsedRequests = JSON.parse(cachedRequests);
+          
+          if (parsedRequests && parsedRequests.length > 0) {
+            setRequests(parsedRequests);
+            console.log('[TopUpAgentRequests] Loaded cached data, NO LOADING SCREEN');
+            
+            // Background refresh to get latest data
+            setTimeout(() => fetchRequests(true), 100);
+            return;
+          }
+        } catch (error) {
+          console.warn('[TopUpAgentRequests] Failed to parse cached data:', error);
+        }
+      }
+
+      // Fetch data if no cache or cache is empty
+      console.log('[TopUpAgentRequests] No cached data, fetching fresh data...');
+      fetchRequests();
+    }
+  }, [userId, userRole]);
 
   useEffect(() => {
     if (activeTab === "history") {
@@ -117,9 +156,47 @@ const TopUpAgentRequests = () => {
     }
   }, [activeTab]);
 
-  const fetchRequests = async () => {
+  // FIXED: Add visibility change handler to refetch data when tab becomes visible
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden && userId && userRole) {
+        const now = Date.now();
+        // Only refetch if more than 30 seconds have passed since last fetch
+        if (now - lastFetchTime.current > 30000 && !fetchInProgress.current) {
+          console.log('[TopUpAgentRequests] Tab became visible, doing background refresh...');
+          fetchRequests(true);
+          if (activeTab === "history") {
+            fetchHistoryRequests(true);
+          }
+        } else {
+          console.log('[TopUpAgentRequests] Skipping refresh - too recent or already fetching');
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [userId, userRole, activeTab]);
+
+  // FIXED: Modified fetchRequests with caching and proper loading state management
+  const fetchRequests = async (isBackgroundRefresh = false) => {
+    // Prevent duplicate fetches
+    if (fetchInProgress.current) {
+      console.log('[TopUpAgentRequests] Requests fetch already in progress, skipping...');
+      return;
+    }
+
+    fetchInProgress.current = true;
+    lastFetchTime.current = Date.now();
+
     try {
-      setLoading(true);
+      // Only show loading spinner for initial load when no data exists
+      if (!isBackgroundRefresh && requests.length === 0) {
+        console.log('[TopUpAgentRequests] Showing loading spinner for initial load');
+        setLoading(true);
+      } else {
+        console.log('[TopUpAgentRequests] Background refresh, no loading spinner');
+      }
 
       const { data, error } = await supabase
         .from("topup_requests")
@@ -146,6 +223,14 @@ const TopUpAgentRequests = () => {
       }));
 
       setRequests(requestData);
+      
+      // ✅ Cache the data untuk mencegah loading screen di navigasi berikutnya
+      try {
+        sessionStorage.setItem('topUpAgentRequests_cachedRequests', JSON.stringify(requestData));
+        console.log('[TopUpAgentRequests] Requests data cached successfully');
+      } catch (cacheError) {
+        console.warn('[TopUpAgentRequests] Failed to cache requests data:', cacheError);
+      }
     } catch (error) {
       console.error("Error fetching requests:", error);
       toast({
@@ -154,7 +239,9 @@ const TopUpAgentRequests = () => {
         variant: "destructive",
       });
     } finally {
+      // CRITICAL: Always reset loading states
       setLoading(false);
+      fetchInProgress.current = false;
     }
   };
 

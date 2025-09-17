@@ -713,6 +713,60 @@ export type Database = {
         }
         Relationships: []
       }
+      booking_items: {
+        Row: {
+          booking_id: string
+          created_at: string | null
+          description: string | null
+          id: string
+          item_name: string
+          item_type: string
+          quantity: number | null
+          total_price: number
+          unit_price: number
+          updated_at: string | null
+        }
+        Insert: {
+          booking_id: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          item_name: string
+          item_type: string
+          quantity?: number | null
+          total_price: number
+          unit_price: number
+          updated_at?: string | null
+        }
+        Update: {
+          booking_id?: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          item_name?: string
+          item_type?: string
+          quantity?: number | null
+          total_price?: number
+          unit_price?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_items_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_items_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "journal_entries_with_bookings"
+            referencedColumns: ["booking_id"]
+          },
+        ]
+      }
       bookings: {
         Row: {
           amount: number | null
@@ -722,22 +776,27 @@ export type Database = {
           bookings_status: string | null
           code_booking: string | null
           created_at: string | null
+          created_at_tz: string
           created_by_role: string | null
           customer_id: string | null
           DATE_PART: number | null
           discount_percent: number | null
+          driver_fee: number
           driver_id: string | null
           driver_name: string | null
           driver_option: string | null
           duration: number | null
           end_date: string | null
+          end_time: string | null
           id: string
+          is_backdated: boolean | null
           journal_entry_id: string | null
           license_plate: string | null
           make: string | null
           model: string | null
-          name: string | null
           notes: string | null
+          notes_admin: string | null
+          notes_driver: string | null
           overdue: number | null
           paid_amount: number | null
           partner_id: string | null
@@ -748,9 +807,9 @@ export type Database = {
           plate_number: string | null
           price: number | null
           quantity: number | null
-          reference_number: string | null
           remaining_payment: number | null
           remaining_payments: number | null
+          rental_days: number
           return_time: string | null
           role_id: number | null
           role_name: string | null
@@ -760,6 +819,7 @@ export type Database = {
           status: string | null
           total_amount: number
           transaction_id: string | null
+          updated_at: string | null
           user_id: string | null
           vehicle_id: string | null
           vehicle_name: string | null
@@ -774,22 +834,27 @@ export type Database = {
           bookings_status?: string | null
           code_booking?: string | null
           created_at?: string | null
+          created_at_tz?: string
           created_by_role?: string | null
           customer_id?: string | null
           DATE_PART?: number | null
           discount_percent?: number | null
+          driver_fee?: number
           driver_id?: string | null
           driver_name?: string | null
           driver_option?: string | null
           duration?: number | null
           end_date?: string | null
+          end_time?: string | null
           id?: string
+          is_backdated?: boolean | null
           journal_entry_id?: string | null
           license_plate?: string | null
           make?: string | null
           model?: string | null
-          name?: string | null
           notes?: string | null
+          notes_admin?: string | null
+          notes_driver?: string | null
           overdue?: number | null
           paid_amount?: number | null
           partner_id?: string | null
@@ -800,9 +865,9 @@ export type Database = {
           plate_number?: string | null
           price?: number | null
           quantity?: number | null
-          reference_number?: string | null
           remaining_payment?: number | null
           remaining_payments?: number | null
+          rental_days?: number
           return_time?: string | null
           role_id?: number | null
           role_name?: string | null
@@ -812,6 +877,7 @@ export type Database = {
           status?: string | null
           total_amount: number
           transaction_id?: string | null
+          updated_at?: string | null
           user_id?: string | null
           vehicle_id?: string | null
           vehicle_name?: string | null
@@ -826,22 +892,27 @@ export type Database = {
           bookings_status?: string | null
           code_booking?: string | null
           created_at?: string | null
+          created_at_tz?: string
           created_by_role?: string | null
           customer_id?: string | null
           DATE_PART?: number | null
           discount_percent?: number | null
+          driver_fee?: number
           driver_id?: string | null
           driver_name?: string | null
           driver_option?: string | null
           duration?: number | null
           end_date?: string | null
+          end_time?: string | null
           id?: string
+          is_backdated?: boolean | null
           journal_entry_id?: string | null
           license_plate?: string | null
           make?: string | null
           model?: string | null
-          name?: string | null
           notes?: string | null
+          notes_admin?: string | null
+          notes_driver?: string | null
           overdue?: number | null
           paid_amount?: number | null
           partner_id?: string | null
@@ -852,9 +923,9 @@ export type Database = {
           plate_number?: string | null
           price?: number | null
           quantity?: number | null
-          reference_number?: string | null
           remaining_payment?: number | null
           remaining_payments?: number | null
+          rental_days?: number
           return_time?: string | null
           role_id?: number | null
           role_name?: string | null
@@ -864,6 +935,7 @@ export type Database = {
           status?: string | null
           total_amount?: number
           transaction_id?: string | null
+          updated_at?: string | null
           user_id?: string | null
           vehicle_id?: string | null
           vehicle_name?: string | null
@@ -874,7 +946,7 @@ export type Database = {
           {
             foreignKeyName: "bookings_driver_id_fkey"
             columns: ["driver_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "drivers"
             referencedColumns: ["id"]
           },
@@ -1292,10 +1364,9 @@ export type Database = {
           full_name: string | null
           id: string
           ktp_paspor_url: string | null
-          name: string | null
-          phone: string | null
+          phone_number: string | null
+          role: string | null
           role_id: number | null
-          role_name: string | null
           selfie_url: string | null
           tempat_lahir: string | null
           user_id: string | null
@@ -1308,10 +1379,9 @@ export type Database = {
           full_name?: string | null
           id?: string
           ktp_paspor_url?: string | null
-          name?: string | null
-          phone?: string | null
+          phone_number?: string | null
+          role?: string | null
           role_id?: number | null
-          role_name?: string | null
           selfie_url?: string | null
           tempat_lahir?: string | null
           user_id?: string | null
@@ -1324,10 +1394,9 @@ export type Database = {
           full_name?: string | null
           id?: string
           ktp_paspor_url?: string | null
-          name?: string | null
-          phone?: string | null
+          phone_number?: string | null
+          role?: string | null
           role_id?: number | null
-          role_name?: string | null
           selfie_url?: string | null
           tempat_lahir?: string | null
           user_id?: string | null
@@ -2634,33 +2703,51 @@ export type Database = {
         Row: {
           admin_id: string | null
           admin_name: string | null
+          created_at: string | null
           id: string
+          jenis_transaksi: string | null
           keterangan: string | null
           kode_booking: string
           nominal: number
+          proof_url: string | null
+          request_by_role: string | null
           saldo_akhir: number
+          saldo_awal: number | null
+          status: string | null
           trans_date: string | null
           user_id: string | null
         }
         Insert: {
           admin_id?: string | null
           admin_name?: string | null
+          created_at?: string | null
           id?: string
+          jenis_transaksi?: string | null
           keterangan?: string | null
           kode_booking: string
           nominal: number
+          proof_url?: string | null
+          request_by_role?: string | null
           saldo_akhir: number
+          saldo_awal?: number | null
+          status?: string | null
           trans_date?: string | null
           user_id?: string | null
         }
         Update: {
           admin_id?: string | null
           admin_name?: string | null
+          created_at?: string | null
           id?: string
+          jenis_transaksi?: string | null
           keterangan?: string | null
           kode_booking?: string
           nominal?: number
+          proof_url?: string | null
+          request_by_role?: string | null
           saldo_akhir?: number
+          saldo_awal?: number | null
+          status?: string | null
           trans_date?: string | null
           user_id?: string | null
         }
@@ -4563,6 +4650,7 @@ export type Database = {
       }
       topup_requests: {
         Row: {
+          account_holder_received: string | null
           amount: number
           bank_name: string | null
           created_at: string | null
@@ -4582,6 +4670,7 @@ export type Database = {
           verified_by: string | null
         }
         Insert: {
+          account_holder_received?: string | null
           amount: number
           bank_name?: string | null
           created_at?: string | null
@@ -4601,6 +4690,7 @@ export type Database = {
           verified_by?: string | null
         }
         Update: {
+          account_holder_received?: string | null
           amount?: number
           bank_name?: string | null
           created_at?: string | null
@@ -4838,6 +4928,7 @@ export type Database = {
           education: string | null
           email: string | null
           employee_id: string | null
+          encrypted_password: string | null
           ethnicity: string | null
           family_card_url: string | null
           family_phone_number: string | null
@@ -4898,6 +4989,7 @@ export type Database = {
           education?: string | null
           email?: string | null
           employee_id?: string | null
+          encrypted_password?: string | null
           ethnicity?: string | null
           family_card_url?: string | null
           family_phone_number?: string | null
@@ -4958,6 +5050,7 @@ export type Database = {
           education?: string | null
           email?: string | null
           employee_id?: string | null
+          encrypted_password?: string | null
           ethnicity?: string | null
           family_card_url?: string | null
           family_phone_number?: string | null
@@ -5101,6 +5194,7 @@ export type Database = {
           is_booked: boolean | null
           is_with_driver: boolean | null
           license_plate: string | null
+          maintenance_note: string | null
           make: string
           mileage: string | null
           model: string
@@ -5118,7 +5212,7 @@ export type Database = {
           transmission: string | null
           type: string | null
           updated_at: string | null
-          vehicle_status: string | null
+          vehicle_status: boolean | null
           vehicle_type_id: number | null
           year: number | null
         }
@@ -5140,6 +5234,7 @@ export type Database = {
           is_booked?: boolean | null
           is_with_driver?: boolean | null
           license_plate?: string | null
+          maintenance_note?: string | null
           make: string
           mileage?: string | null
           model: string
@@ -5157,7 +5252,7 @@ export type Database = {
           transmission?: string | null
           type?: string | null
           updated_at?: string | null
-          vehicle_status?: string | null
+          vehicle_status?: boolean | null
           vehicle_type_id?: number | null
           year?: number | null
         }
@@ -5179,6 +5274,7 @@ export type Database = {
           is_booked?: boolean | null
           is_with_driver?: boolean | null
           license_plate?: string | null
+          maintenance_note?: string | null
           make?: string
           mileage?: string | null
           model?: string
@@ -5196,7 +5292,7 @@ export type Database = {
           transmission?: string | null
           type?: string | null
           updated_at?: string | null
-          vehicle_status?: string | null
+          vehicle_status?: boolean | null
           vehicle_type_id?: number | null
           year?: number | null
         }
@@ -5207,13 +5303,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "drivers"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "vehicles_driver_id_fkey1"
-            columns: ["driver_id"]
-            isOneToOne: false
-            referencedRelation: "bookings"
-            referencedColumns: ["driver_id"]
           },
           {
             foreignKeyName: "vehicles_vehicle_type_id_fkey"
@@ -5324,14 +5413,15 @@ export type Database = {
       }
       agent_users: {
         Row: {
+          account_type: string | null
           created_at: string | null
-          education: string | null
           email: string | null
           full_name: string | null
+          handling_discount_active: boolean | null
+          handling_discount_value: number | null
           id: string | null
-          ktp_number: number | null
-          license_number: number | null
-          member_is_active: boolean | null
+          is_active: boolean | null
+          nama_perusahaan: string | null
           phone_number: string | null
           role: string | null
           role_id: number | null
@@ -5613,6 +5703,9 @@ export type Database = {
       }
       v_topup_requests: {
         Row: {
+          account_holder_received: string | null
+          admin_email: string | null
+          admin_full_name: string | null
           amount: number | null
           bank_name: string | null
           created_at: string | null
@@ -5623,8 +5716,6 @@ export type Database = {
           proof_url: string | null
           reference_no: string | null
           request_by_role: string | null
-          saldo_akhir: number | null
-          saldo_awal: number | null
           sender_account: string | null
           sender_bank: string | null
           sender_name: string | null
@@ -5634,8 +5725,6 @@ export type Database = {
           user_id: string | null
           verified_at: string | null
           verified_by: string | null
-          verifier_email: string | null
-          verifier_full_name: string | null
         }
         Relationships: []
       }
@@ -5673,6 +5762,10 @@ export type Database = {
       auto_post_jurnal_from_mutasi: {
         Args: Record<PropertyKey, never>
         Returns: undefined
+      }
+      calculate_rental_days: {
+        Args: { end_date: string; start_date: string }
+        Returns: number
       }
       close_period: {
         Args: { p_period: string }
@@ -5726,6 +5819,10 @@ export type Database = {
         Args: { service: string }
         Returns: string
       }
+      get_driver_kpis: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
       get_table_info: {
         Args: { table_name: string }
         Returns: {
@@ -5738,6 +5835,25 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: {
           table_name: string
+        }[]
+      }
+      get_trial_balance: {
+        Args: { p_end?: string; p_org?: string; p_start?: string }
+        Returns: {
+          account_code: string
+          account_id: string
+          account_name: string
+          account_type: string
+          closing_balance: number
+          credit_balance: number
+          debit_balance: number
+          id: string
+          net_balance: number
+          opening_balance: number
+          period_credit: number
+          period_debit: number
+          period_end: string
+          period_start: string
         }[]
       }
       get_trial_balance_summary: {

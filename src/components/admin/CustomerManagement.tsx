@@ -62,7 +62,7 @@ interface Customer {
 }
 
 const CustomerManagement = () => {
-  const { userRole } = useAuth();
+  const { userRole, isAuthenticated, isSessionReady, isLoading: authLoading } = useAuth();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(() => {
     // ✅ HANYA loading true jika tidak ada cached data
@@ -107,41 +107,50 @@ const CustomerManagement = () => {
     ktp_paspor: false,
   });
 
+  // FIXED: Fetch data when auth is ready and authenticated
   useEffect(() => {
-    // ✅ Deteksi apakah ini navigation baru atau tab switch
-    const isNewNavigation = !sessionStorage.getItem('customerManagement_visited');
-    sessionStorage.setItem('customerManagement_visited', 'true');
-    
-    // ✅ PRIORITAS: Load cached data first untuk mencegah loading screen
-    const cachedData = sessionStorage.getItem('customerManagement_cachedData');
-    if (cachedData) {
-      try {
-        const parsedData = JSON.parse(cachedData);
-        setCustomers(parsedData);
-        setLoading(false);
-        console.log('[CustomerManagement] Loaded cached data, NO LOADING SCREEN');
-        
-        // ✅ Jika ini navigation baru (bukan tab switch), refresh data di background
-        if (isNewNavigation) {
-          console.log('[CustomerManagement] New navigation detected - background refresh');
-          setTimeout(() => fetchCustomers(true), 100); // Background refresh
+    if (isAuthenticated && isSessionReady && !authLoading) {
+      console.log('[CustomerManagement] Auth ready, fetching customer data...');
+      
+      // ✅ Load cached data first untuk mencegah loading screen
+      const cachedData = sessionStorage.getItem('customerManagement_cachedData');
+      if (cachedData) {
+        try {
+          const parsedData = JSON.parse(cachedData);
+          setCustomers(parsedData);
+          setLoading(false);
+          console.log('[CustomerManagement] Loaded cached data, NO LOADING SCREEN');
+          
+          // Background refresh to get latest data
+          setTimeout(() => fetchCustomers(true), 100);
+          return;
+        } catch (error) {
+          console.warn('[CustomerManagement] Failed to parse cached data:', error);
         }
-        return;
-      } catch (error) {
-        console.warn('[CustomerManagement] Failed to parse cached data:', error);
       }
-    }
 
-    // ✅ HANYA fetch dengan loading jika benar-benar first time dan navigation baru
-    if (!cachedData && isNewNavigation) {
-      console.log('[CustomerManagement] First time navigation - fetching with loading...');
+      // Fetch data if no cache
       fetchCustomers();
-    } else {
-      // ✅ SELALU set loading false untuk tab switch
-      console.log('[CustomerManagement] Tab switch detected - NO LOADING');
+    } else if (!authLoading && !isAuthenticated) {
+      // Not authenticated, clear loading state but don't reset data
       setLoading(false);
     }
-  }, []);
+  }, [isAuthenticated, isSessionReady, authLoading]);
+
+  // FIXED: Add visibility change handler to refetch data when tab becomes visible
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden && isAuthenticated && isSessionReady && !authLoading) {
+        console.log('[CustomerManagement] Tab became visible, refetching customer data...');
+        
+        // Always do background refresh when tab becomes visible
+        fetchCustomers(true); // Background refresh without loading spinner
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [isAuthenticated, isSessionReady, authLoading]);
 
   // Persist dialog states to sessionStorage
   useEffect(() => {
@@ -167,10 +176,6 @@ const CustomerManagement = () => {
   // Cleanup sessionStorage on component unmount
   useEffect(() => {
     return () => {
-      // ✅ Reset visited flag ketika navigate away dari CustomerManagement
-      // Ini memungkinkan loading spinner muncul ketika navigate ke menu lain lalu kembali
-      sessionStorage.removeItem('customerManagement_visited');
-      
       // Only clear dialog states if no dialogs are open
       if (!isAddDialogOpen && !isEditDialogOpen && !isDeleteDialogOpen) {
         clearDialogStates();
@@ -178,49 +183,23 @@ const CustomerManagement = () => {
     };
   }, []);
 
-  // Add visibility change handler to prevent unnecessary refetch
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        // DISABLE semua refetch ketika kembali dari tab/app lain
-        console.log('[CustomerManagement] Tab visible - DISABLED refetch to prevent UI disruption');
-        return; // Skip semua logic refetch
-        
-        // Don't refetch if we already have data and it's recent
-        const lastFetchTime = sessionStorage.getItem('customerManagement_lastFetch');
-        const now = Date.now();
-        const VISIBILITY_COOLDOWN = 15000; // 15 seconds cooldown
-        
-        if (lastFetchTime && (now - parseInt(lastFetchTime)) < VISIBILITY_COOLDOWN) {
-          console.log('[CustomerManagement] Tab visible but data is recent, skipping refetch');
-          return;
-        }
-        
-        // Background refresh without showing loading UI
-        if (customers.length > 0) {
-          console.log('[CustomerManagement] Tab visible, doing background refresh...');
-          fetchCustomers(true); // Background refresh
-        } else {
-          console.log('[CustomerManagement] Tab visible and no data, fetching...');
-          fetchCustomers(); // Normal fetch with loading
-        }
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [customers.length]);
-
+  // FIXED: Modified fetchCustomers with proper loading state management
   const fetchCustomers = async (isBackgroundRefresh = false) => {
+    // Don't fetch if not authenticated
+    if (!isAuthenticated || !isSessionReady || authLoading) {
+      console.log('[CustomerManagement] Skipping fetch - auth not ready');
+      return;
+    }
+
     try {
-      // ✅ DISABLE loading spinner untuk mencegah gangguan UI
-      // Hanya set loading jika benar-benar initial load dan tidak ada data
+      // Only show loading spinner for initial load, not background refresh
       if (!isBackgroundRefresh && customers.length === 0) {
         setLoading(true);
+      } else if (isBackgroundRefresh) {
+        setBackgroundRefreshing(true);
       }
+
+      console.log('[CustomerManagement] Starting customer data fetch...');
 
       const { data, error } = await supabase
         .from("customers")
@@ -234,15 +213,16 @@ const CustomerManagement = () => {
       // Cache the data for future use
       sessionStorage.setItem('customerManagement_cachedData', JSON.stringify(data || []));
       
-      // ✅ SELALU set loading false untuk mencegah loading spinner
-      setLoading(false);
-      
-      // Update last fetch time
-      sessionStorage.setItem('customerManagement_lastFetch', Date.now().toString());
+      console.log('[CustomerManagement] Customer data fetch completed successfully');
     } catch (error) {
-      console.error("Error fetching customers:", error);
-      // ✅ SELALU set loading false bahkan saat error
+      console.error("[CustomerManagement] Error fetching customers:", error);
+      
+      // Don't reset data to empty on error, just log the error
+      console.warn("[CustomerManagement] Keeping existing data due to fetch error");
+    } finally {
+      // CRITICAL: Always reset loading states
       setLoading(false);
+      setBackgroundRefreshing(false);
     }
   };
 

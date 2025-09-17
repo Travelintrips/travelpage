@@ -78,7 +78,7 @@ const AdminLayout = () => {
   const [notificationsLoading, setNotificationsLoading] = React.useState(false);
   const location = useLocation();
   const navigate = useNavigate();
-  const { userRole, userId, isAuthenticated, userName } = useAuth();
+  const { userRole, userId, isAuthenticated, userName, signOut } = useAuth();
 
   // Get dashboard title based on user role
   const getDashboardTitle = () => {
@@ -87,6 +87,8 @@ const AdminLayout = () => {
         return "Staff Trips Dashboard";
       case "Staff Traffic":
         return "Staff Traffic Dashboard";
+      case "Staff Ias":
+        return "Staff Ias Dashboard";
       case "Admin":
         return "Admin Dashboard";
       case "Super Admin":
@@ -98,12 +100,25 @@ const AdminLayout = () => {
     }
   };
 
+  // FIXED: Complete and clean signOut process
   const handleSignOut = async () => {
+    console.log("[AdminLayout] Starting complete logout process...");
+
     try {
-      await supabase.auth.signOut();
-      navigate("/");
+      // Use AuthContext signOut which handles everything including reload
+      await signOut();
+      
+      console.log("[AdminLayout] Logout completed successfully");
     } catch (error) {
-     // console.error("Error signing out:", error);
+      console.error("[AdminLayout] Logout error:", error);
+      
+      // Force cleanup and reload even if signOut fails
+      sessionStorage.setItem("loggedOut", "true");
+      localStorage.clear();
+      sessionStorage.setItem("loggedOut", "true"); // Keep only logout flag
+      
+      // Force reload to ensure clean state
+      window.location.reload();
     }
   };
 
@@ -271,193 +286,388 @@ const AdminLayout = () => {
         {/* Sidebar Menu */}
         <div className="p-4 mt-2">
           <nav className="space-y-2">
-            {/* Only show these menu items for non-Staff Trips users */}
-            {userRole !== "Staff Trips" && (
+            {/* Special case: Staff Ias only sees Concierge Group */}
+            {userRole === "Staff Ias" ? (
+              <Link
+                to="/admin/concierge-group"
+                className={`flex items-center p-3 rounded-lg hover:bg-white/20 transition-colors duration-200 ${
+                  location.pathname === "/admin/concierge-group"
+                    ? "bg-primary-tosca/20 text-white border-r-2 border-primary-tosca"
+                    : "text-white hover:bg-white/20"
+                } ${!sidebarOpen && "justify-center"}`}
+              >
+                <UserCog className="h-5 w-5 text-white" />
+                {sidebarOpen && <span className="ml-3">Concierge Group</span>}
+              </Link>
+            ) : (
               <>
-                {/* 1. Dashboard */}
-                <Link
-                  to="/admin"
-                  className={`flex items-center p-3 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname === "/admin" || location.pathname === "/admin/" ? "bg-white/20 font-medium text-white" : "text-white/80"} ${!sidebarOpen && "justify-center"}`}
-                >
-                  <BarChart3 className="h-5 w-5 text-white" />
-                  {sidebarOpen && <span className="ml-3">Dashboard</span>}
-                </Link>
-
-                {/* 2. Customers - Hide for Staff Traffic */}
-                {userRole !== "Staff Traffic" && (
-                  <Link
-                    to="/admin/customers"
-                    className={`flex items-center p-3 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/customers") ? "bg-white/20 font-medium text-white" : "text-white/80"} ${!sidebarOpen && "justify-center"}`}
-                  >
-                    <User className="h-5 w-5 text-white" />
-                    {sidebarOpen && <span className="ml-3">Customers</span>}
-                  </Link>
-                )}
-
-                {/* 3. Staff Admin - Hide for Staff Traffic */}
-                {userRole !== "Staff Traffic" && (
-                  <Link
-                    to="/admin/staff"
-                    className={`flex items-center p-3 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/staff") ? "bg-white/20 font-medium text-white" : "text-white/80"} ${!sidebarOpen && "justify-center"}`}
-                  >
-                    <Users className="h-5 w-5 text-white" />
-                    {sidebarOpen && <span className="ml-3">Staff Admin</span>}
-                  </Link>
-                )}
-
-                {/* Dispatcher Menu - Show for all roles except Staff Trips and Staff Traffic */}
-                {userRole !== "Staff Trips" && userRole !== "Staff Traffic" && (
-                  <Link
-                    to="/admin/dispatcher"
-                    className={`flex items-center p-3 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/dispatcher") ? "bg-white/20 font-medium text-white" : "text-white/80"} ${!sidebarOpen && "justify-center"}`}
-                  >
-                    <Users className="h-5 w-5 text-white" />
-                    {sidebarOpen && <span className="ml-3">Dispatcher</span>}
-                  </Link>
-                )}
-
-                {/* Agent Management Menu - Hide for Staff Traffic */}
-                {userRole !== "Staff Traffic" && (
-                  <div>
-                    <button
-                      onClick={() =>
-                        setAgentManagementOpen(!agentManagementOpen)
-                      }
-                      className={`w-full flex items-center p-3 rounded-lg hover:bg-white/20 transition-colors duration-200 ${
-                        location.pathname.includes("/admin/data-agent") ||
-                        location.pathname.includes("/admin/booking-agent") ||
-                        location.pathname.includes("/admin/top-up-agent") ||
-                        location.pathname.includes("/admin/history-top-up") ||
-                        location.pathname.includes("/admin/top-up-requests")
-                          ? "bg-white/20 font-medium text-white"
-                          : "text-white/80"
-                      } ${!sidebarOpen && "justify-center"}`}
+                {/* Only show these menu items for non-Staff Trips users */}
+                {userRole !== "Staff Trips" && (
+                  <>
+                    {/* 1. Dashboard */}
+                    <Link
+                      to="/admin"
+                      className={`flex items-center p-3 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname === "/admin" || location.pathname === "/admin/" ? "bg-white/20 font-medium text-white" : "text-white/80"} ${!sidebarOpen && "justify-center"}`}
                     >
-                      <UserCog className="h-5 w-5 text-white" />
-                      {sidebarOpen && (
-                        <>
-                          <span className="ml-3 flex-1 text-left">
-                            Agent Management
-                          </span>
-                          {agentManagementOpen ? (
-                            <ChevronDown className="h-4 w-4 text-white" />
-                          ) : (
-                            <ChevronRight className="h-4 w-4 text-white" />
-                          )}
-                        </>
-                      )}
-                    </button>
+                      <BarChart3 className="h-5 w-5 text-white" />
+                      {sidebarOpen && <span className="ml-3">Dashboard</span>}
+                    </Link>
 
-                    {/* Sub-menu items */}
-                    {sidebarOpen && agentManagementOpen && (
-                      <div className="ml-6 mt-2 space-y-1">
-                        <Link
-                          to="/admin/data-agent"
-                          className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/data-agent") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
+                    {/* 2. Customers - Hide for Staff Traffic */}
+                    {userRole !== "Staff Traffic" && (
+                      <Link
+                        to="/admin/customers"
+                        className={`flex items-center p-3 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/customers") ? "bg-white/20 font-medium text-white" : "text-white/80"} ${!sidebarOpen && "justify-center"}`}
+                      >
+                        <User className="h-5 w-5 text-white" />
+                        {sidebarOpen && <span className="ml-3">Customers</span>}
+                      </Link>
+                    )}
+
+                    {/* Concierge Group - New Menu */}
+                    {(userRole === "Super Admin" || 
+                      userRole === "Admin" || 
+                      userRole === "Staff Admin" || 
+                      userRole === "Staff") && (
+                      <Link
+                        to="/admin/concierge-group"
+                        className={`flex items-center p-3 rounded-lg hover:bg-white/20 transition-colors duration-200 ${
+                          location.pathname === "/admin/concierge-group"
+                            ? "bg-primary-tosca/20 text-white border-r-2 border-primary-tosca"
+                        : "text-white hover:bg-white/20"
+                        }`}
+                      >
+                        <UserCog className="h-5 w-5 text-white" />
+                        {sidebarOpen && <span className="ml-3">Concierge Group</span>}
+                      </Link>
+                    )}
+
+                    {/* 3. Staff Admin - Hide for Staff Traffic */}
+                    {userRole !== "Staff Traffic" && (
+                      <Link
+                        to="/admin/staff"
+                        className={`flex items-center p-3 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/staff") ? "bg-white/20 font-medium text-white" : "text-white/80"} ${!sidebarOpen && "justify-center"}`}
+                      >
+                        <Users className="h-5 w-5 text-white" />
+                        {sidebarOpen && <span className="ml-3">Staff Admin</span>}
+                      </Link>
+                    )}
+
+                    {/* Dispatcher Menu - Show for all roles except Staff Trips and Staff Traffic */}
+                    {userRole !== "Staff Trips" && userRole !== "Staff Traffic" && (
+                      <Link
+                        to="/admin/dispatcher"
+                        className={`flex items-center p-3 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/dispatcher") ? "bg-white/20 font-medium text-white" : "text-white/80"} ${!sidebarOpen && "justify-center"}`}
+                      >
+                        <Users className="h-5 w-5 text-white" />
+                        {sidebarOpen && <span className="ml-3">Dispatcher</span>}
+                      </Link>
+                    )}
+
+                    {/* Agent Management Menu - Hide for Staff Traffic */}
+                    {userRole !== "Staff Traffic" && (
+                      <div>
+                        <button
+                          onClick={() =>
+                            setAgentManagementOpen(!agentManagementOpen)
+                          }
+                          className={`w-full flex items-center p-3 rounded-lg hover:bg-white/20 transition-colors duration-200 ${
+                            location.pathname.includes("/admin/data-agent") ||
+                            location.pathname.includes("/admin/booking-agent") ||
+                            location.pathname.includes("/admin/top-up-agent") ||
+                            location.pathname.includes("/admin/history-top-up") ||
+                            location.pathname.includes("/admin/top-up-requests")
+                              ? "bg-white/20 font-medium text-white"
+                              : "text-white/80"
+                          } ${!sidebarOpen && "justify-center"}`}
                         >
-                          <User className="h-4 w-4 text-white" />
-                          <span className="ml-3">Data Agent</span>
-                        </Link>
-                        <Link
-                          to="/admin/booking-agent"
-                          className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/booking-agent") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
-                        >
-                          <CalendarDays className="h-4 w-4 text-white" />
-                          <span className="ml-3">Booking Agent</span>
-                        </Link>
-                        {/* Hide Top Up Agent for Staff role */}
-                        {userRole !== "Staff" && (
+                          <UserCog className="h-5 w-5 text-white" />
+                          {sidebarOpen && (
+                            <>
+                              <span className="ml-3 flex-1 text-left">
+                                Agent Management
+                              </span>
+                              {agentManagementOpen ? (
+                                <ChevronDown className="h-4 w-4 text-white" />
+                              ) : (
+                                <ChevronRight className="h-4 w-4 text-white" />
+                              )}
+                            </>
+                          )}
+                        </button>
+
+                        {/* Sub-menu items */}
+                        {sidebarOpen && agentManagementOpen && (
+                          <div className="ml-6 mt-2 space-y-1">
+                            <Link
+                              to="/admin/data-agent"
+                              className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/data-agent") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
+                            >
+                              <User className="h-4 w-4 text-white" />
+                              <span className="ml-3">Data Agent</span>
+                            </Link>
+                            <Link
+                              to="/admin/booking-agent"
+                              className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/booking-agent") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
+                            >
+                              <CalendarDays className="h-4 w-4 text-white" />
+                              <span className="ml-3">Booking Agent</span>
+                            </Link>
+                            {/* Hide Top Up Agent for Staff role */}
+                            {userRole !== "Staff" && (
+                              <Link
+                                to="/admin/top-up-agent"
+                                className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/top-up-agent") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
+                              >
+                                <Wallet className="h-4 w-4 text-white" />
+                                <span className="ml-3">Top Up Agent</span>
+                              </Link>
+                            )}
+                            <Link
+                              to="/admin/history-top-up"
+                              className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/history-top-up") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
+                            >
+                              <Activity className="h-4 w-4 text-white" />
+                              <span className="ml-3">History Top Up</span>
+                            </Link>
+                            {/* Hide Topup Agent Requests for Staff role */}
+                            {userRole !== "Staff" && (
+                              <Link
+                                to="/admin/top-up-requests"
+                                className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/top-up-requests") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
+                              >
+                                <CheckSquare className="h-4 w-4 text-white" />
+                                <span className="ml-3">Topup Agent Requests</span>
+                              </Link>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* 4. Bookings Menu - Show for Staff Traffic */}
+                    <div>
+                      <Link
+                        to="/admin/bookings"
+                        className={`flex items-center p-3 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname === "/admin/bookings" ? "bg-white/20 font-medium text-white" : "text-white/80"} ${!sidebarOpen && "justify-center"}`}
+                      >
+                        <CalendarDays className="h-5 w-5 text-white" />
+                        {sidebarOpen && <span className="ml-3">Bookings</span>}
+                      </Link>
+
+                      {/* Bookings Sub-menu items */}
+                      {sidebarOpen && (
+                        <div className="ml-6 mt-2 space-y-1">
                           <Link
-                            to="/admin/top-up-agent"
-                            className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/top-up-agent") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
+                            to="/admin/bookings/customer"
+                            className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/bookings/customer") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
+                          >
+                            <User className="h-4 w-4 text-white" />
+                            <span className="ml-3">Bookings Customer</span>
+                          </Link>
+                          <Link
+                            to="/admin/bookings/driver"
+                            className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/bookings/driver") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
+                          >
+                            <UserCog className="h-4 w-4 text-white" />
+                            <span className="ml-3">Bookings Driver</span>
+                          </Link>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* 5. Payments - Hide for Staff Traffic */}
+                    {userRole !== "Staff Traffic" && userRole !== "Staff" && (
+                      <Link
+                        to="/admin/payments"
+                        className={`flex items-center p-3 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/payments") ? "bg-white/20 font-medium text-white" : "text-white/80"} ${!sidebarOpen && "justify-center"}`}
+                      >
+                        <CreditCard className="h-5 w-5 text-white" />
+                        {sidebarOpen && <span className="ml-3">Payments</span>}
+                      </Link>
+                    )}
+
+                    {/* Payment Methods Menu - Hide for Staff Traffic */}
+                    {userRole !== "Staff Trips" && userRole !== "Staff Traffic" && userRole !== "Staff" && (
+                      <div>
+                        <button
+                          onClick={() => setPaymentMethodsOpen(!paymentMethodsOpen)}
+                          className={`w-full flex items-center p-3 rounded-lg hover:bg-white/20 transition-colors duration-200 ${
+                            location.pathname.includes("/admin/payment-methods") ||
+                            location.pathname.includes("/admin/paylabs-settings")
+                              ? "bg-white/20 font-medium text-white"
+                              : "text-white/80"
+                          } ${!sidebarOpen && "justify-center"}`}
+                        >
+                          <Wallet className="h-5 w-5 text-white" />
+                          {sidebarOpen && (
+                            <>
+                              <span className="ml-3 flex-1 text-left">
+                                Payment Methods
+                              </span>
+                              {paymentMethodsOpen ? (
+                                <ChevronDown className="h-4 w-4 text-white" />
+                              ) : (
+                                <ChevronRight className="h-4 w-4 text-white" />
+                              )}
+                            </>
+                          )}
+                        </button>
+
+                        {/* Sub-menu items */}
+                        {sidebarOpen && paymentMethodsOpen && (
+                          <div className="ml-6 mt-2 space-y-1">
+                            <Link
+                              to="/admin/payment-methods"
+                              className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/payment-methods") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
+                            >
+                              <Wallet className="h-4 w-4 text-white" />
+                              <span className="ml-3">Bank Transfer</span>
+                            </Link>
+                            <Link
+                              to="/admin/paylabs-settings"
+                              className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/paylabs-settings") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
+                            >
+                              <CreditCard className="h-4 w-4 text-white" />
+                              <span className="ml-3">Paylabs Settings</span>
+                            </Link>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+
+
+                    {/* 6. Cars & Driver Menu - Show for Staff Traffic */}
+                    <div>
+                      <button
+                        onClick={() => setCarsDriverOpen(!carsDriverOpen)}
+                        className={`w-full flex items-center p-3 rounded-lg hover:bg-white/20 transition-colors duration-200 ${
+                          location.pathname.includes("/admin/topup-driver") ||
+                          location.pathname.includes("/admin/cars") ||
+                          location.pathname.includes("/admin/drivers") ||
+                          location.pathname.includes("/admin/inspections") ||
+                          location.pathname.includes("/admin/damages") ||
+                          location.pathname.includes("/admin/vehicle-inventory") ||
+                          location.pathname.includes("/admin/price-km") ||
+                          location.pathname.includes("/admin/checklist")
+                            ? "bg-white/20 font-medium text-white"
+                            : "text-white/80"
+                        } ${!sidebarOpen && "justify-center"}`}
+                      >
+                        <Car className="h-5 w-5 text-white" />
+                        {sidebarOpen && (
+                          <>
+                            <span className="ml-3 flex-1 text-left">
+                              Cars & Driver
+                            </span>
+                            {carsDriverOpen ? (
+                              <ChevronDown className="h-4 w-4 text-white" />
+                            ) : (
+                              <ChevronRight className="h-4 w-4 text-white" />
+                            )}
+                          </>
+                        )}
+                      </button>
+
+                      {/* Sub-menu items - Show for Staff Traffic */}
+                      {sidebarOpen && carsDriverOpen && (
+                        <div className="ml-6 mt-2 space-y-1">
+                          {/* Topup Driver submenu - Show for all roles except restricted ones */}
+                          {userRole !== "Staff" && (
+                          <Link
+                            to="/admin/topup-driver"
+                            className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/topup-driver") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
                           >
                             <Wallet className="h-4 w-4 text-white" />
-                            <span className="ml-3">Top Up Agent</span>
+                            <span className="ml-3">Topup Driver</span>
                           </Link>
-                        )}
-                        <Link
-                          to="/admin/history-top-up"
-                          className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/history-top-up") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
-                        >
-                          <Activity className="h-4 w-4 text-white" />
-                          <span className="ml-3">History Top Up</span>
-                        </Link>
-                        {/* Hide Topup Agent Requests for Staff role */}
-                        {userRole !== "Staff" && (
+                          )}
                           <Link
-                            to="/admin/top-up-requests"
-                            className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/top-up-requests") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
+                            to="/admin/cars"
+                            className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/cars") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
+                          >
+                            <Car className="h-4 w-4 text-white" />
+                            <span className="ml-3">Cars</span>
+                          </Link>
+                          <Link
+                            to="/admin/drivers"
+                            className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/drivers") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
+                          >
+                            <UserCog className="h-4 w-4 text-white" />
+                            <span className="ml-3">Drivers</span>
+                          </Link>
+                          <Link
+                            to="/admin/inspections"
+                            className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/inspections") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
+                          >
+                            <ClipboardCheck className="h-4 w-4 text-white" />
+                            <span className="ml-3">Inspection</span>
+                          </Link>
+                          <Link
+                            to="/admin/damages"
+                            className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/damages") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
+                          >
+                            <AlertTriangle className="h-4 w-4 text-white" />
+                            <span className="ml-3">Damage</span>
+                          </Link>
+                          <Link
+                            to="/admin/vehicle-inventory"
+                            className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/vehicle-inventory") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
+                          >
+                            <Package className="h-4 w-4 text-white" />
+                            <span className="ml-3">Vehicle Inventory</span>
+                          </Link>
+                          <Link
+                            to="/admin/price-km"
+                            className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/price-km") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
+                          >
+                            <Tag className="h-4 w-4 text-white" />
+                            <span className="ml-3">Price KM</span>
+                          </Link>
+                          <Link
+                            to="/admin/checklist"
+                            className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/checklist") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
                           >
                             <CheckSquare className="h-4 w-4 text-white" />
-                            <span className="ml-3">Topup Agent Requests</span>
+                            <span className="ml-3">Checklist Items</span>
                           </Link>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* 4. Bookings Menu - Show for Staff Traffic */}
-                <div>
-                  <Link
-                    to="/admin/bookings"
-                    className={`flex items-center p-3 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname === "/admin/bookings" ? "bg-white/20 font-medium text-white" : "text-white/80"} ${!sidebarOpen && "justify-center"}`}
-                  >
-                    <CalendarDays className="h-5 w-5 text-white" />
-                    {sidebarOpen && <span className="ml-3">Bookings</span>}
-                  </Link>
-
-                  {/* Bookings Sub-menu items */}
-                  {sidebarOpen && (
-                    <div className="ml-6 mt-2 space-y-1">
-                      <Link
-                        to="/admin/bookings/customer"
-                        className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/bookings/customer") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
-                      >
-                        <User className="h-4 w-4 text-white" />
-                        <span className="ml-3">Bookings Customer</span>
-                      </Link>
-                      <Link
-                        to="/admin/bookings/driver"
-                        className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/bookings/driver") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
-                      >
-                        <UserCog className="h-4 w-4 text-white" />
-                        <span className="ml-3">Bookings Driver</span>
-                      </Link>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
+                  </>
+                )}
 
-                {/* 5. Payments - Hide for Staff Traffic */}
-                {userRole !== "Staff Traffic" && userRole !== "Staff" && (
+                {/* Airport Transfer - Hide for Staff Traffic */}
+                {userRole !== "Staff Traffic" && (
                   <Link
-                    to="/admin/payments"
-                    className={`flex items-center p-3 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/payments") ? "bg-white/20 font-medium text-white" : "text-white/80"} ${!sidebarOpen && "justify-center"}`}
+                    to="/admin/airport-transfer"
+                    className={`flex items-center p-3 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/airport-transfer") ? "bg-white/20 font-medium text-white" : "text-white/80"} ${!sidebarOpen && "justify-center"}`}
                   >
-                    <CreditCard className="h-5 w-5 text-white" />
-                    {sidebarOpen && <span className="ml-3">Payments</span>}
+                    <Plane className="h-5 w-5 text-white" />
+                    {sidebarOpen && <span className="ml-3">Airport Transfer</span>}
                   </Link>
                 )}
 
-                {/* Payment Methods Menu - Hide for Staff Traffic */}
-                {userRole !== "Staff Trips" && userRole !== "Staff Traffic" && userRole !== "Staff" && (
+                {/* 9. Baggage Service Menu - Hide for Staff Traffic */}
+                {userRole !== "Staff Traffic" && (
                   <div>
                     <button
-                      onClick={() => setPaymentMethodsOpen(!paymentMethodsOpen)}
+                      onClick={() => setBaggageServiceOpen(!baggageServiceOpen)}
                       className={`w-full flex items-center p-3 rounded-lg hover:bg-white/20 transition-colors duration-200 ${
-                        location.pathname.includes("/admin/payment-methods") ||
-                        location.pathname.includes("/admin/paylabs-settings")
+                        location.pathname.includes("/admin/baggage-booking") ||
+                        location.pathname.includes("/admin/price-baggage")
                           ? "bg-white/20 font-medium text-white"
                           : "text-white/80"
                       } ${!sidebarOpen && "justify-center"}`}
                     >
-                      <Wallet className="h-5 w-5 text-white" />
+                      <Luggage className="h-5 w-5 text-white" />
                       {sidebarOpen && (
                         <>
                           <span className="ml-3 flex-1 text-left">
-                            Payment Methods
+                            Baggage Service
                           </span>
-                          {paymentMethodsOpen ? (
+                          {baggageServiceOpen ? (
                             <ChevronDown className="h-4 w-4 text-white" />
                           ) : (
                             <ChevronRight className="h-4 w-4 text-white" />
@@ -467,248 +677,99 @@ const AdminLayout = () => {
                     </button>
 
                     {/* Sub-menu items */}
-                    {sidebarOpen && paymentMethodsOpen && (
+                    {sidebarOpen && baggageServiceOpen && (
                       <div className="ml-6 mt-2 space-y-1">
                         <Link
-                          to="/admin/payment-methods"
-                          className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/payment-methods") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
+                          to="/admin/baggage-booking"
+                          className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/baggage-booking") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
                         >
-                          <Wallet className="h-4 w-4 text-white" />
-                          <span className="ml-3">Bank Transfer</span>
+                          <Luggage className="h-4 w-4 text-white" />
+                          <span className="ml-3">Baggage Booking</span>
                         </Link>
                         <Link
-                          to="/admin/paylabs-settings"
-                          className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/paylabs-settings") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
+                          to="/admin/price-baggage"
+                          className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/price-baggage") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
                         >
-                          <CreditCard className="h-4 w-4 text-white" />
-                          <span className="ml-3">Paylabs Settings</span>
+                          <Tag className="h-4 w-4 text-white" />
+                          <span className="ml-3">Price Baggage</span>
                         </Link>
                       </div>
                     )}
                   </div>
                 )}
 
-
-
-                {/* 6. Cars & Driver Menu - Show for Staff Traffic */}
-                <div>
-                  <button
-                    onClick={() => setCarsDriverOpen(!carsDriverOpen)}
-                    className={`w-full flex items-center p-3 rounded-lg hover:bg-white/20 transition-colors duration-200 ${
-                      location.pathname.includes("/admin/topup-driver") ||
-                      location.pathname.includes("/admin/cars") ||
-                      location.pathname.includes("/admin/drivers") ||
-                      location.pathname.includes("/admin/inspections") ||
-                      location.pathname.includes("/admin/damages") ||
-                      location.pathname.includes("/admin/vehicle-inventory") ||
-                      location.pathname.includes("/admin/price-km") ||
-                      location.pathname.includes("/admin/checklist")
-                        ? "bg-white/20 font-medium text-white"
-                        : "text-white/80"
-                    } ${!sidebarOpen && "justify-center"}`}
-                  >
-                    <Car className="h-5 w-5 text-white" />
-                    {sidebarOpen && (
-                      <>
-                        <span className="ml-3 flex-1 text-left">
-                          Cars & Driver
-                        </span>
-                        {carsDriverOpen ? (
-                          <ChevronDown className="h-4 w-4 text-white" />
-                        ) : (
-                          <ChevronRight className="h-4 w-4 text-white" />
-                        )}
-                      </>
-                    )}
-                  </button>
-
-                  {/* Sub-menu items - Show for Staff Traffic */}
-                  {sidebarOpen && carsDriverOpen && (
-                    <div className="ml-6 mt-2 space-y-1">
-                      {/* Topup Driver submenu - Show for all roles except restricted ones */}
-                      {userRole !== "Staff" && (
-                      <Link
-                        to="/admin/topup-driver"
-                        className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/topup-driver") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
-                      >
-                        <Wallet className="h-4 w-4 text-white" />
-                        <span className="ml-3">Topup Driver</span>
-                      </Link>
+                {/* 10. Handling Service Menu - Hide for Staff Traffic */}
+                {userRole !== "Staff Traffic" && (
+                  <div>
+                    <button
+                      onClick={() => setHandlingServiceOpen(!handlingServiceOpen)}
+                      className={`w-full flex items-center p-3 rounded-lg hover:bg-white/20 transition-colors duration-200 ${
+                        location.pathname.includes("/admin/handling-booking") ||
+                        location.pathname.includes("/admin/handling-services")
+                          ? "bg-white/20 font-medium text-white"
+                          : "text-white/80"
+                      } ${!sidebarOpen && "justify-center"}`}
+                    >
+                      <Users className="h-5 w-5 text-white" />
+                      {sidebarOpen && (
+                        <>
+                          <span className="ml-3 flex-1 text-left">
+                            Handling Service
+                          </span>
+                          {handlingServiceOpen ? (
+                            <ChevronDown className="h-4 w-4 text-white" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4 text-white" />
+                          )}
+                        </>
                       )}
-                      <Link
-                        to="/admin/cars"
-                        className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/cars") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
-                      >
-                        <Car className="h-4 w-4 text-white" />
-                        <span className="ml-3">Cars</span>
-                      </Link>
-                      <Link
-                        to="/admin/drivers"
-                        className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/drivers") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
-                      >
-                        <UserCog className="h-4 w-4 text-white" />
-                        <span className="ml-3">Drivers</span>
-                      </Link>
-                      <Link
-                        to="/admin/inspections"
-                        className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/inspections") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
-                      >
-                        <ClipboardCheck className="h-4 w-4 text-white" />
-                        <span className="ml-3">Inspection</span>
-                      </Link>
-                      <Link
-                        to="/admin/damages"
-                        className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/damages") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
-                      >
-                        <AlertTriangle className="h-4 w-4 text-white" />
-                        <span className="ml-3">Damage</span>
-                      </Link>
-                      <Link
-                        to="/admin/vehicle-inventory"
-                        className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/vehicle-inventory") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
-                      >
-                        <Package className="h-4 w-4 text-white" />
-                        <span className="ml-3">Vehicle Inventory</span>
-                      </Link>
-                      <Link
-                        to="/admin/price-km"
-                        className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/price-km") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
-                      >
-                        <Tag className="h-4 w-4 text-white" />
-                        <span className="ml-3">Price KM</span>
-                      </Link>
-                      <Link
-                        to="/admin/checklist"
-                        className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/checklist") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
-                      >
-                        <CheckSquare className="h-4 w-4 text-white" />
-                        <span className="ml-3">Checklist Items</span>
-                      </Link>
-                    </div>
-                  )}
-                </div>
+                    </button>
+
+                    {/* Sub-menu items */}
+                    {sidebarOpen && handlingServiceOpen && (
+                      <div className="ml-6 mt-2 space-y-1">
+                        <Link
+                          to="/admin/handling-booking"
+                          className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/handling-booking") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
+                        >
+                          <CalendarDays className="h-4 w-4 text-white" />
+                          <span className="ml-3">Handling Booking</span>
+                        </Link>
+                        <Link
+                          to="/admin/handling-services"
+                          className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/handling-services") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
+                        >
+                          <Tag className="h-4 w-4 text-white" />
+                          <span className="ml-3">Handling Services</span>
+                        </Link>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Only show API Settings for non-Staff Trips and non-Staff Traffic users */}
+                {userRole !== "Staff Trips" && userRole !== "Staff Traffic" && userRole !== "Staff" &&  (
+                  <Link
+                    to="/admin/api-settings"
+                    className={`flex items-center p-3 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/api-settings") ? "bg-white/20 font-medium text-white" : "text-white/80"} ${!sidebarOpen ? "justify-center" : ""}`}
+                  >
+                    <Key className="h-5 w-5 text-white" />
+                    {sidebarOpen && <span className="ml-3">API Settings</span>}
+                  </Link>
+                )}
               </>
             )}
 
-            {/* Airport Transfer - Hide for Staff Traffic */}
-            {userRole !== "Staff Traffic" && (
-              <Link
-                to="/admin/airport-transfer"
-                className={`flex items-center p-3 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/airport-transfer") ? "bg-white/20 font-medium text-white" : "text-white/80"} ${!sidebarOpen && "justify-center"}`}
-              >
-                <Plane className="h-5 w-5 text-white" />
-                {sidebarOpen && <span className="ml-3">Airport Transfer</span>}
-              </Link>
-            )}
-
-            {/* 9. Baggage Service Menu - Hide for Staff Traffic */}
-            {userRole !== "Staff Traffic" && (
-              <div>
-                <button
-                  onClick={() => setBaggageServiceOpen(!baggageServiceOpen)}
-                  className={`w-full flex items-center p-3 rounded-lg hover:bg-white/20 transition-colors duration-200 ${
-                    location.pathname.includes("/admin/baggage-booking") ||
-                    location.pathname.includes("/admin/price-baggage")
-                      ? "bg-white/20 font-medium text-white"
-                      : "text-white/80"
-                  } ${!sidebarOpen && "justify-center"}`}
-                >
-                  <Luggage className="h-5 w-5 text-white" />
-                  {sidebarOpen && (
-                    <>
-                      <span className="ml-3 flex-1 text-left">
-                        Baggage Service
-                      </span>
-                      {baggageServiceOpen ? (
-                        <ChevronDown className="h-4 w-4 text-white" />
-                      ) : (
-                        <ChevronRight className="h-4 w-4 text-white" />
-                      )}
-                    </>
-                  )}
-                </button>
-
-                {/* Sub-menu items */}
-                {sidebarOpen && baggageServiceOpen && (
-                  <div className="ml-6 mt-2 space-y-1">
-                    <Link
-                      to="/admin/baggage-booking"
-                      className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/baggage-booking") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
-                    >
-                      <Luggage className="h-4 w-4 text-white" />
-                      <span className="ml-3">Baggage Booking</span>
-                    </Link>
-                    <Link
-                      to="/admin/price-baggage"
-                      className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/price-baggage") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
-                    >
-                      <Tag className="h-4 w-4 text-white" />
-                      <span className="ml-3">Price Baggage</span>
-                    </Link>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* 10. Handling Service Menu - Hide for Staff Traffic */}
-            {userRole !== "Staff Traffic" && (
-              <div>
-                <button
-                  onClick={() => setHandlingServiceOpen(!handlingServiceOpen)}
-                  className={`w-full flex items-center p-3 rounded-lg hover:bg-white/20 transition-colors duration-200 ${
-                    location.pathname.includes("/admin/handling-booking") ||
-                    location.pathname.includes("/admin/handling-services")
-                      ? "bg-white/20 font-medium text-white"
-                      : "text-white/80"
-                  } ${!sidebarOpen && "justify-center"}`}
-                >
-                  <Users className="h-5 w-5 text-white" />
-                  {sidebarOpen && (
-                    <>
-                      <span className="ml-3 flex-1 text-left">
-                        Handling Service
-                      </span>
-                      {handlingServiceOpen ? (
-                        <ChevronDown className="h-4 w-4 text-white" />
-                      ) : (
-                        <ChevronRight className="h-4 w-4 text-white" />
-                      )}
-                    </>
-                  )}
-                </button>
-
-                {/* Sub-menu items */}
-                {sidebarOpen && handlingServiceOpen && (
-                  <div className="ml-6 mt-2 space-y-1">
-                    <Link
-                      to="/admin/handling-booking"
-                      className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/handling-booking") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
-                    >
-                      <CalendarDays className="h-4 w-4 text-white" />
-                      <span className="ml-3">Handling Booking</span>
-                    </Link>
-                    <Link
-                      to="/admin/handling-services"
-                      className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/handling-services") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
-                    >
-                      <Tag className="h-4 w-4 text-white" />
-                      <span className="ml-3">Handling Services</span>
-                    </Link>
-                  </div>
-                )}
-              </div>
-            )}
-
             {/* Only show API Settings for non-Staff Trips and non-Staff Traffic users */}
-            {userRole !== "Staff Trips" && userRole !== "Staff Traffic" && userRole !== "Staff" &&  (
+         {/*   {userRole !== "Staff Trips" && userRole !== "Staff Traffic" && userRole !== "Staff" && userRole !== "Staff Ias" &&  (
               <Link
                 to="/admin/api-settings"
                 className={`flex items-center p-3 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/api-settings") ? "bg-white/20 font-medium text-white" : "text-white/80"} ${!sidebarOpen ? "justify-center" : ""}`}
               >
                 <Key className="h-5 w-5 text-white" />
-                {sidebarOpen && <span className="ml-3">API Settings</span>}
+                {sidebarOpen && <span className="ml-3">API Settings1</span>}
               </Link>
-            )}
+            )}*/}
           </nav>
 
           {/* Sign Out Button */}
@@ -1003,14 +1064,6 @@ const AdminLayout = () => {
                   </DialogContent>
                 </Dialog>
               )}
-
-              <Button
-                size="sm"
-                className="bg-gradient-to-r from-primary-tosca to-primary-dark hover:from-primary-dark hover:to-primary-tosca text-white"
-              >
-                <Activity className="h-4 w-4 mr-2" />
-                Refresh Data
-              </Button>
             </div>
           </div>
           {/* Outlet for child routes */}

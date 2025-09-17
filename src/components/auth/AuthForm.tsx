@@ -273,16 +273,16 @@ const AuthForm: React.FC<AuthFormProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleLoginSubmit = async (data: LoginFormValues) => {
- {/*   console.log("🔄 handleLoginSubmit called with:", {
+    console.log("🔄 handleLoginSubmit called with:", {
       email: data.email,
       hasPassword: !!data.password,
-    });*/}
+    });
 
     setLoginError(null);
     setIsSubmitting(true);
 
     try {
-     // console.log("🚀 Login submission started with email:", data.email);
+      console.log("🚀 Login submission started with email:", data.email);
 
       // Clear any previous session data to prevent conflicts
       localStorage.removeItem("userRole");
@@ -297,33 +297,28 @@ const AuthForm: React.FC<AuthFormProps> = ({
       sessionStorage.removeItem("loggedOut");
       sessionStorage.removeItem("forceLogout");
 
-     // console.log("🔐 Attempting to sign in with email:", data.email);
+      console.log("🔐 Attempting to sign in with email:", data.email);
       const { data: authData, error } = await supabase.auth.signInWithPassword({
         email: data.email,
         password: data.password,
       });
 
-     // console.log("📡 Sign in response:", error ? "❌ Error" : "✅ Success");
+      console.log("📡 Sign in response:", error ? "❌ Error" : "✅ Success");
       if (error) {
         console.error("❌ Login error details:", {
           message: error.message,
           status: error.status,
           name: error.name,
         });
-      }
-
-      if (error) {
-        console.error("❌ Login error:", error);
         setLoginError(error.message);
-        setIsSubmitting(false);
         return;
       }
 
-     /* console.log("👤 Processing user data:", {
+      console.log("👤 Processing user data:", {
         userId: authData.user.id,
         email: authData.user.email,
         metadata: authData.user.user_metadata,
-      });*/
+      });
 
       // Get user role from database first, then fallback to metadata
       let userRole = "Customer"; // Default to Customer
@@ -339,15 +334,15 @@ const AuthForm: React.FC<AuthFormProps> = ({
         if (!userError && userData) {
           if (userData.role) {
             userRole = userData.role;
-          //  console.log("✅ Found role in users table:", userRole);
+            console.log("✅ Found role in users table:", userRole);
           } else if (userData.role_name) {
             userRole = userData.role_name;
-          //  console.log("✅ Found role_name in users table:", userRole);
+            console.log("✅ Found role_name in users table:", userRole);
           }
         } else {
-        /*  console.log(
+          console.log(
             "🔍 No role found in users table, checking staff table...",
-          );*/
+          );
           // Check staff table for role
           const { data: staffData, error: staffError } = await supabase
             .from("staff")
@@ -357,46 +352,33 @@ const AuthForm: React.FC<AuthFormProps> = ({
 
           if (!staffError && staffData?.role) {
             userRole = staffData.role;
-         //   console.log("✅ Found role in staff table:", userRole);
+            console.log("✅ Found role in staff table:", userRole);
           } else {
             // Fallback to metadata
             userRole = authData.user?.user_metadata?.role || "Customer";
-          //  console.log("🔄 Using metadata role:", userRole);
+            console.log("🔄 Using metadata role:", userRole);
           }
         }
       } catch (error) {
-      //  console.warn("⚠️ Error fetching role from database:", error);
+        console.warn("⚠️ Error fetching role from database:", error);
         userRole = authData.user?.user_metadata?.role || "Customer";
       }
 
       // CRITICAL: Check for restricted roles IMMEDIATELY after determining role
       const restrictedRoles = ["Agent", "Driver Perusahaan", "Driver Mitra"];
       if (restrictedRoles.includes(userRole)) {
-       // console.log("🚫 RESTRICTED ROLE DETECTED - BLOCKING LOGIN:", userRole);
+        console.log("🚫 RESTRICTED ROLE DETECTED - BLOCKING LOGIN:", userRole);
 
         // Immediately sign out the user to prevent session establishment
         try {
           await supabase.auth.signOut({ scope: "global" });
-        //  console.log("✅ Successfully signed out restricted user");
+          console.log("✅ Successfully signed out restricted user");
         } catch (signOutError) {
-        //  console.error("❌ Error signing out restricted user:", signOutError);
+          console.error("❌ Error signing out restricted user:", signOutError);
         }
 
         // Clear ALL authentication data immediately
-        localStorage.removeItem("auth_user");
-        localStorage.removeItem("userId");
-        localStorage.removeItem("userRole");
-        localStorage.removeItem("userEmail");
-        localStorage.removeItem("userName");
-        localStorage.removeItem("userPhone");
-        localStorage.removeItem("isAdmin");
-        localStorage.removeItem("driverData");
-        localStorage.removeItem("supabase.auth.token");
-        localStorage.removeItem("sb-refresh-token");
-        localStorage.removeItem("sb-access-token");
-        localStorage.removeItem("sb-auth-token");
-
-        // Clear session storage as well
+        localStorage.clear();
         sessionStorage.clear();
 
         // Show restricted access dialog
@@ -413,7 +395,6 @@ const AuthForm: React.FC<AuthFormProps> = ({
         }, 10000); // 10 seconds
 
         setDialogAutoCloseTimer(timer);
-        setIsSubmitting(false);
 
         // CRITICAL: Prevent any further execution of login logic
         return;
@@ -421,13 +402,13 @@ const AuthForm: React.FC<AuthFormProps> = ({
 
       const isAdmin = userRole === "Admin" || userRole === "Super Admin";
       localStorage.setItem("isAdmin", isAdmin ? "true" : "false");
-     // console.log("🏷️ User role determined:", userRole, "isAdmin:", isAdmin);
+      console.log("🏷️ User role determined:", userRole, "isAdmin:", isAdmin);
 
       // Also store the exact role for debugging
       localStorage.setItem("userRole", userRole);
 
       if (userRole === "Driver") {
-       // console.log("🚗 Checking driver status...");
+        console.log("🚗 Checking driver status...");
         const { data: driverData, error: driverError } = await supabase
           .from("drivers")
           .select("status")
@@ -435,86 +416,63 @@ const AuthForm: React.FC<AuthFormProps> = ({
           .single();
 
         if (driverError) {
-        //  console.error("❌ Error fetching driver status:", driverError);
+          console.error("❌ Error fetching driver status:", driverError);
         } else if (driverData && driverData.status === "suspended") {
-        //  console.log("🚫 Driver account suspended");
+          console.log("🚫 Driver account suspended");
           setLoginError(
             "Your account has been suspended. Please contact an administrator.",
           );
           await supabase.auth.signOut();
-          setIsSubmitting(false);
           return;
         }
       }
 
-    //  console.log("✅ Calling handleLoginSuccess...");
-      await handleLoginSuccess(authData);
-     // console.log("📞 Calling onLogin callback...");
-      onLogin(data);
-    //  console.log("✅ onLogin callback completed");
-
-      const userMeta = authData.user?.user_metadata || {};
-
-      // Try to get name from users table first
-      const { data: userData, error: userError } = await supabase
-        .from("users")
-        .select("full_name")
-        .eq("id", authData.user.id)
-        .single();
-
+      // Get user name from database
       let userFullName = "";
-
-      if (!userError && userData?.full_name) {
-        userFullName = userData.full_name.trim();
-      /*  console.log(
-          "Found name in users table during login process:",
-          userFullName,
-        );*/
-      } else {
-        // Check if user is a customer, try customers table
-        const { data: customerData, error: customerError } = await supabase
-          .from("customers")
-          .select("full_name, name")
+      
+      try {
+        const { data: userData, error: userError } = await supabase
+          .from("users")
+          .select("full_name")
           .eq("id", authData.user.id)
           .single();
 
-        if (!customerError && (customerData?.full_name || customerData?.name)) {
-          userFullName = (customerData.full_name || customerData.name).trim();
-        /*  console.log(
-            "Found name in customers table during login process:",
-            userFullName,
-          );*/
+        if (!userError && userData?.full_name) {
+          userFullName = userData.full_name.trim();
+          console.log("Found name in users table during login:", userFullName);
         } else {
-          // Fallback to metadata
-          if (userMeta.full_name) {
-            userFullName = userMeta.full_name.trim();
-          } else if (userMeta.name) {
-            userFullName = userMeta.name.trim();
-          } else if (authData.user?.email) {
-            userFullName = authData.user.email.split("@")[0];
+          // Check customers table
+          const { data: customerData, error: customerError } = await supabase
+            .from("customers")
+            .select("full_name, name")
+            .eq("id", authData.user.id)
+            .single();
+
+          if (!customerError && (customerData?.full_name || customerData?.name)) {
+            userFullName = (customerData.full_name || customerData.name).trim();
+            console.log("Found name in customers table during login:", userFullName);
           } else {
-            userFullName = "Guest"; // fallback kalau semuanya gagal
+            // Fallback to metadata or email
+            const userMeta = authData.user?.user_metadata || {};
+            userFullName = userMeta.full_name?.trim() || 
+                          userMeta.name?.trim() || 
+                          authData.user.email?.split("@")[0] || 
+                          "User";
+            console.log("Using fallback name during login:", userFullName);
           }
-         /* console.log(
-            "Using fallback name during login process:",
-            userFullName,
-          );*/
         }
+      } catch (error) {
+        console.warn("Error fetching user name:", error);
+        userFullName = authData.user.email?.split("@")[0] || "User";
       }
 
       // Make sure we never use "Customer" as the name
-      if (
-        !userFullName ||
-        userFullName.trim() === "" ||
-        userFullName === "Customer"
-      ) {
+      if (!userFullName || userFullName === "Customer") {
         userFullName = authData.user.email?.split("@")[0] || "User";
-      /*  console.log(
-          "Using email username instead of empty/Customer name:",
-          userFullName,
-        );*/
+        console.log("Using email username instead of empty/Customer name:", userFullName);
       }
 
+      // Store user data
       const userDataObj = {
         id: authData.user.id,
         role: userRole,
@@ -522,91 +480,61 @@ const AuthForm: React.FC<AuthFormProps> = ({
         name: userFullName,
       };
 
-      // Update user metadata to ensure consistency between UI and stored data
-      const { error: updateMetadataError } = await supabase.auth.updateUser({
-        data: {
-          ...authData.user.user_metadata,
-          name: userFullName,
-          full_name: userFullName,
-        },
-      });
-
-      if (updateMetadataError) {
-       // console.warn("⚠️ Failed to update user metadata:", updateMetadataError);
-      } else {
-      //  console.log("✅ Updated user metadata with name:", userFullName);
-      }
-
       localStorage.setItem("auth_user", JSON.stringify(userDataObj));
       localStorage.setItem("userName", userFullName);
-   //   console.log("Saved userName to localStorage during login:", userFullName);
+      localStorage.setItem("userId", authData.user.id);
+      localStorage.setItem("userEmail", authData.user.email || "");
+      localStorage.setItem("userRole", userRole);
 
-    //  console.log("🏷️ User logged in with role:", userRole);
-    //  console.log("🆔 User logged in successfully with ID:", authData.user.id);
+      console.log("✅ User logged in successfully:", userDataObj);
 
-     // console.log("📞 Calling onLogin callback (second time)...");
+      // Call the onLogin callback
       onLogin(data);
-     // console.log("✅ onLogin callback completed (second time)");
 
+      // Update auth state
       if (onAuthStateChange) {
-      //  console.log("🔄 Updating auth state to true (second time)...");
+        console.log("🔄 Updating auth state to true...");
         onAuthStateChange(true);
-      } else {
-       // console.log("⚠️ No onAuthStateChange handler provided (second time)");
       }
 
-      // Force immediate redirect for Admin and Staff users ONLY (not Customer)
+      // Handle role-based redirection
       const adminStaffRoles = [
         "Admin",
         "Super Admin", 
         "Staff",
         "Staff Admin",
         "Staff Trips",
+        "Staff Ias",
         "Staff Traffic"
       ];
       
-      // Handle role object from database join (role.role_name) or direct string
-      let resolvedUserRole = userRole;
-      if (userRole && typeof userRole === 'object' && userRole.role_name) {
-        resolvedUserRole = userRole.role_name;
-      }
+      const shouldRedirectToAdmin = adminStaffRoles.includes(userRole) || isAdmin;
       
-      // CRITICAL FIX: Only redirect to admin if user is actually admin/staff AND not a customer
-      const shouldRedirectToAdmin = adminStaffRoles.includes(resolvedUserRole) || isAdmin;
-      
-      if (shouldRedirectToAdmin && resolvedUserRole !== "Customer") {
-      /*  console.log("🔀 Redirecting Admin/Staff user to admin panel", {
-          userRole,
-          resolvedUserRole,
-          isAdmin,
-          shouldRedirectToAdmin
-        });*/
-        // Use replace: true to prevent back button issues
-        navigate("/admin", { replace: true });
-      } else {
-       // console.log("ℹ️ No redirect needed for role:", userRole);
-        // For Customer users, stay on the current page (no redirection to admin)
-        if (resolvedUserRole === "Customer") {
-        //  console.log("✅ Customer user logged in, staying on customer interface");
-        }
-      }
+      if (shouldRedirectToAdmin && userRole !== "Customer") {
+  console.log("🔀 Redirecting Admin/Staff user to admin panel", {
+    userRole,
+    isAdmin,
+    shouldRedirectToAdmin
+  });
+  navigate("/admin", { replace: true });
+} else {
+  console.log("ℹ️ No redirect needed for role:", userRole);
+  // Tambahkan redirect untuk Customer atau role lain
+  navigate("/", { replace: true }); // Pastikan /home ada di App.tsx
+}
 
       if (onClose) {
-      //  console.log("🚪 Closing auth form after successful login");
+        console.log("🚪 Closing auth form after successful login");
         onClose();
       }
     } catch (error) {
-    /*  console.error("💥 Unexpected login error:", {
-        error,
-        message: error instanceof Error ? error.message : "Unknown error",
-        stack: error instanceof Error ? error.stack : "No stack trace",
-      });*/
+      console.error("💥 Unexpected login error:", error);
       setLoginError(
         error instanceof Error ? error.message : "An unexpected error occurred",
       );
     } finally {
       setIsSubmitting(false);
-    //  console.log("🏁 Login submission completed, isSubmitting set to false");
+      console.log("🏁 Login submission completed");
     }
   };
 

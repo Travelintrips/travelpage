@@ -98,20 +98,20 @@ const AirportBaggage: React.FC = () => {
   const fetchBaggagePrices = useCallback(async () => {
     try {
       setLoading(true);
-      console.log("🔄 Starting to fetch baggage prices from database...");
-      console.log("📊 Supabase client:", supabase);
-      console.log("🔗 Supabase URL:", supabase.supabaseUrl);
+     // console.log("🔄 Starting to fetch baggage prices from database...");
+     // console.log("📊 Supabase client:", supabase);
+    //  console.log("🔗 Supabase URL:", supabase.supabaseUrl);
 
       const { data, error } = await supabase
         .from("baggage_price")
         .select("*")
         .order("created_at", { ascending: true });
 
-      console.log("📋 Raw Supabase response:", { data, error });
-      console.log("✅ Data received:", data);
-      console.log("❌ Error received:", error);
-      console.log("📊 Data type:", typeof data);
-      console.log("📊 Data length:", data?.length);
+   //   console.log("📋 Raw Supabase response:", { data, error });
+   //   console.log("✅ Data received:", data);
+   //   console.log("❌ Error received:", error);
+    //  console.log("📊 Data type:", typeof data);
+   //   console.log("📊 Data length:", data?.length);
 
       if (data && data.length > 0) {
         console.log("🎉 SUCCESS: Baggage prices fetched successfully!");
