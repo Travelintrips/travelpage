@@ -408,8 +408,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         console.log('[AuthContext] Auth state change:', event, session?.user?.id);
 
-        // CRITICAL: Force clear logout flags on any SIGNED_IN event
+        // GUARD: Prevent duplicate SIGNED_IN events for the same user
         if (event === 'SIGNED_IN' && session?.user) {
+          if (user?.id === session.user.id) {
+            console.log('🔄 [AuthContext] Duplicate SIGNED_IN ignored for user:', session.user.id);
+            return;
+          }
+          
           console.log('[AuthContext] SIGNED_IN detected - force clearing all logout flags');
           
           // Clear ALL logout flags immediately
@@ -555,8 +560,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     );
 
-    return () => subscription.unsubscribe();
-  }, []);
+    return () => {
+      console.log('[AuthContext] Cleaning up auth state listener');
+      subscription.unsubscribe();
+    };
+  }, [user]); // Add user as dependency to access current user for duplicate check
 
   // FIXED: Enhanced visibility change handler with strict session validation
   useEffect(() => {

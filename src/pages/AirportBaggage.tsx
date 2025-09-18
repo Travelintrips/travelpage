@@ -64,7 +64,7 @@ const AirportBaggage: React.FC = () => {
   // Fetch baggage prices from database
   const fetchBaggagePrices = useCallback(async () => {
     try {
-      console.log("🔄 Fetching baggage prices from database...");
+    //  console.log("🔄 Fetching baggage prices from database...");
 
       const { data, error } = await supabase
         .from("baggage_price")
@@ -72,7 +72,7 @@ const AirportBaggage: React.FC = () => {
         .order("created_at", { ascending: true });
 
       if (error) {
-        console.warn("⚠️ Database query failed, using default prices:", error);
+      //  console.warn("⚠️ Database query failed, using default prices:", error);
         
         // Use default prices as fallback
         const defaultPrices: BaggagePrice[] = [
@@ -139,7 +139,7 @@ const AirportBaggage: React.FC = () => {
 
       // If no data is returned, use default prices
       if (!data || data.length === 0) {
-        console.warn("⚠️ No baggage prices found in database, using default prices");
+      //  console.warn("⚠️ No baggage prices found in database, using default prices");
         const defaultPrices: BaggagePrice[] = [
           {
             id: "1",
@@ -200,7 +200,7 @@ const AirportBaggage: React.FC = () => {
         ];
         setBaggagePrices(defaultPrices);
       } else {
-        console.log("🎉 SUCCESS: Setting fetched prices from database:", data);
+     //   console.log("🎉 SUCCESS: Setting fetched prices from database:", data);
         setBaggagePrices(data);
       }
     } catch (error) {
