@@ -68,21 +68,23 @@ const HandlingPage = () => {
   });
 
   // Auto-fill form with user data when available
-  useEffect(() => {
-    if (userName || userEmail || userPhone) {
-      setFormData((prev) => ({
-        ...prev,
-        name: userName || prev.name,
-        email: userEmail || prev.email,
-        phone: userPhone || prev.phone,
-      }));
-      console.log("[HandlingPage] Auto-filled form with user data:", {
-        display_name: userName,
-        email: userEmail,
-        phone: userPhone,
-      });
-    }
-  }, [userName, userEmail, userPhone]);
+ useEffect(() => {
+  if (userName || userEmail || userPhone) {
+    setFormData((prev) => ({
+      ...prev,
+      name: userName || prev.name,
+      email: userEmail || prev.email,
+      phone_number: userPhone ?? prev.phone_number ?? null, // pakai null jika kosong
+    }));
+
+    console.log("[HandlingPage] Auto-filled form with user data:", {
+      name: userName || formData.name,
+      email: userEmail || formData.email,
+      phone_number: userPhone ?? formData.phone_number ?? null,
+    });
+  }
+}, [userName, userEmail, userPhone]);
+
 
   const [isLoading, setIsLoading] = useState(false);
   const [currentStep, setCurrentStep] = useState(1); // 1 = menu selection, 2 = category selection, 3 = form, 4 = summary

@@ -54,23 +54,95 @@ const AuthModal: React.FC<ModalProps> = ({
 
   // Clear any session flags that might prevent login when modal opens
   useEffect(() => {
-    // Remove any session flags that might prevent login
+    console.log('[AuthModal] Modal opened, checking and clearing stale flags...');
+    
+    // Check if logout is currently in progress
+    const signOutInProgress = sessionStorage.getItem("signOutInProgress");
+    const logoutTimestamp = sessionStorage.getItem("logoutTimestamp");
+    
+    // If logout is in progress, check if it's stale (older than 10 seconds)
+    const currentTime = Date.now();
+    const isStaleLogout = logoutTimestamp && (currentTime - parseInt(logoutTimestamp)) > 10000;
+    
+    if (signOutInProgress === "true" && !isStaleLogout) {
+      console.log('[AuthModal] Active logout in progress, not clearing flags');
+      return;
+    }
+    
+    if (isStaleLogout) {
+      console.log('[AuthModal] Detected stale logout process, clearing all flags');
+    }
+    
+    // Clear all logout flags for fresh login
+    console.log('[AuthModal] Clearing all logout flags for fresh login');
     sessionStorage.removeItem("loggedOut");
     sessionStorage.removeItem("forceLogout");
-
-    // Also ensure we're signed out from Supabase when opening the modal
+    sessionStorage.removeItem("signOutInProgress");
+    sessionStorage.removeItem("logoutTimestamp");
+    localStorage.removeItem("userLoggedOut");
+    localStorage.removeItem("logoutEvent");
+    
+    // Clear stale Supabase session data
     const checkAndClearSession = async () => {
-      const { data } = await supabase.auth.getSession();
-      if (!data.session) {
-        // No active session, clear any stale data
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (!session) {
+          console.log('[AuthModal] No active session, clearing stale auth data');
+          // Clear any stale Supabase tokens
+          localStorage.removeItem("supabase.auth.token");
+          
+          // Clear all Supabase-related localStorage keys
+          const supabaseKeys = Object.keys(localStorage).filter(key => 
+            key.startsWith('sb-') || key.includes('supabase')
+          );
+          supabaseKeys.forEach(key => {
+            console.log(`[AuthModal] Clearing stale key: ${key}`);
+            localStorage.removeItem(key);
+          });
+          
+          // Clear auth_user if no valid session
+          localStorage.removeItem("auth_user");
+        } else {
+          console.log('[AuthModal] Valid session exists:', session.user?.id);
+          // If there's a valid session but user is trying to login, 
+          // they might want to switch accounts
+          if (session.expires_at && session.expires_at < Date.now() / 1000) {
+            console.log('[AuthModal] Session expired, clearing data');
+            await supabase.auth.signOut({ scope: "global" });
+            localStorage.removeItem("auth_user");
+          }
+        }
+      } catch (error) {
+        console.warn('[AuthModal] Error checking session:', error);
+        // On error, clear potentially stale data
         localStorage.removeItem("supabase.auth.token");
-        localStorage.removeItem("sb-refresh-token");
-        localStorage.removeItem("sb-access-token");
-        localStorage.removeItem("sb-auth-token");
+        localStorage.removeItem("auth_user");
+        sessionStorage.removeItem("loggedOut");
+        sessionStorage.removeItem("forceLogout");
+        sessionStorage.removeItem("signOutInProgress");
+        localStorage.removeItem("userLoggedOut");
       }
     };
 
     checkAndClearSession();
+
+    // Cross-tab logout synchronization
+    const storageListener = (event: StorageEvent) => {
+      if (
+        (event.key === "loggedOut" || 
+         event.key === "forceLogout" || 
+         event.key === "logoutEvent") &&
+        event.newValue
+      ) {
+        console.log('[AuthModal] Logout detected in another tab, redirecting...');
+        window.location.href = window.location.origin;
+      }
+    };
+    
+    window.addEventListener("storage", storageListener);
+    return () => window.removeEventListener("storage", storageListener);
+
   }, []);
 
   useEffect(() => {

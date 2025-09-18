@@ -272,269 +272,83 @@ const AuthForm: React.FC<AuthFormProps> = ({
   const [loginError, setLoginError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleLoginSubmit = async (data: LoginFormValues) => {
-    console.log("🔄 handleLoginSubmit called with:", {
-      email: data.email,
-      hasPassword: !!data.password,
-    });
+  const handleLoginSubmit = async (data: LoginFormData) => {
+    console.log("handleLoginSubmit called with:", { email: data.email, hasPassword: !!data.password });
+    
+    if (isSubmitting) {
+      console.log("🚫 Login already in progress, ignoring duplicate submission");
+      return;
+    }
 
-    setLoginError(null);
     setIsSubmitting(true);
+    setLoginError("");
 
     try {
       console.log("🚀 Login submission started with email:", data.email);
 
-      // Clear any previous session data to prevent conflicts
-      localStorage.removeItem("userRole");
-      localStorage.removeItem("userId");
-      localStorage.removeItem("userEmail");
-      localStorage.removeItem("auth_user");
-      localStorage.removeItem("driverData");
-      localStorage.removeItem("userName");
-      localStorage.removeItem("isAdmin");
-
-      // Remove any session flags that might prevent login
+      // CRITICAL: Force clear ALL logout flags and stale data before attempting login
+      console.log("🧹 Clearing all logout flags before login...");
       sessionStorage.removeItem("loggedOut");
       sessionStorage.removeItem("forceLogout");
+      sessionStorage.removeItem("signOutInProgress");
+      sessionStorage.removeItem("logoutTimestamp");
+      localStorage.removeItem("userLoggedOut");
+      localStorage.removeItem("logoutEvent");
+      
+      // Clear any stale auth data
+      localStorage.removeItem("auth_user");
+
+      // CRITICAL: Validate current session state before login
+      console.log("🔍 Validating current session state...");
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
+      
+      if (currentSession?.user) {
+        console.log("⚠️ Existing session detected, signing out first...");
+        await supabase.auth.signOut({ scope: "global" });
+        // Wait for signout to complete
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
 
       console.log("🔐 Attempting to sign in with email:", data.email);
-      const { data: authData, error } = await supabase.auth.signInWithPassword({
+
+      const { data: authData, error: signInError } = await supabase.auth.signInWithPassword({
         email: data.email,
         password: data.password,
       });
 
-      console.log("📡 Sign in response:", error ? "❌ Error" : "✅ Success");
-      if (error) {
-        console.error("❌ Login error details:", {
-          message: error.message,
-          status: error.status,
-          name: error.name,
-        });
-        setLoginError(error.message);
+      console.log("📡 Sign in response:", signInError ? "❌ Error" : "✅ Success");
+
+      if (signInError) {
+        console.error("🚨 Sign in error:", signInError);
+        setLoginError(signInError.message);
+        setIsSubmitting(false);
+        return;
+      }
+
+      if (!authData.user) {
+        console.error("🚨 No user data returned from sign in");
+        setLoginError("Login failed - no user data");
+        setIsSubmitting(false);
         return;
       }
 
       console.log("👤 Processing user data:", {
         userId: authData.user.id,
         email: authData.user.email,
-        metadata: authData.user.user_metadata,
+        metadata: authData.user.user_metadata
       });
 
-      // Get user role from database first, then fallback to metadata
-      let userRole = "Customer"; // Default to Customer
+      // Wait for AuthContext to process the SIGNED_IN event
+      await new Promise(resolve => setTimeout(resolve, 1500));
 
-      // Try to get role from users table first
-      try {
-        const { data: userData, error: userError } = await supabase
-          .from("users")
-          .select("role, role_name")
-          .eq("id", authData.user.id)
-          .single();
-
-        if (!userError && userData) {
-          if (userData.role) {
-            userRole = userData.role;
-            console.log("✅ Found role in users table:", userRole);
-          } else if (userData.role_name) {
-            userRole = userData.role_name;
-            console.log("✅ Found role_name in users table:", userRole);
-          }
-        } else {
-          console.log(
-            "🔍 No role found in users table, checking staff table...",
-          );
-          // Check staff table for role
-          const { data: staffData, error: staffError } = await supabase
-            .from("staff")
-            .select("role")
-            .eq("user_id", authData.user.id)
-            .single();
-
-          if (!staffError && staffData?.role) {
-            userRole = staffData.role;
-            console.log("✅ Found role in staff table:", userRole);
-          } else {
-            // Fallback to metadata
-            userRole = authData.user?.user_metadata?.role || "Customer";
-            console.log("🔄 Using metadata role:", userRole);
-          }
-        }
-      } catch (error) {
-        console.warn("⚠️ Error fetching role from database:", error);
-        userRole = authData.user?.user_metadata?.role || "Customer";
-      }
-
-      // CRITICAL: Check for restricted roles IMMEDIATELY after determining role
-      const restrictedRoles = ["Agent", "Driver Perusahaan", "Driver Mitra"];
-      if (restrictedRoles.includes(userRole)) {
-        console.log("🚫 RESTRICTED ROLE DETECTED - BLOCKING LOGIN:", userRole);
-
-        // Immediately sign out the user to prevent session establishment
-        try {
-          await supabase.auth.signOut({ scope: "global" });
-          console.log("✅ Successfully signed out restricted user");
-        } catch (signOutError) {
-          console.error("❌ Error signing out restricted user:", signOutError);
-        }
-
-        // Clear ALL authentication data immediately
-        localStorage.clear();
-        sessionStorage.clear();
-
-        // Show restricted access dialog
-        setShowAccessRestrictedDialog(true);
-
-        // Auto close after 10 seconds
-        const timer = setTimeout(() => {
-          setShowAccessRestrictedDialog(false);
-          if (onClose) {
-            onClose();
-          } else {
-            navigate("/");
-          }
-        }, 10000); // 10 seconds
-
-        setDialogAutoCloseTimer(timer);
-
-        // CRITICAL: Prevent any further execution of login logic
-        return;
-      }
-
-      const isAdmin = userRole === "Admin" || userRole === "Super Admin";
-      localStorage.setItem("isAdmin", isAdmin ? "true" : "false");
-      console.log("🏷️ User role determined:", userRole, "isAdmin:", isAdmin);
-
-      // Also store the exact role for debugging
-      localStorage.setItem("userRole", userRole);
-
-      if (userRole === "Driver") {
-        console.log("🚗 Checking driver status...");
-        const { data: driverData, error: driverError } = await supabase
-          .from("drivers")
-          .select("status")
-          .eq("id", authData.user.id)
-          .single();
-
-        if (driverError) {
-          console.error("❌ Error fetching driver status:", driverError);
-        } else if (driverData && driverData.status === "suspended") {
-          console.log("🚫 Driver account suspended");
-          setLoginError(
-            "Your account has been suspended. Please contact an administrator.",
-          );
-          await supabase.auth.signOut();
-          return;
-        }
-      }
-
-      // Get user name from database
-      let userFullName = "";
-      
-      try {
-        const { data: userData, error: userError } = await supabase
-          .from("users")
-          .select("full_name")
-          .eq("id", authData.user.id)
-          .single();
-
-        if (!userError && userData?.full_name) {
-          userFullName = userData.full_name.trim();
-          console.log("Found name in users table during login:", userFullName);
-        } else {
-          // Check customers table
-          const { data: customerData, error: customerError } = await supabase
-            .from("customers")
-            .select("full_name, name")
-            .eq("id", authData.user.id)
-            .single();
-
-          if (!customerError && (customerData?.full_name || customerData?.name)) {
-            userFullName = (customerData.full_name || customerData.name).trim();
-            console.log("Found name in customers table during login:", userFullName);
-          } else {
-            // Fallback to metadata or email
-            const userMeta = authData.user?.user_metadata || {};
-            userFullName = userMeta.full_name?.trim() || 
-                          userMeta.name?.trim() || 
-                          authData.user.email?.split("@")[0] || 
-                          "User";
-            console.log("Using fallback name during login:", userFullName);
-          }
-        }
-      } catch (error) {
-        console.warn("Error fetching user name:", error);
-        userFullName = authData.user.email?.split("@")[0] || "User";
-      }
-
-      // Make sure we never use "Customer" as the name
-      if (!userFullName || userFullName === "Customer") {
-        userFullName = authData.user.email?.split("@")[0] || "User";
-        console.log("Using email username instead of empty/Customer name:", userFullName);
-      }
-
-      // Store user data
-      const userDataObj = {
-        id: authData.user.id,
-        role: userRole,
-        email: authData.user.email || "",
-        name: userFullName,
-      };
-
-      localStorage.setItem("auth_user", JSON.stringify(userDataObj));
-      localStorage.setItem("userName", userFullName);
-      localStorage.setItem("userId", authData.user.id);
-      localStorage.setItem("userEmail", authData.user.email || "");
-      localStorage.setItem("userRole", userRole);
-
-      console.log("✅ User logged in successfully:", userDataObj);
-
-      // Call the onLogin callback
-      onLogin(data);
-
-      // Update auth state
-      if (onAuthStateChange) {
-        console.log("🔄 Updating auth state to true...");
-        onAuthStateChange(true);
-      }
-
-      // Handle role-based redirection
-      const adminStaffRoles = [
-        "Admin",
-        "Super Admin", 
-        "Staff",
-        "Staff Admin",
-        "Staff Trips",
-        "Staff Ias",
-        "Staff Traffic"
-      ];
-      
-      const shouldRedirectToAdmin = adminStaffRoles.includes(userRole) || isAdmin;
-      
-      if (shouldRedirectToAdmin && userRole !== "Customer") {
-  console.log("🔀 Redirecting Admin/Staff user to admin panel", {
-    userRole,
-    isAdmin,
-    shouldRedirectToAdmin
-  });
-  navigate("/admin", { replace: true });
-} else {
-  console.log("ℹ️ No redirect needed for role:", userRole);
-  // Tambahkan redirect untuk Customer atau role lain
-  navigate("/", { replace: true }); // Pastikan /home ada di App.tsx
-}
-
-      if (onClose) {
-        console.log("🚪 Closing auth form after successful login");
-        onClose();
-      }
-    } catch (error) {
-      console.error("💥 Unexpected login error:", error);
-      setLoginError(
-        error instanceof Error ? error.message : "An unexpected error occurred",
-      );
-    } finally {
+      console.log("✅ Login process completed successfully");
       setIsSubmitting(false);
-      console.log("🏁 Login submission completed");
+      onClose();
+
+    } catch (error) {
+      console.error("💥 Unexpected error during login:", error);
+      setLoginError("An unexpected error occurred during login");
+      setIsSubmitting(false);
     }
   };
 

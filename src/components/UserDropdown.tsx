@@ -34,63 +34,13 @@ const UserDropdown = () => {
 
   const navigate = useNavigate();
 
-  // Show loading only for a brief moment with timeout - reduced to minimize flickering
-  const [showLoading, setShowLoading] = React.useState(true);
-  const [isStable, setIsStable] = React.useState(false);
-
-  // Consistent userName resolution - prioritize AuthContext over localStorage
-  const userName = React.useMemo(() => {
-    // First priority: AuthContext userName (most up-to-date)
-    if (
-      authUserName &&
-      authUserName.trim() !== "" &&
-      !["Customer", "User"].includes(authUserName)
-    ) {
-      return authUserName;
-    }
-
-    // Second priority: localStorage userName
-    const storedUserName = localStorage.getItem("userName");
-    if (
-      storedUserName &&
-      storedUserName.trim() !== "" &&
-      !["Customer", "User"].includes(storedUserName)
-    ) {
-      return storedUserName;
-    }
-
-    // Third priority: email username
-    if (userEmail) {
-      return userEmail.split("@")[0];
-    }
-
-    // Fallback
-    return "User";
-  }, [authUserName, userEmail]);
-
-  React.useEffect(() => {
-    if (isLoading) {
-      // Reduced timeout to minimize flickering
-      const timeout = setTimeout(() => {
-        setShowLoading(false);
-        setIsStable(true);
-      }, 1000);
-
-      return () => clearTimeout(timeout);
-    } else {
-      setShowLoading(false);
-      // Add small delay for stability
-      setTimeout(() => setIsStable(true), 200);
-    }
-  }, [isLoading]);
-
-  // Don't render if not authenticated and not loading
-  if (!isAuthenticated && !isLoading && !showLoading) {
+  // CRITICAL: Don't render anything if not authenticated
+  if (!isAuthenticated) {
     return null;
   }
 
-  // Show loading state - only if not stable to prevent flickering
-  if (isLoading && showLoading && !isStable) {
+  // Show loading only when actually loading
+  if (isLoading) {
     return (
       <Button
         variant="ghost"
@@ -101,50 +51,46 @@ const UserDropdown = () => {
     );
   }
 
-  // If not authenticated after loading is complete, don't render
-  if (!isAuthenticated) {
-    return null;
-  }
-
-  // Get role from multiple sources with priority
-  const storedRole = localStorage.getItem("userRole");
-  const authUserStr = localStorage.getItem("auth_user");
-  let authUserRole = null;
-
-  try {
-    if (authUserStr) {
-      const authUser = JSON.parse(authUserStr);
-      authUserRole = authUser.role;
+  // FIXED: Only use AuthContext data, never read from localStorage
+  const userName = React.useMemo(() => {
+    // Only use AuthContext data - never read localStorage during render
+    if (
+      authUserName &&
+      authUserName.trim() !== "" &&
+      !["Customer", "User"].includes(authUserName)
+    ) {
+      return authUserName;
     }
-  } catch (e) {
-    console.warn("Error parsing auth_user from localStorage:", e);
-  }
 
-  // Handle role object from database join (role.role_name) or direct string
-  let resolvedRole = role;
-  if (role && typeof role === 'object' && role.role_name) {
-    resolvedRole = role.role_name;
-  }
+    // Use email username if available
+    if (userEmail) {
+      return userEmail.split("@")[0];
+    }
 
-  // Priority: AuthContext role > localStorage auth_user role > localStorage userRole > fallback
-  const effectiveRole = resolvedRole || authUserRole || storedRole || "Customer";
+    // Fallback
+    return "User";
+  }, [authUserName, userEmail]);
 
-  // Simplified admin check
-  const effectiveIsAdmin =
-    isAdmin ||
-    localStorage.getItem("isAdmin") === "true" ||
-    effectiveRole === "Admin";
+  // FIXED: Only use AuthContext role, never read localStorage
+  const effectiveRole = role || "Customer";
+  const effectiveIsAdmin = isAdmin || effectiveRole === "Admin";
   const displayRole = effectiveIsAdmin ? "Admin" : effectiveRole;
 
   const handleNavigate = (path: string) => {
     navigate(path);
   };
 
-  // FIXED: Complete and clean logout function
+  // FIXED: Enhanced logout function with proper error handling
   const handleLogout = async () => {
     console.log("[UserDropdown] Starting complete logout process...");
 
     try {
+      // Disable the button to prevent multiple clicks
+      const button = document.activeElement as HTMLButtonElement;
+      if (button) {
+        button.disabled = true;
+      }
+
       // Use AuthContext signOut which handles everything including reload
       await signOut();
       
@@ -153,12 +99,15 @@ const UserDropdown = () => {
       console.error("[UserDropdown] Logout error:", error);
       
       // Force cleanup and reload even if signOut fails
-      sessionStorage.setItem("loggedOut", "true");
       localStorage.clear();
-      sessionStorage.setItem("loggedOut", "true"); // Keep only logout flag
+      sessionStorage.clear();
+      sessionStorage.setItem("loggedOut", "true");
+      localStorage.setItem("userLoggedOut", "true");
       
       // Force reload to ensure clean state
-      window.location.reload();
+      setTimeout(() => {
+        window.location.href = window.location.origin;
+      }, 100);
     }
   };
 

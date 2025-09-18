@@ -58,59 +58,100 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const isInitializingRef = useRef(false);
 
   const signOut = useCallback(async () => {
-    try {
-      console.log('[AuthContext] Starting complete signOut process...');
+  try {
+    console.log('[AuthContext] Starting complete signOut process...');
+    
+    // STEP 1: Set logout flag immediately for cross-tab sync
+    const logoutTimestamp = Date.now().toString();
+    sessionStorage.setItem("signOutInProgress", "true");
+    sessionStorage.setItem("logoutTimestamp", logoutTimestamp);
+    localStorage.setItem("logoutEvent", logoutTimestamp); // For cross-tab sync
+    
+    // STEP 2: Clear state immediately
+    setUser(null);
+    setSession(null);
+    setRole(null);
+    setIsLoading(false);
+    setIsSessionReady(true);
+    setIsHydrated(true);
+    
+    // STEP 3: Clear ALL storage completely
+    const keysToKeep = ["signOutInProgress", "logoutTimestamp"];
+    Object.keys(localStorage).forEach(key => {
+      if (!keysToKeep.includes(key) && key !== "logoutEvent") {
+        localStorage.removeItem(key);
+      }
+    });
+    Object.keys(sessionStorage).forEach(key => {
+      if (!keysToKeep.includes(key)) {
+        sessionStorage.removeItem(key);
+      }
+    });
+    
+    console.log('[AuthContext] State cleared, signing out from Supabase...');
+    
+    // STEP 4: Wait for Supabase signOut to complete fully (with hard timeout fallback)
+    let eventReceived = false;
+    await new Promise((resolve) => {
+      let resolved = false;
+      const timeout = setTimeout(() => {
+        if (!resolved) {
+          console.log('[AuthContext] Supabase signOut timeout, proceeding...');
+          resolved = true;
+          resolve(true);
+        }
+      }, 3000);
       
-      // CRITICAL: Set logout flag FIRST to prevent auto-recovery
-      sessionStorage.setItem("loggedOut", "true");
-      
-      // FIXED: Clear state immediately and prevent any recovery attempts
-      setUser(null);
-      setSession(null);
-      setRole(null);
-      setIsLoading(false);
-      setIsSessionReady(true);
-      setIsHydrated(true);
-      
-      // FIXED: Clear ALL auth-related storage data immediately
-      localStorage.removeItem("auth_user");
-      localStorage.removeItem("userId");
-      localStorage.removeItem("userRole");
-      localStorage.removeItem("userEmail");
-      localStorage.removeItem("userName");
-      localStorage.removeItem("isAdmin");
-      localStorage.removeItem("userPhone");
-      
-      // Clear all Supabase auth storage keys
-      const supabaseKeys = Object.keys(localStorage).filter(key => 
-        key.startsWith('sb-') || key.includes('supabase')
-      );
-      supabaseKeys.forEach(key => localStorage.removeItem(key));
-      
-      // Sign out from Supabase with global scope
-      await supabase.auth.signOut({ scope: "global" });
-      
-      console.log('[AuthContext] User signed out successfully - state cleared');
-      
-      // FIXED: Don't reload immediately, let the auth state change handle it
-      
-    } catch (error) {
-      console.error("[AuthContext] Error signing out:", error);
-      
-      // Even if there's an error, ensure complete cleanup
-      sessionStorage.setItem("loggedOut", "true");
-      setUser(null);
-      setSession(null);
-      setRole(null);
-      setIsLoading(false);
-      setIsSessionReady(true);
-      setIsHydrated(true);
-      
-      // Force clear all storage
-      localStorage.clear();
-      sessionStorage.setItem("loggedOut", "true"); // Keep only logout flag
-    }
-  }, []);
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+        if (event === 'SIGNED_OUT' && !resolved) {
+          console.log('[AuthContext] SIGNED_OUT event received');
+          eventReceived = true;
+          clearTimeout(timeout);
+          subscription.unsubscribe();
+          resolved = true;
+          resolve(true);
+        }
+      });
+
+      // Fallback if signOut does not trigger event
+      supabase.auth.signOut({ scope: "global" }).then(({ error }) => {
+        if (error && !resolved) {
+          console.error('[AuthContext] Supabase signOut error:', error);
+          clearTimeout(timeout);
+          subscription.unsubscribe();
+          resolved = true;
+          resolve(true);
+        }
+      });
+    });
+    
+    // STEP 5: CRITICAL - Clear ALL logout flags after successful signOut
+    console.log('[AuthContext] Clearing all logout flags after successful signOut...');
+    sessionStorage.removeItem("signOutInProgress");
+    sessionStorage.removeItem("loggedOut");
+    sessionStorage.removeItem("forceLogout");
+    sessionStorage.removeItem("logoutTimestamp");
+    localStorage.removeItem("userLoggedOut");
+    localStorage.removeItem("logoutEvent");
+    
+    console.log('[AuthContext] Supabase signOut completed, reloading page...');
+    
+    // STEP 6: Force complete reload after ensuring signOut is complete
+    setTimeout(() => {
+      window.location.href = window.location.origin;
+    }, 100);
+    
+  } catch (error) {
+    console.error("[AuthContext] Error signing out:", error);
+    // CRITICAL: Force cleanup even on error and clear ALL flags
+    localStorage.clear();
+    sessionStorage.clear();
+    console.log('[AuthContext] Cleared all storage due to signOut error');
+    setTimeout(() => {
+      window.location.href = window.location.origin;
+    }, 100);
+  }
+}, []);
 
   const forceRefreshSession = useCallback(async () => {
     if (isInitializingRef.current) {
@@ -151,7 +192,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           email: sessionUser.email,
           name: sessionUser.user_metadata?.name || sessionUser.email?.split('@')[0] || '',
           role: userRole,
-          phone: sessionUser.user_metadata?.phone || ''
+          phone_number: sessionUser.user_metadata?.phone_number || ''
         }));
       } else {
         // Session invalid, clear everything
@@ -167,87 +208,106 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-  // FIXED: Initialize session with better race condition handling
+  // FIXED: Enhanced initialization with forced logout flag cleanup
   useEffect(() => {
-    const initializeSession = async () => {
-      // Prevent multiple simultaneous initializations
-      if (initializationRef.current || isInitializingRef.current) {
+    const initializeAuth = async () => {
+      if (isInitializingRef.current) {
         console.log('[AuthContext] Already initialized or initializing, skipping');
         return;
       }
-      
-      initializationRef.current = true;
+
       isInitializingRef.current = true;
-
-      console.log('[AuthContext] Initializing session...');
-
-      // CRITICAL: Check logout flag first
-      const loggedOut = sessionStorage.getItem("loggedOut");
-      if (loggedOut === "true") {
-        console.log('[AuthContext] Logout flag detected, clearing all auth state');
-        
-        // Clear everything and don't attempt recovery
-        setUser(null);
-        setSession(null);
-        setRole(null);
-        setIsLoading(false);
-        setIsHydrated(true);
-        setIsSessionReady(true);
-        
-        // Clear any remaining auth data
-        localStorage.removeItem("auth_user");
-        const supabaseKeys = Object.keys(localStorage).filter(key => 
-          key.startsWith('sb-') || key.includes('supabase')
-        );
-        supabaseKeys.forEach(key => localStorage.removeItem(key));
-        
-        isInitializingRef.current = false;
-        return;
-      }
+      console.log('[AuthContext] Starting auth initialization...');
 
       try {
-        // FIXED: Load from localStorage immediately for instant UI
-        const storedUser = localStorage.getItem("auth_user");
-        if (storedUser) {
-          try {
-            const userData = JSON.parse(storedUser);
-            console.log('[AuthContext] Loading cached user data for instant UI');
-            
-            // Set user data immediately for UI - NO LOADING STATE
-            setUser({
-              id: userData.id,
-              email: userData.email,
-              user_metadata: {
-                name: userData.name,
-                role: userData.role,
-                phone: userData.phone || "",
-              },
-            });
-            setRole(userData.role);
-            setSession({
-              user: userData,
-              access_token: "cached_token",
-            });
-            setIsLoading(false);
-            setIsSessionReady(true);
-            setIsHydrated(true);
-            
-            console.log('[AuthContext] User loaded from cache, UI ready immediately');
-          } catch (parseError) {
-            console.warn("[AuthContext] Error parsing stored user:", parseError);
-            localStorage.removeItem("auth_user");
-          }
+        // CRITICAL: Check and validate logout flags
+        const loggedOut = sessionStorage.getItem("loggedOut");
+        const forceLogout = sessionStorage.getItem("forceLogout");
+        const signOutInProgress = sessionStorage.getItem("signOutInProgress");
+        const userLoggedOut = localStorage.getItem("userLoggedOut");
+        const logoutTimestamp = sessionStorage.getItem("logoutTimestamp");
+
+        // If logout flags exist, check if they're stale (older than 10 seconds)
+        const currentTime = Date.now();
+        const isStaleLogout = logoutTimestamp && (currentTime - parseInt(logoutTimestamp)) > 10000;
+
+        if (isStaleLogout) {
+          console.log('[AuthContext] Detected stale logout flags, clearing them...');
+          sessionStorage.removeItem("loggedOut");
+          sessionStorage.removeItem("forceLogout");
+          sessionStorage.removeItem("signOutInProgress");
+          sessionStorage.removeItem("logoutTimestamp");
+          localStorage.removeItem("userLoggedOut");
+          localStorage.removeItem("logoutEvent");
         }
 
-        // Background verification with Supabase (don't show loading)
-        console.log('[AuthContext] Background verification with Supabase...');
-        const { data, error } = await supabase.auth.getSession();
+        // Re-check logout flags after cleanup
+        const activeLoggedOut = sessionStorage.getItem("loggedOut");
+        const activeForceLogout = sessionStorage.getItem("forceLogout");
+        const activeSignOutInProgress = sessionStorage.getItem("signOutInProgress");
+        const activeUserLoggedOut = localStorage.getItem("userLoggedOut");
 
-        if (!error && data?.session?.user) {
-          console.log('[AuthContext] Valid Supabase session found, updating silently');
-          const sessionUser = data.session.user;
-          let userRole = sessionUser.user_metadata?.role || 'Customer';
+        if (activeLoggedOut === "true" || activeForceLogout === "true" || activeSignOutInProgress === "true" || activeUserLoggedOut === "true") {
+          console.log('[AuthContext] Active logout flags detected, ensuring signed out state');
           
+          // Clear all auth data completely
+          localStorage.removeItem("auth_user");
+          localStorage.removeItem("userId");
+          localStorage.removeItem("userRole");
+          localStorage.removeItem("userEmail");
+          localStorage.removeItem("userName");
+          localStorage.removeItem("isAdmin");
+          localStorage.removeItem("userPhone");
+          
+          setUser(null);
+          setSession(null);
+          setRole(null);
+          setIsLoading(false);
+          setIsSessionReady(true);
+          setIsHydrated(true);
+          isInitializingRef.current = false;
+          return;
+        }
+
+        // CRITICAL: Always validate with Supabase first
+        console.log('[AuthContext] Validating session with Supabase...');
+        const { data: { session }, error } = await supabase.auth.getSession();
+
+        if (error) {
+          console.error('[AuthContext] Error getting session:', error);
+          // Clear any stale data on error and force clear logout flags
+          localStorage.removeItem("auth_user");
+          sessionStorage.removeItem("signOutInProgress");
+          sessionStorage.removeItem("loggedOut");
+          sessionStorage.removeItem("forceLogout");
+          localStorage.removeItem("userLoggedOut");
+          
+          setUser(null);
+          setSession(null);
+          setRole(null);
+          setIsLoading(false);
+          setIsSessionReady(true);
+          setIsHydrated(true);
+          isInitializingRef.current = false;
+          return;
+        }
+
+        // Check if session is valid and not expired
+        if (session?.user && session.expires_at && session.expires_at > Date.now() / 1000) {
+          console.log('[AuthContext] Valid session found:', session.user.id);
+          
+          // Clear any remaining logout flags since we have a valid session
+          sessionStorage.removeItem("signOutInProgress");
+          sessionStorage.removeItem("loggedOut");
+          sessionStorage.removeItem("forceLogout");
+          sessionStorage.removeItem("logoutTimestamp");
+          localStorage.removeItem("userLoggedOut");
+          localStorage.removeItem("logoutEvent");
+          
+          const sessionUser = session.user;
+          let userRole = sessionUser.user_metadata?.role || 'Customer';
+
+          // Get role from database
           try {
             const { data: userData } = await supabase
               .from("users")
@@ -261,13 +321,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           } catch (dbError) {
             console.warn("[AuthContext] Error fetching role:", dbError);
           }
-          
-          // Update with fresh Supabase data (silently)
+
           setUser(sessionUser);
-          setSession(data.session);
+          setSession(session);
           setRole(userRole);
-          
-          // Update localStorage with fresh data
+          setIsLoading(false);
+          setIsSessionReady(true);
+          setIsHydrated(true);
+
+          // Store in localStorage for persistence and cross-tab sync
           localStorage.setItem("auth_user", JSON.stringify({
             id: sessionUser.id,
             email: sessionUser.email,
@@ -275,9 +337,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             role: userRole,
             phone: sessionUser.user_metadata?.phone || ''
           }));
-        } else if (!storedUser) {
-          // No session and no stored user
-          console.log('[AuthContext] No session found, user not authenticated');
+
+          console.log("[AuthContext] User authenticated:", {
+            userId: sessionUser.id,
+            userRole: userRole
+          });
+        } else {
+          console.log('[AuthContext] No valid session found, clearing all auth data');
+          
+          // Clear any stale localStorage data if no valid session
+          localStorage.removeItem("auth_user");
+          localStorage.removeItem("userId");
+          localStorage.removeItem("userRole");
+          localStorage.removeItem("userEmail");
+          localStorage.removeItem("userName");
+          localStorage.removeItem("isAdmin");
+          localStorage.removeItem("userPhone");
+          
+          // Also clear any remaining logout flags
+          sessionStorage.removeItem("signOutInProgress");
+          sessionStorage.removeItem("loggedOut");
+          sessionStorage.removeItem("forceLogout");
+          sessionStorage.removeItem("logoutTimestamp");
+          localStorage.removeItem("userLoggedOut");
+          localStorage.removeItem("logoutEvent");
+          
           setUser(null);
           setSession(null);
           setRole(null);
@@ -285,70 +369,135 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setIsSessionReady(true);
           setIsHydrated(true);
         }
-      } catch (err) {
-        console.warn("[AuthContext] Session initialization error:", err);
+      } catch (error) {
+        console.error('[AuthContext] Error during initialization:', error);
+        // Clear data on any error and force clear logout flags
+        localStorage.removeItem("auth_user");
+        sessionStorage.removeItem("signOutInProgress");
+        sessionStorage.removeItem("loggedOut");
+        sessionStorage.removeItem("forceLogout");
+        localStorage.removeItem("userLoggedOut");
         
-        // Fallback to localStorage if available
-        const storedUser = localStorage.getItem("auth_user");
-        if (storedUser) {
-          try {
-            const userData = JSON.parse(storedUser);
-            setUser({
-              id: userData.id,
-              email: userData.email,
-              user_metadata: {
-                name: userData.name,
-                role: userData.role,
-                phone: userData.phone || "",
-              },
-            });
-            setRole(userData.role);
-            setSession({
-              user: userData,
-              access_token: "fallback_token",
-            });
-          } catch (parseError) {
-            console.warn("[AuthContext] Error parsing stored user:", parseError);
-            localStorage.removeItem("auth_user");
-            setUser(null);
-            setSession(null);
-            setRole(null);
-          }
-        }
-      } finally {
+        setUser(null);
+        setSession(null);
+        setRole(null);
         setIsLoading(false);
-        setIsHydrated(true);
         setIsSessionReady(true);
+        setIsHydrated(true);
+      } finally {
         isInitializingRef.current = false;
-        console.log('[AuthContext] Session initialization completed');
+        console.log('[AuthContext] Session initialization completed.');
       }
     };
 
-    initializeSession();
+    initializeAuth();
   }, []);
 
-  // FIXED: Listen for auth state changes from Supabase with better logout handling
+  // FIXED: Enhanced auth state change listener with forced flag cleanup
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        // Prevent processing during initialization
+        // Skip during initialization
         if (isInitializingRef.current) {
           console.log('[AuthContext] Skipping auth state change during initialization');
           return;
         }
-        
+
         console.log('[AuthContext] Auth state change:', event, session?.user?.id);
-        
-        // CRITICAL: Check logout flag first
+
+        // CRITICAL: Force clear logout flags on any SIGNED_IN event
+        if (event === 'SIGNED_IN' && session?.user) {
+          console.log('[AuthContext] SIGNED_IN detected - force clearing all logout flags');
+          
+          // Clear ALL logout flags immediately
+          sessionStorage.removeItem("loggedOut");
+          sessionStorage.removeItem("forceLogout");
+          sessionStorage.removeItem("signOutInProgress");
+          sessionStorage.removeItem("logoutTimestamp");
+          localStorage.removeItem("userLoggedOut");
+          localStorage.removeItem("logoutEvent");
+          
+          console.log('[AuthContext] All logout flags cleared for new sign in');
+        }
+
+        // Check remaining logout flags after cleanup
+        const signOutInProgress = sessionStorage.getItem("signOutInProgress");
         const loggedOut = sessionStorage.getItem("loggedOut");
-        if (loggedOut === "true" && event !== 'SIGNED_OUT') {
-          console.log('[AuthContext] Logout flag detected, ignoring auth state change');
+        const forceLogout = sessionStorage.getItem("forceLogout");
+        const userLoggedOut = localStorage.getItem("userLoggedOut");
+
+        // Handle SIGNED_OUT event - always process this
+        if (event === 'SIGNED_OUT') {
+          console.log('[AuthContext] Processing SIGNED_OUT event');
+          
+          setUser(null);
+          setSession(null);
+          setRole(null);
+          setIsLoading(false);
+          setIsSessionReady(true);
+          setIsHydrated(true);
+          
+          // Clear auth storage
+          localStorage.removeItem("auth_user");
+          
+          // CRITICAL: Clear logout flags after SIGNED_OUT is processed
+          setTimeout(() => {
+            sessionStorage.removeItem("signOutInProgress");
+            sessionStorage.removeItem("loggedOut");
+            sessionStorage.removeItem("forceLogout");
+            sessionStorage.removeItem("logoutTimestamp");
+            localStorage.removeItem("userLoggedOut");
+            localStorage.removeItem("logoutEvent");
+            console.log('[AuthContext] Logout flags cleared after SIGNED_OUT');
+          }, 100);
+          
+          console.log('[AuthContext] Auth state cleared after sign out');
           return;
         }
-        
+
+        // Block other events only if logout flags still exist after cleanup attempt
+        if ((signOutInProgress === "true" || loggedOut === "true" || forceLogout === "true" || userLoggedOut === "true")) {
+          // For SIGNED_IN, allow it but with additional validation
+          if (event === 'SIGNED_IN' && session?.user) {
+            console.log('[AuthContext] SIGNED_IN during logout flags - validating legitimacy');
+            
+            // Check if this is a legitimate new login by verifying timestamp
+            const logoutTimestamp = sessionStorage.getItem("logoutTimestamp");
+            const currentTime = Date.now();
+            
+            // If logout was more than 2 seconds ago or no timestamp, allow the sign in
+            if (!logoutTimestamp || (currentTime - parseInt(logoutTimestamp)) > 2000) {
+              console.log('[AuthContext] Allowing SIGNED_IN event - legitimate new login');
+              
+              // Force clear ALL logout flags again
+              sessionStorage.removeItem("loggedOut");
+              sessionStorage.removeItem("forceLogout");
+              sessionStorage.removeItem("signOutInProgress");
+              sessionStorage.removeItem("logoutTimestamp");
+              localStorage.removeItem("userLoggedOut");
+              localStorage.removeItem("logoutEvent");
+              
+              // Process the sign in normally - continue below
+            } else {
+              console.log('[AuthContext] BLOCKING SIGNED_IN - too soon after logout');
+              return;
+            }
+          } else {
+            console.log('[AuthContext] BLOCKING auth event during logout:', event);
+            // Force logout state immediately
+            setUser(null);
+            setSession(null);
+            setRole(null);
+            setIsLoading(false);
+            setIsSessionReady(true);
+            setIsHydrated(true);
+            return;
+          }
+        }
+
+        // Handle SIGNED_IN event
         if (event === 'SIGNED_IN' && session?.user) {
-          // CRITICAL: Clear logout flag on successful sign in
-          sessionStorage.removeItem("loggedOut");
+          console.log('[AuthContext] Processing SIGNED_IN event:', session.user.id);
           
           const sessionUser = session.user;
           let userRole = sessionUser.user_metadata?.role || 'Customer';
@@ -388,28 +537,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             userId: sessionUser.id,
             userRole: userRole
           });
-        } else if (event === 'SIGNED_OUT') {
-          console.log('[AuthContext] User signed out via auth state change');
           
-          // FIXED: Ensure complete state cleanup on sign out
-          setUser(null);
-          setSession(null);
-          setRole(null);
-          setIsLoading(false);
-          setIsSessionReady(true);
-          setIsHydrated(true);
-          
-          // Clear all auth storage
-          localStorage.removeItem("auth_user");
-          localStorage.removeItem("userId");
-          localStorage.removeItem("userRole");
-          localStorage.removeItem("userEmail");
-          localStorage.removeItem("userName");
-          localStorage.removeItem("isAdmin");
-          localStorage.removeItem("userPhone");
-          
-          console.log('[AuthContext] Auth state cleared after sign out');
-        } else if (event === 'TOKEN_REFRESHED' && session?.user) {
+          return;
+        }
+
+        // Handle token refresh
+        if (event === 'TOKEN_REFRESHED' && session?.user) {
           console.log('[AuthContext] Token refreshed');
           setSession(session);
         }
@@ -419,56 +552,195 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => subscription.unsubscribe();
   }, []);
 
-  // FIXED: Add visibility change handler with better logout flag handling
+  // FIXED: Enhanced visibility change handler with strict session validation
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (!document.hidden && isSessionReady && !isInitializingRef.current) {
-        console.log('[AuthContext] Tab became visible, checking session validity...');
+        console.log('[AuthContext] Tab became visible, validating session...');
         
-        // CRITICAL: Check logout flag first
+        // Check ALL logout flags first
+        const signOutInProgress = sessionStorage.getItem("signOutInProgress");
         const loggedOut = sessionStorage.getItem("loggedOut");
-        if (loggedOut === "true") {
-          console.log('[AuthContext] Logout flag detected, preventing session restoration');
-          // Ensure user is signed out
+        const forceLogout = sessionStorage.getItem("forceLogout");
+        const userLoggedOut = localStorage.getItem("userLoggedOut");
+        
+        if (signOutInProgress === "true" || loggedOut === "true" || forceLogout === "true" || userLoggedOut === "true") {
+          console.log('[AuthContext] Logout detected on tab focus, maintaining logout state');
+          // Ensure logout state is maintained
           setUser(null);
           setSession(null);
           setRole(null);
           setIsLoading(false);
           setIsSessionReady(true);
           setIsHydrated(true);
+          
+          // Clear any stale auth data
+          localStorage.removeItem("auth_user");
           return;
         }
         
-        // Only restore session if no logout flag and no current user
-        const storedUser = localStorage.getItem("auth_user");
-        if (storedUser && !user) {
-          console.log('[AuthContext] Restoring user from cache after tab switch');
+        // CRITICAL: Always validate session with Supabase on tab focus
+        const validateSession = async () => {
           try {
-            const userData = JSON.parse(storedUser);
-            setUser({
-              id: userData.id,
-              email: userData.email,
-              user_metadata: {
-                name: userData.name,
-                role: userData.role,
-                phone: userData.phone || "",
-              },
-            });
-            setRole(userData.role);
-            setSession({
-              user: userData,
-              access_token: "restored_token",
-            });
+            console.log('[AuthContext] Validating Supabase session...');
+            const { data: { session }, error } = await supabase.auth.getSession();
+            
+            if (error) {
+              console.error('[AuthContext] Session validation error:', error);
+              // Clear user state on error
+              setUser(null);
+              setSession(null);
+              setRole(null);
+              localStorage.removeItem("auth_user");
+              return;
+            }
+            
+            if (session?.user && session.expires_at && session.expires_at > Date.now() / 1000) {
+              console.log('[AuthContext] Valid Supabase session found');
+              
+              // Only restore if we don't have current user or if user data differs
+              if (!user || user.id !== session.user.id) {
+                const storedUser = localStorage.getItem("auth_user");
+                if (storedUser) {
+                  try {
+                    const userData = JSON.parse(storedUser);
+                    // Verify stored user matches session user
+                    if (userData.id === session.user.id) {
+                      console.log('[AuthContext] Restoring user from validated session');
+                      setUser({
+                        id: userData.id,
+                        email: userData.email,
+                        user_metadata: {
+                          name: userData.name,
+                          role: userData.role,
+                          phone: userData.phone || "",
+                        },
+                      });
+                      setRole(userData.role);
+                      setSession(session);
+                    } else {
+                      console.log('[AuthContext] Stored user mismatch, clearing data');
+                      localStorage.removeItem("auth_user");
+                      setUser(null);
+                      setSession(null);
+                      setRole(null);
+                    }
+                  } catch (error) {
+                    console.warn('[AuthContext] Error parsing stored user:', error);
+                    localStorage.removeItem("auth_user");
+                    setUser(null);
+                    setSession(null);
+                    setRole(null);
+                  }
+                }
+              }
+            } else {
+              console.log('[AuthContext] No valid Supabase session, clearing user state');
+              // Clear user state if no valid session
+              setUser(null);
+              setSession(null);
+              setRole(null);
+              localStorage.removeItem("auth_user");
+              
+              // Clear any other auth-related localStorage items
+              localStorage.removeItem("userId");
+              localStorage.removeItem("userRole");
+              localStorage.removeItem("userEmail");
+              localStorage.removeItem("userName");
+              localStorage.removeItem("isAdmin");
+              localStorage.removeItem("userPhone");
+            }
           } catch (error) {
-            console.warn('[AuthContext] Error restoring user from cache:', error);
+            console.error('[AuthContext] Error validating session on tab focus:', error);
+            // On error, clear user state to be safe
+            setUser(null);
+            setSession(null);
+            setRole(null);
+            localStorage.removeItem("auth_user");
           }
-        }
+        };
+        
+        validateSession();
       }
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [isSessionReady, user]);
+
+  // FIXED: Enhanced cross-tab logout synchronization
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      // Handle cross-tab logout synchronization
+      if (e.key === "logoutEvent" && e.newValue) {
+        console.log('[AuthContext] Logout detected in another tab, syncing...');
+        
+        // Clear current state immediately
+        setUser(null);
+        setSession(null);
+        setRole(null);
+        setIsLoading(false);
+        setIsSessionReady(true);
+        setIsHydrated(true);
+        
+        // Set logout flags
+        sessionStorage.setItem("loggedOut", "true");
+        sessionStorage.setItem("forceLogout", "true");
+        
+        // Clear all auth data
+        localStorage.removeItem("auth_user");
+        
+        console.log('[AuthContext] Cross-tab logout sync completed');
+        
+        // Force reload to ensure clean state
+        setTimeout(() => {
+          window.location.href = window.location.origin;
+        }, 500);
+      }
+      
+      // Handle cross-tab login synchronization
+      if (e.key === "auth_user" && e.newValue && !user) {
+        console.log('[AuthContext] Login detected in another tab, checking session...');
+        
+        // Only sync if no logout flags are set
+        const loggedOut = sessionStorage.getItem("loggedOut");
+        const forceLogout = sessionStorage.getItem("forceLogout");
+        
+        if (loggedOut !== "true" && forceLogout !== "true") {
+          // Validate with Supabase before syncing
+          const validateAndSync = async () => {
+            try {
+              const { data: { session } } = await supabase.auth.getSession();
+              
+              if (session?.user) {
+                const userData = JSON.parse(e.newValue);
+                console.log('[AuthContext] Syncing login from another tab');
+                
+                setUser({
+                  id: userData.id,
+                  email: userData.email,
+                  user_metadata: {
+                    name: userData.name,
+                    role: userData.role,
+                    phone: userData.phone || "",
+                  },
+                });
+                setRole(userData.role);
+                setSession(session);
+              }
+            } catch (error) {
+              console.warn('[AuthContext] Error syncing login from another tab:', error);
+            }
+          };
+          
+          validateAndSync();
+        }
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [user]);
 
   // Computed values for compatibility
   const isAuthenticated = !!user && !!session;

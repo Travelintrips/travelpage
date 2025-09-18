@@ -521,7 +521,7 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({
 
         console.log("User created:", authData.user.id);
 
-        // Insert user into users table with role_id
+        // Insert user into users table with role_id AND role
         const userInsertData: any = {
           id: authData.user.id,
           email: authData.user.email,
@@ -530,14 +530,17 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({
           selfie_url: data.selfieImage || null,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
+          role_id: roleId,
+          role: "Customer", // FIXED: Set role column to "Customer" when role_id is 10
         };
 
         // Add role_id if we have a valid one
         if (roleId !== null && roleId !== undefined) {
           userInsertData.role_id = roleId;
+          userInsertData.role = "Customer"; // FIXED: Always set role to "Customer" for Customer registrations
         }
 
-        const { error: userError } = await supabase
+       const { error: userError } = await supabase
           .from("users")
           .upsert(userInsertData, {
             onConflict: "id",
@@ -550,7 +553,7 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({
           return;
         }
 
-        console.log("User inserted into users table with role_id:", roleId);
+        console.log("User inserted into users table with role_id:", roleId, "and role: Customer");
 
         // Insert customer record with user_id and role_id
         const customerInsertData: any = {
@@ -560,11 +563,14 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({
           email: authData.user.email,
           phone_number: data.phone,
           created_at: new Date().toISOString(),
+          role_id: roleId,
+          role: "Customer", // FIXED: Also set role in customers table
         };
 
         // Add role_id if we have a valid one
         if (roleId !== null && roleId !== undefined) {
           customerInsertData.role_id = roleId;
+          customerInsertData.role = "Customer"; // FIXED: Ensure role is set in customers table too
         }
 
         const { error: customerError } = await supabase
