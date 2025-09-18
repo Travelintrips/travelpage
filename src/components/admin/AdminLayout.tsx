@@ -32,6 +32,7 @@ import {
   Info,
   Eye,
   X as CloseIcon,
+  FileText as Paper,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -747,6 +748,17 @@ const AdminLayout = () => {
                   </div>
                 )}
 
+                {/* Reports Menu - Add between Handling Service and API Settings */}
+                {userRole !== "Staff Traffic" && (
+                  <Link
+                    to="/admin/reports"
+                    className={`flex items-center p-3 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/reports") ? "bg-white/20 font-medium text-white" : "text-white/80"} ${!sidebarOpen && "justify-center"}`}
+                  >
+                    <Paper className="h-5 w-5 text-white" />
+                    {sidebarOpen && <span className="ml-3">Reports</span>}
+                  </Link>
+                )}
+
                 {/* Only show API Settings for non-Staff Trips and non-Staff Traffic users */}
                 {userRole !== "Staff Trips" && userRole !== "Staff Traffic" && userRole !== "Staff" &&  (
                   <Link
@@ -825,7 +837,7 @@ const AdminLayout = () => {
                       size="sm"
                       className="relative flex items-center gap-2"
                     >
-                      <Mail className="h-4 w-4" />
+                      <Bell className="h-5 w-5" />
                       Inbox Notifikasi
                       {unreadCount > 0 && (
                         <Badge

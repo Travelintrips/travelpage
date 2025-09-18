@@ -306,20 +306,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           
           const sessionUser = session.user;
           let userRole = sessionUser.user_metadata?.role || 'Customer';
+          let userPhone = sessionUser.user_metadata?.phone || '';
 
-          // Get role from database
+          // Get role and phone from database
           try {
             const { data: userData } = await supabase
               .from("users")
-              .select("role, role_name")
+              .select("role, role_name, phone_number")
               .eq("id", sessionUser.id)
               .single();
 
             if (userData) {
               userRole = userData.role || userData.role_name || userRole;
+              userPhone = userData.phone_number || userPhone;
             }
           } catch (dbError) {
-            console.warn("[AuthContext] Error fetching role:", dbError);
+            console.warn("[AuthContext] Error fetching role and phone:", dbError);
           }
 
           setUser(sessionUser);
@@ -335,12 +337,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             email: sessionUser.email,
             name: sessionUser.user_metadata?.name || sessionUser.email?.split('@')[0] || '',
             role: userRole,
-            phone: sessionUser.user_metadata?.phone || ''
+            phone: userPhone
           }));
 
           console.log("[AuthContext] User authenticated:", {
             userId: sessionUser.id,
-            userRole: userRole
+            userRole: userRole,
+            userPhone: userPhone
           });
         } else {
           console.log('[AuthContext] No valid session found, clearing all auth data');
@@ -501,20 +504,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           
           const sessionUser = session.user;
           let userRole = sessionUser.user_metadata?.role || 'Customer';
+          let userPhone = sessionUser.user_metadata?.phone || '';
           
-          // Get role from database
+          // Get role and phone from database
           try {
             const { data: userData } = await supabase
               .from("users")
-              .select("role, role_name")
+              .select("role, role_name, phone_number")
               .eq("id", sessionUser.id)
               .single();
 
             if (userData) {
               userRole = userData.role || userData.role_name || userRole;
+              userPhone = userData.phone_number || userPhone;
             }
           } catch (dbError) {
-            console.warn("[AuthContext] Error fetching role:", dbError);
+            console.warn("[AuthContext] Error fetching role and phone:", dbError);
           }
           
           setUser(sessionUser);
@@ -530,12 +535,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             email: sessionUser.email,
             name: sessionUser.user_metadata?.name || sessionUser.email?.split('@')[0] || '',
             role: userRole,
-            phone: sessionUser.user_metadata?.phone || ''
+            phone: userPhone
           }));
           
           console.log("[AuthContext] User signed in:", {
             userId: sessionUser.id,
-            userRole: userRole
+            userRole: userRole,
+            userPhone: userPhone
           });
           
           return;
@@ -556,7 +562,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (!document.hidden && isSessionReady && !isInitializingRef.current) {
-        console.log('[AuthContext] Tab became visible, validating session...');
+        console.log('[AuthContext] Tab became visible, checking session state...');
         
         // Check ALL logout flags first
         const signOutInProgress = sessionStorage.getItem("signOutInProgress");

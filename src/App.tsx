@@ -73,6 +73,7 @@ import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import DriverDetailPage from "./pages/DriverDetailPage";
 import IasBookingGroup from "./components/admin/IasBookingGroup";
+import Reports from "./components/admin/Reports";
 
 declare global {
   interface Window {
@@ -492,6 +493,7 @@ function AppContent() {
             <Route path="chart" element={<ChartManagement />} />
             <Route path="handling-booking" element={<HandlingBookingManagement />} />
             <Route path="handling-services" element={<HandlingServicesManagement />} />
+            <Route path="reports" element={<Reports />} />
             <Route path="damage-payment/:bookingId" element={<DamagePaymentForm />} />
             <Route path="drivers/:id" element={<DriverDetailPage />} />
           </Route>

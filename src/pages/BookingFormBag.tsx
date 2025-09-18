@@ -114,7 +114,7 @@ const BookingForm = ({
   initialTime,
   prefilledData,
 }: BookingFormProps) => {
-  console.log("[BookingForm] selectedSize:", selectedSize, typeof selectedSize);
+ // console.log("[BookingForm] selectedSize:", selectedSize, typeof selectedSize);
   // Safely get shopping cart context with error handling
   const shoppingCartContext = useShoppingCart();
   
@@ -141,7 +141,7 @@ const BookingForm = ({
 
     // Set a timeout to prevent infinite loading
     timeoutId = setTimeout(() => {
-      console.warn('[BookingForm] Cart initialization timeout, forcing ready state');
+   //   console.warn('[BookingForm] Cart initialization timeout, forcing ready state');
       setCartInitTimeout(true);
       setIsCartReady(true);
     }, 5000); // 5 second timeout
@@ -166,7 +166,7 @@ const BookingForm = ({
   try {
     authContext = useAuth();
   } catch (error) {
-    console.warn("Failed to get auth context in BookingFormBag:", error);
+ //   console.warn("Failed to get auth context in BookingFormBag:", error);
     authContext = {
       isAuthenticated: false,
       userId: null,
@@ -183,19 +183,19 @@ const BookingForm = ({
         try {
           await supabase.auth.signOut();
         } catch (signOutError) {
-          console.warn("Error in fallback signOut:", signOutError);
+     //     console.warn("Error in fallback signOut:", signOutError);
         }
       },
       forceRefreshSession: async () => {
-        console.warn("forceRefreshSession called from fallback auth context");
+    //    console.warn("forceRefreshSession called from fallback auth context");
         try {
           await supabase.auth.refreshSession();
         } catch (refreshError) {
-          console.warn("Error in fallback refresh:", refreshError);
+    //      console.warn("Error in fallback refresh:", refreshError);
         }
       },
       ensureSessionReady: async () => {
-        console.warn("ensureSessionReady called from fallback auth context");
+     //   console.warn("ensureSessionReady called from fallback auth context");
         return Promise.resolve();
       },
     };
@@ -229,10 +229,10 @@ const BookingForm = ({
 
     const newBookingCode = `BG-${timestamp}-${randomPart}`;
 
-    console.log(
+   /* console.log(
       "[BookingForm] Generated new unique booking code:",
       newBookingCode,
-    );
+    );*/
     setBookingCode(newBookingCode);
     setIsBookingCodeInitialized(true);
 
@@ -420,100 +420,89 @@ const BookingForm = ({
   const waitUntilSessionReady = async () => {
     console.log("[BookingForm] Starting waitUntilSessionReady...");
 
-    // Check if session is already ready with userId validation
-    const storedUserId = localStorage.getItem("userId");
-    const storedUserEmail = localStorage.getItem("userEmail");
-
-    if (isHydrated && storedUserId && storedUserEmail) {
-      console.log("[BookingForm] Session already ready with valid user data");
-      return {
-        isReady: true,
-        userId: storedUserId,
-        userEmail: storedUserEmail,
-      };
-    }
-
-    // Show connecting toast
-    const connectingToast = {
-      title: "⏳ Menyambungkan sesi...",
-      description: "Mohon tunggu sementara kami menyambungkan sesi Anda.",
-    };
-
-    // Show toast if available
-    try {
-      if (typeof toast === "function") {
-        toast(connectingToast);
-      } else {
-        console.log("[BookingForm] Toast not available, showing alert");
-        alert(connectingToast.description);
-      }
-    } catch (toastError) {
-      console.warn("[BookingForm] Error showing toast:", toastError);
-      alert(connectingToast.description);
-    }
-
-    // Wait for session to be ready with enhanced retry mechanism
+    const maxRetries = 5;
+    const retryDelay = 500; // Reduced delay for faster response
     let retryCount = 0;
-    const maxRetries = 5; // Maximum 5 retries
-    const retryDelay = 300; // 300ms delay between retries
 
     while (retryCount < maxRetries) {
-      console.log(
-        `[BookingForm] Checking session readiness... (attempt ${retryCount + 1}/${maxRetries})`,
-      );
+      try {
+        console.log(`[BookingForm] Session check attempt ${retryCount + 1}/${maxRetries}`);
+        
+        // Get session with timeout protection
+        const sessionPromise = supabase.auth.getSession();
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error("Session check timeout")), 3000);
+        });
 
-      // Check multiple conditions for session readiness
-      const currentStoredUserId = localStorage.getItem("userId");
-      const currentStoredUserEmail = localStorage.getItem("userEmail");
-      const currentStoredUser = localStorage.getItem("auth_user");
+        const { data: { session }, error } = await Promise.race([
+          sessionPromise,
+          timeoutPromise
+        ]) as any;
 
-      // Enhanced validation: session ready AND valid user data exists
-      if (
-        isHydrated &&
-        currentStoredUserId &&
-        currentStoredUserEmail &&
-        currentStoredUser
-      ) {
-        try {
-          const userData = JSON.parse(currentStoredUser);
-          if (userData && userData.id && userData.email) {
-            console.log(
-              "[BookingForm] Session is ready with valid user data:",
-              userData.email,
-            );
-            return {
-              isReady: true,
-              userId: currentStoredUserId,
-              userEmail: currentStoredUserEmail,
-              userData: userData,
-            };
+        if (error) {
+          console.error(`[BookingForm] Session error on attempt ${retryCount + 1}:`, error);
+          
+          // If it's a network or timeout error, continue retrying
+          if (error.message?.includes("timeout") || error.message?.includes("network")) {
+            retryCount++;
+            if (retryCount < maxRetries) {
+              console.log(`[BookingForm] Network/timeout error, retrying in ${retryDelay}ms...`);
+              await new Promise(resolve => setTimeout(resolve, retryDelay));
+              continue;
+            }
           }
-        } catch (parseError) {
-          console.warn(
-            "[BookingForm] Error parsing stored user data:",
-            parseError,
-          );
+          
+          // For other errors, stop retrying and show error
+          console.error("[BookingForm] Session error - stopping retries:", error);
+          alert(`❌ Gagal mengakses sesi: ${error.message}. Silakan refresh halaman.`);
+          return { isReady: false, error: error.message, status: "failed" };
+        }
+
+        // Check session status
+        if (session?.user) {
+          console.log(`[BookingForm] Session ready on attempt ${retryCount + 1}:`, {
+            userId: session.user.id,
+            email: session.user.email,
+            status: "authenticated"
+          });
+          
+          return {
+            isReady: true,
+            userId: session.user.id,
+            userEmail: session.user.email,
+            userData: session.user.user_metadata,
+            status: "ready"
+          };
+        }
+
+        // Session not ready yet
+        console.log(`[BookingForm] Session not ready on attempt ${retryCount + 1}, session:`, !!session);
+        
+        retryCount++;
+        if (retryCount < maxRetries) {
+          console.log(`[BookingForm] Waiting ${retryDelay}ms before retry...`);
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
+        }
+
+      } catch (timeoutError) {
+        console.error(`[BookingForm] Timeout on attempt ${retryCount + 1}:`, timeoutError);
+        retryCount++;
+        
+        if (retryCount < maxRetries) {
+          console.log(`[BookingForm] Timeout error, retrying in ${retryDelay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
         }
       }
-
-      // Wait before next retry
-      if (retryCount < maxRetries - 1) {
-        console.log(
-          `[BookingForm] Session not ready, waiting ${retryDelay}ms before retry...`,
-        );
-        await new Promise((resolve) => setTimeout(resolve, retryDelay));
-      }
-
-      retryCount++;
     }
 
-    // If session is still not ready after all retries, return failure
-    console.error(
-      "[BookingForm] Session failed to become ready after all retries",
-    );
-    alert("Gagal menyambungkan sesi. Silakan refresh halaman dan coba lagi.");
-
-    return { isReady: false };
+    // All retries exhausted
+    console.error("[BookingForm] Session failed to become ready after all retries");
+    alert("❌ Gagal menyambungkan sesi setelah beberapa percobaan. Silakan refresh halaman dan coba lagi.");
+    return { 
+      isReady: false, 
+      error: "Session timeout after retries",
+      status: "failed"
+    };
   };
 
   // Function to clear form and reset state after successful booking
@@ -611,58 +600,70 @@ const BookingForm = ({
     });
     console.log("[BookingForm] Form Data:", data);
 
-    // 🎯 CRITICAL: Enhanced session readiness check with retry mechanism
-    const storedUserId = localStorage.getItem("userId");
-    const storedUserEmail = localStorage.getItem("userEmail");
-
-    if (!isHydrated || !storedUserId || !storedUserEmail) {
-      console.warn(
-        "[BookingForm] Session not ready or missing user data, waiting...",
-      );
-
-      const sessionResult = await waitUntilSessionReady();
-
-      if (!sessionResult.isReady) {
-        console.error(
-          "[BookingForm] Failed to establish session readiness after retries",
-        );
-        alert(
-          "❌ Gagal menyambungkan sesi. Silakan refresh halaman dan coba lagi.",
-        );
-        return; // CRITICAL: Exit early, do not proceed with booking
-      }
-
-      console.log(
-        "[BookingForm] Session is now ready, proceeding with booking submission",
-      );
-    }
-
-    // Final validation before proceeding
-    const finalUserId = localStorage.getItem("userId");
-    const finalUserEmail = localStorage.getItem("userEmail");
-
-    if (!isHydrated || !finalUserId || !finalUserEmail) {
-      console.error("[BookingForm] Final session validation failed", {
-        isHydrated,
-        finalUserId: !!finalUserId,
-        finalUserEmail: !!finalUserEmail,
-      });
-      alert("❌ Sesi tidak siap. Silakan refresh halaman dan coba lagi.");
-      return; // CRITICAL: Exit early if session is still not ready
+    // Prevent multiple submissions
+    if (isSubmitting) {
+      console.log("[BookingForm] Already submitting, ignoring duplicate submission");
+      return;
     }
 
     setIsSubmitting(true);
 
     try {
-      // Simplified session validation with timeout protection
-      console.log("[BookingForm] Validating session...");
+      // Enhanced session readiness check with detailed validation
+      const storedUserId = localStorage.getItem("userId");
+      const storedUserEmail = localStorage.getItem("userEmail");
 
+      console.log("[BookingForm] Initial session check:", {
+        isHydrated,
+        storedUserId: !!storedUserId,
+        storedUserEmail: !!storedUserEmail,
+        isAuthenticated
+      });
+
+      if (!isHydrated || !storedUserId || !storedUserEmail) {
+        console.warn("[BookingForm] Session not ready, attempting to establish session...");
+
+        const sessionResult = await waitUntilSessionReady();
+
+        if (!sessionResult.isReady) {
+          console.error("[BookingForm] Failed to establish session:", sessionResult.error);
+          
+          // Show specific error message based on the failure reason
+          if (sessionResult.error?.includes("timeout")) {
+            alert("❌ Koneksi timeout. Periksa koneksi internet dan coba lagi.");
+          } else if (sessionResult.error?.includes("network")) {
+            alert("❌ Masalah jaringan. Periksa koneksi internet dan coba lagi.");
+          } else {
+            alert("❌ Gagal menyambungkan sesi. Silakan refresh halaman dan login ulang.");
+          }
+          return;
+        }
+
+        console.log("[BookingForm] Session established successfully:", {
+          userId: sessionResult.userId,
+          email: sessionResult.userEmail,
+          status: sessionResult.status
+        });
+      }
+
+      // Final validation before proceeding
+      const { data: { session } } = await supabase.auth.getSession();
+if (!session?.user?.id || !session?.user?.email) {
+  console.error("[BookingForm] Final session validation failed: no session user");
+  return;
+}
+
+const finalUserId = session.user.id;
+const finalUserEmail = session.user.email;
+
+      console.log("[BookingForm] Session validation passed, proceeding with booking...");
+
+      // Simplified session validation with timeout protection
       let currentUser = null;
       let isAuthValid = false;
 
-      // Simplified session validation - prioritize localStorage
+      // Priority 1: localStorage (fastest and most reliable)
       try {
-        // First check localStorage for immediate validation (highest priority)
         const storedUserId = localStorage.getItem("userId");
         const storedUserEmail = localStorage.getItem("userEmail");
         const storedUser = localStorage.getItem("auth_user");
@@ -676,60 +677,46 @@ const BookingForm = ({
               name: userData.name || storedUserEmail.split("@")[0] || "User",
             };
             isAuthValid = true;
-            console.log(
-              "[BookingForm] Using localStorage session data:",
-              currentUser.email,
-            );
+            console.log("[BookingForm] Using localStorage session data:", currentUser.email);
           } catch (parseError) {
-            console.warn(
-              "[BookingForm] Error parsing stored user:",
-              parseError,
-            );
+            console.warn("[BookingForm] Error parsing stored user:", parseError);
           }
         }
 
-        // Only try Supabase if localStorage validation failed (with shorter timeout)
+        // Priority 2: Supabase session (with timeout protection)
         if (!isAuthValid) {
-          console.log(
-            "[BookingForm] No localStorage data, trying Supabase (quick check)",
-          );
+          console.log("[BookingForm] No localStorage data, checking Supabase session...");
+          
           const sessionPromise = supabase.auth.getSession();
           const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(
-              () => reject(new Error("Session check timeout")),
-              3000, // Reduced timeout to prevent blocking
-            );
+            setTimeout(() => reject(new Error("Session check timeout")), 2000);
           });
 
-          const {
-            data: { session },
-            error,
-          } = (await Promise.race([sessionPromise, timeoutPromise])) as any;
+          try {
+            const { data: { session }, error } = await Promise.race([
+              sessionPromise, 
+              timeoutPromise
+            ]) as any;
 
-          if (!error && session?.user) {
-            currentUser = {
-              id: session.user.id,
-              email: session.user.email || "",
-              name:
-                session.user.user_metadata?.name ||
-                session.user.email?.split("@")[0] ||
-                "User",
-            };
-            isAuthValid = true;
-            console.log(
-              "[BookingForm] Using Supabase session data:",
-              currentUser.email,
-            );
+            if (!error && session?.user) {
+              currentUser = {
+                id: session.user.id,
+                email: session.user.email || "",
+                name: session.user.user_metadata?.name || 
+                      session.user.email?.split("@")[0] || "User",
+              };
+              isAuthValid = true;
+              console.log("[BookingForm] Using Supabase session data:", currentUser.email);
+            }
+          } catch (sessionError) {
+            console.log("[BookingForm] Supabase session check failed:", sessionError.message);
           }
         }
       } catch (sessionError) {
-        console.log(
-          "[BookingForm] Session check failed, using context fallback:",
-          sessionError.message,
-        );
+        console.log("[BookingForm] Session validation error:", sessionError.message);
       }
 
-      // 2. Auth context
+      // Priority 3: Auth context fallback
       if (!isAuthValid && isAuthenticated && userId && userEmail) {
         currentUser = {
           id: userId,
@@ -737,47 +724,19 @@ const BookingForm = ({
           name: userName || userEmail.split("@")[0] || "User",
         };
         isAuthValid = true;
-        console.log(
-          "[BookingForm] Using auth context data:",
-          currentUser.email,
-        );
+        console.log("[BookingForm] Using auth context data:", currentUser.email);
       }
 
-      // 3. localStorage fallback
-      if (!isAuthValid) {
-        const storedUser = localStorage.getItem("auth_user");
-        if (storedUser) {
-          try {
-            const userData = JSON.parse(storedUser);
-            if (userData && userData.id && userData.email) {
-              currentUser = {
-                id: userData.id,
-                email: userData.email,
-                name: userData.name || userData.email?.split("@")[0] || "User",
-              };
-              isAuthValid = true;
-              console.log(
-                "[BookingForm] Using localStorage data:",
-                currentUser.email,
-              );
-            }
-          } catch (e) {
-            console.warn("[BookingForm] Error parsing stored user:", e);
-          }
-        }
-      }
-
+      // Final validation
       if (!isAuthValid || !currentUser) {
         console.error("[BookingForm] No valid authentication found");
-        setIsSubmitting(false); // Reset submitting state
-        alert("Sesi login tidak valid. Silakan refresh halaman dan coba lagi.");
+        alert("❌ Sesi login tidak valid. Silakan refresh halaman dan login ulang.");
         return;
       }
 
-      console.log(
-        "[BookingForm] Session validation passed, proceeding with cart addition",
-      );
+      console.log("[BookingForm] Authentication validated, proceeding with cart addition");
 
+      // Calculate duration and prepare booking data
       const calculatedDuration =
         durationType === "days"
           ? data.endDate_Days
@@ -786,7 +745,7 @@ const BookingForm = ({
                   (1000 * 60 * 60 * 24),
               )
             : 1
-          : Math.ceil((data.hours || 0) / 4); // 4-jam blok
+          : Math.ceil((data.hours || 0) / 4);
 
       const serviceName = `Baggage Storage - ${
         selectedSize === "small"
@@ -808,9 +767,7 @@ const BookingForm = ({
                         : "Unknown"
       }`;
 
-      const currentBookingCode = getBookingCode(); // Get the persistent booking code
-
-      // Generate a proper UUID for the booking_id field in shopping_cart table (will be used for baggage_booking_id in payments)
+      const currentBookingCode = getBookingCode();
       const bookingUUID = uuidv4();
 
       const cartItem = {
@@ -819,8 +776,8 @@ const BookingForm = ({
         service_name: serviceName,
         price: calculateTotalPrice(),
         quantity: 1,
-        booking_id: bookingUUID, // UUID for baggage booking (will be used for baggage_booking_id in payments table)
-        code_booking: currentBookingCode, // Text-based booking code for display/reference (maps to code_booking column)
+        booking_id: bookingUUID,
+        code_booking: currentBookingCode,
         details: {
           customer_name: data.name,
           customer_phone: data.phone,
@@ -846,7 +803,7 @@ const BookingForm = ({
           terminal: data.terminal,
           duration_type: durationType,
           hours: durationType === "hours" ? data.hours : null,
-          booking_code: currentBookingCode, // Keep the text-based booking code in details
+          booking_code: currentBookingCode,
         },
       };
 
@@ -859,21 +816,18 @@ const BookingForm = ({
         user_id: currentUser?.id,
       });
 
-      // 🎯 NEW: Check if tab was recently activated before proceeding
+      // Check tab activation status
       if (isTabRecentlyActivated) {
-        console.warn(
-          "[BookingForm] Tab recently activated, preventing submission",
-        );
+        console.warn("[BookingForm] Tab recently activated, preventing submission");
         alert("⏳ Menunggu sesi aktif kembali… harap tunggu sebentar.");
-        return; // Exit early to prevent submission
+        return;
       }
 
-      // 🎯 CRITICAL: Enhanced cart readiness check before adding to cart
-      console.log("[BookingForm] Checking cart readiness before submission...");
+      // Enhanced cart readiness check
+      console.log("[BookingForm] Checking cart readiness...");
 
-      // Wait for cart to be ready with timeout protection
       if (!isCartReady && !cartInitTimeout) {
-        console.log("[BookingForm] Cart not ready, waiting with timeout...");
+        console.log("[BookingForm] Cart not ready, waiting...");
         
         let retryCount = 0;
         const maxRetries = 10;
@@ -882,68 +836,62 @@ const BookingForm = ({
         while (!isCartReady && !cartInitTimeout && retryCount < maxRetries) {
           await new Promise((resolve) => setTimeout(resolve, retryDelay));
           retryCount++;
-          console.log(
-            `[BookingForm] Waiting for cart... attempt ${retryCount}/${maxRetries}`,
-          );
+          console.log(`[BookingForm] Waiting for cart... attempt ${retryCount}/${maxRetries}`);
         }
 
-        // Final check - if still not ready after timeout, proceed anyway
         if (!isCartReady && !cartInitTimeout) {
-          console.warn(
-            "[BookingForm] Cart failed to initialize after waiting, proceeding anyway",
-          );
+          console.warn("[BookingForm] Cart failed to initialize, proceeding anyway");
         }
       }
 
-      // Validate cart context is properly initialized
+      // Validate cart function availability
       if (!addToCart || typeof addToCart !== "function") {
         console.error("[BookingForm] Cart addToCart function not available");
-        alert(
-          "❌ Sistem keranjang tidak tersedia. Silakan refresh halaman dan coba lagi.",
-        );
+        alert("❌ Sistem keranjang tidak tersedia. Silakan refresh halaman dan coba lagi.");
         return;
       }
 
-      // 🎯 CRITICAL: Add to cart with proper error handling - DO NOT proceed if failed
+      // Add to cart with enhanced error handling
       console.log("[BookingForm] Attempting to add item to cart...");
+      
       const cartResult = await addToCart(cartItem);
 
       if (!cartResult || !cartResult.success) {
-        console.error(
-          "[BookingForm] Failed to add item to cart:",
-          cartResult?.error || "Unknown error",
-        );
+        console.error("[BookingForm] Failed to add item to cart:", cartResult?.error || "Unknown error");
 
-        // 🎯 CRITICAL: DO NOT call onComplete() or reset form if cart addition failed
-        alert(
-          cartResult?.error ||
-            "❌ Gagal menyimpan booking ke server. Silakan coba ulang.",
-        );
-        return; // CRITICAL: Exit early - do not proceed with onComplete
+        // Show specific error message
+        const errorMessage = cartResult?.error || "❌ Gagal menyimpan booking ke server. Silakan coba ulang.";
+        alert(errorMessage);
+        return;
       }
 
       console.log("[BookingForm] Successfully added item to cart");
 
-      console.log(
-        "[BookingForm] Successfully added to cart, redirecting to cart page...",
-      );
-
       // Clear form after successful booking
       clearFormAfterSuccess();
 
-      // Redirect directly to cart page
+      // Redirect to cart page
+      console.log("[BookingForm] Redirecting to cart page...");
       window.location.href = "/cart";
+
     } catch (error) {
       console.error("[BookingForm] Error in booking submission:", error);
-      alert(
-        error.message ||
-          "Terjadi kesalahan saat memproses booking. Silakan coba lagi.",
-      );
-      // 🎯 CRITICAL: DO NOT call onComplete() or reset form when there's an error
-      return; // Exit early to prevent onComplete from being called
+      
+      // Show specific error message based on error type
+      let errorMessage = "Terjadi kesalahan saat memproses booking. Silakan coba lagi.";
+      
+      if (error.message?.includes("timeout")) {
+        errorMessage = "❌ Koneksi timeout. Periksa koneksi internet dan coba lagi.";
+      } else if (error.message?.includes("network")) {
+        errorMessage = "❌ Masalah jaringan. Periksa koneksi internet dan coba lagi.";
+      } else if (error.message?.includes("session")) {
+        errorMessage = "❌ Sesi bermasalah. Silakan refresh halaman dan login ulang.";
+      }
+      
+      alert(errorMessage);
+      return;
     } finally {
-      console.log("[BookingForm] Cleaning up - resetting state");
-      // Always reset submitting state to prevent stuck processing
+      console.log("[BookingForm] Cleaning up - resetting submission state");
       setIsSubmitting(false);
       console.log("[BookingForm] Booking submission process completed");
     }
@@ -1529,7 +1477,7 @@ const BookingForm = ({
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="startTime">Pick Time</Label>
+                <Label htmlFor="startTime_Days">Pick Time</Label>
                 <div className="flex items-center">
                   <Clock className="mr-2 h-4 w-4 text-muted-foreground" />
                   <Input
@@ -1859,14 +1807,14 @@ const BookingForm = ({
         if (customerData.email && !watch("email")) {
           setValue("email", customerData.email);
         }
-        if (customerData.phone && !watch("phone_number")) {
-          setValue("phone_number", customerData.phone_number);
+        if (customerData.phone_number && !watch("phone")) {
+          setValue("phone", customerData.phone_number);
           console.log(
             "[BookingFormBag] Set phone from customer data:",
             customerData.phone_number,
           );
         }
-        return;
+        return; // If customer data exists, use it and return
       }
 
       // If no customer data, try users table
@@ -1886,12 +1834,24 @@ const BookingForm = ({
         if (userData.email && !watch("email")) {
           setValue("email", userData.email);
         }
-        if (userData.phone && !watch("phone_number")) {
-          setValue("phone_number", userData.phone_number);
+        if (userData.phone_number && !watch("phone")) {
+          setValue("phone", userData.phone_number);
           console.log(
-            "[BookingFormBag] Set phone from user data:",
-            userData.phone_number,
+            "[BookingFormBag] Restored phone from session:",
+            userData.phone,
           );
+        }
+
+        // Also check localStorage for phone if not in session data
+        if (!userData.phone && !prefilledData && !watch("phone")) {
+          const storedPhone = localStorage.getItem("userPhone");
+          if (storedPhone) {
+            setValue("phone", storedPhone);
+            console.log(
+              "[BookingForm] Restored phone from localStorage:",
+              storedPhone,
+            );
+          }
         }
       }
     } catch (error) {
@@ -1918,8 +1878,8 @@ const BookingForm = ({
         if (prefilledData.email && !watch("email")) {
           setValue("email", prefilledData.email);
         }
-        if (prefilledData.phone_number && !watch("phone_number")) {
-          setValue("phone_number", prefilledData.phone_number);
+        if (prefilledData.phone && !watch("phone")) {
+          setValue("phone", prefilledData.phone);
         }
         return; // If prefilledData exists, use it and return
       }
@@ -1938,24 +1898,24 @@ const BookingForm = ({
         if (userEmail && !watch("email")) {
           setValue("email", userEmail);
         }
-        if (userPhone && !watch("phone_number")) {
-          setValue("phone_number", userPhone);
+        if (userPhone && !watch("phone")) {
+          setValue("phone", userPhone);
         }
 
         // Priority 3: localStorage fallback
-        const storedPhone = localStorage.getItem("userPhoneNumber"); // konsisten pakai userPhoneNumber
-        if (!userPhone && storedPhone && !watch("phone_number")) {
+        const storedPhone = localStorage.getItem("userPhone"); // konsisten pakai userPhone
+        if (!userPhone && storedPhone && !watch("phone")) {
           console.log(
-            "[BookingFormBag] Using stored phone_number from localStorage:",
+            "[BookingFormBag] Using stored phone from localStorage:",
             storedPhone,
           );
-          setValue("phone_number", storedPhone);
+          setValue("phone", storedPhone);
         }
 
         // Priority 4: Database lookup (lowest priority)
-        if (!userPhone && !storedPhone && !watch("phone_number")) {
+        if (!userPhone && !storedPhone && !watch("phone")) {
           console.log(
-            "[BookingFormBag] phone_number not found in auth context or localStorage, fetching from database",
+            "[BookingFormBag] phone not found in auth context or localStorage, fetching from database",
           );
           await fetchUserProfile();
         }
@@ -2275,37 +2235,42 @@ const BookingForm = ({
         </Button>
         <Button
           onClick={async () => {
-            if (step === steps.length - 1) {
-              console.log("[BookingForm] Book Now button clicked");
+  if (step === steps.length - 1) {
+    console.log("[BookingForm] Book Now button clicked");
 
-              // Prevent multiple submissions
-              if (isSubmitting) {
-                console.log("[BookingForm] Already submitting, ignoring click");
-                return;
-              }
+    if (isSubmitting) {
+      console.log("[BookingForm] Already submitting, ignoring click");
+      return;
+    }
 
-              // Add timeout protection for form submission
-              const submissionTimeout = setTimeout(() => {
-                console.warn(
-                  "[BookingForm] Submission timeout, resetting state",
-                );
-                setIsSubmitting(false);
-              }, 15000); // Reduced to 15 seconds for better UX
+    setIsSubmitting(true);
 
-              try {
-                // Submit the form directly
-                await handleSubmit(onSubmit)();
-                clearTimeout(submissionTimeout);
-              } catch (error) {
-                console.error("[BookingForm] Form submission error:", error);
-                clearTimeout(submissionTimeout);
-                setIsSubmitting(false);
-              }
-            } else {
-              console.log(`[BookingForm] Moving to step ${step + 1}`);
-              setStep(step + 1);
-            }
-          }}
+    const sessionResult = await waitUntilSessionReady();
+    if (!sessionResult.isReady) {
+      console.error("[BookingForm] Cannot proceed, session not ready:", sessionResult);
+      setIsSubmitting(false);
+      return;
+    }
+
+    const submissionTimeout = setTimeout(() => {
+      console.warn("[BookingForm] Submission timeout, resetting state");
+      setIsSubmitting(false);
+    }, 15000);
+
+    try {
+      await handleSubmit(onSubmit)();
+      clearTimeout(submissionTimeout);
+    } catch (error) {
+      console.error("[BookingForm] Form submission error:", error);
+      clearTimeout(submissionTimeout);
+      setIsSubmitting(false);
+    }
+  } else {
+    console.log(`[BookingForm] Moving to step ${step + 1}`);
+    setStep(step + 1);
+  }
+}}
+
           disabled={
             step === steps.length - 1
               ? isSubmitting || isTabRecentlyActivated || (!isCartReady && !cartInitTimeout)

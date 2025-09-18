@@ -1,27 +1,13 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ArrowLeft, Package, Luggage, PackageOpen, Boxes } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/lib/supabase";
-import { useAuth } from "@/contexts/AuthContext";
-import { toast } from "@/components/ui/use-toast";
 import BookingForm from "@/pages/BookingFormBag";
+import { Home } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import AuthRequiredModal from "@/components/auth/AuthRequiredModal";
-import {
-  Package,
-  PackageOpen,
-  Luggage,
-  Boxes,
-  ArrowLeft,
-  MapPin,
-  Clock,
-  Shield,
-  CheckCircle,
-  Home,
-} from "lucide-react";
 import {
   JoinedIcon,
   SurfingIcon,
@@ -29,18 +15,7 @@ import {
   GolfIcon,
 } from "@/components/icons";
 
-interface BaggageOption {
-  id: string;
-  name: string;
-  description: string;
-  price: number;
-  icon: React.ReactNode;
-  features: string[];
-  maxDimensions?: string;
-  maxWeight?: string;
-  examples?: string[];
-}
-
+// Types
 interface BaggagePrice {
   id: string;
   baggage_size: string;
@@ -49,19 +24,21 @@ interface BaggagePrice {
   updated_at: string;
 }
 
-type BaggageSize =
-  | "small"
-  | "electronic"
-  | "medium"
-  | "large"
-  | "extra_large"
-  | "surfingboard"
-  | "wheelchair"
-  | "stickgolf";
+interface BaggageOption {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  icon: React.ReactNode;
+  features: string[];
+  maxDimensions: string;
+  maxWeight: string;
+  examples: string[];
+}
 
-// Type guard function to validate baggage size
-const isBaggageSize = (value: string): value is BaggageSize => {
-  const validSizes: BaggageSize[] = [
+// Utility function to validate baggage size
+const validateBaggageSize = (size: string): string => {
+  const validSizes = [
     "small",
     "electronic",
     "medium",
@@ -71,91 +48,33 @@ const isBaggageSize = (value: string): value is BaggageSize => {
     "wheelchair",
     "stickgolf",
   ];
-
-  return validSizes.includes(value as BaggageSize);
-};
-
-// Validation function for baggage size using type guard
-const validateBaggageSize = (size: string): BaggageSize => {
-  if (isBaggageSize(size)) {
-    return size;
-  }
-
-  console.warn(`Invalid baggage size '${size}', defaulting to 'medium'`);
-  return "medium";
+  return validSizes.includes(size) ? size : "small";
 };
 
 const AirportBaggage: React.FC = () => {
-  const { isAuthenticated, userId } = useAuth();
-  const navigate = useNavigate();
-  const [selectedSize, setSelectedSize] = useState<BaggageSize | null>(null);
-  const [showBookingForm, setShowBookingForm] = useState(false);
   const [baggagePrices, setBaggagePrices] = useState<BaggagePrice[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedSize, setSelectedSize] = useState<string | null>(null);
+  const [showBookingForm, setShowBookingForm] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const navigate = useNavigate();
+  const { toast } = useToast();
 
   // Fetch baggage prices from database
   const fetchBaggagePrices = useCallback(async () => {
     try {
-      setLoading(true);
-     // console.log("🔄 Starting to fetch baggage prices from database...");
-     // console.log("📊 Supabase client:", supabase);
-    //  console.log("🔗 Supabase URL:", supabase.supabaseUrl);
+      console.log("🔄 Fetching baggage prices from database...");
 
       const { data, error } = await supabase
         .from("baggage_price")
         .select("*")
         .order("created_at", { ascending: true });
 
-   //   console.log("📋 Raw Supabase response:", { data, error });
-   //   console.log("✅ Data received:", data);
-   //   console.log("❌ Error received:", error);
-    //  console.log("📊 Data type:", typeof data);
-   //   console.log("📊 Data length:", data?.length);
-
-      if (data && data.length > 0) {
-        console.log("🎉 SUCCESS: Baggage prices fetched successfully!");
-        console.log("📦 First item:", data[0]);
-        console.log("📦 All items:", data);
-      } else {
-        console.log("⚠️ WARNING: No data returned from baggage_price table");
-      }
-
       if (error) {
-        console.log("🚨 ERROR: Database query failed:", error);
-        console.log("🚨 Error message:", error.message);
-        console.log("🚨 Error details:", error.details);
-        console.log("🚨 Error hint:", error.hint);
-      }
-
-      if (error) {
-        console.error(
-          "🚨 CRITICAL ERROR: Failed to fetch baggage prices:",
-          error,
-        );
-        console.error("🚨 Error details:", {
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          code: error.code,
-        });
-        toast({
-          title: "Error",
-          description: "Failed to load baggage prices",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // If no data is returned, use default prices
-      if (!data || data.length === 0) {
-        console.warn(
-          "⚠️ WARNING: No baggage prices found in database, using default prices",
-        );
-        console.warn("📊 Data status:", {
-          data,
-          isEmpty: !data || data.length === 0,
-        });
+        console.warn("⚠️ Database query failed, using default prices:", error);
+        
+        // Use default prices as fallback
         const defaultPrices: BaggagePrice[] = [
           {
             id: "1",
@@ -214,22 +133,79 @@ const AirportBaggage: React.FC = () => {
             updated_at: new Date().toISOString(),
           },
         ];
-        console.log("🔄 Setting default prices:", defaultPrices);
+        setBaggagePrices(defaultPrices);
+        return;
+      }
+
+      // If no data is returned, use default prices
+      if (!data || data.length === 0) {
+        console.warn("⚠️ No baggage prices found in database, using default prices");
+        const defaultPrices: BaggagePrice[] = [
+          {
+            id: "1",
+            baggage_size: "small",
+            baggage_prices: 50000,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          },
+          {
+            id: "2",
+            baggage_size: "electronic",
+            baggage_prices: 75000,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          },
+          {
+            id: "3",
+            baggage_size: "medium",
+            baggage_prices: 100000,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          },
+          {
+            id: "4",
+            baggage_size: "large",
+            baggage_prices: 150000,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          },
+          {
+            id: "5",
+            baggage_size: "extra_large",
+            baggage_prices: 200000,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          },
+          {
+            id: "6",
+            baggage_size: "surfingboard",
+            baggage_prices: 250000,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          },
+          {
+            id: "7",
+            baggage_size: "wheelchair",
+            baggage_prices: 100000,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          },
+          {
+            id: "8",
+            baggage_size: "stickgolf",
+            baggage_prices: 175000,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          },
+        ];
         setBaggagePrices(defaultPrices);
       } else {
         console.log("🎉 SUCCESS: Setting fetched prices from database:", data);
         setBaggagePrices(data);
       }
     } catch (error) {
-      console.error(
-        "🚨 CATCH BLOCK: Unexpected error fetching baggage prices:",
-        error,
-      );
-      console.error("🚨 Error type:", typeof error);
-      console.error(
-        "🚨 Error stack:",
-        error instanceof Error ? error.stack : "No stack trace",
-      );
+      console.error("🚨 Unexpected error fetching baggage prices:", error);
+      
       // Use default prices as fallback
       const defaultPrices: BaggagePrice[] = [
         {
@@ -289,40 +265,108 @@ const AirportBaggage: React.FC = () => {
           updated_at: new Date().toISOString(),
         },
       ];
-      console.log(
-        "🔄 FALLBACK: Setting default prices due to error:",
-        defaultPrices,
-      );
       setBaggagePrices(defaultPrices);
       toast({
         title: "Warning",
         description: "Using default prices - database connection issue",
         variant: "destructive",
       });
-    } finally {
-      console.log("🏁 FINALLY: Setting loading to false");
-      setLoading(false);
     }
-  }, []);
+  }, [toast]);
 
+  // Setup auth listener and initial session check - runs once on mount
   useEffect(() => {
-    console.log("🚀 USEEFFECT: Component mounted, calling fetchBaggagePrices");
-    fetchBaggagePrices();
-  }, [fetchBaggagePrices]);
+    console.log("[AirportBaggage] Setting up auth listener and initial data load...");
+    
+    let mounted = true;
+    
+    const initializeComponent = async () => {
+      try {
+        // 1. Get initial session
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error("[AirportBaggage] Session check error:", error);
+        }
+
+        if (mounted) {
+          if (session) {
+            console.log("[AirportBaggage] ✅ Session found");
+            setIsAuthenticated(true);
+          } else {
+            console.log("[AirportBaggage] ❌ No session found");
+            setIsAuthenticated(false);
+          }
+        }
+
+        // 2. Fetch baggage prices
+        await fetchBaggagePrices();
+        
+        // 3. Set loading to false after everything is done
+        if (mounted) {
+          console.log("[AirportBaggage] 🏁 Initialization complete, setting loading to false");
+          setLoading(false);
+        }
+      } catch (error) {
+        console.error("[AirportBaggage] Initialization error:", error);
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    // Start initialization
+    initializeComponent();
+    
+    // Setup auth state listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log(`[AirportBaggage] Auth state changed: ${event}`);
+      
+      if (mounted) {
+        if (session) {
+          setIsAuthenticated(true);
+        } else {
+          setIsAuthenticated(false);
+        }
+      }
+    });
+
+    // Handle tab visibility changes - validate session when tab becomes visible
+    const handleVisibilityChange = () => {
+      if (!document.hidden && mounted) {
+        console.log('[AirportBaggage] Tab became visible, validating session...');
+        supabase.auth.getSession().then(({ data: { session }, error }) => {
+          if (!error && mounted) {
+            if (session) {
+              console.log("[AirportBaggage] ✅ Session validated on tab focus");
+              setIsAuthenticated(true);
+            } else {
+              console.log("[AirportBaggage] ❌ No session on tab focus");
+              setIsAuthenticated(false);
+            }
+          }
+        });
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // Cleanup
+    return () => {
+      console.log("[AirportBaggage] Cleaning up auth listener");
+      mounted = false;
+      subscription.unsubscribe();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []); // Empty dependency array - runs once on mount
 
   // Get price for a specific baggage size with validation
   const getPriceForSize = (size: string): number => {
     const validatedSize = validateBaggageSize(size);
-    console.log(
-      `💰 Getting price for size: ${size} (validated: ${validatedSize})`,
-    );
-    console.log(`📊 Available baggage prices:`, baggagePrices);
     const priceEntry = baggagePrices.find(
       (p) => p.baggage_size === validatedSize,
     );
-    console.log(`🔍 Found price entry for ${validatedSize}:`, priceEntry);
     const price = priceEntry?.baggage_prices || 0;
-    console.log(`💵 Final price for ${validatedSize}: ${price}`);
     return price;
   };
 
@@ -453,10 +497,13 @@ const AirportBaggage: React.FC = () => {
   }, [baggagePrices, arePricesLoaded]);
 
   const handleSizeSelect = (size: string) => {
+    // Simple authentication check
     if (!isAuthenticated) {
+      console.log('[AirportBaggage] Authentication required - showing auth modal');
       setShowAuthModal(true);
       return;
     }
+    
     const validatedSize = validateBaggageSize(size);
     console.log(`🎯 Size selected: ${size} (validated: ${validatedSize})`);
     setSelectedSize(validatedSize);
@@ -468,6 +515,7 @@ const AirportBaggage: React.FC = () => {
     setSelectedSize(null);
   };
 
+  // Single loading check at the top of render
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -519,7 +567,7 @@ const AirportBaggage: React.FC = () => {
     <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-6xl mx-auto">
-          {/* Navigation Button */}
+        {/* Navigation Button */}
           <div className="mb-6">
             <Button
               variant="outline"
@@ -530,222 +578,169 @@ const AirportBaggage: React.FC = () => {
               Kembali ke Halaman Utama
             </Button>
           </div>
-
           {/* Header */}
           <div className="text-center mb-12">
-            <div className="flex items-center justify-center gap-3 mb-4">
-              <Luggage className="h-10 w-10 text-blue-600" />
-              <h1 className="text-4xl font-bold text-gray-900">
-                Airport Baggage Storage
-              </h1>
-            </div>
+            <h1 className="text-4xl font-bold text-gray-900 mb-4">
+              Airport Baggage Storage
+            </h1>
             <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-              Secure, convenient, and affordable baggage storage solutions at
-              the airport. Choose from our range of storage options to fit your
-              needs.
+              Secure, convenient, and affordable baggage storage solutions at the airport.
+              Choose from our range of storage options to suit your needs.
             </p>
           </div>
 
-          {/* Features */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-            <Card className="text-center p-6">
-              <Shield className="h-12 w-12 text-green-600 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2">Secure Storage</h3>
-              <p className="text-gray-600">
-                24/7 monitored facilities with advanced security systems
-              </p>
-            </Card>
-            <Card className="text-center p-6">
-              <Clock className="h-12 w-12 text-blue-600 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2">Flexible Hours</h3>
-              <p className="text-gray-600">
-                Access your belongings anytime with our 24/7 service
-              </p>
-            </Card>
-            <Card className="text-center p-6">
-              <MapPin className="h-12 w-12 text-purple-600 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2">Prime Location</h3>
-              <p className="text-gray-600">
-                Conveniently located within the airport terminal
-              </p>
-            </Card>
-          </div>
+          {/* Baggage Options Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {baggageOptions.map((option) => (
+              <Card
+                key={option.id}
+                className="hover:shadow-lg transition-shadow cursor-pointer group"
+                onClick={() => handleSizeSelect(option.id)}
+              >
+                <CardHeader className="text-center pb-4">
+                  <div className="flex justify-center mb-4 text-blue-600 group-hover:text-blue-700 transition-colors">
+                    {option.icon}
+                  </div>
+                  <CardTitle className="text-lg font-semibold">
+                    {option.name}
+                  </CardTitle>
+                  <CardDescription className="text-sm">
+                    {option.description}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Price */}
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-green-600">
+                      Rp {option.price.toLocaleString('id-ID')}
+                    </div>
+                    <div className="text-sm text-gray-500">per day</div>
+                  </div>
 
-          {/* Baggage Options */}
-          <div className="mb-8">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6 text-center">
-              Choose Your Storage Size
-            </h2>
+                  {/* Specifications */}
+                  <div className="space-y-2 text-sm">
+                    <div>
+                      <span className="font-medium">Max Size:</span>{" "}
+                      {option.maxDimensions}
+                    </div>
+                    <div>
+                      <span className="font-medium">Max Weight:</span>{" "}
+                      {option.maxWeight}
+                    </div>
+                  </div>
 
-            {/* Loading State */}
-            {!arePricesLoaded && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {[...Array(8)].map((_, index) => (
-                  <Card key={index} className="animate-pulse">
-                    <CardHeader className="text-center pb-4">
-                      <div className="w-8 h-8 bg-gray-300 rounded mx-auto mb-3"></div>
-                      <div className="h-5 bg-gray-300 rounded mb-2"></div>
-                      <div className="h-6 bg-gray-300 rounded w-24 mx-auto"></div>
-                    </CardHeader>
-                    <CardContent className="pt-0">
-                      <div className="h-4 bg-gray-300 rounded mb-4"></div>
-                      <div className="space-y-2 mb-4">
-                        {[...Array(3)].map((_, i) => (
-                          <div key={i} className="flex items-center gap-2">
-                            <div className="w-4 h-4 bg-gray-300 rounded-full"></div>
-                            <div className="h-3 bg-gray-300 rounded flex-1"></div>
-                          </div>
-                        ))}
-                      </div>
-                      <div className="h-10 bg-gray-300 rounded"></div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
+                  {/* Features */}
+                  <div className="space-y-2">
+                    <div className="font-medium text-sm">Features:</div>
+                    <div className="flex flex-wrap gap-1">
+                      {option.features.map((feature, index) => (
+                        <Badge
+                          key={index}
+                          variant="secondary"
+                          className="text-xs"
+                        >
+                          {feature}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
 
-            {/* Baggage Options - Only show when prices are loaded */}
-            {arePricesLoaded && baggageOptions.length > 0 && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {baggageOptions.map((option) => (
-                  <Card
-                    key={option.id}
-                    className="hover:shadow-lg transition-shadow cursor-pointer group"
-                    onClick={() => handleSizeSelect(option.id)}
-                  >
-                    <CardHeader className="text-center pb-4">
-                      <div className="flex justify-center mb-3 text-blue-600 group-hover:text-blue-700 transition-colors">
-                        {option.icon}
-                      </div>
-                      <CardTitle className="text-lg">{option.name}</CardTitle>
-                      <div className="text-2xl font-bold text-green-600">
-                        {arePricesLoaded && option.price > 0 ? (
-                          `Rp ${option.price.toLocaleString("id-ID")}`
-                        ) : (
-                          <span className="text-gray-400">
-                            Price loading...
-                          </span>
-                        )}
-                      </div>
-                    </CardHeader>
-                    <CardContent className="pt-0">
-                      <p className="text-gray-600 text-sm mb-4">
-                        {option.description}
-                      </p>
+                  {/* Examples */}
+                  <div className="space-y-2">
+                    <div className="font-medium text-sm">Perfect for:</div>
+                    <div className="text-xs text-gray-600">
+                      {option.examples.join(", ")}
+                    </div>
+                  </div>
 
-                      <div className="space-y-2 mb-4">
-                        {option.features.map((feature, index) => (
-                          <div key={index} className="flex items-center gap-2">
-                            <CheckCircle className="h-4 w-4 text-green-500" />
-                            <span className="text-sm text-gray-600">
-                              {feature}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-
-                      {option.examples && (
-                        <div className="border-t pt-3">
-                          <p className="text-xs text-gray-500 mb-2">
-                            Examples:
-                          </p>
-                          <div className="flex flex-wrap gap-1">
-                            {option.examples.map((example, index) => (
-                              <Badge
-                                key={index}
-                                variant="secondary"
-                                className="text-xs"
-                              >
-                                {example}
-                              </Badge>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      <Button
-                        className="w-full mt-4 group-hover:bg-blue-700 transition-colors"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (!isAuthenticated) {
-                            setShowAuthModal(true);
-                            return;
-                          }
-                          handleSizeSelect(option.id);
-                        }}
-                        disabled={!arePricesLoaded || option.price <= 0}
-                      >
-                        {arePricesLoaded && option.price > 0
-                          ? "Select This Size"
-                          : "Loading..."}
-                      </Button>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-
-            {/* Error State - if prices failed to load */}
-            {!loading && !arePricesLoaded && (
-              <div className="text-center py-12">
-                <div className="text-gray-500 mb-4">
-                  <Package className="h-16 w-16 mx-auto mb-4 opacity-50" />
-                  <p className="text-lg font-medium">
-                    Unable to load baggage options
-                  </p>
-                  <p className="text-sm">
-                    Please refresh the page to try again
-                  </p>
-                </div>
-                <Button
-                  onClick={() => window.location.reload()}
-                  variant="outline"
-                  className="mt-4"
-                >
-                  Refresh Page
-                </Button>
-              </div>
-            )}
+                  {/* Select Button */}
+                  <Button className="w-full mt-4 group-hover:bg-blue-700 transition-colors">
+                    Select This Option
+                  </Button>
+                </CardContent>
+              </Card>
+            ))}
           </div>
 
           {/* Additional Information */}
-          <Card className="bg-blue-50 border-blue-200">
-            <CardContent className="p-6">
-              <h3 className="text-lg font-semibold text-blue-900 mb-4">
-                Important Information
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-blue-800">
-                <div>
-                  <h4 className="font-medium mb-2">Storage Terms:</h4>
-                  <ul className="space-y-1 list-disc list-inside">
-                    <li>Minimum storage period: 1 hour</li>
-                    <li>Maximum storage period: 30 days</li>
-                    <li>Items must be properly packed</li>
-                    <li>No hazardous materials allowed</li>
-                  </ul>
+          <div className="mt-16 bg-white rounded-lg shadow-sm p-8">
+            <h2 className="text-2xl font-bold text-gray-900 mb-6 text-center">
+              Why Choose Our Baggage Storage?
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              <div className="text-center">
+                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Package className="h-8 w-8 text-blue-600" />
                 </div>
-                <div>
-                  <h4 className="font-medium mb-2">What's Included:</h4>
-                  <ul className="space-y-1 list-disc list-inside">
-                    <li>Insurance coverage</li>
-                    <li>24/7 security monitoring</li>
-                    <li>Climate-controlled environment</li>
-                    <li>Easy online booking and payment</li>
-                  </ul>
-                </div>
+                <h3 className="text-lg font-semibold mb-2">Secure Storage</h3>
+                <p className="text-gray-600">
+                  24/7 monitored facilities with advanced security systems and
+                  insurance coverage for your peace of mind.
+                </p>
               </div>
-            </CardContent>
-          </Card>
-
-          {/* Auth Required Modal */}
-          <AuthRequiredModal
-            isOpen={showAuthModal}
-            onClose={() => setShowAuthModal(false)}
-            title="Authentication Required"
-            message="Please Sign in or Register to access"
-          />
+              <div className="text-center">
+                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Luggage className="h-8 w-8 text-green-600" />
+                </div>
+                <h3 className="text-lg font-semibold mb-2">Convenient Location</h3>
+                <p className="text-gray-600">
+                  Located right at the airport for easy drop-off and pickup.
+                  No need to travel far from your terminal.
+                </p>
+              </div>
+              <div className="text-center">
+                <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <PackageOpen className="h-8 w-8 text-purple-600" />
+                </div>
+                <h3 className="text-lg font-semibold mb-2">Flexible Options</h3>
+                <p className="text-gray-600">
+                  Multiple size options and storage durations to fit your
+                  specific needs and budget requirements.
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
+
+      {/* Auth Modal */}
+      {showAuthModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold">Authentication Required</h2>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setShowAuthModal(false)}
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+            </div>
+            <p className="text-gray-600 mb-4">
+              Please sign in to book baggage storage services.
+            </p>
+            <div className="flex gap-2">
+              <Button
+                onClick={() => {
+                  setShowAuthModal(false);
+                  window.location.href = '/login';
+                }}
+                className="flex-1"
+              >
+                Sign In
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setShowAuthModal(false)}
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
