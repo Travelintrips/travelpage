@@ -24,6 +24,7 @@ interface AuthContextType {
   userId: string | null;
   userEmail: string | null;
   userName: string | null;
+  userPhone: string | null;
   isAdmin: boolean;
   isAuthenticated: boolean;
   isLoading: boolean;
@@ -761,6 +762,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const userId = user?.id || null;
   const userEmail = user?.email || null;
   const userName = user?.user_metadata?.name || userEmail?.split('@')[0] || null;
+  const userPhone = user?.user_metadata?.phone || null;
   const isAdmin = role === 'Admin' || role === 'Super Admin' || role === 'Staff Admin';
 
   const value: AuthContextType = {
@@ -771,6 +773,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     userId,
     userEmail,
     userName,
+    userPhone,
     isAdmin,
     isAuthenticated,
     isLoading,

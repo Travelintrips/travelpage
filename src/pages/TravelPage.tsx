@@ -215,12 +215,12 @@ const Header = ({
 
         <div className="hidden md:flex items-center space-x-6">
           <Button variant="ghost" className="text-white hover:bg-green-700">
-            Deals
+            {t('navbar.deals')}
           </Button>
           <Popover>
             <PopoverTrigger asChild>
               <Button variant="ghost" className="text-white hover:bg-green-700">
-                Support <ChevronDown className="h-4 w-4 ml-1" />
+                {t('navbar.support')} <ChevronDown className="h-4 w-4 ml-1" />
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-48">
@@ -238,7 +238,7 @@ const Header = ({
           <Popover>
             <PopoverTrigger asChild>
               <Button variant="ghost" className="text-white hover:bg-green-700">
-                Partnership <ChevronDown className="h-4 w-4 ml-1" />
+                {t('navbar.partnership')} <ChevronDown className="h-4 w-4 ml-1" />
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-48">
@@ -274,7 +274,7 @@ const Header = ({
           </Popover>
 
           <Button variant="ghost" className="text-white hover:bg-green-700">
-            For Corporates
+            {t('navbar.forCorporates')}
           </Button>
           <Button
             variant="ghost"
@@ -285,7 +285,7 @@ const Header = ({
             }}
           >
             <ShoppingCart className="h-5 w-5 mr-3" />
-            Cart
+            {t('navbar.cart', 'Cart')}
             {cartItems.length > 0 && (
               <Badge className="bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full ml-auto">
                 {cartItems.length}
@@ -557,7 +557,7 @@ const MobileMenu = ({
               handleTravelOptionClick("Hotels");
             }}
           >
-            <Hotel className="h-5 w-5 mr-3" /> Hotels
+            <Hotel className="h-5 w-5 mr-3" /> {t('navbar.hotels')}
           </Button>
           <Button
             variant="ghost"
@@ -567,7 +567,7 @@ const MobileMenu = ({
               handleTravelOptionClick("Flights");
             }}
           >
-            <Plane className="h-5 w-5 mr-3" /> Flights
+            <Plane className="h-5 w-5 mr-3" /> {t('navbar.flights')}
           </Button>
           <Button
             variant="ghost"
@@ -577,7 +577,7 @@ const MobileMenu = ({
               handleTravelOptionClick("Trains");
             }}
           >
-            <Train className="h-5 w-5 mr-3" /> Trains
+            <Train className="h-5 w-5 mr-3" /> {t('navbar.trains')}
           </Button>
           <Button
             variant="ghost"
@@ -587,7 +587,7 @@ const MobileMenu = ({
               handleTravelOptionClick("Bus & Travel");
             }}
           >
-            <Bus className="h-5 w-5 mr-3" /> Bus & Travel
+            <Bus className="h-5 w-5 mr-3" /> {t('navbar.bus')}
           </Button>
           {/* Transportasi Link */}
           <Button
@@ -598,7 +598,7 @@ const MobileMenu = ({
               navigate("/transportasi");
             }}
           >
-            <Car className="h-5 w-5 mr-3" /> Transportasi
+            <Car className="h-5 w-5 mr-3" /> {t('navbar.transportasi')}
           </Button>
           <Button
             variant="ghost"
@@ -608,7 +608,7 @@ const MobileMenu = ({
               handleTravelOptionClick("Things to Do");
             }}
           >
-            <Compass className="h-5 w-5 mr-3" /> Things to Do
+            <Compass className="h-5 w-5 mr-3" /> {t('navbar.activities')}
           </Button>
           <Button
             variant="ghost"
@@ -618,7 +618,7 @@ const MobileMenu = ({
               handleTravelOptionClick("Baggage");
             }}
           >
-            <Luggage className="h-5 w-5 mr-3" /> Baggage
+            <Luggage className="h-5 w-5 mr-3" /> {t('navbar.baggage')}
           </Button>
           <Button
             variant="ghost"
@@ -628,7 +628,7 @@ const MobileMenu = ({
               handleTravelOptionClick("Handling");
             }}
           >
-            <HandHeart className="h-5 w-5 mr-3" /> Handling
+            <HandHeart className="h-5 w-5 mr-3" /> {t('navbar.handling')}
           </Button>
         </div>
         <div className="border-t pt-4 space-y-2">
@@ -641,7 +641,7 @@ const MobileMenu = ({
             }}
           >
             <ShoppingCart className="h-5 w-5 mr-3" />
-            Cart
+            {t('navbar.cart', 'Cart')}
             {cartItems.length > 0 && (
               <Badge className="bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full ml-auto">
                 {cartItems.length}
@@ -653,28 +653,28 @@ const MobileMenu = ({
             className="w-full justify-start"
             onClick={() => setMobileMenuOpen(false)}
           >
-            Deals
+            {t('navbar.deals')}
           </Button>
           <Button
             variant="ghost"
             className="w-full justify-start"
             onClick={() => setMobileMenuOpen(false)}
           >
-            Support
+            {t('navbar.support')}
           </Button>
           <Button
             variant="ghost"
             className="w-full justify-start"
             onClick={() => setMobileMenuOpen(false)}
           >
-            Partnership
+            {t('navbar.partnership')}
           </Button>
           <Button
             variant="ghost"
             className="w-full justify-start"
             onClick={() => setMobileMenuOpen(false)}
           >
-            For Corporates
+            {t('navbar.forCorporates')}
           </Button>
           <Button
             variant="ghost"
@@ -1349,28 +1349,24 @@ const FeaturesSection = ({ t }) => {
 const PopularDestinationsSection = ({ t }) => {
   const destinations = [
     {
-      name: "Bali",
+      key: "bali",
       image:
         "https://images.unsplash.com/photo-1537996194471-e657df975ab4?w=800&q=80",
-      description: "Island paradise with beautiful beaches and rich culture.",
     },
     {
-      name: "Jakarta",
+      key: "jakarta",
       image:
         "https://images.unsplash.com/photo-1555899434-94d1368aa7af?w=800&q=80",
-      description: "Vibrant capital city with modern attractions.",
     },
     {
-      name: "Yogyakarta",
+      key: "yogyakarta",
       image:
         "https://images.unsplash.com/photo-1584810359583-96fc3448beaa?w=800&q=80",
-      description: "Cultural heart of Java with ancient temples.",
     },
     {
-      name: "Lombok",
+      key: "lombok",
       image:
         "https://images.unsplash.com/photo-1518548419970-58e3b4079ab2?w=800&q=80",
-      description: "Serene beaches and stunning mountain landscapes.",
     },
   ];
 
@@ -1389,22 +1385,22 @@ const PopularDestinationsSection = ({ t }) => {
               <div className="h-48 overflow-hidden">
                 <img
                   src={destination.image}
-                  alt={destination.name}
+                  alt={t(`destinations.list.${destination.key}.name`)}
                   className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
                 />
               </div>
               <div className="p-4">
                 <h3 className="text-lg font-semibold mb-2">
-                  {destination.name}
+                  {t(`destinations.list.${destination.key}.name`)}
                 </h3>
                 <p className="text-gray-600 text-sm">
-                  {destination.description}
+                  {t(`destinations.list.${destination.key}.description`)}
                 </p>
                 <Button
                   variant="outline"
                   className="mt-4 w-full border-green-500 text-green-500 hover:bg-green-50"
                 >
-                  Explore
+                  {t("destinations.explore", "Explore")}
                 </Button>
               </div>
             </div>
@@ -1541,14 +1537,14 @@ const Footer = ({ t }) => {
               <li className="flex items-start">
                 <MapPin className="h-5 w-5 mr-2 mt-0.5" />
                 <span>
-                  Head Quarter: Jln. Ternate No. 10
+                  {t("footer.contact.headQuarter", "Head Quarter")}: Jln. Ternate No. 10
                   <br />
                   Jakarta, Indonesia 10150
                 </span>
               </li>
               <li className="flex items-start">
                 <span>
-                  Office: Koperasi Angkasa Pura Pool Diva Trans, Pajang, Kec.
+                  {t("footer.contact.office", "Office")}: Koperasi Angkasa Pura Pool Diva Trans, Pajang, Kec.
                   Benda
                   <br />
                   Tangerang Kota, Banten 15126
@@ -1795,7 +1791,7 @@ const TravelPageContent = () => {
                   onClick={() => handleTravelOptionClick("Hotels")}
                 >
                   <Hotel className="h-5 w-5 mr-2" />
-                  <span>Hotels</span>
+                  <span>{t('navbar.hotels')}</span>
                 </TabsTrigger>
                 <TabsTrigger
                   value="flights"
@@ -1803,7 +1799,7 @@ const TravelPageContent = () => {
                   onClick={() => handleTravelOptionClick("Flights")}
                 >
                   <Plane className="h-5 w-5 mr-2" />
-                  <span>Flights</span>
+                  <span>{t('navbar.flights')}</span>
                 </TabsTrigger>
                 <TabsTrigger
                   value="trains"
@@ -1811,7 +1807,7 @@ const TravelPageContent = () => {
                   onClick={() => handleTravelOptionClick("Trains")}
                 >
                   <Train className="h-5 w-5 mr-2" />
-                  <span>Trains</span>
+                  <span>{t('navbar.trains')}</span>
                 </TabsTrigger>
                 <TabsTrigger
                   value="bus"
@@ -1819,7 +1815,7 @@ const TravelPageContent = () => {
                   onClick={() => handleTravelOptionClick("Bus & Travel")}
                 >
                   <Bus className="h-5 w-5 mr-2" />
-                  <span>Bus</span>
+                  <span>{t('navbar.bus')}</span>
                 </TabsTrigger>
                 <TabsTrigger
                   value="transportasi"
@@ -1827,7 +1823,7 @@ const TravelPageContent = () => {
                   onClick={() => navigate("/transportasi")}
                 >
                   <Car className="h-5 w-5 mr-2" />
-                  <span>Transportasi</span>
+                  <span>{t('navbar.transportasi')}</span>
                 </TabsTrigger>
                 <TabsTrigger
                   value="baggage"
@@ -1835,7 +1831,7 @@ const TravelPageContent = () => {
                   onClick={() => handleTravelOptionClick("Baggage")}
                 >
                   <Luggage className="h-5 w-5 mr-2" />
-                  <span>Baggage</span>
+                  <span>{t('navbar.baggage')}</span>
                 </TabsTrigger>
                 <TabsTrigger
                   value="handling"
@@ -1843,7 +1839,7 @@ const TravelPageContent = () => {
                   onClick={() => handleTravelOptionClick("Handling")}
                 >
                   <HandHeart className="h-5 w-5 mr-2" />
-                  <span>Handling</span>
+                  <span>{t('navbar.handling')}</span>
                 </TabsTrigger>
 
                 <TabsTrigger
@@ -1852,7 +1848,7 @@ const TravelPageContent = () => {
                   onClick={() => handleTravelOptionClick("Things to Do")}
                 >
                   <Compass className="h-5 w-5 mr-2" />
-                  <span>Activities</span>
+                  <span>{t('navbar.activities')}</span>
                 </TabsTrigger>
               </TabsList>
             </Tabs>
@@ -1871,7 +1867,7 @@ const TravelPageContent = () => {
             className={`flex flex-col items-center justify-center p-2 ${activeTab === "hotels" ? "text-green-500" : "text-gray-700"}`}
           >
             <Hotel className="h-6 w-6 mb-1" />
-            <span className="text-xs font-medium">Hotels</span>
+            <span className="text-xs font-medium">{t('navbar.hotels')}</span>
           </button>
           <button
             onClick={() => {
@@ -1881,7 +1877,7 @@ const TravelPageContent = () => {
             className={`flex flex-col items-center justify-center p-2 ${activeTab === "flights" ? "bg-green-500 text-white rounded-md" : "text-gray-700"}`}
           >
             <Plane className="h-6 w-6 mb-1" />
-            <span className="text-xs font-medium">Flights</span>
+            <span className="text-xs font-medium">{t('navbar.flights')}</span>
           </button>
           <button
             onClick={() => {
@@ -1891,7 +1887,7 @@ const TravelPageContent = () => {
             className={`flex flex-col items-center justify-center p-2 ${activeTab === "trains" ? "text-green-500" : "text-gray-700"}`}
           >
             <Train className="h-6 w-6 mb-1" />
-            <span className="text-xs font-medium">Trains</span>
+            <span className="text-xs font-medium">{t('navbar.trains')}</span>
           </button>
           <button
             onClick={() => {
@@ -1901,7 +1897,7 @@ const TravelPageContent = () => {
             className={`flex flex-col items-center justify-center p-2 ${activeTab === "bus" ? "text-green-500" : "text-gray-700"}`}
           >
             <Bus className="h-6 w-6 mb-1" />
-            <span className="text-xs font-medium">Bus</span>
+            <span className="text-xs font-medium">{t('navbar.bus')}</span>
           </button>
         </div>
         <div className="grid grid-cols-4 gap-2 px-2 pb-4">
@@ -1914,7 +1910,7 @@ const TravelPageContent = () => {
             className={`flex flex-col items-center justify-center p-2 ${activeTab === "transportasi" ? "text-green-500" : "text-gray-700"}`}
           >
             <Car className="h-6 w-6 mb-1" />
-            <span className="text-xs font-medium">Transportasi</span>
+            <span className="text-xs font-medium">{t('navbar.transportasi')}</span>
           </button>
           <button
             onClick={() => {
@@ -1926,7 +1922,7 @@ const TravelPageContent = () => {
             }`}
           >
             <Luggage className="h-6 w-6 mb-1" />
-            <span className="text-xs font-medium">Baggage</span>
+            <span className="text-xs font-medium">{t('navbar.baggage')}</span>
           </button>
           <button
             onClick={() => {
@@ -1938,7 +1934,7 @@ const TravelPageContent = () => {
             }`}
           >
             <HandHeart className="h-6 w-6 mb-1" />
-            <span className="text-xs font-medium">Handling</span>
+            <span className="text-xs font-medium">{t('navbar.handling')}</span>
           </button>
           <button
             onClick={() => {
@@ -1948,7 +1944,7 @@ const TravelPageContent = () => {
             className={`flex flex-col items-center justify-center p-2 ${activeTab === "activities" ? "text-green-500" : "text-gray-700"}`}
           >
             <Compass className="h-6 w-6 mb-1" />
-            <span className="text-xs font-medium">Activities</span>
+            <span className="text-xs font-medium">{t('navbar.activities')}</span>
           </button>
         </div>
       </div>

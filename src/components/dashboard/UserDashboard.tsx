@@ -334,20 +334,6 @@ const UserDashboard = () => {
             .eq("customer_id", userId)
             .order("created_at", { ascending: false });
 
-        if (airportTransferError) {
-          console.error(
-            "Error fetching airport transfers:",
-            airportTransferError,
-          );
-        }
-
-        if (baggageBookingError) {
-          console.error(
-            "Error fetching baggage bookings:",
-            baggageBookingError,
-          );
-        }
-
         // Fetch handling booking data for this user with payment information
         const { data: handlingBookingsData, error: handlingBookingsError } =
           await supabase
@@ -369,17 +355,49 @@ const UserDashboard = () => {
         created_at,
         updated_at,
         passenger_area,
-        pickup_area
+        pickup_area,
+        created_by_role
         
       `,
             )
-            .eq("customer_id", userId)
+            .eq("user_id", userId)
+            .eq("created_by_role", userRole)
             .order("created_at", { ascending: false });
 
-        if (handlingBookingsError) {
+        // Check if we have any actual data (not just null or empty arrays)
+        const hasBookings = bookingsData && bookingsData.length > 0;
+        const hasAirportTransfers = airportTransferData && airportTransferData.length > 0;
+        const hasBaggageBookings = baggageBookingData && baggageBookingData.length > 0;
+        const hasHandlingBookings = handlingBookingsData && handlingBookingsData.length > 0;
+
+        console.log("Data check:", {
+          hasBookings,
+          hasAirportTransfers, 
+          hasBaggageBookings,
+          hasHandlingBookings,
+          bookingsData: bookingsData?.length || 0,
+          airportTransferData: airportTransferData?.length || 0,
+          baggageBookingData: baggageBookingData?.length || 0,
+          handlingBookingsData: handlingBookingsData?.length || 0
+        });
+
+        // Always process the data, even if some arrays are empty
+        console.log("Fetched bookings:", bookingsData);
+        console.log("Fetched airport transfers:", airportTransferData);
+        console.log("Fetched baggage bookings:", baggageBookingData);
+        console.log("Fetched handling bookings:", handlingBookingsData);
+
+        if (airportTransferError) {
           console.error(
-            "Error fetching handling bookings:",
-            handlingBookingsError,
+            "Error fetching airport transfers:",
+            airportTransferError,
+          );
+        }
+
+        if (baggageBookingError) {
+          console.error(
+            "Error fetching baggage bookings:",
+            baggageBookingError,
           );
         }
 
@@ -390,28 +408,94 @@ const UserDashboard = () => {
           );
         }
 
-        if (
-          bookingsData ||
-          airportTransferData ||
-          baggageBookingData ||
-          handlingBookingsData
-        ) {
-          console.log("Fetched bookings:", bookingsData);
-          console.log("Fetched airport transfers:", airportTransferData);
-          console.log("Fetched baggage bookings:", baggageBookingData);
-          console.log("Fetched handling bookings:", handlingBookingsData);
+        // Transform the bookings data to match our component's expected format
+        const formattedBookings = (bookingsData || []).map((booking) => {
+          // Create a proper vehicle name from make and model if available
+          let vehicleName = "Unknown Vehicle";
+          let vehicleModel = "";
+          if (booking.vehicles) {
+            if (booking.vehicles.make && booking.vehicles.model) {
+              vehicleName = `${booking.vehicles.make} ${booking.vehicles.model}`;
+              vehicleModel = booking.vehicles.model;
+            } else if (booking.vehicles.name) {
+              vehicleName = booking.vehicles.name;
+            }
+          }
 
-          // Transform the bookings data to match our component's expected format
-          const formattedBookings = (bookingsData || []).map((booking) => {
-            // Create a proper vehicle name from make and model if available
+          // Get the image URL directly from the vehicles.image field
+          let imageUrl =
+            "https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?w=800&q=80";
+
+          // First priority: use the image field if available
+          if (booking.vehicles?.image) {
+            imageUrl = booking.vehicles.image;
+            console.log("Using image from vehicles.image:", imageUrl);
+          }
+          // Second priority: use image_url if available
+          else if (booking.vehicles?.image_url) {
+            imageUrl = booking.vehicles.image_url;
+            console.log("Using image from vehicles.image_url:", imageUrl);
+          }
+
+          return {
+            id: booking.id.toString(),
+            vehicleName: vehicleName,
+            startDate: booking.start_date
+              ? new Date(booking.start_date)
+              : new Date(),
+            endDate: booking.end_date
+              ? new Date(booking.end_date)
+              : new Date(),
+            status: booking.status || "active",
+            totalAmount: booking.total_amount || 0,
+            paymentStatus: booking.payment_status || "pending",
+            imageUrl: imageUrl,
+            vehicleId: booking.vehicle_id,
+            licensePlate: booking.license_plate || "-",
+            driverName: booking.driver_name || "Unknown Driver",
+            bookingCode: booking.kode_booking || "-",
+            pickupStatus: booking.pickup_status || "not_picked_up",
+            paymentMethod:
+              booking.payments && booking.payments[0]
+                ? booking.payments[0].payment_method
+                : "-",
+          };
+        });
+
+        // Transform the airport transfer data
+        const formattedAirportTransfers = (airportTransferData || []).map(
+          (transfer) => {
+            // Create a proper vehicle name from available fields
             let vehicleName = "Unknown Vehicle";
             let vehicleModel = "";
-            if (booking.vehicles) {
-              if (booking.vehicles.make && booking.vehicles.model) {
-                vehicleName = `${booking.vehicles.make} ${booking.vehicles.model}`;
-                vehicleModel = booking.vehicles.model;
-              } else if (booking.vehicles.name) {
-                vehicleName = booking.vehicles.name;
+            let vehicleType = "";
+
+            // Get vehicle model if available
+            if (transfer.model) {
+              vehicleModel = transfer.model;
+            } else if (transfer.vehicles?.model) {
+              vehicleModel = transfer.vehicles.model;
+            }
+
+            // Get vehicle type if available
+            if (transfer.type) {
+              vehicleType = transfer.type;
+            }
+
+            // First try to use vehicle_name field directly from airport_transfer
+            if (transfer.vehicle_name) {
+              vehicleName = transfer.vehicle_name;
+            }
+            // Then try to use model and type fields from airport_transfer
+            else if (vehicleModel && vehicleType) {
+              vehicleName = `${vehicleModel} (${vehicleType})`;
+            }
+            // Finally fall back to vehicles relation if available
+            else if (transfer.vehicles) {
+              if (transfer.vehicles.make && transfer.vehicles.model) {
+                vehicleName = `${transfer.vehicles.make} ${transfer.vehicles.model}`;
+              } else if (transfer.vehicles.name) {
+                vehicleName = transfer.vehicles.name;
               }
             }
 
@@ -420,205 +504,174 @@ const UserDashboard = () => {
               "https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?w=800&q=80";
 
             // First priority: use the image field if available
-            if (booking.vehicles?.image) {
-              imageUrl = booking.vehicles.image;
-              console.log("Using image from vehicles.image:", imageUrl);
+            if (transfer.vehicles?.image) {
+              imageUrl = transfer.vehicles.image;
             }
             // Second priority: use image_url if available
-            else if (booking.vehicles?.image_url) {
-              imageUrl = booking.vehicles.image_url;
-              console.log("Using image from vehicles.image_url:", imageUrl);
+            else if (transfer.vehicles?.image_url) {
+              imageUrl = transfer.vehicles.image_url;
             }
 
             return {
-              id: booking.id.toString(),
+              id: transfer.id.toString(),
               vehicleName: vehicleName,
+              vehicleModel: vehicleModel || "",
+              vehicleType: vehicleType || "",
+              startDate: transfer.pickup_date
+                ? new Date(transfer.pickup_date)
+                : new Date(),
+              endDate: transfer.pickup_date
+                ? new Date(transfer.pickup_date)
+                : new Date(),
+              status: transfer.status || "active",
+              totalAmount: transfer.total_amount || transfer.price || 0,
+              paymentStatus: transfer.payment_method
+                ? transfer.payment_method.toLowerCase() === "cash"
+                  ? "pending"
+                  : "paid"
+                : "pending",
+              imageUrl: imageUrl,
+              vehicleId: transfer.vehicle_id,
+              licensePlate: transfer.license_plate || "-",
+              driverName:
+                transfer.driver_name ||
+                transfer.driver?.name ||
+                "Unknown Driver",
+              bookingCode: transfer.booking_code || "-",
+              pickupStatus: "not_picked_up",
+              isAirportTransfer: true,
+              pickupLocation: transfer.pickup_location || "",
+              dropoffLocation: transfer.dropoff_location || "",
+              paymentMethod: transfer.payment_method || "-",
+              pickupTime: transfer.pickup_time || "",
+            };
+          },
+        );
+
+        // Transform the baggage booking data
+        const formattedBaggageBookings = (baggageBookingData || []).map(
+          (booking) => {
+            // Get payment method from payments table if available, otherwise from booking record
+            const paymentMethod =
+              booking.payments && booking.payments.length > 0
+                ? booking.payments[0].payment_method
+                : booking.payment_method || "-";
+
+            return {
+              id: booking.id.toString(),
+              vehicleName: `Baggage Storage - ${booking.baggage_size.replace("_", " ").toUpperCase()}`,
+              vehicleModel: booking.baggage_size.replace("_", " "),
+              vehicleType: "Baggage Storage",
               startDate: booking.start_date
                 ? new Date(booking.start_date)
                 : new Date(),
               endDate: booking.end_date
                 ? new Date(booking.end_date)
                 : new Date(),
-              status: booking.status || "active",
-              totalAmount: booking.total_amount || 0,
-              paymentStatus: booking.payment_status || "pending",
-              imageUrl: imageUrl,
-              vehicleId: booking.vehicle_id,
-              licensePlate: booking.license_plate || "-",
-              driverName: booking.driver_name || "Unknown Driver",
-              bookingCode: booking.kode_booking || "-",
-              pickupStatus: booking.pickup_status || "not_picked_up",
-              paymentMethod:
-                booking.payments && booking.payments[0]
-                  ? booking.payments[0].payment_method
-                  : "-",
+              status: booking.status || "pending",
+              totalAmount: booking.price || 0,
+              paymentStatus:
+                booking.status === "confirmed" ? "paid" : "pending",
+              imageUrl:
+                "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=800&q=80",
+              licensePlate: "-",
+              driverName: "-",
+              bookingCode: booking.booking_id || "-",
+              pickupStatus: "not_applicable",
+              isBaggageBooking: true,
+              baggageSize: booking.baggage_size,
+              duration: booking.duration,
+              durationType: booking.duration_type,
+              airport: booking.airport,
+              terminal: booking.terminal,
+              storageLocation: booking.storage_location,
+              flightNumber: booking.flight_number,
+              customerName: booking.customer_name,
+              customerPhone: booking.customer_phone,
+              customerEmail: booking.customer_email,
+              itemName: booking.item_name,
+              startTime: booking.start_time,
+              endTime: booking.end_time,
+              paymentMethod: paymentMethod,
             };
-          });
+          },
+        );
 
-          // Transform the airport transfer data
-          const formattedAirportTransfers = (airportTransferData || []).map(
-            (transfer) => {
-              // Create a proper vehicle name from available fields
-              let vehicleName = "Unknown Vehicle";
-              let vehicleModel = "";
-              let vehicleType = "";
+        // Transform the handling booking data
+        const formattedHandlingBookings = (handlingBookingsData || []).map(
+          (booking) => {
+            return {
+              id: booking.id.toString(),
+              vehicleName: `Handling Service - ${booking.travel_type || 'Unknown'}`,
+              vehicleModel: booking.travel_type || '',
+              vehicleType: "Handling Service",
+              startDate: booking.pickup_date
+                ? new Date(booking.pickup_date)
+                : new Date(),
+              endDate: booking.pickup_date
+                ? new Date(booking.pickup_date)
+                : new Date(),
+              status: booking.status || "pending",
+              totalAmount: booking.price || 0,
+              paymentStatus:
+                booking.status === "confirmed" ? "paid" : "pending",
+              imageUrl:
+                "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=800&q=80",
+              licensePlate: "-",
+              driverName: "-",
+              bookingCode: booking.code_booking || "-",
+              pickupStatus: "not_applicable",
+              isHandlingBooking: true,
+              travelType: booking.travel_type,
+              customerName: booking.customer_name,
+              customerPhone: booking.customer_phone,
+              customerEmail: booking.customer_email,
+              flightNumber: booking.flight_number,
+              pickupTime: booking.pickup_time,
+              pickupArea: booking.pickup_area,
+              passengerArea: booking.passenger_area,
+              paymentMethod: booking.payment_method || "-",
+            };
+          },
+        );
 
-              // Get vehicle model if available
-              if (transfer.model) {
-                vehicleModel = transfer.model;
-              } else if (transfer.vehicles?.model) {
-                vehicleModel = transfer.vehicles.model;
-              }
+        // Store baggage bookings separately
+        setBaggageBookings(formattedBaggageBookings);
+        
+        // Store handling bookings separately
+        setHandlingBookings(formattedHandlingBookings);
 
-              // Get vehicle type if available
-              if (transfer.type) {
-                vehicleType = transfer.type;
-              }
+        // Combine all booking types
+        const allBookings = [
+          ...formattedBookings,
+          ...formattedAirportTransfers,
+          ...formattedBaggageBookings,
+          ...formattedHandlingBookings,
+        ];
 
-              // First try to use vehicle_name field directly from airport_transfer
-              if (transfer.vehicle_name) {
-                vehicleName = transfer.vehicle_name;
-              }
-              // Then try to use model and type fields from airport_transfer
-              else if (vehicleModel && vehicleType) {
-                vehicleName = `${vehicleModel} (${vehicleType})`;
-              }
-              // Finally fall back to vehicles relation if available
-              else if (transfer.vehicles) {
-                if (transfer.vehicles.make && transfer.vehicles.model) {
-                  vehicleName = `${transfer.vehicles.make} ${transfer.vehicles.model}`;
-                } else if (transfer.vehicles.name) {
-                  vehicleName = transfer.vehicles.name;
-                }
-              }
+        console.log("All combined bookings:", allBookings);
 
-              // Get the image URL directly from the vehicles.image field
-              let imageUrl =
-                "https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?w=800&q=80";
+        // Split into active and history based on status
+        const active = allBookings.filter(
+          (b) =>
+            b.status.toLowerCase() === "active" ||
+            b.status.toLowerCase() === "confirmed" ||
+            b.status.toLowerCase() === "pending" ||
+            b.status.toLowerCase() === "booked" ||
+            b.status.toLowerCase() === "onride",
+        );
 
-              // First priority: use the image field if available
-              if (transfer.vehicles?.image) {
-                imageUrl = transfer.vehicles.image;
-              }
-              // Second priority: use image_url if available
-              else if (transfer.vehicles?.image_url) {
-                imageUrl = transfer.vehicles.image_url;
-              }
+        const history = allBookings.filter(
+          (b) =>
+            b.status.toLowerCase() === "completed" ||
+            b.status.toLowerCase() === "cancelled",
+        );
 
-              return {
-                id: transfer.id.toString(),
-                vehicleName: vehicleName,
-                vehicleModel: vehicleModel || "",
-                vehicleType: vehicleType || "",
-                startDate: transfer.pickup_date
-                  ? new Date(transfer.pickup_date)
-                  : new Date(),
-                endDate: transfer.pickup_date
-                  ? new Date(transfer.pickup_date)
-                  : new Date(),
-                status: transfer.status || "active",
-                totalAmount: transfer.total_amount || transfer.price || 0,
-                paymentStatus: transfer.payment_method
-                  ? transfer.payment_method.toLowerCase() === "cash"
-                    ? "pending"
-                    : "paid"
-                  : "pending",
-                imageUrl: imageUrl,
-                vehicleId: transfer.vehicle_id,
-                licensePlate: transfer.license_plate || "-",
-                driverName:
-                  transfer.driver_name ||
-                  transfer.driver?.name ||
-                  "Unknown Driver",
-                bookingCode: transfer.booking_code || "-",
-                pickupStatus: "not_picked_up",
-                isAirportTransfer: true,
-                pickupLocation: transfer.pickup_location || "",
-                dropoffLocation: transfer.dropoff_location || "",
-                paymentMethod: transfer.payment_method || "-",
-                pickupTime: transfer.pickup_time || "",
-              };
-            },
-          );
+        console.log("Active bookings:", active);
+        console.log("History bookings:", history);
 
-          // Transform the baggage booking data
-          const formattedBaggageBookings = (baggageBookingData || []).map(
-            (booking) => {
-              // Get payment method from payments table if available, otherwise from booking record
-              const paymentMethod =
-                booking.payments && booking.payments.length > 0
-                  ? booking.payments[0].payment_method
-                  : booking.payment_method || "-";
-
-              return {
-                id: booking.id.toString(),
-                vehicleName: `Baggage Storage - ${booking.baggage_size.replace("_", " ").toUpperCase()}`,
-                vehicleModel: booking.baggage_size.replace("_", " "),
-                vehicleType: "Baggage Storage",
-                startDate: booking.start_date
-                  ? new Date(booking.start_date)
-                  : new Date(),
-                endDate: booking.end_date
-                  ? new Date(booking.end_date)
-                  : new Date(),
-                status: booking.status || "pending",
-                totalAmount: booking.price || 0,
-                paymentStatus:
-                  booking.status === "confirmed" ? "paid" : "pending",
-                imageUrl:
-                  "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=800&q=80",
-                licensePlate: "-",
-                driverName: "-",
-                bookingCode: booking.booking_id || "-",
-                pickupStatus: "not_applicable",
-                isBaggageBooking: true,
-                baggageSize: booking.baggage_size,
-                duration: booking.duration,
-                durationType: booking.duration_type,
-                airport: booking.airport,
-                terminal: booking.terminal,
-                storageLocation: booking.storage_location,
-                flightNumber: booking.flight_number,
-                customerName: booking.customer_name,
-                customerPhone: booking.customer_phone,
-                customerEmail: booking.customer_email,
-                itemName: booking.item_name,
-                startTime: booking.start_time,
-                endTime: booking.end_time,
-                paymentMethod: paymentMethod,
-              };
-            },
-          );
-
-          // Store baggage bookings separately
-          setBaggageBookings(formattedBaggageBookings);
-
-          // Combine all booking types
-          const allBookings = [
-            ...formattedBookings,
-            ...formattedAirportTransfers,
-            ...formattedBaggageBookings,
-          ];
-
-          // Split into active and history based on status
-          const active = allBookings.filter(
-            (b) =>
-              b.status.toLowerCase() === "active" ||
-              b.status.toLowerCase() === "confirmed" ||
-              b.status.toLowerCase() === "pending" ||
-              b.status.toLowerCase() === "booked" ||
-              b.status.toLowerCase() === "onride",
-          );
-
-          const history = allBookings.filter(
-            (b) =>
-              b.status.toLowerCase() === "completed" ||
-              b.status.toLowerCase() === "cancelled",
-          );
-
-          setActiveBookings(active);
-          setBookingHistory(history);
-        }
+        setActiveBookings(active);
+        setBookingHistory(history);
       } catch (error) {
         console.error("Error in fetchBookings:", error);
       } finally {
@@ -1069,7 +1122,7 @@ const UserDashboard = () => {
                                 <p className="text-sm text-muted-foreground">
                                   {booking.isBaggageBooking
                                     ? "Baggage Items"
-                                    : "Vehicle Model"}
+                                    : "Vehicle Model1"}
                                 </p>
                                 <p className="font-medium">
                                   {booking.vehicleModel || booking.vehicleName}
@@ -1339,7 +1392,7 @@ const UserDashboard = () => {
           <TabsContent value="bookings" className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle>All Bookings</CardTitle>
+                <CardTitle>All Bookings1</CardTitle>
                 <CardDescription>
                   View and manage all your vehicle rentals
                 </CardDescription>

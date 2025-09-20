@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Link,
   Routes,
@@ -44,6 +44,7 @@ import {
   Key,
   Luggage,
   Plane,
+
 } from "lucide-react";
 import CustomerManagement from "./CustomerManagement";
 import DriverManagement from "./DriverManagement";
@@ -58,6 +59,9 @@ import { useAuth } from "@/contexts/AuthContext";
 
 interface DashboardStats {
   totalVehicles: number;
+  totalhandlingBooking: number;
+  totalbaggageBooking: number;
+  totalairportTransfer: number;
   bookedVehicles: number;
   onRideVehicles: number;
   maintenanceVehicles: number;
@@ -103,10 +107,14 @@ interface FilterOptions {
   paymentType: string;
 }
 
-const AdminDashboard = () => {
-  const { userRole, isAuthenticated, isSessionReady, isLoading: authLoading } = useAuth();
+export default function AdminDashboard() {
+  const { user, userRole } = useAuth();
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [dashboardStats, setDashboardStats] = useState<DashboardStats>({
     totalVehicles: 0,
+    totalhandlingBooking: 0,
+    totalbaggageBooking: 0,
+    totalairportTransfer: 0,
     bookedVehicles: 0,
     onRideVehicles: 0,
     maintenanceVehicles: 0,
@@ -121,6 +129,9 @@ const AdminDashboard = () => {
       amount: 0,
     },
   });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const hasFetched = useRef(false);
 
   const [chartData, setChartData] = useState<ChartData>({
     vehicleStatusData: [],
@@ -133,13 +144,6 @@ const AdminDashboard = () => {
   const [filteredBookingData, setFilteredBookingData] = useState<BookingData[]>(
     [],
   );
-  const [loading, setLoading] = useState(() => {
-    // ✅ HANYA loading true jika tidak ada cached data
-    const cachedData = sessionStorage.getItem('adminDashboard_cachedStats');
-    return !cachedData && userRole !== "Staff Trips";
-  });
-  
-  // Add missing state variables
   const [selectedChartTab, setSelectedChartTab] = useState(() => {
     return sessionStorage.getItem('adminDashboardSelectedTab') || 'vehicles';
   });
@@ -169,6 +173,7 @@ const AdminDashboard = () => {
 
   // Show limited dashboard content for Staff Trips role
   const shouldShowFullDashboard = userRole !== "Staff Trips";
+  
 
   const handleSignOut = async () => {
     try {
@@ -184,48 +189,39 @@ const AdminDashboard = () => {
     sessionStorage.setItem('adminDashboardSelectedTab', selectedChartTab);
   }, [selectedChartTab]);
 
+  
+
+
   // FIXED: Fetch data when auth is ready and authenticated with proper caching
   useEffect(() => {
-    if (isAuthenticated && isSessionReady && !authLoading && userRole !== "Staff Trips") {
-      console.log('[AdminDashboard] Auth ready, checking cached data...');
-      
-      // ✅ Load cached data first untuk mencegah loading screen
-      const cachedStats = sessionStorage.getItem('adminDashboard_cachedStats');
-      const cachedChartData = sessionStorage.getItem('adminDashboard_cachedChartData');
-      const cachedBookingData = sessionStorage.getItem('adminDashboard_cachedBookingData');
-      
-      if (cachedStats && cachedChartData && cachedBookingData) {
-        try {
-          setDashboardStats(JSON.parse(cachedStats));
-          setChartData(JSON.parse(cachedChartData));
-          const bookingData = JSON.parse(cachedBookingData);
-          setBookingData(bookingData);
-          setFilteredBookingData(bookingData);
-          setLoading(false);
-          console.log('[AdminDashboard] Loaded cached data, NO LOADING SCREEN');
-          
-          // Background refresh to get latest data after a short delay
-          setTimeout(() => fetchDashboardData(true), 500);
-          return;
-        } catch (error) {
-          console.warn('[AdminDashboard] Failed to parse cached data:', error);
-        }
-      }
-
-      // Fetch data if no cache
-      fetchDashboardData();
-    } else if (userRole === "Staff Trips") {
-      setLoading(false);
-    } else if (!authLoading && !isAuthenticated) {
-      // Not authenticated, clear loading state but don't reset data
-      setLoading(false);
+    if (!user || !userRole) {
+      console.log("[AdminDashboard] User or role not ready yet");
+      return;
     }
-  }, [isAuthenticated, isSessionReady, authLoading, userRole]);
+
+    if (hasFetched.current) {
+      console.log("[AdminDashboard] Skipping duplicate fetch");
+      return;
+    }
+    hasFetched.current = true;
+
+    console.log("[AdminDashboard] Auth ready, checking cached data...");
+    
+    // Check if we have cached data
+    if (dashboardData) {
+      console.log("[AdminDashboard] Loaded cached data, NO LOADING SCREEN");
+      setLoading(false);
+      return;
+    }
+
+    // Fetch fresh data
+    fetchDashboardData();
+  }, [user, userRole, dashboardData]);
 
   // FIXED: Add visibility change handler with proper debouncing
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (!document.hidden && isAuthenticated && isSessionReady && !authLoading && userRole !== "Staff Trips") {
+      if (!document.hidden && user && userRole && userRole !== "Staff Trips") {
         console.log('[AdminDashboard] Tab became visible, refetching dashboard data...');
         
         // Always do background refresh when tab becomes visible
@@ -235,12 +231,12 @@ const AdminDashboard = () => {
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [isAuthenticated, isSessionReady, authLoading, userRole]);
+  }, [user, userRole]);
 
   // FIXED: Modified fetchDashboardData with proper loading state management, caching, and retry logic
   const fetchDashboardData = async (isBackgroundRefresh = false, retryCount = 0) => {
     // Don't fetch if not authenticated or if Staff Trips or already fetching
-    if (!isAuthenticated || !isSessionReady || authLoading || userRole === "Staff Trips" || isFetching) {
+    if (!user || !userRole || userRole === "Staff Trips" || isFetching) {
       console.log('[AdminDashboard] Skipping fetch - auth not ready, Staff Trips user, or already fetching');
       return;
     }
@@ -290,6 +286,9 @@ const AdminDashboard = () => {
       const fetchPromises = [
         () => supabase.from("bookings").select("*"),
         () => supabase.from("customers").select("*"),
+        () => supabase.from("handling_bookings").select("*"), // Add handling_bookings fetch
+        () => supabase.from("baggage_booking").select("*"),
+        () => supabase.from ("airport_transfer").select("*"),
       ];
 
       // Only fetch staff and users data if user has admin privileges
@@ -302,40 +301,57 @@ const AdminDashboard = () => {
         fetchPromises.map(query => fetchWithRetry(query))
       );
       
-      let bookingsResult, customersResult, staffResult, usersResult;
+      let bookingsResult, customersResult, handlingBookingsResult, baggageBookingsResult,airportTransferResult, staffResult, usersResult;
 
       if (userRole === "Admin") {
-        [bookingsResult, customersResult, staffResult, usersResult] = results;
+        [bookingsResult, customersResult, handlingBookingsResult, baggageBookingsResult,airportTransferResult, staffResult, usersResult] = results;
       } else {
-        [bookingsResult, customersResult] = results;
+        [bookingsResult, customersResult, handlingBookingsResult, baggageBookingsResult,airportTransferResult] = results;
         staffResult = { data: [], error: null };
         usersResult = { data: [], error: null };
       }
 
-      if (bookingsResult.error) {
+      if (bookingsResult?.error) {
         console.error("Error fetching bookings:", bookingsResult.error);
         throw bookingsResult.error;
       }
-      if (customersResult.error) {
+      if (customersResult?.error) {
         console.error("Error fetching customers:", customersResult.error);
         throw customersResult.error;
       }
-      if (staffResult && staffResult.error) {
+      if (airportTransferResult?.error) {
+        console.error("Error fetching airport_transfer:", airportTransferResult.error);
+        throw airportTransferResult.error;
+      }
+      if (handlingBookingsResult?.error) {
+        console.error("Error fetching handling_bookings:", handlingBookingsResult.error);
+        throw handlingBookingsResult.error;
+      }
+      if (baggageBookingsResult?.error) {
+        console.error("Error fetching baggage_booking:", baggageBookingsResult.error);
+        throw baggageBookingsResult.error;
+      }
+      if (staffResult?.error) {
         console.error("Error fetching staff:", staffResult.error);
         throw staffResult.error;
       }
-      if (usersResult && usersResult.error) {
+      if (usersResult?.error) {
         console.error("Error fetching users:", usersResult.error);
         throw usersResult.error;
       }
 
-      const bookings = bookingsResult.data || [];
-      const customers = customersResult.data || [];
-      const staff = staffResult ? staffResult.data || [] : [];
-      const users = usersResult ? usersResult.data || [] : [];
+      const bookings = bookingsResult?.data || [];
+      const customers = customersResult?.data || [];
+      const handlingBookings = handlingBookingsResult?.data || [];
+      const baggageBookings = baggageBookingsResult?.data || [];
+      const airportTransfer = airportTransferResult?.data || [];
+      const staff = staffResult?.data || [];
+      const users = usersResult?.data || [];
 
       console.log("Bookings data:", bookings); // Debug log
       console.log("Customers data:", customers); // Debug log
+      console.log("Handling bookings data:", handlingBookings); // Debug log
+      console.log("Baggage bookings data:", baggageBookings); // Debug log
       console.log("Staff data:", staff); // Debug log
       console.log("Users data:", users); // Debug log
 
@@ -368,7 +384,9 @@ const AdminDashboard = () => {
       );
 
       if (monthlyPaymentsError) throw monthlyPaymentsError;
-
+      const totalhandlingBooking = handlingBookings?.length || 0;
+      const totalbaggageBooking = baggageBookings?.length || 0;
+      const totalairportTransfer = airportTransfer?.length || 0;
       // Calculate dashboard statistics from real data
       const totalVehicles = vehicles?.length || 0;
 
@@ -562,6 +580,7 @@ const AdminDashboard = () => {
         }),
       );
 
+
       // Prepare booking table data
       const bookingTableData: BookingData[] = bookings?.map((booking) => {
         // Find customer data
@@ -603,6 +622,9 @@ const AdminDashboard = () => {
       // Set dashboard stats with real data
       const newDashboardStats = {
         totalVehicles,
+        totalhandlingBooking,
+        totalbaggageBooking,
+        totalairportTransfer,
         bookedVehicles,
         onRideVehicles,
         maintenanceVehicles,
@@ -669,6 +691,7 @@ const AdminDashboard = () => {
       setIsFetching(false);
     }
   };
+  
 
   return (
     <div className="bg-background">
@@ -745,6 +768,36 @@ const AdminDashboard = () => {
           <>
           
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <StatCard
+                title="Airport Transfer"
+                value={dashboardStats.totalairportTransfer}
+                description="Airport Transfer"
+                icon={<User className="h-6 w-6" />}
+                trend="neutral"
+                trendValue=""
+                to="/admin/airport-transfer"
+                bgColor="linear-gradient(135deg, #5EFB3F 0%, #46FCE7 100%)"
+              />
+            <StatCard
+                title="Baggage Booking"
+                value={dashboardStats.totalbaggageBooking}
+                description="Baggage Booking"
+                icon={<User className="h-6 w-6" />}
+                trend="neutral"
+                trendValue=""
+                to="/admin/baggage-booking"
+                bgColor="linear-gradient(135deg, #833AB4 0%,#FD1D1D 50%, #FCB045 100%)"
+              />
+            <StatCard
+                title="Handling Booking"
+                value={dashboardStats.totalhandlingBooking}
+                description="Handling Booking"
+                icon={<User className="h-6 w-6" />}
+                trend="neutral"
+                trendValue=""
+                to="/admin/handling-booking"
+                bgColor="linear-gradient(135deg, #22C1C3 0%, #FDBB2D 100%)"
+              />
               <StatCard
                 title="Total Vehicles"
                 value={dashboardStats.totalVehicles}
@@ -824,31 +877,6 @@ const AdminDashboard = () => {
             />
  
             {/* Vehicle Inventory Section */}
-            
-          {/*  <div className="mt-8">
-             <Card>
-                <CardHeader>
-                  <CardTitle>Vehicle Inventory</CardTitle>
-                  <CardDescription>
-                    Quick overview of vehicle inventory status
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="h-[400px] overflow-auto">
-                    <VehicleInventory />
-                  </div>
-                </CardContent>
-                <CardFooter className="flex justify-end">
-                  <Button asChild variant="outline">
-                    <Link to="/admin/vehicle-inventory">
-                      View Full Inventory
-                    </Link>
-                  </Button>
-                </CardFooter>
-              </Card>
-            </div>*/}
-            
-            {/* Detailed Data Table Section */}
             
            <div className="mt-8">
               <Card>
@@ -1030,7 +1058,7 @@ const AdminDashboard = () => {
                   </div>*/}
              {/*   </CardHeader>*/}
 
-                <CardContent>
+        { /*       <CardContent>
                   <div className="rounded-md border">
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
@@ -1314,7 +1342,7 @@ const AdminDashboard = () => {
                       </table>
                     </div>
                   </div>
-                </CardContent>
+                </CardContent>*/}
               </Card>
             </div>
             
@@ -1324,6 +1352,4 @@ const AdminDashboard = () => {
     </div>
         
   );
-};
-
-export default AdminDashboard;
+}

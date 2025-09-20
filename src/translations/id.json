@@ -1,17 +1,39 @@
 {
-  "brand": "Travelintrips",
+  "brand": "Journey",
   "common": {
+    "travelintrips": "Journey",
+    "forCorporates": "Untuk Korporat",
     "back": "Kembali",
     "search": "Cari",
     "book": "Pesan",
     "cancel": "Batal",
-    "confirm": "Konfirmasi"
+    "confirm": "Konfirmasi",
+    "cart": "Keranjang"
+  },
+  "header":{
+    "forCorporates": "Untuk Korporat",
+    "deals": "Penawaran",
+    "support": "Dukungan",
+    "partnership": "Kemitraan",
+    "cart": "Keranjang"
   },
   "navbar": {
+    "forCorporates": "Untuk Korporat",
+    "deals": "Penawaran",
+    "support": "Dukungan", 
+    "partnership": "Kemitraan",
     "signIn": "Masuk",
     "signOut": "Keluar",
     "myAccount": "Akun Saya",
-    "adminPanel": "Panel Admin"
+    "adminPanel": "Panel Admin",
+    "hotels": "Hotel",
+    "flights": "Penerbangan",
+    "trains": "Kereta",
+    "bus": "Bus",
+    "transportasi": "Transportasi",
+    "baggage": "Bagasi",
+    "handling": "Handling",
+    "activities": "Aktivitas"
   },
   "hero": {
     "title": "Layanan Rental Mobil Premium",
@@ -25,6 +47,7 @@
     "signInDescription": "Masuk atau buat akun untuk mulai memesan kendaraan sempurna Anda. Nikmati manfaat eksklusif, checkout lebih cepat, dan rekomendasi yang dipersonalisasi."
   },
   "features": {
+    "title": "Mengapa Memilih Kami",
     "wideSelection": "Pilihan Kendaraan yang Luas",
     "wideSelectionDesc": "Dari mobil ekonomis hingga SUV mewah, temukan kendaraan sempurna untuk kebutuhan Anda.",
     "flexibleBooking": "Opsi Pemesanan Fleksibel",
@@ -40,6 +63,51 @@
     "inspection": "Inspeksi",
     "payment": "Pembayaran"
   },
+  "features": {
+  "title": "Mengapa Memilih Kami",
+  "fast": {
+    "title": "Pesanan Cepat",
+    "description": "Pesan perjalanan Anda dalam hitungan menit dengan proses kami yang efisien"
+  },
+  
+  "secure": {
+    "title": "Pembayaran Aman",
+    "description": "Informasi pembayaran Anda selalu terlindungi bersama kami"
+  },
+
+  "best": {
+    "title": "Harga Terbaik",
+    "description": "Kami menjamin harga terbaik untuk kebutuhan perjalanan Anda."
+  },
+  "support": {
+    "title": "Dukungan 24/7",
+    "description": "Tim dukungan pelanggan kami selalu siap membantu Anda."
+  }
+},
+
+"destinations": {
+    "title": "Destinasi Populer",
+    "list": {
+      "bali": {
+        "name": "Bali",
+        "description": "Pulau surga dengan pantai indah dan budaya yang kaya."
+      },
+      "jakarta": {
+        "name": "Jakarta",
+        "description": "Ibu kota yang semarak dengan berbagai atraksi modern."
+      },
+      "yogyakarta": {
+        "name": "Yogyakarta",
+        "description": "Pusat budaya Jawa dengan candi-candi kuno."
+      },
+      "lombok": {
+        "name": "Lombok",
+        "description": "Pantai yang tenang dan pemandangan pegunungan yang menakjubkan."
+      }
+    },
+    "explore": "Jelajahi"
+  },
+
   "payment": {
     "details": "Detail Pembayaran",
     "summary": "Ringkasan Pemesanan",
@@ -96,11 +164,44 @@
     "flexibleBooking": "Pemesanan Fleksibel",
     "flexibleBookingDesc": "Proses pemesanan mudah dengan opsi untuk mengubah atau membatalkan reservasi Anda.",
     "securePayments": "Pembayaran Aman",
-    "securePaymentsDesc": "Berbagai opsi pembayaran dengan pemrosesan yang aman dan harga transparan."
+    "securePaymentsDesc": "Berbagai opsi pembayaran dengan pemrosesan yang aman dan harga transparan.",
+    "fastBooking": "Pesanan Mudah."
   },
+  
+  "newsletter": {
+    "title": "Berlangganan Newsletter Kami",
+    "description": "Dapatkan promo perjalanan terbaru dan update langsung ke kotak masuk Anda.",
+    "subscribe": "Berlangganan"
+  },
+
   "footer": {
-    "allRightsReserved": "Hak Cipta Dilindungi."
+  "allRightsReserved": "Hak Cipta Dilindungi.",
+  "about": {
+    "title": "Tentang Kami",
+    "description": "Journey adalah mitra terpercaya Anda untuk semua kebutuhan perjalanan, menyediakan pengalaman pemesanan yang lancar sejak 2020."
   },
+  "services": {
+    "title": "Layanan Kami",
+    "flights": "Pemesanan Tiket Pesawat",
+    "hotels": "Reservasi Hotel",
+    "cars": "Sewa Mobil",
+    "airport": "Transportasi Bandara",
+    "activities": "Aktivitas Perjalanan"
+  },
+  "contact": {
+    "title": "Hubungi Kami",
+    "headQuarter": "Alamat Kantor",
+    "office": "Kantor"
+  },
+  "support": {
+    "title": "Dukungan",
+    "faq": "Pertanyaan Umum",
+    "contact": "Hubungi Kami",
+    "terms": "Syarat & Ketentuan",
+    "privacy": "Kebijakan Privasi",
+    "cancellation": "Kebijakan Pembatalan"
+  }
+},
   "language": {
     "select": "Pilih Bahasa",
     "en": "Inggris",

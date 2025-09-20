@@ -332,7 +332,7 @@ const BookingForm = ({
     defaultValues: {
       name: prefilledData?.name || userName || "",
       email: prefilledData?.email || userEmail || "",
-      phone: prefilledData?.phone || userPhone || "",
+      phone: prefilledData?.phone || userPhone || localStorage.getItem("userPhone") || "",
       itemName: "",
       flightNumber: "",
       airport: "soekarno_hatta",
@@ -1173,22 +1173,31 @@ const finalUserEmail = session.user.email;
   const steps = [
     {
       title: "Personal Information",
-      description: "Enter your contact details",
+      description: "Please fill form details",
       content: (
         <div className="space-y-4">
           <div className="grid gap-2">
             <Label htmlFor="name">Full Name</Label>
             <Input
               id="name"
-              placeholder="Full Name"
+              placeholder="Enter your full name"
               {...register("name")}
-              disabled={!!prefilledData?.name}
-              className={prefilledData?.name ? "bg-gray-100" : ""}
+              disabled={
+                !!(
+                  prefilledData?.name ||
+                  userName
+                )
+              }
+              className={
+                prefilledData?.name || userName
+                  ? "bg-gray-100"
+                  : ""
+              }
             />
             {errors.name && (
               <p className="text-sm text-red-500">{errors.name.message}</p>
             )}
-            {prefilledData?.name && (
+            {(prefilledData?.name || userName) && (
               <p className="text-xs text-gray-500">
                 Auto-filled from your profile
               </p>
@@ -1200,15 +1209,24 @@ const finalUserEmail = session.user.email;
             <Input
               id="email"
               type="email"
-              placeholder="john@example.com"
+              placeholder="Enter your email"
               {...register("email")}
-              disabled={!!prefilledData?.email}
-              className={prefilledData?.email ? "bg-gray-100" : ""}
+              disabled={
+                !!(
+                  prefilledData?.email ||
+                  userEmail
+                )
+              }
+              className={
+                prefilledData?.email || userEmail
+                  ? "bg-gray-100"
+                  : ""
+              }
             />
             {errors.email && (
               <p className="text-sm text-red-500">{errors.email.message}</p>
             )}
-            {prefilledData?.email && (
+            {(prefilledData?.email || userEmail) && (
               <p className="text-xs text-gray-500">
                 Auto-filled from your profile
               </p>
@@ -1239,9 +1257,7 @@ const finalUserEmail = session.user.email;
             {errors.phone && (
               <p className="text-sm text-red-500">{errors.phone.message}</p>
             )}
-            {(prefilledData?.phone ||
-              userPhone ||
-              localStorage.getItem("userPhone")) && (
+            {(prefilledData?.phone || userPhone || localStorage.getItem("userPhone")) && (
               <p className="text-xs text-gray-500">
                 Auto-filled from your profile
               </p>
@@ -1825,35 +1841,35 @@ const finalUserEmail = session.user.email;
         .single();
 
       if (!userError && userData) {
-        console.log("[BookingFormBag] Found user data:", userData);
+  console.log("[BookingFormBag] Found user data:", userData);
 
-        // Update form fields if they're empty
-        if (userData.name && !watch("name")) {
-          setValue("name", userData.name);
-        }
-        if (userData.email && !watch("email")) {
-          setValue("email", userData.email);
-        }
-        if (userData.phone_number && !watch("phone")) {
-          setValue("phone", userData.phone_number);
-          console.log(
-            "[BookingFormBag] Restored phone from session:",
-            userData.phone,
-          );
-        }
+  if (userData.name && !watch("name")) {
+    setValue("name", userData.name);
+  }
+  if (userData.email && !watch("email")) {
+    setValue("email", userData.email);
+  }
+  if (userData.phone_number && !watch("phone")) {
+    setValue("phone", userData.phone_number);
+    console.log(
+      "[BookingFormBag] Restored phone from users table:",
+      userData.phone_number,
+    );
 
-        // Also check localStorage for phone if not in session data
-        if (!userData.phone && !prefilledData && !watch("phone")) {
-          const storedPhone = localStorage.getItem("userPhone");
-          if (storedPhone) {
-            setValue("phone", storedPhone);
-            console.log(
-              "[BookingForm] Restored phone from localStorage:",
-              storedPhone,
-            );
-          }
-        }
-      }
+    // Simpan ke localStorage untuk dipakai lain kali
+    localStorage.setItem("userPhone", userData.phone_number);
+  }
+
+  // Kalau tetap kosong, cek localStorage
+  if (!userData.phone_number && !prefilledData && !watch("phone")) {
+    const storedPhone = localStorage.getItem("userPhone");
+    if (storedPhone) {
+      setValue("phone", storedPhone);
+      console.log("[BookingFormBag] Restored phone from localStorage:", storedPhone);
+    }
+  }
+}
+
     } catch (error) {
       console.warn("[BookingFormBag] Error fetching user profile:", error);
     }
@@ -1868,20 +1884,19 @@ const finalUserEmail = session.user.email;
 
     console.log("[BookingFormBag] Component hydrated, initializing form");
 
-    // Auto-fill form fields from multiple sources with priority order
     const fillFormData = async () => {
       // Priority 1: prefilledData (highest priority)
       if (prefilledData) {
-        if (prefilledData.name && !watch("name")) {
+        if (prefilledData.name) {
           setValue("name", prefilledData.name);
         }
-        if (prefilledData.email && !watch("email")) {
+        if (prefilledData.email) {
           setValue("email", prefilledData.email);
         }
-        if (prefilledData.phone && !watch("phone")) {
+        if (prefilledData.phone) {
           setValue("phone", prefilledData.phone);
         }
-        return; // If prefilledData exists, use it and return
+        return; // stop, karena sudah ada prefilledData
       }
 
       // Priority 2: Auth context data
@@ -1900,23 +1915,19 @@ const finalUserEmail = session.user.email;
         }
         if (userPhone && !watch("phone")) {
           setValue("phone", userPhone);
+          localStorage.setItem("userPhone", userPhone); // 🔑 simpan agar next time ada
         }
 
-        // Priority 3: localStorage fallback
-        const storedPhone = localStorage.getItem("userPhone"); // konsisten pakai userPhone
+        // Priority 3: localStorage fallback for phone
+        const storedPhone = localStorage.getItem("userPhone");
         if (!userPhone && storedPhone && !watch("phone")) {
-          console.log(
-            "[BookingFormBag] Using stored phone from localStorage:",
-            storedPhone,
-          );
+          console.log("[BookingFormBag] Using stored phone from localStorage:", storedPhone);
           setValue("phone", storedPhone);
         }
 
         // Priority 4: Database lookup (lowest priority)
-        if (!userPhone && !storedPhone && !watch("phone")) {
-          console.log(
-            "[BookingFormBag] phone not found in auth context or localStorage, fetching from database",
-          );
+        if (!userPhone && !storedPhone) {
+          console.log("[BookingFormBag] Phone not found, fetching from database");
           await fetchUserProfile();
         }
       }

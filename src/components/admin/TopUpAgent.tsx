@@ -448,7 +448,7 @@ const TopUpAgent = () => {
           <DialogTrigger asChild>
             <Button className="bg-gradient-to-r from-primary-tosca to-primary-dark hover:from-primary-dark hover:to-primary-tosca text-white">
               <Plus className="h-4 w-4 mr-2" />
-              Top Up Agent1
+              Top Up Agent
             </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-[425px]">

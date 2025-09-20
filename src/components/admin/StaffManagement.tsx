@@ -127,7 +127,10 @@ export default function StaffManagement() {
     if (isAuthenticated && isSessionReady && !authLoading) {
       console.log('[StaffManagement] Auth ready, checking for cached data...');
       
-      // Only fetch if we don't have data yet
+      // Always fetch roles when component mounts or becomes active
+      fetchRoles();
+      
+      // Only fetch users if we don't have data yet
       if (users.length === 0) {
         // ✅ Load cached data first untuk mencegah loading screen
         const cachedData = sessionStorage.getItem('staffManagement_cachedData');
@@ -151,7 +154,6 @@ export default function StaffManagement() {
         // Fetch data if no cache or cache is empty
         console.log('[StaffManagement] No cached data, fetching fresh data...');
         fetchUsers();
-        fetchRoles();
       }
     }
   }, [isAuthenticated, isSessionReady, authLoading]);
@@ -160,13 +162,18 @@ export default function StaffManagement() {
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (!document.hidden && isAuthenticated && isSessionReady && !authLoading) {
+        console.log('[StaffManagement] Tab became visible, refreshing roles and users...');
+        
+        // Always refresh roles when tab becomes visible
+        fetchRoles();
+        
         const now = Date.now();
-        // Only refetch if more than 30 seconds have passed since last fetch
+        // Only refetch users if more than 30 seconds have passed since last fetch
         if (now - lastFetchTime.current > 30000 && !fetchInProgress.current) {
-          console.log('[StaffManagement] Tab became visible, doing background refresh...');
+          console.log('[StaffManagement] Doing background user refresh...');
           fetchUsers(true); // Background refresh without loading spinner
         } else {
-          console.log('[StaffManagement] Skipping refresh - too recent or already fetching');
+          console.log('[StaffManagement] Skipping user refresh - too recent or already fetching');
         }
       }
     };
@@ -227,7 +234,7 @@ export default function StaffManagement() {
 
     // Prevent duplicate fetches
     if (fetchInProgress.current) {
-      console.log('[StaffManagement] Fetch already in progress, skipping...');
+    //  console.log('[StaffManagement] Fetch already in progress, skipping...');
       return;
     }
 
@@ -238,10 +245,10 @@ export default function StaffManagement() {
     try {
       // Only show loading spinner for initial load when no data exists
       if (!isBackgroundRefresh && users.length === 0) {
-        console.log('[StaffManagement] Showing loading spinner for initial load');
+      //  console.log('[StaffManagement] Showing loading spinner for initial load');
         setIsLoading(true);
       } else {
-        console.log('[StaffManagement] Background refresh, no loading spinner');
+     //   console.log('[StaffManagement] Background refresh, no loading spinner');
       }
 
       console.log("[StaffManagement] Starting to fetch users...");
@@ -277,7 +284,7 @@ export default function StaffManagement() {
         ?.filter(role => allowedRoleNames.includes(role.role_name))
         ?.map(role => role.role_id) || [];
 
-      console.log("[StaffManagement] Allowed roles for", userRole, ":", allowedRoleNames);
+    //  console.log("[StaffManagement] Allowed roles for", userRole, ":", allowedRoleNames);
 
       let transformedUsers = [];
 
@@ -301,7 +308,7 @@ export default function StaffManagement() {
         )
         .in("role_id", allowedRoleIds);
 
-      console.log("[StaffManagement] Users query result:", { usersData, usersError });
+     // console.log("[StaffManagement] Users query result:", { usersData, usersError });
 
       if (!usersError && usersData && usersData.length > 0) {
         // Transform users data
@@ -328,7 +335,7 @@ export default function StaffManagement() {
           });
 
         transformedUsers = [...transformedUsers, ...usersTransformed];
-        console.log("[StaffManagement] Transformed users from users table:", usersTransformed.length);
+      //  console.log("[StaffManagement] Transformed users from users table:", usersTransformed.length);
       }
 
       // Fetch from staff table
@@ -352,7 +359,7 @@ export default function StaffManagement() {
         `
         );
 
-      console.log("[StaffManagement] Staff query result:", { staffData, staffError });
+    //  console.log("[StaffManagement] Staff query result:", { staffData, staffError });
 
       if (!staffError && staffData && staffData.length > 0) {
         // Transform staff data to match expected format
@@ -397,17 +404,17 @@ export default function StaffManagement() {
         console.log("[StaffManagement] Transformed staff from staff table:", uniqueStaffData.length);
       }
 
-      console.log("[StaffManagement] Final combined users data:", transformedUsers.length);
-      console.log("[StaffManagement] Sample user data:", transformedUsers[0]);
+    //  console.log("[StaffManagement] Final combined users data:", transformedUsers.length);
+    //  console.log("[StaffManagement] Sample user data:", transformedUsers[0]);
       setUsers(transformedUsers);
       setFilteredUsers(transformedUsers);
       
       // Cache the data for future use
       sessionStorage.setItem('staffManagement_cachedData', JSON.stringify(transformedUsers));
       
-      console.log('[StaffManagement] Staff data fetch completed successfully');
-      console.log('[StaffManagement] Users state will be set to:', transformedUsers.length, 'users');
-      console.log('[StaffManagement] FilteredUsers state will be set to:', transformedUsers.length, 'users');
+    //  console.log('[StaffManagement] Staff data fetch completed successfully');
+    //  console.log('[StaffManagement] Users state will be set to:', transformedUsers.length, 'users');
+    //  console.log('[StaffManagement] FilteredUsers state will be set to:', transformedUsers.length, 'users');
     } catch (error) {
       console.error("[StaffManagement] Error fetching users:", error);
       toast({
@@ -428,14 +435,36 @@ export default function StaffManagement() {
 
   const fetchRoles = async () => {
     try {
+      console.log('[StaffManagement] Fetching roles...');
       const { data, error } = await supabase
         .from("roles")
         .select("role_id, role_name");
 
       if (error) throw error;
+      
+      console.log('[StaffManagement] Roles fetched successfully:', data?.length || 0, 'roles');
       setRoles(data || []);
+      
+      // Cache roles data
+      if (data && data.length > 0) {
+        sessionStorage.setItem('staffManagement_rolesCache', JSON.stringify(data));
+      }
     } catch (error) {
       console.error("Error fetching roles:", error);
+      
+      // Try to load from cache if fetch fails
+      const cachedRoles = sessionStorage.getItem('staffManagement_rolesCache');
+      if (cachedRoles) {
+        try {
+          const parsedRoles = JSON.parse(cachedRoles);
+          console.log('[StaffManagement] Using cached roles due to fetch error');
+          setRoles(parsedRoles);
+          return;
+        } catch (parseError) {
+          console.warn('[StaffManagement] Failed to parse cached roles:', parseError);
+        }
+      }
+      
       toast({
         variant: "destructive",
         title: "Error fetching roles",
@@ -445,6 +474,9 @@ export default function StaffManagement() {
   };
 
   const handleOpenDialog = (user?: User) => {
+    // Always fetch fresh roles when opening dialog to ensure options are available
+    fetchRoles();
+    
     if (user) {
       setIsEditMode(true);
       setCurrentUser(user);
@@ -980,14 +1012,14 @@ export default function StaffManagement() {
     };
   }, []);
 
-  console.log('[StaffManagement] Render - Current state:', {
+ /* console.log('[StaffManagement] Render - Current state:', {
     isLoading,
     usersLength: users.length,
     filteredUsersLength: filteredUsers.length,
     isAuthenticated,
     isSessionReady,
     authLoading
-  });
+  });*/
 
   return (
     <div className="p-6 bg-white dark:bg-gray-800 rounded-lg shadow-md">

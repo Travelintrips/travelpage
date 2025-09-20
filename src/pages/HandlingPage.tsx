@@ -957,7 +957,7 @@ const HandlingPage = () => {
             className="mb-4 p-0 h-auto text-gray-600 hover:text-gray-800"
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Kembali ke Halaman Utama
+            Back to Home Page
           </Button>
           <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">
             Layanan Handling Bandara

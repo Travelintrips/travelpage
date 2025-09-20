@@ -38,6 +38,7 @@ interface FilterOptions {
 const Reports = () => {
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
   const [filteredEntries, setFilteredEntries] = useState<JournalEntry[]>([]);
+  const [serviceTypeOptions, setServiceTypeOptions] = useState<ServiceTypeOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const { toast } = useToast();
@@ -62,6 +63,78 @@ const Reports = () => {
     key: 'date',
     direction: 'desc'
   });
+
+  // Fetch service type options dynamically
+  const fetchServiceTypeOptions = async () => {
+    try {
+      console.log('[Reports] Fetching service type options...');
+      
+      const { data, error } = await supabase
+        .rpc('get_service_types'); // We'll create this RPC function
+      
+      if (error) {
+        console.warn('Service types RPC not found, trying direct query:', error);
+        
+        // Fallback to direct query
+        const { data: directData, error: directError } = await supabase
+          .from('journal_entries')
+          .select('service_type')
+          .not('service_type', 'is', null)
+          .neq('service_type', '')
+          .order('service_type');
+          
+        if (directError) {
+          console.warn('Direct query failed, using default options:', directError);
+          // Use default options if query fails
+          setServiceTypeOptions([
+            { label: "All Services", value: "all" },
+            { label: "Airport Transfer", value: "Airport Transfer" },
+            { label: "Baggage Service", value: "Baggage Service" },
+            { label: "Handling Service", value: "Handling Service" },
+            { label: "Car Rental", value: "Car Rental" }
+          ]);
+          return;
+        }
+        
+        // Process direct query results
+        const uniqueServiceTypes = Array.from(
+          new Set(directData?.map(item => item.service_type?.trim()).filter(Boolean))
+        ).sort();
+        
+        const options = [
+          { label: "All Services", value: "all" },
+          ...uniqueServiceTypes.map(type => ({ label: type, value: type }))
+        ];
+        
+        setServiceTypeOptions(options);
+        console.log('[Reports] Service type options loaded (direct):', options.length);
+        return;
+      }
+      
+      // Process RPC results
+      const options = [
+        { label: "All Services", value: "all" },
+        ...(data || []).map((item: any) => ({ 
+          label: item.label, 
+          value: item.value 
+        }))
+      ];
+      
+      setServiceTypeOptions(options);
+      console.log('[Reports] Service type options loaded (RPC):', options.length);
+      
+    } catch (error) {
+      console.error('Error fetching service type options:', error);
+      // Use default options on error
+      setServiceTypeOptions([
+        { label: "All Services", value: "all" },
+        { label: "Airport Transfer", value: "Airport Transfer" },
+        { label: "Baggage Service", value: "Baggage Service" },
+        { label: "Handling Service", value: "Handling Service" },
+        { label: "Car Rental", value: "Car Rental" }
+      ]);
+    }
+  };
 
   // Fetch journal entries from the view
   const fetchJournalEntries = async () => {
@@ -118,8 +191,7 @@ const Reports = () => {
         setJournalEntries(data || []);
         setFilteredEntries(data || []);
         console.log("Raw journal entries from Supabase:", data);
-console.log("Total entries fetched:", data?.length);
-
+        console.log("Total entries fetched:", data?.length);
       }
     } catch (error) {
       console.error('Error fetching journal entries:', error);
@@ -138,44 +210,42 @@ console.log("Total entries fetched:", data?.length);
     let filtered = [...journalEntries];
 
     console.log("Before filtering:", journalEntries.length, journalEntries);
-console.log("Filters:", filters);
+    console.log("Filters:", filters);
 
     // Date range filter
-if (filters.dateFrom) {
-  const from = new Date(filters.dateFrom);
-  filtered = filtered.filter(entry => new Date(entry.date) >= from);
-}
-if (filters.dateTo) {
-  const to = new Date(filters.dateTo);
-  filtered = filtered.filter(entry => new Date(entry.date) <= to);
-}
+    if (filters.dateFrom) {
+      const from = new Date(filters.dateFrom);
+      filtered = filtered.filter(entry => new Date(entry.date) >= from);
+    }
+    if (filters.dateTo) {
+      const to = new Date(filters.dateTo);
+      filtered = filtered.filter(entry => new Date(entry.date) <= to);
+    }
 
-    // Service type filter
+    // Service type filter - Updated to handle "all" value
     if (filters.serviceType && filters.serviceType !== "all") {
       filtered = filtered.filter(entry => 
-        entry.service_type?.toLowerCase().includes(filters.serviceType.toLowerCase())
+        entry.service_type?.toLowerCase() === filters.serviceType.toLowerCase()
       );
     }
 
     // Status filter
     if (filters.status && filters.status !== "all") {
-  filtered = filtered.filter(entry =>
-    (entry.status ?? "").toLowerCase().includes(filters.status.toLowerCase())
-  );
-}
-
+      filtered = filtered.filter(entry =>
+        (entry.status ?? "").toLowerCase().includes(filters.status.toLowerCase())
+      );
+    }
 
     // Search filter
     if (filters.search) {
-  const searchTerm = filters.search.toLowerCase();
-  filtered = filtered.filter(entry =>
-    (entry.description ?? "").toLowerCase().includes(searchTerm) ||
-    (entry.nama ?? "").toLowerCase().includes(searchTerm) ||
-    (entry.vehicle_name ?? "").toLowerCase().includes(searchTerm) ||
-    (entry.license_plate ?? "").toLowerCase().includes(searchTerm)
-  );
-}
-
+      const searchTerm = filters.search.toLowerCase();
+      filtered = filtered.filter(entry =>
+        (entry.description ?? "").toLowerCase().includes(searchTerm) ||
+        (entry.nama ?? "").toLowerCase().includes(searchTerm) ||
+        (entry.vehicle_name ?? "").toLowerCase().includes(searchTerm) ||
+        (entry.license_plate ?? "").toLowerCase().includes(searchTerm)
+      );
+    }
 
     // Apply sorting
     filtered.sort((a, b) => {
@@ -272,6 +342,7 @@ if (filters.dateTo) {
   };
 
   useEffect(() => {
+    fetchServiceTypeOptions();
     fetchJournalEntries();
   }, []);
 
@@ -371,11 +442,11 @@ if (filters.dateTo) {
                         <SelectValue placeholder="All Services" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">All Services</SelectItem>
-                        <SelectItem value="Airport Transfer">Airport Transfer</SelectItem>
-                        <SelectItem value="Baggage Service">Baggage Service</SelectItem>
-                        <SelectItem value="Handling Service">Handling Service</SelectItem>
-                        <SelectItem value="Car Rental">Car Rental</SelectItem>
+                        {serviceTypeOptions.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>

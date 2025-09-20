@@ -5,13 +5,33 @@
     "search": "Search",
     "book": "Book",
     "cancel": "Cancel",
-    "confirm": "Confirm"
+    "confirm": "Confirm",
+    "cart": "Cart"
+  },
+  "header": {
+    "forCorporates": "For Corporates",
+    "deals": "Deals",
+    "support": "Support",
+    "partnership": "Partnership",
+    "cart": "Cart"
   },
   "navbar": {
+    "forCorporates": "For Corporates",
+    "deals": "Deals",
+    "support": "Support",
+    "partnership": "Partnership",
     "signIn": "Sign In",
     "signOut": "Sign Out",
     "myAccount": "My Account",
-    "adminPanel": "Admin Panel"
+    "adminPanel": "Admin Panel",
+    "hotels": "Hotels",
+    "flights": "Flights",
+    "trains": "Trains",
+    "bus": "Bus",
+    "transportasi": "Transportation",
+    "baggage": "Baggage",
+    "handling": "Handling",
+    "activities": "Activities"
   },
   "hero": {
     "title": "Premium Car Rental Service",
@@ -72,6 +92,14 @@
     "flightTracking": "Flight tracking",
     "support": "24/7 customer support",
     "arranged": "ARRANGED IN A MINUTE",
+    "oneWay": "One-way",
+    "multiCity": "Multi-city",
+    "swap": "SWAP",
+    "departure": "Departure",
+    "return": "Return",
+    "passengers": "Passengers",
+    "class": "Class",
+    "searchFlights": "Search Flights",
     "bookSteps": {
       "title": "Book an airport transfer",
       "subtitle": "in 3 easy steps",
@@ -131,15 +159,5 @@
   "currency": {
     "code": "USD",
     "symbol": "$"
-  },
-  "airportTransfer": {
-    "oneWay": "One-way",
-    "multiCity": "Multi-city",
-    "swap": "SWAP",
-    "departure": "Departure",
-    "return": "Return",
-    "passengers": "Passengers",
-    "class": "Class",
-    "searchFlights": "Search Flights"
   }
 }

@@ -340,6 +340,7 @@ const BaggageBookingManagement = () => {
                       Baggage Size
                     </th>
                     <th className="py-3 px-4 text-left font-medium">Price</th>
+                    <th className="py-3 px-4 text-left font-medium">Payment Method</th>
                     <th className="py-3 px-4 text-left font-medium">
                       Duration
                     </th>
@@ -386,6 +387,9 @@ const BaggageBookingManagement = () => {
                         </td>
                         <td className="py-3 px-4 font-medium">
                           {formatCurrency(booking.price)}
+                        </td>
+                        <td className="py-3 px-4">
+                          {booking.payment_method}
                         </td>
                         <td className="py-3 px-4">
                           {booking.duration} {booking.duration_type}

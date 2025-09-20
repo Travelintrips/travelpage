@@ -1234,7 +1234,7 @@ const TopUpDriver = ({
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Topup Code1</TableHead>
+                        <TableHead>Topup Code</TableHead>
                         <TableHead>Driver Name</TableHead>
                         <TableHead>Nominal</TableHead>
                         <TableHead>Method</TableHead>

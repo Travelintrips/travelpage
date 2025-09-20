@@ -30,12 +30,13 @@ const TransportasiPage = () => {
       ],
       route: "/airport-transfer",
       bgGradient: "from-blue-500 to-blue-600",
+      
     },
     {
       id: "rent-car",
       title: "Rent Car",
       description: "Wide selection of vehicles for your travel needs",
-      icon: <Car className="h-12 w-12 text-green-600" />,
+      icon: <Car className="h-12 w-12 text-blue-600" />,
       features: [
         "Various car models",
         "Competitive prices",
@@ -44,6 +45,22 @@ const TransportasiPage = () => {
       ],
       route: "/rentcar",
       bgGradient: "from-green-500 to-green-600",
+      buttonColor: "bg-blue-600 hover:bg-blue-700",
+    },
+    {
+      id: "reguler-bandung",
+      title: "Regular Transport",
+      description: "Comfortable and affordable",
+      icon: <Car className="h-12 w-12 text-red-600" />,
+      features: [
+        "Various car models",
+        "Competitive prices",
+        "Comfortable seats",
+        "Professional driver",
+      ],
+      route: "/",
+      bgGradient: "from-amber-800 to-amber-600",
+      buttonColor: "bg-amber-700 hover:bg-amber-800",
     },
   ];
 
@@ -113,11 +130,12 @@ const TransportasiPage = () => {
                     ))}
                   </div>
                   <Button
-                    className="w-full bg-green-600 hover:bg-green-700 text-white py-3 text-lg font-semibold transition-colors"
-                    onClick={() => handleOptionClick(option.route)}
-                  >
-                    Choose {option.title}
-                  </Button>
+  className={`w-full ${option.buttonColor || "bg-green-600 hover:bg-green-700"} text-white py-3 text-lg font-semibold transition-colors`}
+  onClick={() => handleOptionClick(option.route)}
+>
+  Choose {option.title}
+</Button>
+
                 </CardContent>
               </Card>
             ))}
@@ -193,7 +211,7 @@ const TransportasiPage = () => {
             <Button
               size="lg"
               variant="outline"
-              className="border-white text-white hover:bg-white hover:text-green-600 px-8 py-3 text-lg font-semibold"
+              className="bg-white text-green-600 hover:bg-gray-100 px-8 py-3 text-lg font-semibold"
               onClick={() => navigate("/rentcar")}
             >
               Rent a Car

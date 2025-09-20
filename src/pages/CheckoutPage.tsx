@@ -2204,10 +2204,10 @@ const CheckoutPage: React.FC = () => {
   };
 
   const paymentMethods = [
-    { id: "credit_card", name: "Credit Card", icon: CreditCard },
+ //   { id: "credit_card", name: "Credit Card", icon: CreditCard },
     { id: "bank_transfer", name: "Bank Transfer", icon: Banknote },
     { id: "cash", name: "Cash", icon: DollarSign },
-    { id: "paylabs", name: "Paylabs", icon: Smartphone },
+  //  { id: "paylabs", name: "Paylabs", icon: Smartphone },
   ];
 
   // Redirect to cart if no items

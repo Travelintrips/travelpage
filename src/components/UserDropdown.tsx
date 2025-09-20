@@ -130,7 +130,7 @@ const UserDropdown = () => {
           <User className="mr-2 h-4 w-4" />
           <span>My Profile</span>
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => handleNavigate("/bookings")}>
+       <DropdownMenuItem onClick={() => handleNavigate("/my-bookings")}>
           <BookOpen className="mr-2 h-4 w-4" />
           <span>My Bookings</span>
         </DropdownMenuItem>

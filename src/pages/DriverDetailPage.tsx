@@ -197,7 +197,7 @@ export default function DriverDetailPage() {
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back
         </Button>
-        <h1 className="text-2xl font-bold">Driver Detail1</h1>
+        <h1 className="text-2xl font-bold">Driver Detail</h1>
       </div>
 
       {/* Card informasi driver */}

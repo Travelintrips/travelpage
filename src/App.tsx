@@ -74,6 +74,7 @@ import ResetPasswordPage from "./pages/ResetPasswordPage";
 import DriverDetailPage from "./pages/DriverDetailPage";
 import IasBookingGroup from "./components/admin/IasBookingGroup";
 import Reports from "./components/admin/Reports";
+import BookingAndProfileUserPage from "./pages/Booking&ProfileUserPage";
 
 declare global {
   interface Window {
@@ -412,8 +413,8 @@ function AppContent() {
           <Route path="/driver-mitra" element={<DriverMitraPage />} />
           <Route path="/driver-perusahaan" element={<DriverPerusahaanPage />} />
           <Route path="/driver-profile" element={<DriverProfile />} />
-          <Route path="/profile" element={<ProfilePage />} />
-          <Route path="/bookings" element={<BookingsPage />} />
+          <Route path="/my-bookings" element={<BookingAndProfileUserPage />} />
+          <Route path="/profile" element={<BookingAndProfileUserPage />} />
           <Route path="/hotels" element={<HotelsPage />} />
           <Route path="/flights" element={<FlightsPage />} />
           <Route path="/trains" element={<TrainsPage />} />

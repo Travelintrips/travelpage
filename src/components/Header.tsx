@@ -3,6 +3,7 @@ import { supabase } from "@/lib/supabase";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useShoppingCart } from "@/hooks/useShoppingCart";
+import { useTranslation } from "react-i18next";
 import UserDropdown from "./UserDropdown";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
@@ -40,6 +41,7 @@ const Header = () => {
   // Always call all hooks at the top level in the same order
   const { isAuthenticated, isLoading, userRole, userId, user, isSessionReady } = useAuth();
   const { cartCount } = useShoppingCart();
+  const { t } = useTranslation();
   const [mounted, setMounted] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -261,16 +263,16 @@ const Header = () => {
 
           <nav className="hidden md:flex items-center space-x-6">
             <Link to="/deals" className="hover:text-green-200">
-              Deals
+              {t('navbar.deals')}
             </Link>
             <Link to="/support" className="hover:text-green-200">
-              Support
+              {t('navbar.support')}
             </Link>
             <Link to="/partnership" className="hover:text-green-200">
-              Partnership
+              {t('navbar.partnership')}
             </Link>
             <Link to="/corporates" className="hover:text-green-200">
-              For Corporates
+              {t('navbar.forCorporates')}
             </Link>
             {/* Transportasi Link */}
             <Link to="/transportasi" className="hover:text-green-200">
@@ -279,7 +281,7 @@ const Header = () => {
                 className="text-white hover:text-green-200 flex items-center"
               >
                 <Truck className="h-4 w-4 mr-2" />
-                Transportasi
+                {t('navbar.transportasi')}
               </Button>
             </Link>
             {/* Show auth-dependent UI when authenticated */}

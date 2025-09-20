@@ -49,6 +49,7 @@ import {
   Upload,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import AdminLayout from "@/components/admin/AdminLayout";
 
 interface Customer {
   id: string;

@@ -15,6 +15,7 @@ import {
   GolfIcon,
 } from "@/components/icons";
 
+
 // Types
 interface BaggagePrice {
   id: string;
@@ -79,56 +80,56 @@ const AirportBaggage: React.FC = () => {
           {
             id: "1",
             baggage_size: "small",
-            baggage_prices: 50000,
+            baggage_prices: 70000,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           },
           {
             id: "2",
             baggage_size: "electronic",
-            baggage_prices: 75000,
+            baggage_prices: 90000,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           },
           {
             id: "3",
             baggage_size: "medium",
-            baggage_prices: 100000,
+            baggage_prices: 80000,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           },
           {
             id: "4",
             baggage_size: "large",
-            baggage_prices: 150000,
+            baggage_prices: 90000,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           },
           {
             id: "5",
             baggage_size: "extra_large",
-            baggage_prices: 200000,
+            baggage_prices: 100000,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           },
           {
             id: "6",
             baggage_size: "surfingboard",
-            baggage_prices: 250000,
+            baggage_prices: 100000,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           },
           {
             id: "7",
             baggage_size: "wheelchair",
-            baggage_prices: 100000,
+            baggage_prices: 110000,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           },
           {
             id: "8",
             baggage_size: "stickgolf",
-            baggage_prices: 175000,
+            baggage_prices: 110000,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           },
@@ -144,56 +145,56 @@ const AirportBaggage: React.FC = () => {
           {
             id: "1",
             baggage_size: "small",
-            baggage_prices: 50000,
+            baggage_prices: 70000,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           },
           {
             id: "2",
             baggage_size: "electronic",
-            baggage_prices: 75000,
+            baggage_prices: 90000,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           },
           {
             id: "3",
             baggage_size: "medium",
-            baggage_prices: 100000,
+            baggage_prices: 80000,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           },
           {
             id: "4",
             baggage_size: "large",
-            baggage_prices: 150000,
+            baggage_prices: 90000,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           },
           {
             id: "5",
             baggage_size: "extra_large",
-            baggage_prices: 200000,
+            baggage_prices: 100000,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           },
           {
             id: "6",
             baggage_size: "surfingboard",
-            baggage_prices: 250000,
+            baggage_prices: 100000,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           },
           {
             id: "7",
             baggage_size: "wheelchair",
-            baggage_prices: 100000,
+            baggage_prices: 110000,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           },
           {
             id: "8",
             baggage_size: "stickgolf",
-            baggage_prices: 175000,
+            baggage_prices: 110000,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           },
@@ -388,8 +389,8 @@ const AirportBaggage: React.FC = () => {
         price: getPriceForSize("small"),
         icon: <Package className="h-8 w-8" />,
         features: ["Secure storage", "24/7 access", "Insurance included"],
-        maxDimensions: "40cm x 30cm x 20cm",
-        maxWeight: "5kg",
+        //maxDimensions: "40cm x 30cm x 20cm",
+        //maxWeight: "5kg",
         examples: ["Laptop bag", "Small backpack", "Documents"],
       },
       {
@@ -403,8 +404,8 @@ const AirportBaggage: React.FC = () => {
           "Anti-static protection",
           "Secure handling",
         ],
-        maxDimensions: "50cm x 40cm x 30cm",
-        maxWeight: "10kg",
+       // maxDimensions: "50cm x 40cm x 30cm",
+       // maxWeight: "10kg",
         examples: ["Laptops", "Cameras", "Gaming consoles"],
       },
       {
@@ -414,8 +415,8 @@ const AirportBaggage: React.FC = () => {
         price: getPriceForSize("medium"),
         icon: <Luggage className="h-8 w-8" />,
         features: ["Standard storage", "Easy retrieval", "Damage protection"],
-        maxDimensions: "60cm x 40cm x 30cm",
-        maxWeight: "15kg",
+       // maxDimensions: "60cm x 40cm x 30cm",
+       // maxWeight: "15kg",
         examples: ["Carry-on luggage", "Medium suitcase", "Travel bag"],
       },
       {
@@ -429,8 +430,8 @@ const AirportBaggage: React.FC = () => {
           "Multiple item handling",
           "Extended security",
         ],
-        maxDimensions: "80cm x 60cm x 40cm",
-        maxWeight: "25kg",
+       // maxDimensions: "80cm x 60cm x 40cm",
+       // maxWeight: "25kg",
         examples: ["Large suitcase", "Multiple bags", "Sports equipment"],
       },
       {
@@ -444,8 +445,8 @@ const AirportBaggage: React.FC = () => {
           "Oversized item handling",
           "Premium security",
         ],
-        maxDimensions: "100cm x 80cm x 60cm",
-        maxWeight: "35kg",
+       // maxDimensions: "100cm x 80cm x 60cm",
+      //  maxWeight: "35kg",
         examples: ["Oversized luggage", "Multiple large items", "Bulk storage"],
       },
       {
@@ -459,8 +460,8 @@ const AirportBaggage: React.FC = () => {
           "Protective padding",
           "Climate controlled",
         ],
-        maxDimensions: "300cm x 60cm x 20cm",
-        maxWeight: "15kg",
+       // maxDimensions: "300cm x 60cm x 20cm",
+       // maxWeight: "15kg",
         examples: ["Surfboards", "Skis", "Long sporting equipment"],
       },
       {
@@ -474,8 +475,8 @@ const AirportBaggage: React.FC = () => {
           "Careful handling",
           "Priority service",
         ],
-        maxDimensions: "120cm x 70cm x 90cm",
-        maxWeight: "50kg",
+       // maxDimensions: "120cm x 70cm x 90cm",
+      // maxWeight: "50kg",
         examples: ["Manual wheelchair", "Electric wheelchair", "Mobility aids"],
       },
       {
@@ -489,8 +490,8 @@ const AirportBaggage: React.FC = () => {
           "Organized storage",
           "Quick access",
         ],
-        maxDimensions: "130cm x 40cm x 30cm",
-        maxWeight: "20kg",
+       // maxDimensions: "130cm x 40cm x 30cm",
+       // maxWeight: "20kg",
         examples: ["Golf clubs", "Golf bag", "Golf accessories"],
       },
     ];
@@ -564,6 +565,7 @@ const AirportBaggage: React.FC = () => {
   }
 
   return (
+    
     <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-6xl mx-auto">
@@ -575,7 +577,7 @@ const AirportBaggage: React.FC = () => {
               className="flex items-center gap-2 hover:bg-blue-50 hover:border-blue-300"
             >
               <Home className="h-4 w-4" />
-              Kembali ke Halaman Utama
+              Back to Home Page
             </Button>
           </div>
           {/* Header */}
@@ -588,6 +590,9 @@ const AirportBaggage: React.FC = () => {
               Choose from our range of storage options to suit your needs.
             </p>
           </div>
+          
+          
+          
 
           {/* Baggage Options Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -618,7 +623,7 @@ const AirportBaggage: React.FC = () => {
                   </div>
 
                   {/* Specifications */}
-                  <div className="space-y-2 text-sm">
+              {  /*  <div className="space-y-2 text-sm">
                     <div>
                       <span className="font-medium">Max Size:</span>{" "}
                       {option.maxDimensions}
@@ -627,7 +632,7 @@ const AirportBaggage: React.FC = () => {
                       <span className="font-medium">Max Weight:</span>{" "}
                       {option.maxWeight}
                     </div>
-                  </div>
+                  </div>*/}
 
                   {/* Features */}
                   <div className="space-y-2">
@@ -742,6 +747,7 @@ const AirportBaggage: React.FC = () => {
         </div>
       )}
     </div>
+    
   );
 };
 

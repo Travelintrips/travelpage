@@ -337,7 +337,7 @@ const BookingAgentManagement = () => {
                   <TableRow key={booking.id}>
                     <TableCell>
                       <div className="font-mono text-sm">
-                        {booking.booking_id || booking.id}
+                        {booking.code_booking || code_booking}
                       </div>
                     </TableCell>
                     <TableCell>

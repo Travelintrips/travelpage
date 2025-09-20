@@ -556,7 +556,7 @@ const TopUpAgentRequests = () => {
           </TabsTrigger>
           <TabsTrigger value="history" className="flex items-center gap-2">
             <History className="h-4 w-4" />
-            Topup History1
+            Topup History
           </TabsTrigger>
         </TabsList>
 
