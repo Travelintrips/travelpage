@@ -493,6 +493,38 @@ const Reports = () => {
                   </Button>
                 </div>
 
+                {/* Summary - Moved to top */}
+                {filteredEntries.length > 0 && (
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-gray-900">
+                          {filteredEntries.length}
+                        </div>
+                        <div className="text-sm text-gray-600">Total Entries</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-green-600">
+                          {formatCurrency(
+                            filteredEntries.reduce((sum, entry) => sum + entry.total_debit, 0)
+                          )}
+                        </div>
+                        <div className="text-sm text-gray-600">Total Amount</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-blue-600">
+                          {formatCurrency(
+                            filteredEntries.length > 0 
+                              ? filteredEntries.reduce((sum, entry) => sum + entry.total_debit, 0) / filteredEntries.length
+                              : 0
+                          )}
+                        </div>
+                        <div className="text-sm text-gray-600">Average Amount</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Table */}
                 <div className="border rounded-lg overflow-hidden">
                   <div className="overflow-x-auto">
@@ -614,38 +646,6 @@ const Reports = () => {
                     </table>
                   </div>
                 </div>
-
-                {/* Summary */}
-                {filteredEntries.length > 0 && (
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-gray-900">
-                          {filteredEntries.length}
-                        </div>
-                        <div className="text-sm text-gray-600">Total Entries</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-green-600">
-                          {formatCurrency(
-                            filteredEntries.reduce((sum, entry) => sum + entry.total_debit, 0)
-                          )}
-                        </div>
-                        <div className="text-sm text-gray-600">Total Amount</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-blue-600">
-                          {formatCurrency(
-                            filteredEntries.length > 0 
-                              ? filteredEntries.reduce((sum, entry) => sum + entry.total_debit, 0) / filteredEntries.length
-                              : 0
-                          )}
-                        </div>
-                        <div className="text-sm text-gray-600">Average Amount</div>
-                      </div>
-                    </div>
-                  </div>
-                )}
               </CardContent>
             </Card>
           </TabsContent>
