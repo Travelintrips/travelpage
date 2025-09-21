@@ -46,6 +46,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -59,15 +66,15 @@ import {
   UserX,
   Trash2,
   Edit,
+  ChevronLeft,
+  ChevronRight,
+  ChevronDown,
+  Building,
+  Users,
+  DollarSign,
+  Percent,
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
 interface Agent {
   id: string;
@@ -91,8 +98,15 @@ interface Agent {
 
 const AgentManagement = () => {
   const [agents, setAgents] = useState<Agent[]>([]);
+  const [filteredAgents, setFilteredAgents] = useState<Agent[]>([]);
+  const [paginatedAgents, setPaginatedAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(false);
   const [isFetching, setIsFetching] = useState(false);
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   
   // Add refs to prevent duplicate fetches and track initialization
   const fetchInProgress = useRef(false);
@@ -132,6 +146,58 @@ const AgentManagement = () => {
   // Check if user is Super Admin
   const isSuperAdmin = userRole === "Super Admin";
   const { toast } = useToast();
+
+  // Calculate pagination info
+  const totalPages = Math.ceil(filteredAgents.length / pageSize);
+  const startIndex = (currentPage - 1) * pageSize + 1;
+  const endIndex = Math.min(currentPage * pageSize, filteredAgents.length);
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  const handlePageSizeChange = (newPageSize: string) => {
+    setPageSize(parseInt(newPageSize));
+    setCurrentPage(1); // Reset to first page when page size changes
+  };
+
+  const toggleRowExpansion = (agentId: string) => {
+    const newExpandedRows = new Set(expandedRows);
+    if (newExpandedRows.has(agentId)) {
+      newExpandedRows.delete(agentId);
+    } else {
+      newExpandedRows.add(agentId);
+    }
+    setExpandedRows(newExpandedRows);
+  };
+
+  // Filter effect
+  useEffect(() => {
+    let filtered = agents;
+
+    // Search filter
+    if (searchTerm) {
+      filtered = filtered.filter(
+        (agent) =>
+          agent.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          agent.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          agent.role?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (agent.phone_number || "")
+            .toLowerCase()
+            .includes(searchTerm.toLowerCase()),
+      );
+    }
+
+    setFilteredAgents(filtered);
+    setCurrentPage(1); // Reset to first page when filters change
+  }, [agents, searchTerm]);
+
+  // Pagination effect
+  useEffect(() => {
+    const startIndex = (currentPage - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    setPaginatedAgents(filteredAgents.slice(startIndex, endIndex));
+  }, [filteredAgents, currentPage, pageSize]);
 
   // FIXED: Single useEffect to handle all initialization logic with caching
   useEffect(() => {
@@ -543,16 +609,6 @@ const AgentManagement = () => {
       setTransactionLoading(false);
     }
   };
-
-  const filteredAgents = agents.filter(
-    (agent) =>
-      agent.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      agent.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      agent.role?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (agent.phone_number || "")
-        .toLowerCase()
-        .includes(searchTerm.toLowerCase()),
-  );
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("id-ID", {
@@ -1120,17 +1176,29 @@ const handleConfirmSuspend = async () => {
             />
           </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <User className="h-5 w-5" />
-            Agent Data
-          </CardTitle>
-          <CardDescription>
-            Registered agents and their account information
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+          {/* Page Size Selector */}
+          <div className="mb-4 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-600">Show:</span>
+              <Select value={pageSize.toString()} onValueChange={handlePageSizeChange}>
+                <SelectTrigger className="w-20">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="5">5</SelectItem>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="25">25</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                  <SelectItem value="100">100</SelectItem>
+                </SelectContent>
+              </Select>
+              <span className="text-sm text-gray-600">entries per page</span>
+            </div>
+            <div className="text-sm text-gray-600">
+              Showing {filteredAgents.length > 0 ? startIndex : 0} to {endIndex} of {filteredAgents.length} entries
+            </div>
+          </div>
+
           {filteredAgents.length === 0 ? (
             <div className="text-center py-8">
               <User className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
@@ -1157,218 +1225,322 @@ const handleConfirmSuspend = async () => {
               )}
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Agent ID</TableHead>
-                  <TableHead>Agent Name</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Phone</TableHead>
-                  <TableHead>Account Type</TableHead>
-                  <TableHead>Company</TableHead>
-                  <TableHead>Member</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Total Bookings</TableHead>
-                  <TableHead>Total Revenue</TableHead>
-                  <TableHead>Balance</TableHead>
-                  <TableHead>Persentase Diskon</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredAgents.map((agent) => (
-                  <TableRow key={agent.id}>
-                    <TableCell>
-                      <div className="font-mono text-sm">
-                        {agent.id.slice(0, 8)}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="font-medium">{agent.full_name}</div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-sm">{agent.email}</div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-sm">
-                        {agent.phone_number || "N/A"}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {agent.account_type ? (
-                        <Badge 
-                          variant={agent.account_type === "Personal" ? "secondary" : "default"}
-                          className={agent.account_type === "Personal" ? "bg-amber-500 text-white" : "bg-blue-500 text-white"}
-                        >
-                          {agent.account_type}
-                        </Badge>
-                      ) : (
-                        <span className="text-sm text-muted-foreground">-</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-sm">
-                        {agent.nama_perusahaan || "-"}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge 
-                        variant={agent.member_is_active ? "default" : "secondary"}
-                        className={agent.member_is_active ? "bg-green-500 text-white" : "bg-yellow-500 text-white"}
-                      >
-                        {agent.member_is_active ? "Active" : "Inactive"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {userRole && ["Super Admin", "Admin", "Staff Admin"].includes(userRole) ? (
-                        <div className="flex items-center space-x-2">
-                          <Switch
-                            checked={agent.status === "active"}
-                            onCheckedChange={() => handleStatusToggle(agent)}
-                            disabled={statusToggleLoading === agent.id}
-                            className="data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-red-500"
-                          />
-                          <span
-                            className={`text-sm font-medium ${
-                              agent.status === "active"
-                                ? "text-green-600"
-                                : "text-red-600"
-                            }`}
-                          >
-                            {statusToggleLoading === agent.id ? (
-                              <div className="flex items-center">
-                                <Loader2 className="h-4 w-4 animate-spin mr-1" />
-                                Updating...
-                              </div>
-                            ) : agent.status === "active" ? (
-                              "ACTIVE"
-                            ) : (
-                              "SUSPENDED"
-                            )}
-                          </span>
-                        </div>
-                      ) : (
-                        <Badge variant={getStatusBadgeVariant(agent.status)}>
-                          {agent.status === "active" ? "ACTIVE" : "SUSPENDED"}
-                        </Badge>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center">
-                        <Calendar className="h-4 w-4 mr-1" />
-                        {agent.total_bookings || 0}
-                      </div>
-                    </TableCell>
-                    <TableCell className="font-medium">
-                      {formatCurrency(agent.total_revenue || 0)}
-                    </TableCell>
-                    <TableCell className="font-medium">
-                      {formatCurrency(agent.saldo || 0)}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center">
-                        <Badge 
-                          variant={agent.discount_percentage && agent.discount_percentage > 0 ? "default" : "secondary"}
-                          className={agent.discount_percentage && agent.discount_percentage > 0 ? "bg-green-500 text-white" : "bg-gray-500 text-white"}
-                        >
-                          {agent.discount_percentage || 0}%
-                        </Badge>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {userRole && ["Super Admin", "Admin", "Staff Admin"].includes(userRole) ? (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              className="h-8 w-8 p-0"
-                              disabled={actionLoading === agent.id}
-                            >
-                              {actionLoading === agent.id ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <MoreHorizontal className="h-4 w-4" />
-                              )}
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={() => handleEditAgent(agent)}
-                              className="text-blue-600"
-                            >
-                              <Edit className="mr-2 h-4 w-4" />
-                              Edit
-                            </DropdownMenuItem>
-                            {isSuperAdmin && (
-                              <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                  <DropdownMenuItem
-                                    onSelect={(e) => e.preventDefault()}
-                                    className="text-red-600"
-                                  >
-                                    <Trash2 className="mr-2 h-4 w-4" />
-                                    Delete
-                                  </DropdownMenuItem>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                  <AlertDialogHeader>
-                                    <AlertDialogTitle>
-                                      Delete Agent
-                                    </AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                      Are you sure you want to delete agent "
-                                      {agent.full_name}"? This action will
-                                      permanently remove the agent from:
-                                      <br />• Authentication system
-                                      <br />• Users table
-                                      <br />• Agent users table
-                                      <br />
-                                      <br />
-                                      This action cannot be undone.
-                                    </AlertDialogDescription>
-                                  </AlertDialogHeader>
-                                  <AlertDialogFooter>
-                                    <AlertDialogCancel>
-                                      Cancel
-                                    </AlertDialogCancel>
-                                    <AlertDialogAction
-                                      onClick={() =>
-                                        handleDeleteAgent(
-                                          agent.id,
-                                          agent.email,
-                                        )
-                                      }
-                                      className="bg-red-600 hover:bg-red-700"
-                                    >
-                                      Delete
-                                    </AlertDialogAction>
-                                  </AlertDialogFooter>
-                                </AlertDialogContent>
-                              </AlertDialog>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      ) : (
-                        <Badge variant="outline" className="text-xs">
-                          No Access
-                        </Badge>
-                      )}
-                    </TableCell>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-12"></TableHead>
+                    <TableHead>Agent ID</TableHead>
+                    <TableHead>Agent Name</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Phone</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Balance</TableHead>
+                    <TableHead>Actions</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {paginatedAgents.map((agent) => (
+                    <React.Fragment key={agent.id}>
+                      {/* Master Row */}
+                      <TableRow className="hover:bg-gray-50">
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => toggleRowExpansion(agent.id)}
+                            className="p-1"
+                          >
+                            {expandedRows.has(agent.id) ? (
+                              <ChevronDown className="h-4 w-4" />
+                            ) : (
+                              <ChevronRight className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </TableCell>
+                        <TableCell>
+                          <div className="font-mono text-sm">
+                            {agent.id.slice(0, 8)}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="font-medium">{agent.full_name}</div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-sm">{agent.email}</div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-sm">
+                            {agent.phone_number || "N/A"}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {userRole && ["Super Admin", "Admin", "Staff Admin"].includes(userRole) ? (
+                            <div className="flex items-center space-x-2">
+                              <Switch
+                                checked={agent.status === "active"}
+                                onCheckedChange={() => handleStatusToggle(agent)}
+                                disabled={statusToggleLoading === agent.id}
+                                className="data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-red-500"
+                              />
+                              <span
+                                className={`text-sm font-medium ${
+                                  agent.status === "active"
+                                    ? "text-green-600"
+                                    : "text-red-600"
+                                }`}
+                              >
+                                {statusToggleLoading === agent.id ? (
+                                  <div className="flex items-center">
+                                    <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                                    Updating...
+                                  </div>
+                                ) : agent.status === "active" ? (
+                                  "ACTIVE"
+                                ) : (
+                                  "SUSPENDED"
+                                )}
+                              </span>
+                            </div>
+                          ) : (
+                            <Badge variant={getStatusBadgeVariant(agent.status)}>
+                              {agent.status === "active" ? "ACTIVE" : "SUSPENDED"}
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          {formatCurrency(agent.saldo || 0)}
+                        </TableCell>
+                        <TableCell>
+                          {userRole && ["Super Admin", "Admin", "Staff Admin"].includes(userRole) ? (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  className="h-8 w-8 p-0"
+                                  disabled={actionLoading === agent.id}
+                                >
+                                  {actionLoading === agent.id ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <MoreHorizontal className="h-4 w-4" />
+                                  )}
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem
+                                  onClick={() => handleEditAgent(agent)}
+                                  className="text-blue-600"
+                                >
+                                  <Edit className="mr-2 h-4 w-4" />
+                                  Edit
+                                </DropdownMenuItem>
+                                {isSuperAdmin && (
+                                  <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                      <DropdownMenuItem
+                                        onSelect={(e) => e.preventDefault()}
+                                        className="text-red-600"
+                                      >
+                                        <Trash2 className="mr-2 h-4 w-4" />
+                                        Delete
+                                      </DropdownMenuItem>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle>
+                                          Delete Agent
+                                        </AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                          Are you sure you want to delete agent "
+                                          {agent.full_name}"? This action will
+                                          permanently remove the agent from:
+                                          <br />• Authentication system
+                                          <br />• Users table
+                                          <br />• Agent users table
+                                          <br />
+                                          <br />
+                                          This action cannot be undone.
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel>
+                                          Cancel
+                                        </AlertDialogCancel>
+                                        <AlertDialogAction
+                                          onClick={() =>
+                                            handleDeleteAgent(
+                                              agent.id,
+                                              agent.email,
+                                            )
+                                          }
+                                          className="bg-red-600 hover:bg-red-700"
+                                        >
+                                          Delete
+                                        </AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          ) : (
+                            <Badge variant="outline" className="text-xs">
+                              No Access
+                            </Badge>
+                          )}
+                        </TableCell>
+                      </TableRow>
+
+                      {/* Detail Row - Expandable */}
+                      {expandedRows.has(agent.id) && (
+                        <TableRow className="bg-gray-50/50">
+                          <TableCell colSpan={8}>
+                            <div className="p-4 space-y-4">
+                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {/* Account Type */}
+                                <div className="flex items-start space-x-3">
+                                  <div className="bg-blue-100 p-2 rounded-lg">
+                                    <Building className="h-4 w-4 text-blue-600" />
+                                  </div>
+                                  <div>
+                                    <p className="text-sm font-medium text-gray-900">
+                                      Account Type
+                                    </p>
+                                    {agent.account_type ? (
+                                      <Badge 
+                                        variant={agent.account_type === "Personal" ? "secondary" : "default"}
+                                        className={agent.account_type === "Personal" ? "bg-amber-500 text-white" : "bg-blue-500 text-white"}
+                                      >
+                                        {agent.account_type}
+                                      </Badge>
+                                    ) : (
+                                      <span className="text-sm text-gray-600">-</span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Company */}
+                                <div className="flex items-start space-x-3">
+                                  <div className="bg-green-100 p-2 rounded-lg">
+                                    <Building className="h-4 w-4 text-green-600" />
+                                  </div>
+                                  <div>
+                                    <p className="text-sm font-medium text-gray-900">
+                                      Company
+                                    </p>
+                                    <p className="text-sm text-gray-600">
+                                      {agent.nama_perusahaan || "-"}
+                                    </p>
+                                  </div>
+                                </div>
+
+                                {/* Member */}
+                                <div className="flex items-start space-x-3">
+                                  <div className="bg-purple-100 p-2 rounded-lg">
+                                    <Users className="h-4 w-4 text-purple-600" />
+                                  </div>
+                                  <div>
+                                    <p className="text-sm font-medium text-gray-900">
+                                      Member Status
+                                    </p>
+                                    <Badge 
+                                      variant={agent.member_is_active ? "default" : "secondary"}
+                                      className={agent.member_is_active ? "bg-green-500 text-white" : "bg-yellow-500 text-white"}
+                                    >
+                                      {agent.member_is_active ? "Active" : "Inactive"}
+                                    </Badge>
+                                  </div>
+                                </div>
+
+                                {/* Total Bookings */}
+                                <div className="flex items-start space-x-3">
+                                  <div className="bg-orange-100 p-2 rounded-lg">
+                                    <Calendar className="h-4 w-4 text-orange-600" />
+                                  </div>
+                                  <div>
+                                    <p className="text-sm font-medium text-gray-900">
+                                      Total Bookings
+                                    </p>
+                                    <p className="text-sm text-gray-600">
+                                      {agent.total_bookings || 0} bookings
+                                    </p>
+                                  </div>
+                                </div>
+
+                                {/* Total Revenue */}
+                                <div className="flex items-start space-x-3">
+                                  <div className="bg-indigo-100 p-2 rounded-lg">
+                                    <DollarSign className="h-4 w-4 text-indigo-600" />
+                                  </div>
+                                  <div>
+                                    <p className="text-sm font-medium text-gray-900">
+                                      Total Revenue
+                                    </p>
+                                    <p className="text-sm text-gray-600 font-medium">
+                                      {formatCurrency(agent.total_revenue || 0)}
+                                    </p>
+                                  </div>
+                                </div>
+
+                                {/* Persentase Diskon */}
+                                <div className="flex items-start space-x-3">
+                                  <div className="bg-yellow-100 p-2 rounded-lg">
+                                    <Percent className="h-4 w-4 text-yellow-600" />
+                                  </div>
+                                  <div>
+                                    <p className="text-sm font-medium text-gray-900">
+                                      Discount Percentage
+                                    </p>
+                                    <Badge 
+                                      variant={agent.discount_percentage && agent.discount_percentage > 0 ? "default" : "secondary"}
+                                      className={agent.discount_percentage && agent.discount_percentage > 0 ? "bg-green-500 text-white" : "bg-gray-500 text-white"}
+                                    >
+                                      {agent.discount_percentage || 0}%
+                                    </Badge>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </React.Fragment>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
-        </CardContent>
-        {/*    <CardFooter className="flex justify-between">
-          <div className="text-sm text-muted-foreground">
-            Showing {filteredAgents.length} of {agents.length} agents
-          </div>
-          <Button variant="outline" onClick={fetchAgents}>
-            Refresh
-          </Button>
-        </CardFooter>*/}
-      </Card>
+
+          {/* Pagination Controls */}
+          {filteredAgents.length > 0 && (
+            <div className="mt-4 flex items-center justify-between">
+              <div className="text-sm text-gray-600">
+                Page {currentPage} of {totalPages}
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage === 1}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Previous
+                </Button>
+                
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
         </>
       )}
 

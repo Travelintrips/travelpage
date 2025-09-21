@@ -202,6 +202,78 @@
     "cancellation": "Kebijakan Pembatalan"
   }
 },
+"airport-transfer":{
+  "title": "Transportasi Bandara",
+  "description": "Layanan penjemputan dan pengantaran bandara yang andal",
+  "features": {
+    "drivers": "Pengemudi profesional",
+    "availability": "Tersedia 24/7",
+    "tracking": "Pemantauan penerbangan",
+    "greet": "Layanan jemput dengan papan nama"
+  }
+},
+"transportasi":{
+  "title": "Layanan Transportasi",
+  "description" : "Pilih layanan transportasi premium kami untuk pengalaman perjalanan yang nyaman dan dapat diandalkan",
+  "backToHome": "Kembali ke Beranda",
+  "services": {
+    "airportTransfer": {
+      "title": "Antar Jemput Bandara",
+      "description": "Layanan penjemputan dan pengantaran bandara yang andal",
+      "features": {
+        "drivers": "Pengemudi profesional",
+        "availability": "Tersedia 24/7",
+        "tracking": "Pemantauan penerbangan",
+        "greet": "Layanan jemput dengan papan nama"
+      },
+      "choose": "Pilih Transfer Bandara"
+    },
+    "rentCar": {
+      "title": "Sewa Mobil",
+      "description": "Pilihan kendaraan yang luas untuk kebutuhan perjalanan Anda",
+      "features": {
+        "models": "Berbagai model mobil",
+        "prices": "Harga kompetitif",
+        "insurance": "Asuransi termasuk",
+        "flexible": "Periode sewa fleksibel"
+      },
+      "choose": "Pilih Sewa Mobil"
+    },
+    "interprovincial": {
+      "title": "Transportasi Antar Provinsi",
+      "description": "Nyaman dan terjangkau",
+      "features": {
+        "models": "Berbagai model mobil",
+        "prices": "Harga kompetitif",
+        "seats": "Kursi nyaman",
+        "driver": "Pengemudi profesional"
+      },
+      "choose": "Pilih Transportasi Antar Provinsi"
+    }
+  },
+  "whyChoose": {
+    "title": "Mengapa Memilih Layanan Transportasi Kami?",
+    "description": "Kami menyediakan solusi transportasi yang andal, aman, dan nyaman untuk semua kebutuhan perjalanan Anda",
+    "availability": {
+      "title": "Tersedia 24/7",
+      "description": "Layanan kami tersedia sepanjang waktu untuk memenuhi kebutuhan transportasi Anda"
+    },
+    "safety": {
+      "title": "Aman & Terjamin",
+      "description": "Semua kendaraan kami dirawat secara rutin dan pengemudi kami terlatih secara profesional"
+    },
+    "quality": {
+      "title": "Kualitas Premium",
+      "description": "Rasakan layanan berkualitas premium dengan harga kompetitif dan dukungan pelanggan yang luar biasa"
+    }
+  },
+  "cta": {
+    "title": "Siap Memesan Transportasi Anda?",
+    "description": "Pilih dari layanan transportasi kami yang andal dan nikmati perjalanan yang nyaman",
+    "bookAirport": "Pesan Transfer Bandara",
+    "rentCar": "Sewa Mobil"
+  }
+},
   "language": {
     "select": "Pilih Bahasa",
     "en": "Inggris",

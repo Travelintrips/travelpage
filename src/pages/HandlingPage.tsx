@@ -93,6 +93,8 @@ const HandlingPage = () => {
   const [categoryPrice, setCategoryPrice] = useState(0);
   const [totalPrice, setTotalPrice] = useState(0);
   const [bookingId, setBookingId] = useState("");
+  const userRole = "Customer"; // atau "Admin", "Staff", dll
+
 
   // Generate booking ID with format HS-YYYYMMDD-HHMMSS-XXX
   const generateBookingId = () => {
@@ -1269,6 +1271,7 @@ const HandlingPage = () => {
               </div>
 
               {/* Company Name Field */}
+             { userRole !== "Customer" && (
               <div className="space-y-2">
                 <label className="flex items-center text-sm font-medium text-gray-700">
                   <User className="h-4 w-4 mr-2 text-green-600" />
@@ -1284,6 +1287,7 @@ const HandlingPage = () => {
                   className="w-full"
                 />
               </div>
+             )}
 
               {/* Email Field */}
               <div className="space-y-2">

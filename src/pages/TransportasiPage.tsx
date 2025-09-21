@@ -12,55 +12,59 @@ import {
   Star,
 } from "lucide-react";
 import Header from "@/components/Header";
+import { useTranslation } from "react-i18next";
 
 const TransportasiPage = () => {
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   const transportOptions = [
     {
       id: "airport-transfer",
-      title: "Airport Transfer",
-      description: "Reliable airport pickup and drop-off services",
+      title: t("transportasi.services.airportTransfer.title"),
+      description: t("transportasi.services.airportTransfer.description"),
       icon: <MapPin className="h-12 w-12 text-green-600" />,
       features: [
-        "Professional drivers",
-        "24/7 availability",
-        "Flight tracking",
-        "Meet & greet service",
+        t("transportasi.services.airportTransfer.features.drivers"),
+        t("transportasi.services.airportTransfer.features.availability"),
+        t("transportasi.services.airportTransfer.features.tracking"),
+        t("transportasi.services.airportTransfer.features.greet"),
       ],
       route: "/airport-transfer",
       bgGradient: "from-blue-500 to-blue-600",
-      
+      chooseText: t("transportasi.services.airportTransfer.choose"),
     },
     {
       id: "rent-car",
-      title: "Rent Car",
-      description: "Wide selection of vehicles for your travel needs",
+      title: t("transportasi.services.rentCar.title"),
+      description: t("transportasi.services.rentCar.description"),
       icon: <Car className="h-12 w-12 text-blue-600" />,
       features: [
-        "Various car models",
-        "Competitive prices",
-        "Insurance included",
-        "Flexible rental periods",
+        t("transportasi.services.rentCar.features.models"),
+        t("transportasi.services.rentCar.features.prices"),
+        t("transportasi.services.rentCar.features.insurance"),
+        t("transportasi.services.rentCar.features.flexible"),
       ],
       route: "/rentcar",
       bgGradient: "from-green-500 to-green-600",
       buttonColor: "bg-blue-600 hover:bg-blue-700",
+      chooseText: t("transportasi.services.rentCar.choose"),
     },
     {
       id: "reguler-bandung",
-      title: "Regular Transport",
-      description: "Comfortable and affordable",
+      title: t("transportasi.services.interprovincial.title"),
+      description: t("transportasi.services.interprovincial.description"),
       icon: <Car className="h-12 w-12 text-red-600" />,
       features: [
-        "Various car models",
-        "Competitive prices",
-        "Comfortable seats",
-        "Professional driver",
+        t("transportasi.services.interprovincial.features.models"),
+        t("transportasi.services.interprovincial.features.prices"),
+        t("transportasi.services.interprovincial.features.seats"),
+        t("transportasi.services.interprovincial.features.driver"),
       ],
       route: "/",
       bgGradient: "from-amber-800 to-amber-600",
       buttonColor: "bg-amber-700 hover:bg-amber-800",
+      chooseText: t("transportasi.services.interprovincial.choose"),
     },
   ];
 
@@ -82,16 +86,15 @@ const TransportasiPage = () => {
               onClick={() => navigate("/")}
             >
               <ArrowLeft className="h-5 w-5 mr-2" />
-              Back to Home
+              {t("transportasi.backToHome")}
             </Button>
           </div>
           <div className="text-center">
             <h1 className="text-4xl md:text-6xl font-bold mb-4">
-              Transportasi Services
+              {t("transportasi.title")}
             </h1>
             <p className="text-xl md:text-2xl text-green-100 max-w-3xl mx-auto">
-              Choose from our premium transportation services for a comfortable
-              and reliable travel experience
+              {t("transportasi.description")}
             </p>
           </div>
         </div>
@@ -130,12 +133,11 @@ const TransportasiPage = () => {
                     ))}
                   </div>
                   <Button
-  className={`w-full ${option.buttonColor || "bg-green-600 hover:bg-green-700"} text-white py-3 text-lg font-semibold transition-colors`}
-  onClick={() => handleOptionClick(option.route)}
->
-  Choose {option.title}
-</Button>
-
+                    className={`w-full ${option.buttonColor || "bg-green-600 hover:bg-green-700"} text-white py-3 text-lg font-semibold transition-colors`}
+                    onClick={() => handleOptionClick(option.route)}
+                  >
+                    {option.chooseText}
+                  </Button>
                 </CardContent>
               </Card>
             ))}
@@ -148,11 +150,10 @@ const TransportasiPage = () => {
         <div className="container mx-auto px-4">
           <div className="text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-bold text-gray-800 mb-4">
-              Why Choose Our Transportation Services?
+              {t("transportasi.whyChoose.title")}
             </h2>
             <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-              We provide reliable, safe, and comfortable transportation
-              solutions for all your travel needs
+              {t("transportasi.whyChoose.description")}
             </p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto">
@@ -160,30 +161,33 @@ const TransportasiPage = () => {
               <div className="bg-green-100 p-4 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
                 <Clock className="h-8 w-8 text-green-600" />
               </div>
-              <h3 className="text-xl font-semibold mb-2">24/7 Availability</h3>
+              <h3 className="text-xl font-semibold mb-2">
+                {t("transportasi.whyChoose.availability.title")}
+              </h3>
               <p className="text-gray-600">
-                Our services are available round the clock to meet your
-                transportation needs
+                {t("transportasi.whyChoose.availability.description")}
               </p>
             </div>
             <div className="text-center">
               <div className="bg-green-100 p-4 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
                 <Shield className="h-8 w-8 text-green-600" />
               </div>
-              <h3 className="text-xl font-semibold mb-2">Safe & Secure</h3>
+              <h3 className="text-xl font-semibold mb-2">
+                {t("transportasi.whyChoose.safety.title")}
+              </h3>
               <p className="text-gray-600">
-                All our vehicles are regularly maintained and our drivers are
-                professionally trained
+                {t("transportasi.whyChoose.safety.description")}
               </p>
             </div>
             <div className="text-center">
               <div className="bg-green-100 p-4 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
                 <Star className="h-8 w-8 text-green-600" />
               </div>
-              <h3 className="text-xl font-semibold mb-2">Premium Quality</h3>
+              <h3 className="text-xl font-semibold mb-2">
+                {t("transportasi.whyChoose.quality.title")}
+              </h3>
               <p className="text-gray-600">
-                Experience premium quality service with competitive pricing and
-                excellent customer support
+                {t("transportasi.whyChoose.quality.description")}
               </p>
             </div>
           </div>
@@ -194,11 +198,10 @@ const TransportasiPage = () => {
       <div className="bg-gradient-to-r from-green-600 to-green-700 text-white py-16">
         <div className="container mx-auto px-4 text-center">
           <h2 className="text-3xl md:text-4xl font-bold mb-4">
-            Ready to Book Your Transportation?
+            {t("transportasi.cta.title")}
           </h2>
           <p className="text-xl mb-8 max-w-2xl mx-auto">
-            Choose from our reliable transportation services and enjoy a
-            comfortable journey
+            {t("transportasi.cta.description")}
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button
@@ -206,7 +209,7 @@ const TransportasiPage = () => {
               className="bg-white text-green-600 hover:bg-gray-100 px-8 py-3 text-lg font-semibold"
               onClick={() => navigate("/airport-transfer")}
             >
-              Book Airport Transfer
+              {t("transportasi.cta.bookAirport")}
             </Button>
             <Button
               size="lg"
@@ -214,7 +217,7 @@ const TransportasiPage = () => {
               className="bg-white text-green-600 hover:bg-gray-100 px-8 py-3 text-lg font-semibold"
               onClick={() => navigate("/rentcar")}
             >
-              Rent a Car
+              {t("transportasi.cta.rentCar")}
             </Button>
           </div>
         </div>

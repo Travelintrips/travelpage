@@ -30,7 +30,7 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Pencil, Trash2, UserPlus, Shield, Search, Filter } from "lucide-react";
+import { Pencil, Trash2, UserPlus, Shield, Search, Filter, ChevronLeft, ChevronRight } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface User {
@@ -78,6 +78,11 @@ export default function StaffManagement() {
   const [isStaffTripsDialogOpen, setIsStaffTripsDialogOpen] = useState(false);
   const [emailToStaffTrips, setEmailToStaffTrips] = useState("diva@gmail.com");
 
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [paginatedUsers, setPaginatedUsers] = useState<User[]>([]);
+
   // Helper function to get image URL from Supabase Storage
   const getImageUrl = (
     path: string | null | undefined,
@@ -108,11 +113,9 @@ export default function StaffManagement() {
     }
   };
 
-  // Filter states
+  // Filter states - removed ethnicity and religion filters
   const [searchTerm, setSearchTerm] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
-  const [ethnicityFilter, setEthnicityFilter] = useState("");
-  const [religionFilter, setReligionFilter] = useState("");
 
   const { toast } = useToast();
 
@@ -182,7 +185,7 @@ export default function StaffManagement() {
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [isAuthenticated, isSessionReady, authLoading]);
 
-  // Filter effect
+  // Filter effect - removed ethnicity and religion filters
   useEffect(() => {
     let filtered = users;
 
@@ -204,25 +207,30 @@ export default function StaffManagement() {
       );
     }
 
-    // Ethnicity filter
-    if (ethnicityFilter) {
-      filtered = filtered.filter(
-        (user) =>
-          user.staff?.ethnicity?.toLowerCase() ===
-          ethnicityFilter.toLowerCase(),
-      );
-    }
-
-    // Religion filter
-    if (religionFilter) {
-      filtered = filtered.filter(
-        (user) =>
-          user.staff?.religion?.toLowerCase() === religionFilter.toLowerCase(),
-      );
-    }
-
     setFilteredUsers(filtered);
-  }, [users, searchTerm, roleFilter, ethnicityFilter, religionFilter]);
+    setCurrentPage(1); // Reset to first page when filters change
+  }, [users, searchTerm, roleFilter]);
+
+  // Pagination effect
+  useEffect(() => {
+    const startIndex = (currentPage - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    setPaginatedUsers(filteredUsers.slice(startIndex, endIndex));
+  }, [filteredUsers, currentPage, pageSize]);
+
+  // Calculate pagination info
+  const totalPages = Math.ceil(filteredUsers.length / pageSize);
+  const startIndex = (currentPage - 1) * pageSize + 1;
+  const endIndex = Math.min(currentPage * pageSize, filteredUsers.length);
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  const handlePageSizeChange = (newPageSize: string) => {
+    setPageSize(parseInt(newPageSize));
+    setCurrentPage(1); // Reset to first page when page size changes
+  };
 
   // FIXED: Modified fetchUsers with proper loading state management
   const fetchUsers = async (isBackgroundRefresh = false) => {
@@ -1059,7 +1067,7 @@ export default function StaffManagement() {
           <Filter className="h-4 w-4" />
           <h3 className="text-lg font-semibold">Filter Staff</h3>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
             <Input
@@ -1077,40 +1085,29 @@ export default function StaffManagement() {
               <SelectValue placeholder="Filter by role" />
             </SelectTrigger>
             <SelectContent>
-  <SelectItem value="all">All Roles</SelectItem>
-  {roles
-    .filter((role) => {
-      const excludedRoles = ["dispatcher", "pengawas"];
-      const allowedRoles = [
-        "staff",
-        "staff trips",
-        "staff admin",
-        "staff traffic",
-      ];
+              <SelectItem value="all">All Roles</SelectItem>
+              {roles
+                .filter((role) => {
+                  const excludedRoles = ["dispatcher", "pengawas"];
+                  const allowedRoles = [
+                    "staff",
+                    "staff trips",
+                    "staff admin",
+                    "staff traffic",
+                  ];
 
-      const roleName = role.role_name.toLowerCase().trim();
-      return allowedRoles.includes(roleName) && !excludedRoles.includes(roleName);
-    })
-    .map((role) => (
-      <SelectItem key={role.role_id} value={role.role_id.toString()}>
-        {role.role_name}
-      </SelectItem>
-    ))}
-</SelectContent>
-
+                  const roleName = role.role_name.toLowerCase().trim();
+                  return allowedRoles.includes(roleName) && !excludedRoles.includes(roleName);
+                })
+                .map((role) => (
+                  <SelectItem key={role.role_id} value={role.role_id.toString()}>
+                    {role.role_name}
+                  </SelectItem>
+                ))}
+            </SelectContent>
           </Select>
-          <Input
-            placeholder="Filter by ethnicity"
-            value={ethnicityFilter}
-            onChange={(e) => setEthnicityFilter(e.target.value)}
-          />
-          <Input
-            placeholder="Filter by religion"
-            value={religionFilter}
-            onChange={(e) => setReligionFilter(e.target.value)}
-          />
         </div>
-        {(searchTerm || roleFilter || ethnicityFilter || religionFilter) && (
+        {(searchTerm || roleFilter) && (
           <div className="mt-4 flex items-center gap-2">
             <span className="text-sm text-gray-600">Active filters:</span>
             {searchTerm && (
@@ -1136,38 +1133,41 @@ export default function StaffManagement() {
                 ×
               </Badge>
             )}
-            {ethnicityFilter && (
-              <Badge
-                variant="secondary"
-                className="cursor-pointer"
-                onClick={() => setEthnicityFilter("")}
-              >
-                Ethnicity: {ethnicityFilter} ×
-              </Badge>
-            )}
-            {religionFilter && (
-              <Badge
-                variant="secondary"
-                className="cursor-pointer"
-                onClick={() => setReligionFilter("")}
-              >
-                Religion: {religionFilter} ×
-              </Badge>
-            )}
             <Button
               variant="ghost"
               size="sm"
               onClick={() => {
                 setSearchTerm("");
                 setRoleFilter("");
-                setEthnicityFilter("");
-                setReligionFilter("");
               }}
             >
               Clear all
             </Button>
           </div>
         )}
+      </div>
+
+      {/* Page Size Selector */}
+      <div className="mb-4 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-gray-600">Show:</span>
+          <Select value={pageSize.toString()} onValueChange={handlePageSizeChange}>
+            <SelectTrigger className="w-20">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="5">5</SelectItem>
+              <SelectItem value="10">10</SelectItem>
+              <SelectItem value="25">25</SelectItem>
+              <SelectItem value="50">50</SelectItem>
+              <SelectItem value="100">100</SelectItem>
+            </SelectContent>
+          </Select>
+          <span className="text-sm text-gray-600">entries per page</span>
+        </div>
+        <div className="text-sm text-gray-600">
+          Showing {filteredUsers.length > 0 ? startIndex : 0} to {endIndex} of {filteredUsers.length} entries
+        </div>
       </div>
 
       {/* FIXED: Better loading and empty state handling */}
@@ -1192,24 +1192,22 @@ export default function StaffManagement() {
                 <TableHead>Email</TableHead>
                 <TableHead>Phone</TableHead>
                 <TableHead>Role</TableHead>
-                <TableHead>Ethnicity</TableHead>
-                <TableHead>Religion</TableHead>
                 <TableHead>Documents</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredUsers.length === 0 ? (
+              {paginatedUsers.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={9}
+                    colSpan={7}
                     className="text-center py-8 text-gray-500"
                   >
                     No staff members match the current filters
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredUsers.map((user) => (
+                paginatedUsers.map((user) => (
                   <TableRow key={user.id}>
                     <TableCell>
                       <Avatar className="h-10 w-10">
@@ -1255,8 +1253,6 @@ export default function StaffManagement() {
                         {user.role?.role_name || "No Role"}
                       </Badge>
                     </TableCell>
-                    <TableCell>{user.staff?.ethnicity || "-"}</TableCell>
-                    <TableCell>{user.staff?.religion || "-"}</TableCell>
                     <TableCell>
                       <div className="flex gap-1">
                         {user.staff?.ktp_url && (
@@ -1322,6 +1318,64 @@ export default function StaffManagement() {
               )}
             </TableBody>
           </Table>
+        </div>
+      )}
+
+      {/* Pagination Controls */}
+      {filteredUsers.length > 0 && (
+        <div className="mt-4 flex items-center justify-between">
+          <div className="text-sm text-gray-600">
+            Page {currentPage} of {totalPages}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handlePageChange(currentPage - 1)}
+              disabled={currentPage === 1}
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Previous
+            </Button>
+            
+            {/* Page Numbers */}
+            <div className="flex items-center gap-1">
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                let pageNum;
+                if (totalPages <= 5) {
+                  pageNum = i + 1;
+                } else if (currentPage <= 3) {
+                  pageNum = i + 1;
+                } else if (currentPage >= totalPages - 2) {
+                  pageNum = totalPages - 4 + i;
+                } else {
+                  pageNum = currentPage - 2 + i;
+                }
+                
+                return (
+                  <Button
+                    key={pageNum}
+                    variant={currentPage === pageNum ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => handlePageChange(pageNum)}
+                    className="w-8 h-8 p-0"
+                  >
+                    {pageNum}
+                  </Button>
+                );
+              })}
+            </div>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handlePageChange(currentPage + 1)}
+              disabled={currentPage === totalPages}
+            >
+              Next
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       )}
 

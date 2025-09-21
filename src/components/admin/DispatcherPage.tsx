@@ -15,6 +15,13 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -23,7 +30,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Search, Filter, Users, Eye, Edit, Trash2 } from "lucide-react";
+import { Search, Filter, Users, Eye, Edit, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -42,6 +49,7 @@ interface DispatcherUser {
 const DispatcherPage = () => {
   const [users, setUsers] = useState<DispatcherUser[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<DispatcherUser[]>([]);
+  const [paginatedUsers, setPaginatedUsers] = useState<DispatcherUser[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isFetching, setIsFetching] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -52,6 +60,11 @@ const DispatcherPage = () => {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [editFormData, setEditFormData] = useState<Partial<DispatcherUser>>({});
+
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
   const { toast } = useToast();
   const { userRole, user, loading: authLoading } = useAuth();
 
@@ -63,6 +76,27 @@ const DispatcherPage = () => {
   const fetchInProgress = useRef(false);
   const lastFetchTime = useRef(0);
   const isInitialized = useRef(false);
+
+  // Calculate pagination info
+  const totalPages = Math.ceil(filteredUsers.length / pageSize);
+  const startIndex = (currentPage - 1) * pageSize + 1;
+  const endIndex = Math.min(currentPage * pageSize, filteredUsers.length);
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  const handlePageSizeChange = (newPageSize: string) => {
+    setPageSize(parseInt(newPageSize));
+    setCurrentPage(1); // Reset to first page when page size changes
+  };
+
+  // Pagination effect
+  useEffect(() => {
+    const startIndex = (currentPage - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    setPaginatedUsers(filteredUsers.slice(startIndex, endIndex));
+  }, [filteredUsers, currentPage, pageSize]);
 
   // Helper function to get image URL from Supabase Storage
   const getImageUrl = (
@@ -331,6 +365,7 @@ const DispatcherPage = () => {
     }
 
     setFilteredUsers(filtered);
+    setCurrentPage(1); // Reset to first page when filters change
   }, [users, searchTerm, ethnicityFilter, religionFilter]);
 
   const handleView = (user: DispatcherUser) => {
@@ -502,6 +537,29 @@ const DispatcherPage = () => {
             )}
           </div>
 
+          {/* Page Size Selector */}
+          <div className="mb-4 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-600">Show:</span>
+              <Select value={pageSize.toString()} onValueChange={handlePageSizeChange}>
+                <SelectTrigger className="w-20">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="5">5</SelectItem>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="25">25</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                  <SelectItem value="100">100</SelectItem>
+                </SelectContent>
+              </Select>
+              <span className="text-sm text-gray-600">entries per page</span>
+            </div>
+            <div className="text-sm text-gray-600">
+              Showing {filteredUsers.length > 0 ? startIndex : 0} to {endIndex} of {filteredUsers.length} entries
+            </div>
+          </div>
+
           {/* FIXED: Better loading and empty state handling */}
           {isLoading ? (
             <div className="flex justify-center items-center h-64">
@@ -531,7 +589,7 @@ const DispatcherPage = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredUsers.length === 0 ? (
+                  {paginatedUsers.length === 0 ? (
                     <TableRow>
                       <TableCell
                         colSpan={9}
@@ -541,7 +599,7 @@ const DispatcherPage = () => {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredUsers.map((user) => (
+                    paginatedUsers.map((user) => (
                       <TableRow key={user.id}>
                         <TableCell>
                           <Avatar className="h-10 w-10">
@@ -650,6 +708,36 @@ const DispatcherPage = () => {
                   )}
                 </TableBody>
               </Table>
+            </div>
+          )}
+
+          {/* Pagination Controls */}
+          {filteredUsers.length > 0 && (
+            <div className="mt-4 flex items-center justify-between">
+              <div className="text-sm text-gray-600">
+                Page {currentPage} of {totalPages}
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage === 1}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Previous
+                </Button>
+                
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           )}
         </CardContent>

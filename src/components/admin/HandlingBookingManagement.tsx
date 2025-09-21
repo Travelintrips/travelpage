@@ -28,6 +28,12 @@ import {
   Calendar,
   User,
   MapPin,
+  ChevronDown,
+  ChevronRight,
+  Plane,
+  Clock,
+  CreditCard,
+  Users,
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -53,6 +59,7 @@ interface HandlingBooking {
   created_at: string;
   user_id?: string;
   payment_id?: string;
+  code_booking?: string;
 }
 
 const BookingAgentManagement = () => {
@@ -64,12 +71,23 @@ const BookingAgentManagement = () => {
   const [selectedBooking, setSelectedBooking] =
     useState<HandlingBooking | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const { toast } = useToast();
   const { userRole, isAdmin } = useAuth();
 
   useEffect(() => {
     fetchBookings();
   }, []);
+
+  const toggleRowExpansion = (bookingId: string) => {
+    const newExpandedRows = new Set(expandedRows);
+    if (newExpandedRows.has(bookingId)) {
+      newExpandedRows.delete(bookingId);
+    } else {
+      newExpandedRows.add(bookingId);
+    }
+    setExpandedRows(newExpandedRows);
+  };
 
   const fetchBookings = async () => {
     try {
@@ -317,16 +335,10 @@ const BookingAgentManagement = () => {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-12"></TableHead>
                   <TableHead>Booking ID</TableHead>
                   <TableHead>Customer</TableHead>
                   <TableHead>Category</TableHead>
-                  <TableHead>Passenger Area</TableHead>
-                  <TableHead>Pickup Area</TableHead>
-                  <TableHead>Flight Number</TableHead>
-                  <TableHead>Travel Type</TableHead>
-                  <TableHead>Date & Time</TableHead>
-                  <TableHead>Payment Method</TableHead>
-                  <TableHead>Passengers</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Price</TableHead>
                   <TableHead>Actions</TableHead>
@@ -334,247 +346,359 @@ const BookingAgentManagement = () => {
               </TableHeader>
               <TableBody>
                 {filteredBookings.map((booking) => (
-                  <TableRow key={booking.id}>
-                    <TableCell>
-                      <div className="font-mono text-sm">
-                        {booking.code_booking || code_booking}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div>
-                        <div className="font-medium">
-                          {booking.customer_name}
+                  <React.Fragment key={booking.id}>
+                    {/* Master Row */}
+                    <TableRow className="hover:bg-gray-50">
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => toggleRowExpansion(booking.id)}
+                          className="p-1"
+                        >
+                          {expandedRows.has(booking.id) ? (
+                            <ChevronDown className="h-4 w-4" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </TableCell>
+                      <TableCell>
+                        <div className="font-mono text-sm">
+                          {booking.code_booking || booking.booking_id || booking.id.slice(0, 8)}
                         </div>
-                        <div className="text-sm text-muted-foreground">
-                          {booking.customer_email}
+                      </TableCell>
+                      <TableCell>
+                        <div>
+                          <div className="font-medium">
+                            {booking.customer_name}
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            {booking.customer_email}
+                          </div>
                         </div>
-                        <div className="text-sm text-muted-foreground">
-                          {booking.customer_phone}
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{booking.category}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-sm">{booking.passenger_area}</div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-sm">{booking.pickup_area}</div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="font-medium">{booking.flight_number}</div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="secondary">{booking.travel_type}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div>
-                        <div className="font-medium">
-                          {formatDate(booking.pickup_date)}
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          {booking.pickup_time}
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-sm">
-                        {booking.payment_method || "N/A"}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center">
-                        <User className="h-4 w-4 mr-1" />
-                        {booking.passengers || "N/A"}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={getStatusBadgeVariant(booking.status)}>
-                        {(booking.status || "pending")
-                          .replace("_", " ")
-                          .toUpperCase()}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="font-medium">
-                      {formatCurrency(booking.total_price)}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center space-x-2">
-                        <Dialog>
-                          <DialogTrigger asChild>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{booking.category}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={getStatusBadgeVariant(booking.status)}>
+                          {(booking.status || "pending")
+                            .replace("_", " ")
+                            .toUpperCase()}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        {formatCurrency(booking.total_price)}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center space-x-2">
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setSelectedBooking(booking)}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-2xl">
+                              <DialogHeader>
+                                <DialogTitle>Booking Details</DialogTitle>
+                              </DialogHeader>
+                              {selectedBooking && (
+                                <div className="space-y-4">
+                                  <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                      <Label>Customer Name</Label>
+                                      <p className="font-medium">
+                                        {selectedBooking.customer_name}
+                                      </p>
+                                    </div>
+                                    <div>
+                                      <Label>Category</Label>
+                                      <p className="font-medium">
+                                        {selectedBooking.category}
+                                      </p>
+                                    </div>
+                                    <div>
+                                      <Label>Pickup Date</Label>
+                                      <p className="font-medium">
+                                        {formatDate(selectedBooking.pickup_date)}
+                                      </p>
+                                    </div>
+                                    <div>
+                                      <Label>Pickup Time</Label>
+                                      <p className="font-medium">
+                                        {selectedBooking.pickup_time}
+                                      </p>
+                                    </div>
+                                    <div>
+                                      <Label>Passengers</Label>
+                                      <p className="font-medium">
+                                        {selectedBooking.passengers || "N/A"}
+                                      </p>
+                                    </div>
+                                    <div>
+                                      <Label>Total Price</Label>
+                                      <p className="font-medium">
+                                        {formatCurrency(
+                                          selectedBooking.total_price,
+                                        )}
+                                      </p>
+                                    </div>
+                                    <div>
+                                      <Label>Flight Number</Label>
+                                      <p className="font-medium">
+                                        {selectedBooking.flight_number}
+                                      </p>
+                                    </div>
+                                    <div>
+                                      <Label>Travel Type</Label>
+                                      <p className="font-medium">
+                                        {selectedBooking.travel_type}
+                                      </p>
+                                    </div>
+                                    <div>
+                                      <Label>Booking ID</Label>
+                                      <p className="font-medium font-mono">
+                                        {selectedBooking.booking_id ||
+                                          selectedBooking.id}
+                                      </p>
+                                    </div>
+                                    <div>
+                                      <Label>Payment Method</Label>
+                                      <p className="font-medium">
+                                        {selectedBooking.payment_method || "N/A"}
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <Label>Passenger Area</Label>
+                                    <p className="font-medium">
+                                      {selectedBooking.passenger_area}
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <Label>Pickup Area</Label>
+                                    <p className="font-medium">
+                                      {selectedBooking.pickup_area}
+                                    </p>
+                                  </div>
+                                  {selectedBooking.additional_notes && (
+                                    <div>
+                                      <Label>Additional Notes</Label>
+                                      <p className="font-medium">
+                                        {selectedBooking.additional_notes}
+                                      </p>
+                                    </div>
+                                  )}
+                                  <div className="flex space-x-2">
+                                    <Button
+                                      onClick={() =>
+                                        updateBookingStatus(
+                                          selectedBooking.id,
+                                          "confirmed",
+                                        )
+                                      }
+                                      disabled={
+                                        selectedBooking.status === "confirmed"
+                                      }
+                                    >
+                                      Confirm
+                                    </Button>
+                                    <Button
+                                      variant="outline"
+                                      onClick={() =>
+                                        updateBookingStatus(
+                                          selectedBooking.id,
+                                          "in_progress",
+                                        )
+                                      }
+                                      disabled={
+                                        selectedBooking.status === "in_progress"
+                                      }
+                                    >
+                                      In Progress
+                                    </Button>
+                                    <Button
+                                      variant="outline"
+                                      onClick={() =>
+                                        updateBookingStatus(
+                                          selectedBooking.id,
+                                          "completed",
+                                        )
+                                      }
+                                      disabled={
+                                        selectedBooking.status === "completed"
+                                      }
+                                    >
+                                      Complete
+                                    </Button>
+                                    <Button
+                                      variant="destructive"
+                                      onClick={() =>
+                                        updateBookingStatus(
+                                          selectedBooking.id,
+                                          "cancelled",
+                                        )
+                                      }
+                                      disabled={
+                                        selectedBooking.status === "cancelled"
+                                      }
+                                    >
+                                      Cancel
+                                    </Button>
+                                  </div>
+                                </div>
+                              )}
+                            </DialogContent>
+                          </Dialog>
+                          {userRole === "Super Admin" && (
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => setSelectedBooking(booking)}
+                              onClick={() => deleteBooking(booking.id)}
                             >
-                              <Edit className="h-4 w-4" />
+                              <Trash2 className="h-4 w-4" />
                             </Button>
-                          </DialogTrigger>
-                          <DialogContent className="max-w-2xl">
-                            <DialogHeader>
-                              <DialogTitle>Booking Details</DialogTitle>
-                            </DialogHeader>
-                            {selectedBooking && (
-                              <div className="space-y-4">
-                                <div className="grid grid-cols-2 gap-4">
-                                  <div>
-                                    <Label>Customer Name</Label>
-                                    <p className="font-medium">
-                                      {selectedBooking.customer_name}
-                                    </p>
-                                  </div>
-                                  <div>
-                                    <Label>Category</Label>
-                                    <p className="font-medium">
-                                      {selectedBooking.category}
-                                    </p>
-                                  </div>
-                                  <div>
-                                    <Label>Pickup Date</Label>
-                                    <p className="font-medium">
-                                      {formatDate(selectedBooking.pickup_date)}
-                                    </p>
-                                  </div>
-                                  <div>
-                                    <Label>Pickup Time</Label>
-                                    <p className="font-medium">
-                                      {selectedBooking.pickup_time}
-                                    </p>
-                                  </div>
-                                  <div>
-                                    <Label>Passengers</Label>
-                                    <p className="font-medium">
-                                      {selectedBooking.passengers || "N/A"}
-                                    </p>
-                                  </div>
-                                  <div>
-                                    <Label>Total Price</Label>
-                                    <p className="font-medium">
-                                      {formatCurrency(
-                                        selectedBooking.total_price,
-                                      )}
-                                    </p>
-                                  </div>
-                                  <div>
-                                    <Label>Flight Number</Label>
-                                    <p className="font-medium">
-                                      {selectedBooking.flight_number}
-                                    </p>
-                                  </div>
-                                  <div>
-                                    <Label>Travel Type</Label>
-                                    <p className="font-medium">
-                                      {selectedBooking.travel_type}
-                                    </p>
-                                  </div>
-                                  <div>
-                                    <Label>Booking ID</Label>
-                                    <p className="font-medium font-mono">
-                                      {selectedBooking.booking_id ||
-                                        selectedBooking.id}
-                                    </p>
-                                  </div>
-                                  <div>
-                                    <Label>Payment Method</Label>
-                                    <p className="font-medium">
-                                      {selectedBooking.payment_method || "N/A"}
-                                    </p>
-                                  </div>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+
+                    {/* Detail Row - Expandable */}
+                    {expandedRows.has(booking.id) && (
+                      <TableRow className="bg-gray-50/50">
+                        <TableCell colSpan={7}>
+                          <div className="p-4 space-y-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                              {/* Passenger Area */}
+                              <div className="flex items-start space-x-3">
+                                <div className="bg-blue-100 p-2 rounded-lg">
+                                  <MapPin className="h-4 w-4 text-blue-600" />
                                 </div>
                                 <div>
-                                  <Label>Passenger Area</Label>
-                                  <p className="font-medium">
-                                    {selectedBooking.passenger_area}
+                                  <p className="text-sm font-medium text-gray-900">
+                                    Passenger Area
                                   </p>
-                                </div>
-                                <div>
-                                  <Label>Pickup Area</Label>
-                                  <p className="font-medium">
-                                    {selectedBooking.pickup_area}
+                                  <p className="text-sm text-gray-600">
+                                    {booking.passenger_area}
                                   </p>
-                                </div>
-                                {selectedBooking.additional_notes && (
-                                  <div>
-                                    <Label>Additional Notes</Label>
-                                    <p className="font-medium">
-                                      {selectedBooking.additional_notes}
-                                    </p>
-                                  </div>
-                                )}
-                                <div className="flex space-x-2">
-                                  <Button
-                                    onClick={() =>
-                                      updateBookingStatus(
-                                        selectedBooking.id,
-                                        "confirmed",
-                                      )
-                                    }
-                                    disabled={
-                                      selectedBooking.status === "confirmed"
-                                    }
-                                  >
-                                    Confirm
-                                  </Button>
-                                  <Button
-                                    variant="outline"
-                                    onClick={() =>
-                                      updateBookingStatus(
-                                        selectedBooking.id,
-                                        "in_progress",
-                                      )
-                                    }
-                                    disabled={
-                                      selectedBooking.status === "in_progress"
-                                    }
-                                  >
-                                    In Progress
-                                  </Button>
-                                  <Button
-                                    variant="outline"
-                                    onClick={() =>
-                                      updateBookingStatus(
-                                        selectedBooking.id,
-                                        "completed",
-                                      )
-                                    }
-                                    disabled={
-                                      selectedBooking.status === "completed"
-                                    }
-                                  >
-                                    Complete
-                                  </Button>
-                                  <Button
-                                    variant="destructive"
-                                    onClick={() =>
-                                      updateBookingStatus(
-                                        selectedBooking.id,
-                                        "cancelled",
-                                      )
-                                    }
-                                    disabled={
-                                      selectedBooking.status === "cancelled"
-                                    }
-                                  >
-                                    Cancel
-                                  </Button>
                                 </div>
                               </div>
+
+                              {/* Pickup Area */}
+                              <div className="flex items-start space-x-3">
+                                <div className="bg-green-100 p-2 rounded-lg">
+                                  <MapPin className="h-4 w-4 text-green-600" />
+                                </div>
+                                <div>
+                                  <p className="text-sm font-medium text-gray-900">
+                                    Pickup Area
+                                  </p>
+                                  <p className="text-sm text-gray-600">
+                                    {booking.pickup_area}
+                                  </p>
+                                </div>
+                              </div>
+
+                              {/* Flight Number */}
+                              <div className="flex items-start space-x-3">
+                                <div className="bg-purple-100 p-2 rounded-lg">
+                                  <Plane className="h-4 w-4 text-purple-600" />
+                                </div>
+                                <div>
+                                  <p className="text-sm font-medium text-gray-900">
+                                    Flight Number
+                                  </p>
+                                  <p className="text-sm text-gray-600">
+                                    {booking.flight_number}
+                                  </p>
+                                </div>
+                              </div>
+
+                              {/* Travel Type */}
+                              <div className="flex items-start space-x-3">
+                                <div className="bg-orange-100 p-2 rounded-lg">
+                                  <Calendar className="h-4 w-4 text-orange-600" />
+                                </div>
+                                <div>
+                                  <p className="text-sm font-medium text-gray-900">
+                                    Travel Type
+                                  </p>
+                                  <Badge variant="secondary" className="text-xs">
+                                    {booking.travel_type}
+                                  </Badge>
+                                </div>
+                              </div>
+
+                              {/* Date & Time */}
+                              <div className="flex items-start space-x-3">
+                                <div className="bg-indigo-100 p-2 rounded-lg">
+                                  <Clock className="h-4 w-4 text-indigo-600" />
+                                </div>
+                                <div>
+                                  <p className="text-sm font-medium text-gray-900">
+                                    Date & Time
+                                  </p>
+                                  <p className="text-sm text-gray-600">
+                                    {formatDate(booking.pickup_date)}
+                                  </p>
+                                  <p className="text-xs text-gray-500">
+                                    {booking.pickup_time}
+                                  </p>
+                                </div>
+                              </div>
+
+                              {/* Payment Method */}
+                              <div className="flex items-start space-x-3">
+                                <div className="bg-yellow-100 p-2 rounded-lg">
+                                  <CreditCard className="h-4 w-4 text-yellow-600" />
+                                </div>
+                                <div>
+                                  <p className="text-sm font-medium text-gray-900">
+                                    Payment Method
+                                  </p>
+                                  <p className="text-sm text-gray-600">
+                                    {booking.payment_method || "N/A"}
+                                  </p>
+                                </div>
+                              </div>
+
+                              {/* Passengers */}
+                              <div className="flex items-start space-x-3">
+                                <div className="bg-red-100 p-2 rounded-lg">
+                                  <Users className="h-4 w-4 text-red-600" />
+                                </div>
+                                <div>
+                                  <p className="text-sm font-medium text-gray-900">
+                                    Passengers
+                                  </p>
+                                  <p className="text-sm text-gray-600">
+                                    {booking.passengers || "N/A"} person(s)
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Additional Notes */}
+                            {booking.additional_notes && (
+                              <div className="mt-4 p-3 bg-gray-100 rounded-lg">
+                                <p className="text-sm font-medium text-gray-900 mb-1">
+                                  Additional Notes
+                                </p>
+                                <p className="text-sm text-gray-600">
+                                  {booking.additional_notes}
+                                </p>
+                              </div>
                             )}
-                          </DialogContent>
-                        </Dialog>
-                        {userRole === "Super Admin" && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => deleteBooking(booking.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </React.Fragment>
                 ))}
               </TableBody>
             </Table>
