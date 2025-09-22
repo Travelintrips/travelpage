@@ -94,6 +94,8 @@ interface Agent {
   discount_percentage?: number;
   account_type?: string;
   nama_perusahaan?: string;
+  handling_discount_active?: boolean;
+  handling_discount_value?: number; // Changed from percentage to value (nominal)
 }
 
 const AgentManagement = () => {
@@ -137,6 +139,12 @@ const AgentManagement = () => {
     end_date: "",
     discount_percentage: 0,
     status: "inactive",
+  });
+  const [handlingDiscountDialogOpen, setHandlingDiscountDialogOpen] = useState(false);
+  const [handlingDiscountForm, setHandlingDiscountForm] = useState({
+    agent_id: "",
+    discount_value: 0, // Changed from discount_percentage to discount_value (nominal)
+    is_active: false,
   });
   const [activeTab, setActiveTab] = useState("agents");
   const [agentLogs, setAgentLogs] = useState<any[]>([]);
@@ -313,7 +321,9 @@ const AgentManagement = () => {
           account_type,
           status,
           saldo,
-          role
+          role,
+          handling_discount_active,
+          handling_discount_value
         `
         )
         .or("role.eq.Agent,role_id.eq.11")
@@ -429,6 +439,10 @@ const AgentManagement = () => {
           const membershipStatus = activeMembership?.is_active ? "Active" : "Inactive";
           const discountPercentage = activeMembership?.discount_percentage || 0;
 
+          // Get handling discount info from users table
+          const handlingDiscountActive = agent.handling_discount_active || false;
+          const handlingDiscountValue = agent.handling_discount_value || 0;
+
           // Get account_type and nama_perusahaan directly from agent data
           const rawAccountType = agent.account_type;
           const normalizedAccountType = rawAccountType ? rawAccountType.toLowerCase() : null;
@@ -458,6 +472,8 @@ const AgentManagement = () => {
             discount_percentage: discountPercentage,
             account_type: displayAccountType,
             nama_perusahaan: companyName,
+            handling_discount_active: handlingDiscountActive,
+            handling_discount_value: handlingDiscountValue,
           };
         }),
       );
@@ -533,7 +549,7 @@ const AgentManagement = () => {
       }
 
       // Fetch transactions from multiple tables
-      const [bookingsTrips, airportTransfers, baggageBookings, handlingBookings, regularBookings] = await Promise.all([
+      const [bookingsTrips, airportTransfers, baggageBookings, handlingBookings, regularBookings, historiTransaksi] = await Promise.all([
         // Bookings trips
         supabase
           .from("bookings_trips")
@@ -577,19 +593,16 @@ const AgentManagement = () => {
         
         // Handling bookings
         supabase
-          .from("histori_transaksi")
-  .select(`
-    id,
-    created_at,
-    nominal,
-    saldo_awal,
-    saldo_akhir,
-    jenis_transaksi,
-    status,
-    user:user_id(id, full_name, email)
-  `)
-  .in("user_id", agentIds)
-  .order("created_at", { ascending: false }),
+          .from("handling_bookings")
+          .select(`
+            id,
+            created_at,
+            total_price,
+            status,
+            user:user_id(id, full_name, email)
+          `)
+          .in("user_id", agentIds)
+          .order("created_at", { ascending: false }),
         
         // Regular bookings
         supabase
@@ -602,9 +615,26 @@ const AgentManagement = () => {
             user:user_id(id, full_name, email)
           `)
           .in("user_id", agentIds)
-          .order("created_at", { ascending: false })
+          .order("created_at", { ascending: false }),
 
         //histori transaksi
+supabase
+  .from("histori_transaksi")
+  .select(`
+    id,
+    created_at,
+    nominal,
+    saldo_awal,
+    saldo_akhir,
+    jenis_transaksi,
+    status,
+    keterangan,
+    kode_booking,
+    user:user_id(id, full_name, email)
+  `)
+  .in("user_id", agentIds)
+  .order("created_at", { ascending: false })
+
          
       ]);
 
@@ -613,8 +643,13 @@ const AgentManagement = () => {
         ...(bookingsTrips.data || []).map(t => ({ ...t, type: "Trip Booking", amount: t.total_amount || t.total_price })),
         ...(airportTransfers.data || []).map(t => ({ ...t, type: "Airport Transfer", amount: t.price, user: t.customer || t.driver })),
         ...(baggageBookings.data || []).map(t => ({ ...t, type: "Baggage Booking", amount: t.total_amount })),
-         ...(handlingBookings.data || []).map(t => ({ ...t, type: "Transaction History", amount: t.nominal })),
-        ...(regularBookings.data || []).map(t => ({ ...t, type: "Regular Booking", amount: t.total_amount }))
+        ...(handlingBookings.data || []).map(t => ({ ...t, type: "Handling Service", amount: t.total_price })),
+        ...(regularBookings.data || []).map(t => ({ ...t, type: "Regular Booking", amount: t.total_amount })),
+        ...(historiTransaksi.data || []).map(t => ({
+  ...t,
+  type: t.keterangan || "Transaction History", // fallback kalau null
+  amount: t.nominal
+}))
       ];
 
       // Sort by created_at descending
@@ -1114,6 +1149,72 @@ const handleConfirmSuspend = async () => {
     }
   };
 
+  const handleActivateHandlingDiscount = async () => {
+    if (!handlingDiscountForm.agent_id) {
+      toast({
+        title: "Error",
+        description: "Please select an agent.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setActionLoading(handlingDiscountForm.agent_id);
+    try {
+      const agentId = handlingDiscountForm.agent_id;
+
+      // Update users table with handling discount info
+      const { error: userError } = await supabase
+        .from("users")
+        .update({
+          handling_discount_active: handlingDiscountForm.is_active,
+          handling_discount_value: handlingDiscountForm.discount_value, // Save as nominal value
+        })
+        .eq("id", agentId);
+
+      if (userError) throw userError;
+
+      // Insert log entry
+      const { error: logError } = await supabase
+        .from("agent_logs")
+        .insert({
+          agent_id: agentId,
+          activated_by: userId,
+          action: handlingDiscountForm.is_active ? "Handling Discount Activated" : "Handling Discount Deactivated",
+          created_at: new Date().toISOString()
+        });
+
+      if (logError) {
+        console.error("Error logging handling discount action:", logError);
+      }
+
+      toast({
+        title: "Success",
+        description: `Handling discount has been ${handlingDiscountForm.is_active ? "activated" : "deactivated"} successfully.`,
+      });
+
+      setHandlingDiscountDialogOpen(false);
+      setHandlingDiscountForm({
+        agent_id: "",
+        discount_value: 0,
+        is_active: false,
+      });
+      
+      // Refresh the agents list
+      await fetchAgents();
+      
+    } catch (error) {
+      console.error("Error updating handling discount:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update handling discount. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64 bg-white">
@@ -1258,8 +1359,7 @@ const handleConfirmSuspend = async () => {
                     <TableHead className="w-12"></TableHead>
                     <TableHead>Agent ID</TableHead>
                     <TableHead>Agent Name</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Phone</TableHead>
+                    <TableHead>Diskon Handling</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Balance</TableHead>
                     <TableHead>Actions</TableHead>
@@ -1294,12 +1394,34 @@ const handleConfirmSuspend = async () => {
                           <div className="font-medium">{agent.full_name}</div>
                         </TableCell>
                         <TableCell>
-                          <div className="text-sm">{agent.email}</div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="text-sm">
-                            {agent.phone_number || "N/A"}
-                          </div>
+                          {userRole && ["Super Admin", "Admin", "Staff Admin"].includes(userRole) ? (
+                            <Button
+                              variant={agent.handling_discount_active ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => {
+                                setHandlingDiscountForm({
+                                  agent_id: agent.id,
+                                  discount_value: agent.handling_discount_value || 0, // Changed to value
+                                  is_active: !agent.handling_discount_active,
+                                });
+                                setHandlingDiscountDialogOpen(true);
+                              }}
+                              className={agent.handling_discount_active ? "bg-green-600 hover:bg-green-700 text-white" : ""}
+                            >
+                              {agent.handling_discount_active ? (
+                                <>
+                                  <span className="mr-1">✓</span>
+                                  {formatCurrency(agent.handling_discount_value || 0)}
+                                </>
+                              ) : (
+                                "Aktifkan"
+                              )}
+                            </Button>
+                          ) : (
+                            <Badge variant={agent.handling_discount_active ? "default" : "secondary"}>
+                              {agent.handling_discount_active ? formatCurrency(agent.handling_discount_value || 0) : "Tidak Aktif"} {/* Show as currency */}
+                            </Badge>
+                          )}
                         </TableCell>
                         <TableCell>
                           {userRole && ["Super Admin", "Admin", "Staff Admin"].includes(userRole) ? (
@@ -1422,13 +1544,43 @@ const handleConfirmSuspend = async () => {
                       // Detail Row - Expandable (conditionally rendered)
                       ...(isExpanded ? [
                         <TableRow key={`${agent.id}-detail`} className="bg-gray-50/50">
-                          <TableCell colSpan={8}>
+                          <TableCell colSpan={7}>
                             <div className="p-4 space-y-4">
                               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                {/* Account Type */}
+                                {/* Email */}
                                 <div className="flex items-start space-x-3">
                                   <div className="bg-blue-100 p-2 rounded-lg">
-                                    <Building className="h-4 w-4 text-blue-600" />
+                                    <User className="h-4 w-4 text-blue-600" />
+                                  </div>
+                                  <div>
+                                    <p className="text-sm font-medium text-gray-900">
+                                      Email
+                                    </p>
+                                    <p className="text-sm text-gray-600">
+                                      {agent.email}
+                                    </p>
+                                  </div>
+                                </div>
+
+                                {/* Phone */}
+                                <div className="flex items-start space-x-3">
+                                  <div className="bg-green-100 p-2 rounded-lg">
+                                    <MapPin className="h-4 w-4 text-green-600" />
+                                  </div>
+                                  <div>
+                                    <p className="text-sm font-medium text-gray-900">
+                                      Phone
+                                    </p>
+                                    <p className="text-sm text-gray-600">
+                                      {agent.phone_number || "N/A"}
+                                    </p>
+                                  </div>
+                                </div>
+
+                                {/* Account Type */}
+                                <div className="flex items-start space-x-3">
+                                  <div className="bg-purple-100 p-2 rounded-lg">
+                                    <Building className="h-4 w-4 text-purple-600" />
                                   </div>
                                   <div>
                                     <p className="text-sm font-medium text-gray-900">
@@ -1449,8 +1601,8 @@ const handleConfirmSuspend = async () => {
 
                                 {/* Company */}
                                 <div className="flex items-start space-x-3">
-                                  <div className="bg-green-100 p-2 rounded-lg">
-                                    <Building className="h-4 w-4 text-green-600" />
+                                  <div className="bg-orange-100 p-2 rounded-lg">
+                                    <Building className="h-4 w-4 text-orange-600" />
                                   </div>
                                   <div>
                                     <p className="text-sm font-medium text-gray-900">
@@ -1464,8 +1616,8 @@ const handleConfirmSuspend = async () => {
 
                                 {/* Member */}
                                 <div className="flex items-start space-x-3">
-                                  <div className="bg-purple-100 p-2 rounded-lg">
-                                    <Users className="h-4 w-4 text-purple-600" />
+                                  <div className="bg-indigo-100 p-2 rounded-lg">
+                                    <Users className="h-4 w-4 text-indigo-600" />
                                   </div>
                                   <div>
                                     <p className="text-sm font-medium text-gray-900">
@@ -1482,8 +1634,8 @@ const handleConfirmSuspend = async () => {
 
                                 {/* Total Bookings */}
                                 <div className="flex items-start space-x-3">
-                                  <div className="bg-orange-100 p-2 rounded-lg">
-                                    <Calendar className="h-4 w-4 text-orange-600" />
+                                  <div className="bg-teal-100 p-2 rounded-lg">
+                                    <Calendar className="h-4 w-4 text-teal-600" />
                                   </div>
                                   <div>
                                     <p className="text-sm font-medium text-gray-900">
@@ -1497,8 +1649,8 @@ const handleConfirmSuspend = async () => {
 
                                 {/* Total Revenue */}
                                 <div className="flex items-start space-x-3">
-                                  <div className="bg-indigo-100 p-2 rounded-lg">
-                                    <DollarSign className="h-4 w-4 text-indigo-600" />
+                                  <div className="bg-emerald-100 p-2 rounded-lg">
+                                    <DollarSign className="h-4 w-4 text-emerald-600" />
                                   </div>
                                   <div>
                                     <p className="text-sm font-medium text-gray-900">
@@ -1739,7 +1891,7 @@ const handleConfirmSuspend = async () => {
                     <TableHead>Jenis Transaksi</TableHead>
                     <TableHead>Nama Agent</TableHead>
                     <TableHead>Email Agent</TableHead>
-                    <TableHead>Jumlah</TableHead>
+                    <TableHead>Jumlah Pembayaran</TableHead>
                     <TableHead>Status</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -1756,7 +1908,7 @@ const handleConfirmSuspend = async () => {
                       </TableCell>
                       <TableCell>
                         <div className="font-mono text-sm">
-                          {transaction.id.slice(0, 8)}
+                          {transaction.kode_booking}
                         </div>
                       </TableCell>
                       <TableCell>
@@ -2003,6 +2155,91 @@ const handleConfirmSuspend = async () => {
                 </>
               ) : (
                 "Aktifkan Member"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Handling Discount Dialog */}
+      <Dialog open={handlingDiscountDialogOpen} onOpenChange={setHandlingDiscountDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Diskon Handling</DialogTitle>
+            <DialogDescription>
+              Aktifkan atau nonaktifkan diskon handling untuk agent dengan mengatur persentase diskon.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="agent_name" className="text-right">
+                Agent
+              </Label>
+              <div className="col-span-3">
+                <Input
+                  id="agent_name"
+                  value={agents.find(a => a.id === handlingDiscountForm.agent_id)?.full_name || ""}
+                  disabled
+                  className="bg-gray-100"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="discount_value" className="text-right">
+                Nominal Diskon (IDR)
+              </Label>
+              <Input
+                id="discount_value"
+                type="number"
+                min="0"
+                step="1000"
+                value={handlingDiscountForm.discount_value}
+                onChange={(e) =>
+                  setHandlingDiscountForm({ ...handlingDiscountForm, discount_value: parseFloat(e.target.value) || 0 })
+                }
+                className="col-span-3"
+                placeholder="Masukkan nominal diskon dalam Rupiah"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="is_active" className="text-right">
+                Status
+              </Label>
+              <div className="col-span-3 flex items-center space-x-2">
+                <Switch
+                  id="is_active"
+                  checked={handlingDiscountForm.is_active}
+                  onCheckedChange={(checked) =>
+                    setHandlingDiscountForm({ ...handlingDiscountForm, is_active: checked })
+                  }
+                />
+                <span className="text-sm">
+                  {handlingDiscountForm.is_active ? "Aktif" : "Tidak Aktif"}
+                </span>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setHandlingDiscountDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleActivateHandlingDiscount}
+              disabled={actionLoading === handlingDiscountForm.agent_id}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              {actionLoading === handlingDiscountForm.agent_id ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save Changes"
               )}
             </Button>
           </DialogFooter>
