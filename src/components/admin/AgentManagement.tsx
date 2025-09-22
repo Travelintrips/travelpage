@@ -112,6 +112,8 @@ const AgentManagement = () => {
   const fetchInProgress = useRef(false);
   const lastFetchTime = useRef(0);
   const isInitialized = useRef(false);
+  const logsFetched = useRef(false);
+  const transactionsFetched = useRef(false);
   
   const [searchTerm, setSearchTerm] = useState("");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -198,6 +200,19 @@ const AgentManagement = () => {
     const endIndex = startIndex + pageSize;
     setPaginatedAgents(filteredAgents.slice(startIndex, endIndex));
   }, [filteredAgents, currentPage, pageSize]);
+
+  // FIXED: Add useEffect to fetch data when tab changes
+  useEffect(() => {
+    if (activeTab === "logs" && !logsFetched.current && !logsLoading) {
+      console.log('[AgentManagement] Logs tab activated, fetching agent logs...');
+      logsFetched.current = true;
+      fetchAgentLogs();
+    } else if (activeTab === "transactions" && !transactionsFetched.current && !transactionLoading) {
+      console.log('[AgentManagement] Transactions tab activated, fetching transaction history...');
+      transactionsFetched.current = true;
+      fetchTransactionHistory();
+    }
+  }, [activeTab]);
 
   // FIXED: Single useEffect to handle all initialization logic with caching
   useEffect(() => {
@@ -496,6 +511,8 @@ const AgentManagement = () => {
         description: "Failed to fetch agent logs. Please try again.",
         variant: "destructive",
       });
+      // Set empty array to prevent infinite retries
+      setAgentLogs([]);
     } finally {
       setLogsLoading(false);
     }
@@ -510,6 +527,7 @@ const AgentManagement = () => {
       const agentIds = agents.map(agent => agent.id);
       
       if (agentIds.length === 0) {
+        console.log("No agents found, setting empty transaction history");
         setTransactionHistory([]);
         return;
       }
@@ -559,16 +577,19 @@ const AgentManagement = () => {
         
         // Handling bookings
         supabase
-          .from("handling_bookings")
-          .select(`
-            id,
-            created_at,
-            total_price,
-            status,
-            user:user_id(id, full_name, email)
-          `)
-          .in("user_id", agentIds)
-          .order("created_at", { ascending: false }),
+          .from("histori_transaksi")
+  .select(`
+    id,
+    created_at,
+    nominal,
+    saldo_awal,
+    saldo_akhir,
+    jenis_transaksi,
+    status,
+    user:user_id(id, full_name, email)
+  `)
+  .in("user_id", agentIds)
+  .order("created_at", { ascending: false }),
         
         // Regular bookings
         supabase
@@ -582,6 +603,9 @@ const AgentManagement = () => {
           `)
           .in("user_id", agentIds)
           .order("created_at", { ascending: false })
+
+        //histori transaksi
+         
       ]);
 
       // Combine all transactions
@@ -589,7 +613,7 @@ const AgentManagement = () => {
         ...(bookingsTrips.data || []).map(t => ({ ...t, type: "Trip Booking", amount: t.total_amount || t.total_price })),
         ...(airportTransfers.data || []).map(t => ({ ...t, type: "Airport Transfer", amount: t.price, user: t.customer || t.driver })),
         ...(baggageBookings.data || []).map(t => ({ ...t, type: "Baggage Booking", amount: t.total_amount })),
-        ...(handlingBookings.data || []).map(t => ({ ...t, type: "Handling Service", amount: t.total_price })),
+         ...(handlingBookings.data || []).map(t => ({ ...t, type: "Transaction History", amount: t.nominal })),
         ...(regularBookings.data || []).map(t => ({ ...t, type: "Regular Booking", amount: t.total_amount }))
       ];
 
@@ -605,6 +629,8 @@ const AgentManagement = () => {
         description: "Failed to fetch transaction history. Please try again.",
         variant: "destructive",
       });
+      // Set empty array to prevent infinite retries
+      setTransactionHistory([]);
     } finally {
       setTransactionLoading(false);
     }
@@ -1240,10 +1266,11 @@ const handleConfirmSuspend = async () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {paginatedAgents.map((agent) => (
-                    <React.Fragment key={agent.id}>
-                      {/* Master Row */}
-                      <TableRow className="hover:bg-gray-50">
+                  {paginatedAgents.map((agent) => {
+                    const isExpanded = expandedRows.has(agent.id);
+                    return [
+                      // Master Row
+                      <TableRow key={agent.id} className="hover:bg-gray-50">
                         <TableCell>
                           <Button
                             variant="ghost"
@@ -1251,7 +1278,7 @@ const handleConfirmSuspend = async () => {
                             onClick={() => toggleRowExpansion(agent.id)}
                             className="p-1"
                           >
-                            {expandedRows.has(agent.id) ? (
+                            {isExpanded ? (
                               <ChevronDown className="h-4 w-4" />
                             ) : (
                               <ChevronRight className="h-4 w-4" />
@@ -1390,11 +1417,11 @@ const handleConfirmSuspend = async () => {
                             </Badge>
                           )}
                         </TableCell>
-                      </TableRow>
+                      </TableRow>,
 
-                      {/* Detail Row - Expandable */}
-                      {expandedRows.has(agent.id) && (
-                        <TableRow className="bg-gray-50/50">
+                      // Detail Row - Expandable (conditionally rendered)
+                      ...(isExpanded ? [
+                        <TableRow key={`${agent.id}-detail`} className="bg-gray-50/50">
                           <TableCell colSpan={8}>
                             <div className="p-4 space-y-4">
                               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1504,9 +1531,9 @@ const handleConfirmSuspend = async () => {
                             </div>
                           </TableCell>
                         </TableRow>
-                      )}
-                    </React.Fragment>
-                  ))}
+                      ] : [])
+                    ];
+                  }).flat()}
                 </TableBody>
               </Table>
             </div>
@@ -1547,13 +1574,35 @@ const handleConfirmSuspend = async () => {
       {activeTab === "logs" && (
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
-              Logs Aktivasi Agent
-            </CardTitle>
-            <CardDescription>
-              Riwayat aktivasi dan deaktivasi agent oleh admin
-            </CardDescription>
+            <div className="flex justify-between items-center">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Calendar className="h-5 w-5" />
+                  Logs Aktivasi Agent
+                </CardTitle>
+                <CardDescription>
+                  Riwayat aktivasi dan deaktivasi agent oleh admin
+                </CardDescription>
+              </div>
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  logsFetched.current = false;
+                  fetchAgentLogs();
+                }} 
+                disabled={logsLoading}
+                size="sm"
+              >
+                {logsLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    Loading...
+                  </>
+                ) : (
+                  "Refresh"
+                )}
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             {logsLoading ? (
@@ -1635,13 +1684,35 @@ const handleConfirmSuspend = async () => {
       {activeTab === "transactions" && (
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
-              Histori Transaksi Agent
-            </CardTitle>
-            <CardDescription>
-              Riwayat semua transaksi yang dilakukan oleh agent
-            </CardDescription>
+            <div className="flex justify-between items-center">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Calendar className="h-5 w-5" />
+                  Histori Transaksi Agent
+                </CardTitle>
+                <CardDescription>
+                  Riwayat semua transaksi yang dilakukan oleh agent
+                </CardDescription>
+              </div>
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  transactionsFetched.current = false;
+                  fetchTransactionHistory();
+                }} 
+                disabled={transactionLoading}
+                size="sm"
+              >
+                {transactionLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    Loading...
+                  </>
+                ) : (
+                  "Refresh"
+                )}
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             {transactionLoading ? (

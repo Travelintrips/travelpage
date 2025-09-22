@@ -279,9 +279,9 @@ export default function StaffManagement() {
       let allowedRoleIds: number[] = [];
 
       if (userRole === "Super Admin") {
-        allowedRoleNames = ["Staff", "Staff Trips", "Staff Admin", "Staff Traffic", "Staff Ias"];
+        allowedRoleNames = ["Staff", "Staff Trips", "Staff Admin", "Staff Traffic"];
       } else {
-        allowedRoleNames = ["Staff", "Staff Trips", "Staff Admin", "Staff Traffic", "Staff Ias"];
+        allowedRoleNames = ["Staff", "Staff Trips", "Staff Admin", "Staff Traffic"];
       }
 
       // Filter out excluded roles

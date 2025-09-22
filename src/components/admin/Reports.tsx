@@ -16,10 +16,13 @@ interface JournalEntry {
   description: string;
   service_type: string;
   total_debit: number;
+  total_credit: number;
   vehicle_type: string;
   vehicle_name: string;
   license_plate: string;
   status?: string;
+  saldo_driver_now?: number; // Add driver balance
+  saldo_agent_now?: number;  // Add agent balance
 }
 
 interface ServiceTypeOption {
@@ -48,13 +51,17 @@ const Reports = () => {
   const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
   const lastDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
 
-  const [filters, setFilters] = useState<FilterOptions>({
-    dateFrom: firstDayOfMonth.toISOString().split('T')[0],
-    dateTo: lastDayOfMonth.toISOString().split('T')[0],
-    serviceType: "all",
-    status: "all",
-    search: ""
+  const [filters, setFilters] = useState({
+    startDate: "",
+    endDate: "",
+    nama: "all", // Use 'all' instead of empty string
+    serviceType: "all", // Use 'all' instead of empty string
+    globalSearch: "", // Global search field
   });
+  const [namaOptions, setNamaOptions] = useState<Array<{label: string, value: string}>>([]);
+  const [loadingNamaOptions, setLoadingNamaOptions] = useState(false);
+  const [currentPage, setCurrentPage] = useState(0); // Add pagination state
+  const [pageSize, setPageSize] = useState(10); // Add page size state
 
   const [sortConfig, setSortConfig] = useState<{
     key: keyof JournalEntry;
@@ -64,74 +71,72 @@ const Reports = () => {
     direction: 'desc'
   });
 
-  // Fetch service type options dynamically
+  // Fetch service type options dynamically from vw_journal_entries
   const fetchServiceTypeOptions = async () => {
     try {
-      console.log('[Reports] Fetching service type options...');
+      console.log('[Reports] Fetching service type options from data...');
       
-      const { data, error } = await supabase
-        .rpc('get_service_types'); // We'll create this RPC function
-      
-      if (error) {
-        console.warn('Service types RPC not found, trying direct query:', error);
+      // First try to fetch from the view
+      let { data, error } = await supabase
+        .from('vw_journal_entries')
+        .select('service_type')
+        .not('service_type', 'is', null)
+        .neq('service_type', '')
+        .order('service_type');
+
+      // If view doesn't exist, try alternative sources
+      if (error && error.message.includes('relation "vw_journal_entries" does not exist')) {
+        console.log('[Reports] View not found for service types, trying bookings table...');
         
-        // Fallback to direct query
-        const { data: directData, error: directError } = await supabase
-          .from('journal_entries')
+        // Try to get service types from bookings or other tables
+        const { data: bookingsData, error: bookingsError } = await supabase
+          .from('bookings')
           .select('service_type')
           .not('service_type', 'is', null)
           .neq('service_type', '')
           .order('service_type');
           
-        if (directError) {
-          console.warn('Direct query failed, using default options:', directError);
+        if (bookingsError) {
+          console.warn('Bookings query failed, using default service types:', bookingsError);
           // Use default options if query fails
           setServiceTypeOptions([
-            { label: "All Services", value: "all" },
+            { label: "All Service Types", value: "all" },
+            { label: "Car Rental", value: "Car Rental" },
             { label: "Airport Transfer", value: "Airport Transfer" },
-            { label: "Baggage Service", value: "Baggage Service" },
-            { label: "Handling Service", value: "Handling Service" },
-            { label: "Car Rental", value: "Car Rental" }
+            { label: "Baggage Handling", value: "Baggage Handling" },
+            { label: "Passenger Handling", value: "Passenger Handling" },
+            { label: "Booking Driver", value: "Booking Driver" }
           ]);
           return;
         }
         
-        // Process direct query results
-        const uniqueServiceTypes = Array.from(
-          new Set(directData?.map(item => item.service_type?.trim()).filter(Boolean))
-        ).sort();
-        
-        const options = [
-          { label: "All Services", value: "all" },
-          ...uniqueServiceTypes.map(type => ({ label: type, value: type }))
-        ];
-        
-        setServiceTypeOptions(options);
-        console.log('[Reports] Service type options loaded (direct):', options.length);
-        return;
+        data = bookingsData;
+        error = null;
+      } else if (error) {
+        throw error;
       }
+
+      // Get distinct service types and create options
+      const distinctServiceTypes = [...new Set(data?.map(item => item.service_type?.trim()).filter(Boolean))].sort();
       
-      // Process RPC results
       const options = [
-        { label: "All Services", value: "all" },
-        ...(data || []).map((item: any) => ({ 
-          label: item.label, 
-          value: item.value 
-        }))
+        { label: "All Service Types", value: "all" },
+        ...distinctServiceTypes.map(type => ({ label: type, value: type }))
       ];
       
       setServiceTypeOptions(options);
-      console.log('[Reports] Service type options loaded (RPC):', options.length);
+      console.log('[Reports] Service type options loaded:', options.length, options);
       
     } catch (error) {
       console.error('Error fetching service type options:', error);
       // Use default options on error
       setServiceTypeOptions([
-        { label: "All Services", value: "all" },
+        { label: "All Service Types", value: "all" },
+        { label: "Car Rental", value: "Car Rental" },
         { label: "Airport Transfer", value: "Airport Transfer" },
-        { label: "Baggage Service", value: "Baggage Service" },
-        { label: "Handling Service", value: "Handling Service" },
-        { label: "Car Rental", value: "Car Rental" }
+        { label: "Baggage Handling", value: "Baggage Handling" },
+        { label: "Passenger Handling", value: "Passenger Handling" },
+        { label: "Booking Driver", value: "Booking Driver" }
       ]);
     }
   };
@@ -140,114 +145,134 @@ const Reports = () => {
   const fetchJournalEntries = async () => {
     try {
       setLoading(true);
+      console.log('[Reports] Fetching journal entries...');
       
-      // Check if the view exists, if not we'll create mock data structure
-      const { data, error } = await supabase
+      // First try to fetch from the view
+      let { data, error } = await supabase
         .from('vw_journal_entries')
-        .select('*')
-        .order('date', { ascending: false });
+        .select('*, saldo_driver_now, saldo_agent_now'); // Explicitly select balance columns
 
-      if (error) {
-        console.warn('Journal entries view not found, using mock data structure:', error);
-        // Mock data structure for demonstration
-        const mockData: JournalEntry[] = [
-          {
-            nama: "John Doe",
-            date: "2024-01-15",
-            description: "Airport transfer service",
-            service_type: "Airport Transfer",
-            total_debit: 250000,
-            vehicle_type: "Sedan",
-            vehicle_name: "Toyota Camry",
-            license_plate: "B 1234 ABC",
-            status: "Completed"
-          },
-          {
-            nama: "Jane Smith",
-            date: "2024-01-14",
-            description: "Baggage handling service",
-            service_type: "Baggage Service",
-            total_debit: 150000,
-            vehicle_type: "Van",
-            vehicle_name: "Toyota Hiace",
-            license_plate: "B 5678 DEF",
-            status: "Pending"
-          },
-          {
-            nama: "Bob Johnson",
-            date: "2024-01-13",
-            description: "Passenger handling assistance",
-            service_type: "Handling Service",
-            total_debit: 300000,
-            vehicle_type: "SUV",
-            vehicle_name: "Toyota Fortuner",
-            license_plate: "B 9012 GHI",
-            status: "Completed"
+      // If view doesn't exist, try to fetch from journal_entries table
+      if (error && error.message.includes('relation "vw_journal_entries" does not exist')) {
+        console.log('[Reports] View not found, trying journal_entries table...');
+        
+        const { data: journalData, error: journalError } = await supabase
+          .from('journal_entries')
+          .select('*');
+          
+        if (journalError && journalError.message.includes('relation "journal_entries" does not exist')) {
+          console.log('[Reports] journal_entries table not found, creating from bookings...');
+          
+          // Create journal entries from bookings and payments
+          const { data: bookingsData, error: bookingsError } = await supabase
+            .from('bookings')
+            .select(`
+              *,
+              users!inner(full_name, email),
+              vehicles(name, type, license_plate),
+              payments(amount, payment_method, status)
+            `);
+            
+          if (bookingsError) {
+            console.error('Error fetching bookings:', bookingsError);
+            throw bookingsError;
           }
-        ];
-        setJournalEntries(mockData);
-        setFilteredEntries(mockData);
-      } else {
-        setJournalEntries(data || []);
-        setFilteredEntries(data || []);
-        console.log("Raw journal entries from Supabase:", data);
-        console.log("Total entries fetched:", data?.length);
+          
+          // Transform bookings data to journal entries format
+          const transformedData = (bookingsData || []).map((booking: any) => ({
+            nama: booking.users?.full_name || 'Unknown',
+            date: booking.created_at || booking.start_date,
+            description: `Booking #${booking.id} - ${booking.status}`,
+            service_type: 'Car Rental', // Default service type
+            total_debit: booking.total_amount || 0,
+            total_credit: 0, // Default credit
+            vehicle_type: booking.vehicles?.type || 'Unknown',
+            vehicle_name: booking.vehicles?.name || 'Unknown',
+            license_plate: booking.vehicles?.license_plate || 'Unknown',
+            status: booking.status,
+            saldo_driver_now: 0, // Default driver balance
+            saldo_agent_now: 0   // Default agent balance
+          }));
+          
+          data = transformedData;
+          error = null;
+        } else if (journalError) {
+          throw journalError;
+        } else {
+          data = journalData;
+        }
+      } else if (error) {
+        throw error;
       }
+
+      let filteredData = data || [];
+
+      // Apply date filters
+      if (filters.startDate) {
+        const startDate = new Date(filters.startDate);
+        filteredData = filteredData.filter(entry => new Date(entry.date) >= startDate);
+      }
+      if (filters.endDate) {
+        const endDate = new Date(filters.endDate);
+        filteredData = filteredData.filter(entry => new Date(entry.date) <= endDate);
+      }
+
+      // Apply nama filter - modified logic
+      if (filters.nama && filters.nama !== 'all') {
+        filteredData = filteredData.filter(entry => 
+          (entry.nama || '').toLowerCase().includes(filters.nama.toLowerCase())
+        );
+      }
+
+      // Apply service type filter - modified logic
+      if (filters.serviceType && filters.serviceType !== 'all') {
+        filteredData = filteredData.filter(entry => 
+          (entry.service_type || '').toLowerCase() === filters.serviceType.toLowerCase()
+        );
+      }
+
+      // Apply global search filter - only when global_search is not empty
+      if (filters.globalSearch && filters.globalSearch.trim() !== '') {
+        const searchTerm = filters.globalSearch.toLowerCase();
+        filteredData = filteredData.filter(entry => {
+          return (
+            (entry.nama || '').toLowerCase().includes(searchTerm) ||
+            (entry.description || '').toLowerCase().includes(searchTerm) ||
+            (entry.service_type || '').toLowerCase().includes(searchTerm) ||
+            (entry.status || '').toLowerCase().includes(searchTerm) ||
+            (entry.vehicle_name || '').toLowerCase().includes(searchTerm) ||
+            (entry.vehicle_type || '').toLowerCase().includes(searchTerm) ||
+            (entry.license_plate || '').toLowerCase().includes(searchTerm) ||
+            (entry.date || '').toString().toLowerCase().includes(searchTerm) ||
+            (entry.total_debit || '').toString().toLowerCase().includes(searchTerm) ||
+            (entry.total_credit || '').toString().toLowerCase().includes(searchTerm) ||
+            (entry.saldo_driver_now || '').toString().toLowerCase().includes(searchTerm) ||
+            (entry.saldo_agent_now || '').toString().toLowerCase().includes(searchTerm)
+          );
+        });
+      }
+
+      console.log('[Reports] Fetched entries:', filteredData?.length || 0);
+      setJournalEntries(filteredData);
     } catch (error) {
       console.error('Error fetching journal entries:', error);
       toast({
-        title: "Error",
-        description: "Failed to fetch journal entries",
         variant: "destructive",
+        title: "Error fetching data",
+        description: "Failed to load journal entries. Please check if the data exists.",
       });
+      // Set empty array to prevent infinite loading
+      setJournalEntries([]);
     } finally {
       setLoading(false);
     }
   };
 
-  // Apply filters and sorting
+  // Apply filters and sorting - simplified since filtering is now done in fetchJournalEntries
   const applyFilters = () => {
     let filtered = [...journalEntries];
 
-    console.log("Before filtering:", journalEntries.length, journalEntries);
-    console.log("Filters:", filters);
-
-    // Date range filter
-    if (filters.dateFrom) {
-      const from = new Date(filters.dateFrom);
-      filtered = filtered.filter(entry => new Date(entry.date) >= from);
-    }
-    if (filters.dateTo) {
-      const to = new Date(filters.dateTo);
-      filtered = filtered.filter(entry => new Date(entry.date) <= to);
-    }
-
-    // Service type filter - Updated to handle "all" value
-    if (filters.serviceType && filters.serviceType !== "all") {
-      filtered = filtered.filter(entry => 
-        entry.service_type?.toLowerCase() === filters.serviceType.toLowerCase()
-      );
-    }
-
-    // Status filter
-    if (filters.status && filters.status !== "all") {
-      filtered = filtered.filter(entry =>
-        (entry.status ?? "").toLowerCase().includes(filters.status.toLowerCase())
-      );
-    }
-
-    // Search filter
-    if (filters.search) {
-      const searchTerm = filters.search.toLowerCase();
-      filtered = filtered.filter(entry =>
-        (entry.description ?? "").toLowerCase().includes(searchTerm) ||
-        (entry.nama ?? "").toLowerCase().includes(searchTerm) ||
-        (entry.vehicle_name ?? "").toLowerCase().includes(searchTerm) ||
-        (entry.license_plate ?? "").toLowerCase().includes(searchTerm)
-      );
-    }
-
-    // Apply sorting
+    // Apply sorting only (filtering is done in fetchJournalEntries)
     filtered.sort((a, b) => {
       const aValue = a[sortConfig.key];
       const bValue = b[sortConfig.key];
@@ -264,7 +289,7 @@ const Reports = () => {
     setFilteredEntries(filtered);
   };
 
-  // Export to CSV
+  // Export to CSV with all filtered data and additional balance columns
   const exportToCSV = () => {
     setExporting(true);
     
@@ -275,6 +300,9 @@ const Reports = () => {
         'Description',
         'Service Type',
         'Total Debit',
+        'Total Credit',
+        'Saldo Driver Now', // Add driver balance column
+        'Saldo Agent Now',  // Add agent balance column
         'Vehicle Type',
         'Vehicle Name',
         'License Plate',
@@ -283,12 +311,15 @@ const Reports = () => {
 
       const csvContent = [
         headers.join(','),
-        ...filteredEntries.map(entry => [
+        ...journalEntries.map(entry => [
           `"${entry.nama}"`,
           entry.date,
           `"${entry.description}"`,
           `"${entry.service_type}"`,
           entry.total_debit,
+          entry.total_credit || 0,
+          entry.saldo_driver_now || 0, // Include driver balance
+          entry.saldo_agent_now || 0,  // Include agent balance
           `"${entry.vehicle_type}"`,
           `"${entry.vehicle_name}"`,
           `"${entry.license_plate}"`,
@@ -333,22 +364,99 @@ const Reports = () => {
   // Reset filters
   const resetFilters = () => {
     setFilters({
-      dateFrom: firstDayOfMonth.toISOString().split('T')[0],
-      dateTo: lastDayOfMonth.toISOString().split('T')[0],
-      serviceType: "all",
-      status: "all",
-      search: ""
+      startDate: "",
+      endDate: "",
+      nama: "all", // Reset to 'all'
+      serviceType: "all", // Reset to 'all'
+      globalSearch: "", // Reset global search
     });
+    setCurrentPage(0); // Reset pagination
   };
+
+  // Fetch nama options for the select dropdown
+  const fetchNamaOptions = async () => {
+    try {
+      setLoadingNamaOptions(true);
+      
+      // First try to fetch from the view
+      let { data, error } = await supabase
+        .from('vw_journal_entries')
+        .select('nama')
+        .not('nama', 'is', null)
+        .neq('nama', '')
+        .order('nama');
+
+      // If view doesn't exist, try alternative sources
+      if (error && error.message.includes('relation "vw_journal_entries" does not exist')) {
+        console.log('[Reports] View not found for nama options, trying users table...');
+        
+        const { data: usersData, error: usersError } = await supabase
+          .from('users')
+          .select('full_name')
+          .not('full_name', 'is', null)
+          .neq('full_name', '')
+          .order('full_name');
+          
+        if (usersError) {
+          throw usersError;
+        }
+        
+        // Transform users data to nama format
+        data = usersData?.map(user => ({ nama: user.full_name })) || [];
+        error = null;
+      } else if (error) {
+        throw error;
+      }
+
+      // Get distinct names and create options
+      const distinctNames = [...new Set(data?.map(item => item.nama))].filter(name => name && name.trim() !== '');
+      const options = [
+        { label: 'All Names', value: 'all' }, // Send 'all' instead of empty string
+        ...distinctNames.map(nama => ({ label: nama, value: nama }))
+      ];
+
+      setNamaOptions(options);
+      console.log('[Reports] Nama options loaded:', options.length);
+    } catch (error) {
+      console.error('Error fetching nama options:', error);
+      // Set default options on error
+      setNamaOptions([
+        { label: 'All Names', value: 'all' }
+      ]);
+      toast({
+        variant: "destructive",
+        title: "Error fetching names",
+        description: "Failed to load name options",
+      });
+    } finally {
+      setLoadingNamaOptions(false);
+    }
+  };
+
+  // Fetch nama options on component mount
+  useEffect(() => {
+    fetchNamaOptions();
+  }, []);
 
   useEffect(() => {
     fetchServiceTypeOptions();
+    fetchNamaOptions();
     fetchJournalEntries();
   }, []);
 
   useEffect(() => {
     applyFilters();
   }, [filters, sortConfig, journalEntries]);
+
+  // Run query when inputs change (deps: start_date, end_date, nama, service_type, global_search, table.pageIndex, table.pageSize)
+  useEffect(() => {
+    fetchJournalEntries();
+  }, [filters.startDate, filters.endDate, filters.nama, filters.serviceType, filters.globalSearch, currentPage, pageSize]);
+
+  // Reset page index when filters change
+  useEffect(() => {
+    setCurrentPage(0);
+  }, [filters.startDate, filters.endDate, filters.nama, filters.serviceType, filters.globalSearch]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('id-ID', {
@@ -411,115 +519,149 @@ const Reports = () => {
 
               <CardContent className="space-y-6">
                 {/* Filters */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 p-4 bg-gray-50 rounded-lg">
-                  <div className="space-y-2">
-                    <Label htmlFor="dateFrom">Date From</Label>
-                    <Input
-                      id="dateFrom"
-                      type="date"
-                      value={filters.dateFrom}
-                      onChange={(e) => setFilters(prev => ({ ...prev, dateFrom: e.target.value }))}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="dateTo">Date To</Label>
-                    <Input
-                      id="dateTo"
-                      type="date"
-                      value={filters.dateTo}
-                      onChange={(e) => setFilters(prev => ({ ...prev, dateTo: e.target.value }))}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="serviceType">Service Type</Label>
-                    <Select
-                      value={filters.serviceType}
-                      onValueChange={(value) => setFilters(prev => ({ ...prev, serviceType: value }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="All Services" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {serviceTypeOptions.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="status">Status</Label>
-                    <Select
-                      value={filters.status}
-                      onValueChange={(value) => setFilters(prev => ({ ...prev, status: value }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="All Status" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Status</SelectItem>
-                        <SelectItem value="Completed">Completed</SelectItem>
-                        <SelectItem value="Pending">Pending</SelectItem>
-                        <SelectItem value="Cancelled">Cancelled</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="search">Search</Label>
+                <div className="space-y-4 mb-6">
+                  {/* Global Search */}
+                  <div>
+                    <Label htmlFor="globalSearch">Global Search</Label>
                     <div className="relative">
-                      <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-400" />
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                       <Input
-                        id="search"
-                        placeholder="Search description..."
-                        className="pl-8"
-                        value={filters.search}
-                        onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
+                        id="globalSearch"
+                        type="text"
+                        placeholder="Search across all fields (nama, description, service type, status, vehicle, license plate, date, amounts, balances...)"
+                        value={filters.globalSearch}
+                        onChange={(e) => setFilters(prev => ({ ...prev, globalSearch: e.target.value }))}
+                        className="pl-10"
                       />
+                    </div>
+                  </div>
+                  
+                  {/* Other Filters */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div>
+                      <Label htmlFor="startDate">Start Date</Label>
+                      <Input
+                        id="startDate"
+                        type="date"
+                        value={filters.startDate}
+                        onChange={(e) => {
+                          setFilters(prev => ({ ...prev, startDate: e.target.value }));
+                          setCurrentPage(0); // Reset page when filter changes
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="endDate">End Date</Label>
+                      <Input
+                        id="endDate"
+                        type="date"
+                        value={filters.endDate}
+                        onChange={(e) => setFilters(prev => ({ ...prev, endDate: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="nama">Nama</Label>
+                      <Select
+                        value={filters.nama}
+                        onValueChange={(value) => {
+                          setFilters(prev => ({ ...prev, nama: value }));
+                          setCurrentPage(0); // Reset page when filter changes
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder={loadingNamaOptions ? "Loading..." : "Select name"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {namaOptions.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="serviceType">Service Type</Label>
+                      <Select
+                        value={filters.serviceType}
+                        onValueChange={(value) => {
+                          setFilters(prev => ({ ...prev, serviceType: value }));
+                          setCurrentPage(0); // Reset page when filter changes
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="All service types" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {serviceTypeOptions.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
                 </div>
 
                 <div className="flex justify-between items-center">
                   <div className="text-sm text-gray-600">
-                    Showing {filteredEntries.length} of {journalEntries.length} entries
+                    Showing {journalEntries.length} of {journalEntries.length} entries
                   </div>
                   <Button variant="outline" size="sm" onClick={resetFilters}>
                     Reset Filters
                   </Button>
                 </div>
 
-                {/* Summary - Moved to top */}
-                {filteredEntries.length > 0 && (
+                {/* Summary - Updated to include balance columns */}
+                {journalEntries.length > 0 && (
                   <div className="bg-gray-50 p-4 rounded-lg">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
                       <div className="text-center">
                         <div className="text-2xl font-bold text-gray-900">
-                          {filteredEntries.length}
+                          {journalEntries.length}
                         </div>
                         <div className="text-sm text-gray-600">Total Entries</div>
                       </div>
                       <div className="text-center">
                         <div className="text-2xl font-bold text-green-600">
                           {formatCurrency(
-                            filteredEntries.reduce((sum, entry) => sum + entry.total_debit, 0)
+                            journalEntries.reduce((sum, entry) => sum + (entry.total_debit || 0), 0)
                           )}
                         </div>
-                        <div className="text-sm text-gray-600">Total Amount</div>
+                        <div className="text-sm text-gray-600">Total Debit</div>
                       </div>
                       <div className="text-center">
                         <div className="text-2xl font-bold text-blue-600">
                           {formatCurrency(
-                            filteredEntries.length > 0 
-                              ? filteredEntries.reduce((sum, entry) => sum + entry.total_debit, 0) / filteredEntries.length
-                              : 0
+                            journalEntries.reduce((sum, entry) => sum + (entry.total_credit || 0), 0)
                           )}
                         </div>
-                        <div className="text-sm text-gray-600">Average Amount</div>
+                        <div className="text-sm text-gray-600">Total Credit</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-purple-600">
+                          {formatCurrency(
+                            journalEntries.reduce((sum, entry) => sum + (entry.total_debit || 0) - (entry.total_credit || 0), 0)
+                          )}
+                        </div>
+                        <div className="text-sm text-gray-600">Net Amount</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-orange-600">
+                          {formatCurrency(
+                            journalEntries.reduce((sum, entry) => sum + (entry.saldo_driver_now || 0), 0)
+                          )}
+                        </div>
+                        <div className="text-sm text-gray-600">Total Driver Balance</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-indigo-600">
+                          {formatCurrency(
+                            journalEntries.reduce((sum, entry) => sum + (entry.saldo_agent_now || 0), 0)
+                          )}
+                        </div>
+                        <div className="text-sm text-gray-600">Total Agent Balance</div>
                       </div>
                     </div>
                   </div>
@@ -586,6 +728,45 @@ const Reports = () => {
                               )}
                             </div>
                           </th>
+                          <th 
+                            className="px-4 py-3 text-right font-medium text-gray-900 cursor-pointer hover:bg-gray-100"
+                            onClick={() => handleSort('total_credit')}
+                          >
+                            <div className="flex items-center justify-end gap-1">
+                              Total Credit
+                              {sortConfig.key === 'total_credit' && (
+                                <span className="text-xs">
+                                  {sortConfig.direction === 'asc' ? '↑' : '↓'}
+                                </span>
+                              )}
+                            </div>
+                          </th>
+                          <th 
+                            className="px-4 py-3 text-right font-medium text-gray-900 cursor-pointer hover:bg-gray-100"
+                            onClick={() => handleSort('saldo_driver_now')}
+                          >
+                            <div className="flex items-center justify-end gap-1">
+                              Saldo Driver Now
+                              {sortConfig.key === 'saldo_driver_now' && (
+                                <span className="text-xs">
+                                  {sortConfig.direction === 'asc' ? '↑' : '↓'}
+                                </span>
+                              )}
+                            </div>
+                          </th>
+                          <th 
+                            className="px-4 py-3 text-right font-medium text-gray-900 cursor-pointer hover:bg-gray-100"
+                            onClick={() => handleSort('saldo_agent_now')}
+                          >
+                            <div className="flex items-center justify-end gap-1">
+                              Saldo Agent Now
+                              {sortConfig.key === 'saldo_agent_now' && (
+                                <span className="text-xs">
+                                  {sortConfig.direction === 'asc' ? '↑' : '↓'}
+                                </span>
+                              )}
+                            </div>
+                          </th>
                           <th className="px-4 py-3 text-left font-medium text-gray-900">
                             Vehicle
                           </th>
@@ -597,21 +778,21 @@ const Reports = () => {
                       <tbody className="divide-y divide-gray-200">
                         {loading ? (
                           <tr>
-                            <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
+                            <td colSpan={10} className="px-4 py-8 text-center text-gray-500">
                               <div className="flex items-center justify-center">
                                 <RefreshCw className="h-5 w-5 animate-spin mr-2" />
                                 Loading journal entries...
                               </div>
                             </td>
                           </tr>
-                        ) : filteredEntries.length === 0 ? (
+                        ) : journalEntries.length === 0 ? (
                           <tr>
-                            <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
+                            <td colSpan={10} className="px-4 py-8 text-center text-gray-500">
                               No journal entries found matching your criteria
                             </td>
                           </tr>
                         ) : (
-                          filteredEntries.map((entry, index) => (
+                          journalEntries.map((entry, index) => (
                             <tr key={index} className="hover:bg-gray-50">
                               <td className="px-4 py-3 font-medium text-gray-900">
                                 {entry.nama}
@@ -628,7 +809,16 @@ const Reports = () => {
                                 </Badge>
                               </td>
                               <td className="px-4 py-3 text-right font-medium text-gray-900">
-                                {formatCurrency(entry.total_debit)}
+                                {formatCurrency(entry.total_debit || 0)}
+                              </td>
+                              <td className="px-4 py-3 text-right font-medium text-blue-600">
+                                {formatCurrency(entry.total_credit || 0)}
+                              </td>
+                              <td className="px-4 py-3 text-right font-medium text-green-600">
+                                {formatCurrency(entry.saldo_driver_now || 0)}
+                              </td>
+                              <td className="px-4 py-3 text-right font-medium text-purple-600">
+                                {formatCurrency(entry.saldo_agent_now || 0)}
                               </td>
                               <td className="px-4 py-3 text-gray-600">
                                 <div className="flex flex-col">

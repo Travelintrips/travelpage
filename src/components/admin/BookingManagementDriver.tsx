@@ -385,25 +385,31 @@ export default function BookingManagementDriver() {
 
   const handleConfirmBooking = async (booking: Booking) => {
     try {
+      console.log('Confirming booking:', booking.id, 'Current status:', booking.status);
+      
       const { error } = await supabase
         .from("bookings")
         .update({ status: "confirmed" })
         .eq("id", booking.id);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase error:', error);
+        throw error;
+      }
 
       toast({
         title: "Booking confirmed",
         description: "Booking status has been updated to confirmed",
       });
 
-      fetchBookings();
+      // Refresh the bookings list
+      await fetchBookings();
     } catch (error) {
-      console.error("Error completing booking:", error);
+      console.error("Error confirming booking:", error);
       toast({
         variant: "destructive",
-        title: "Error completing booking",
-        description: error.message,
+        title: "Error confirming booking",
+        description: error.message || "Failed to confirm booking",
       });
     }
   };
@@ -537,13 +543,6 @@ export default function BookingManagementDriver() {
                 <TableCell>{getStatusBadge(booking.status)}</TableCell>
 
                 <TableCell className="text-right flex items-center justify-end space-x-1">
-              {/*    <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleViewDetails(booking)}
-                  >
-                    <Eye className="h-4 w-4" />
-                  </Button>*/}
                   {booking.status === "confirmed" && (
                     <Button
                       variant="outline"
@@ -555,6 +554,7 @@ export default function BookingManagementDriver() {
                       Finish
                     </Button>
                   )}
+                  
                   {booking.status === "onride" && (
                     <>
                       <Button
@@ -580,27 +580,39 @@ export default function BookingManagementDriver() {
                       </Button>
                     </>
                   )}
+                  
                   {userRole !== "Staff" && (
                     <>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex items-center gap-1 bg-green-100 hover:bg-green-200 text-green-800 border-green-300"
-                    onClick={() => handleConfirmBooking(booking)}
-                  >
-                    <CheckCircle className="h-4 w-4" />
-                    Confirmation
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex items-center gap-1 bg-red-100 hover:bg-red-200 text-red-800 border-red-300"
-                    onClick={() => handleCancelBooking(booking)}
-                  >
-                    <XCircle className="h-4 w-4" />
-                    Cancel
-                  </Button>
-                  </>
+                      {(booking.status === "pending" || booking.status === "booked" || booking.status !== "confirmed") && booking.status !== "cancelled" && booking.status !== "completed" && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex items-center gap-1 bg-green-100 hover:bg-green-200 text-green-800 border-green-300"
+                          onClick={() => {
+                            console.log('Confirmation button clicked for booking:', booking.id);
+                            handleConfirmBooking(booking);
+                          }}
+                        >
+                          <CheckCircle className="h-4 w-4" />
+                          Confirmation
+                        </Button>
+                      )}
+                      
+                      {booking.status !== "cancelled" && booking.status !== "completed" && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex items-center gap-1 bg-red-100 hover:bg-red-200 text-red-800 border-red-300"
+                          onClick={() => {
+                            console.log('Cancel button clicked for booking:', booking.id);
+                            handleCancelBooking(booking);
+                          }}
+                        >
+                          <XCircle className="h-4 w-4" />
+                          Cancel
+                        </Button>
+                      )}
+                    </>
                   )}
                 </TableCell>
               </TableRow>
