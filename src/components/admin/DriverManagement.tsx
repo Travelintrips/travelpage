@@ -59,6 +59,10 @@ import {
   Users,
   UserCheck,
   TrendingDown,
+  ChevronLeft,
+  ChevronRight,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSearchParams } from "react-router-dom";
@@ -96,6 +100,12 @@ const DriverManagement = () => {
   // FIXED: Better loading state initialization
   const [loading, setLoading] = useState(false);
   
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null);
+  const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
+  
   const [driverStats, setDriverStats] = useState<DriverStats>({
     total_drivers: 0,
     active_drivers: 0,
@@ -118,10 +128,6 @@ const DriverManagement = () => {
     return saved ? JSON.parse(saved) : false;
   });
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [selectedDriver, setSelectedDriver] = useState<Driver | null>(() => {
-    const saved = localStorage.getItem('driverManagement_selectedDriver');
-    return saved ? JSON.parse(saved) : null;
-  });
   const [formData, setFormData] = useState(() => {
     const saved = localStorage.getItem('driverManagement_formData');
     return saved ? JSON.parse(saved) : {
@@ -153,6 +159,11 @@ const DriverManagement = () => {
   const lastFetchTime = useRef(0);
   const isInitialized = useRef(false);
   const [isFetching, setIsFetching] = useState(false);
+
+  // Filter states
+  const [accountStatusFilter, setAccountStatusFilter] = useState<string>("all");
+  const [driverStatusFilter, setDriverStatusFilter] = useState<string>("all");
+  const [onlineStatusFilter, setOnlineStatusFilter] = useState<string>("all");
 
   // FIXED: Single useEffect to handle all initialization logic with caching
   useEffect(() => {
@@ -429,7 +440,7 @@ const DriverManagement = () => {
     };
   };
 
-  // FIXED: Enhanced filtering logic that combines search and KPI filter
+  // FIXED: Enhanced filtering logic that combines search and KPI filter with pagination
   const getFilteredDrivers = () => {
     let filtered = drivers;
 
@@ -450,6 +461,25 @@ const DriverManagement = () => {
         break;
     }
 
+    // Apply Account Status filter
+    if (accountStatusFilter !== "all") {
+      filtered = filtered.filter(driver => driver.account_status === accountStatusFilter);
+    }
+
+    // Apply Driver Status filter (same as account status for now)
+    if (driverStatusFilter !== "all") {
+      filtered = filtered.filter(driver => driver.account_status === driverStatusFilter);
+    }
+
+    // Apply Online Status filter
+    if (onlineStatusFilter !== "all") {
+      if (onlineStatusFilter === "online") {
+        filtered = filtered.filter(driver => driver.is_online === true);
+      } else if (onlineStatusFilter === "offline") {
+        filtered = filtered.filter(driver => driver.is_online === false || driver.is_online === null);
+      }
+    }
+
     // Then apply search filter
     if (searchTerm) {
       filtered = filtered.filter(
@@ -467,6 +497,31 @@ const DriverManagement = () => {
   };
 
   const filteredDrivers = getFilteredDrivers();
+  
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredDrivers.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentDrivers = filteredDrivers.slice(startIndex, endIndex);
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, currentFilter, accountStatusFilter, driverStatusFilter, onlineStatusFilter]);
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  const handleItemsPerPageChange = (value: string) => {
+    setItemsPerPage(parseInt(value));
+    setCurrentPage(1);
+  };
+
+  const openDetailDialog = (driver: Driver) => {
+    setSelectedDriver(driver);
+    setIsDetailDialogOpen(true);
+  };
 
   // FIXED: Handle KPI card clicks with proper URL management
   const handleKPICardClick = (filterType: string) => {
@@ -483,6 +538,9 @@ const DriverManagement = () => {
   const handleClearFilters = () => {
     setSearchParams({});
     setSearchTerm("");
+    setAccountStatusFilter("all");
+    setDriverStatusFilter("all");
+    setOnlineStatusFilter("all");
   };
 
   const FileUploadField = ({ 
@@ -709,9 +767,6 @@ const DriverManagement = () => {
   fetchDriverStats();
 }, []);
 
-
-
-
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -846,13 +901,17 @@ const DriverManagement = () => {
               <CardTitle>Drivers</CardTitle>
               <CardDescription>
                 Manage your driver database
-                {currentFilter !== 'all' && (
+                {(currentFilter !== 'all' || accountStatusFilter !== 'all' || driverStatusFilter !== 'all' || onlineStatusFilter !== 'all') && (
                   <span className="ml-2 text-blue-600 font-medium">
                     (Filtered by: {
-                      currentFilter === 'active' ? 'Active Drivers' :
-                      currentFilter === 'online' ? 'Online Drivers' :
-                      currentFilter === 'negativeBalance' ? 'Negative Balance Drivers' :
-                      'All Drivers'
+                      [
+                        currentFilter !== 'all' && (currentFilter === 'active' ? 'Active Drivers' :
+                        currentFilter === 'online' ? 'Online Drivers' :
+                        currentFilter === 'negativeBalance' ? 'Negative Balance Drivers' : ''),
+                        accountStatusFilter !== 'all' && `Account: ${accountStatusFilter}`,
+                        driverStatusFilter !== 'all' && `Driver: ${driverStatusFilter}`,
+                        onlineStatusFilter !== 'all' && `Status: ${onlineStatusFilter}`
+                      ].filter(Boolean).join(', ')
                     })
                   </span>
                 )}
@@ -860,7 +919,7 @@ const DriverManagement = () => {
             </div>
             <div className="flex items-center gap-4">
               {/* FIXED: Clear Filters Button - Shows when any filter is active */}
-              {(currentFilter !== 'all' || searchTerm) && (
+              {(currentFilter !== 'all' || searchTerm || accountStatusFilter !== 'all' || driverStatusFilter !== 'all' || onlineStatusFilter !== 'all') && (
                 <Button 
                   variant="outline" 
                   size="sm"
@@ -870,6 +929,44 @@ const DriverManagement = () => {
                   Clear Filters
                 </Button>
               )}
+              
+              {/* Filter Controls */}
+              <div className="flex items-center gap-2">
+                <Select value={accountStatusFilter} onValueChange={setAccountStatusFilter}>
+                  <SelectTrigger className="w-40">
+                    <SelectValue placeholder="Account Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Account Status</SelectItem>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="suspended">Suspended</SelectItem>
+                    <SelectItem value="inactive">Inactive</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <Select value={driverStatusFilter} onValueChange={setDriverStatusFilter}>
+                  <SelectTrigger className="w-40">
+                    <SelectValue placeholder="Driver Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Driver Status</SelectItem>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="suspended">Suspended</SelectItem>
+                    <SelectItem value="inactive">Inactive</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <Select value={onlineStatusFilter} onValueChange={setOnlineStatusFilter}>
+                  <SelectTrigger className="w-32">
+                    <SelectValue placeholder="Is Online" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="online">Online</SelectItem>
+                    <SelectItem value="offline">Offline</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               
               {/* FIXED: Search Input - Works on filtered results */}
               <div className="relative w-64">
@@ -891,172 +988,251 @@ const DriverManagement = () => {
               <span className="ml-2">Loading drivers...</span>
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Phone</TableHead>
-                  <TableHead>SIM Number</TableHead>
-                  <TableHead>License Expiry</TableHead>
-                  <TableHead>STNK Expiry</TableHead>
-                  <TableHead>Family Phone</TableHead>
-                  <TableHead>Documents</TableHead>
-                  <TableHead>Account Status</TableHead>
-                  <TableHead>Driver Status</TableHead>
-                  <TableHead>Is Online</TableHead>
-                  <TableHead>Saldo</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredDrivers.length === 0 ? (
+            <>
+              {/* Pagination Controls - Top */}
+              <div className="flex justify-between items-center mb-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">Show</span>
+                  <Select value={itemsPerPage.toString()} onValueChange={handleItemsPerPageChange}>
+                    <SelectTrigger className="w-20">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="5">5</SelectItem>
+                      <SelectItem value="10">10</SelectItem>
+                      <SelectItem value="25">25</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
+                      <SelectItem value="100">100</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <span className="text-sm text-muted-foreground">entries per page</span>
+                </div>
+                
+                <div className="text-sm text-muted-foreground">
+                  Showing {startIndex + 1} to {Math.min(endIndex, filteredDrivers.length)} of {filteredDrivers.length} entries
+                </div>
+              </div>
+
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={13} className="text-center py-8">
-                      {searchTerm || currentFilter !== 'all' ? 
-                        "No drivers found matching the current filters" : 
-                        "No drivers found"
-                      }
-                    </TableCell>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Documents</TableHead>
+                    <TableHead>Account Status</TableHead>
+                    <TableHead>Driver Status</TableHead>
+                    <TableHead>Is Online</TableHead>
+                    <TableHead>Saldo</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
-                ) : (
-                  filteredDrivers.map((driver) => (
-                    <TableRow key={driver.id}>
-                      <TableCell className="font-medium">
-                        {driver.name}
+                </TableHeader>
+                <TableBody>
+                  {currentDrivers.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-8">
+                        {searchTerm || currentFilter !== 'all' ? 
+                          "No drivers found matching the current filters" : 
+                          "No drivers found"
+                        }
                       </TableCell>
-                      <TableCell>{driver.email}</TableCell>
-                      <TableCell>{driver.phone_number}</TableCell>
-                      <TableCell>{driver.license_number}</TableCell>
-                      <TableCell>{driver.license_expiry}</TableCell>
-                      <TableCell>{driver.stnk_expiry}</TableCell>
-                      <TableCell>{driver.family_phone_number}</TableCell>
-                      <TableCell>
-                        <div className="flex space-x-2">
-                          {driver.selfie_url && (
-                            <a
-                              href={driver.selfie_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              title="Selfie"
-                            >
-                              <img
-                                src={driver.selfie_url}
-                                alt="Selfie"
-                                className="w-8 h-8 rounded-full object-cover"
-                              />
-                            </a>
-                          )}
-                          {driver.sim_url && (
-                            <a
-                              href={driver.sim_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              title="SIM"
-                            >
-                              <img
-                                src={driver.sim_url}
-                                alt="SIM"
-                                className="w-8 h-8 rounded object-cover"
-                              />
-                            </a>
-                          )}
-                          {driver.stnk_url && (
-                            <a
-                              href={driver.stnk_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              title="STNK"
-                            >
-                              <img
-                                src={driver.stnk_url}
-                                alt="STNK"
-                                className="w-8 h-8 rounded object-cover"
-                              />
-                            </a>
-                          )}
-                          {driver.kk_url && (
-                            <a
-                              href={driver.kk_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              title="KK"
-                            >
-                              <img
-                                src={driver.kk_url}
-                                alt="KK"
-                                className="w-8 h-8 rounded object-cover"
-                              />
-                            </a>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <span
-                          className={`px-2 py-1 rounded-full text-xs ${driver.account_status === "active" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}
-                        >
-                          {driver.account_status || "N/A"}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <span
-                          className={`px-2 py-1 rounded-full text-xs ${driver.account_status === "active" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}
-                        >
-                          {driver.account_status || "N/A"}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <span
-                          className={`px-2 py-1 rounded-full text-xs ${driver.is_online ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}
-                        >
-                          {driver.is_online ? "Online" : "Offline"}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <span
-                          className={`font-medium ${(driver.saldo || 0) >= 0 ? "text-green-600" : "text-red-600"}`}
-                        >
-                          {formatRupiah(driver.saldo || 0)}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            onClick={() => openEditDialog(driver)}
+                    </TableRow>
+                  ) : (
+                    currentDrivers.map((driver) => (
+                      <TableRow key={driver.id}>
+                        <TableCell className="font-medium">
+                          {driver.name}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex space-x-2">
+                            {driver.selfie_url && (
+                              <a
+                                href={driver.selfie_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title="Selfie"
+                              >
+                                <img
+                                  src={driver.selfie_url}
+                                  alt="Selfie"
+                                  className="w-8 h-8 rounded-full object-cover"
+                                />
+                              </a>
+                            )}
+                            {driver.sim_url && (
+                              <a
+                                href={driver.sim_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title="SIM"
+                              >
+                                <img
+                                  src={driver.sim_url}
+                                  alt="SIM"
+                                  className="w-8 h-8 rounded object-cover"
+                                />
+                              </a>
+                            )}
+                            {driver.stnk_url && (
+                              <a
+                                href={driver.stnk_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title="STNK"
+                              >
+                                <img
+                                  src={driver.stnk_url}
+                                  alt="STNK"
+                                  className="w-8 h-8 rounded object-cover"
+                                />
+                              </a>
+                            )}
+                            {driver.kk_url && (
+                              <a
+                                href={driver.kk_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title="KK"
+                              >
+                                <img
+                                  src={driver.kk_url}
+                                  alt="KK"
+                                  className="w-8 h-8 rounded object-cover"
+                                />
+                              </a>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={driver.account_status === "active" ? "default" : "destructive"}>
+                            {driver.account_status || "N/A"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={driver.account_status === "active" ? "default" : "destructive"}>
+                            {driver.account_status || "N/A"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={driver.is_online ? "default" : "secondary"}>
+                            {driver.is_online ? "Online" : "Offline"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <span
+                            className={`font-medium ${(driver.saldo || 0) >= 0 ? "text-green-600" : "text-red-600"}`}
                           >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          {userRole === "Super Admin" && (
+                            {formatRupiah(driver.saldo || 0)}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2">
                             <Button
                               variant="outline"
                               size="icon"
-                              className="text-destructive"
-                              onClick={() => openDeleteDialog(driver)}
+                              onClick={() => openDetailDialog(driver)}
+                              title="View Details"
                             >
-                              <Trash2 className="h-4 w-4" />
+                              <Eye className="h-4 w-4" />
                             </Button>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              onClick={() => openEditDialog(driver)}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            {userRole === "Super Admin" && (
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                className="text-destructive"
+                                onClick={() => openDeleteDialog(driver)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+
+              {/* Pagination Controls - Bottom */}
+              {totalPages > 1 && (
+                <div className="flex justify-between items-center mt-4">
+                  <div className="text-sm text-muted-foreground">
+                    Page {currentPage} of {totalPages}
+                  </div>
+                  
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handlePageChange(currentPage - 1)}
+                      disabled={currentPage === 1}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                      Previous
+                    </Button>
+                    
+                    {/* Page Numbers */}
+                    <div className="flex gap-1">
+                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                        let pageNum;
+                        if (totalPages <= 5) {
+                          pageNum = i + 1;
+                        } else if (currentPage <= 3) {
+                          pageNum = i + 1;
+                        } else if (currentPage >= totalPages - 2) {
+                          pageNum = totalPages - 4 + i;
+                        } else {
+                          pageNum = currentPage - 2 + i;
+                        }
+                        
+                        return (
+                          <Button
+                            key={pageNum}
+                            variant={currentPage === pageNum ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => handlePageChange(pageNum)}
+                            className="w-8 h-8 p-0"
+                          >
+                            {pageNum}
+                          </Button>
+                        );
+                      })}
+                    </div>
+                    
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handlePageChange(currentPage + 1)}
+                      disabled={currentPage === totalPages}
+                    >
+                      Next
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </CardContent>
         <CardFooter className="flex justify-between">
           <div className="text-sm text-muted-foreground">
-            Showing {filteredDrivers.length} of {drivers.length} drivers
-            {currentFilter !== 'all' && (
+            Showing {currentDrivers.length} of {filteredDrivers.length} drivers
+            {(currentFilter !== 'all' || accountStatusFilter !== 'all' || driverStatusFilter !== 'all' || onlineStatusFilter !== 'all') && (
               <span className="text-blue-600 ml-1">
                 (filtered by {
-                  currentFilter === 'active' ? 'active status' :
-                  currentFilter === 'online' ? 'online status' :
-                  currentFilter === 'negativeBalance' ? 'negative balance' :
-                  'all'
+                  [
+                    currentFilter !== 'all' && (currentFilter === 'active' ? 'active status' :
+                    currentFilter === 'online' ? 'online status' :
+                    currentFilter === 'negativeBalance' ? 'negative balance' : ''),
+                    accountStatusFilter !== 'all' && `account: ${accountStatusFilter}`,
+                    driverStatusFilter !== 'all' && `driver: ${driverStatusFilter}`,
+                    onlineStatusFilter !== 'all' && `online: ${onlineStatusFilter}`
+                  ].filter(Boolean).join(', ')
                 })
               </span>
             )}
@@ -1071,6 +1247,184 @@ const DriverManagement = () => {
           </div>
         </CardFooter>
       </Card>
+
+      {/* Driver Detail Dialog - Master Detail View */}
+      <Dialog open={isDetailDialogOpen} onOpenChange={setIsDetailDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Driver Details</DialogTitle>
+            <DialogDescription>
+              Detailed information for {selectedDriver?.name}
+            </DialogDescription>
+          </DialogHeader>
+          {selectedDriver && (
+            <div className="grid gap-6 py-4">
+              {/* Basic Info Section */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold border-b pb-2">Basic Information</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-sm font-medium text-muted-foreground">Name</Label>
+                    <p className="text-sm font-medium">{selectedDriver.name}</p>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium text-muted-foreground">Account Status</Label>
+                    <Badge variant={selectedDriver.account_status === "active" ? "default" : "destructive"} className="ml-2">
+                      {selectedDriver.account_status || "N/A"}
+                    </Badge>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium text-muted-foreground">Online Status</Label>
+                    <Badge variant={selectedDriver.is_online ? "default" : "secondary"} className="ml-2">
+                      {selectedDriver.is_online ? "Online" : "Offline"}
+                    </Badge>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium text-muted-foreground">Saldo</Label>
+                    <p className={`text-sm font-medium ${(selectedDriver.saldo || 0) >= 0 ? "text-green-600" : "text-red-600"}`}>
+                      {formatRupiah(selectedDriver.saldo || 0)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Contact Information Section */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold border-b pb-2">Contact Information</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-sm font-medium text-muted-foreground">Email</Label>
+                    <p className="text-sm">{selectedDriver.email || "Not provided"}</p>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium text-muted-foreground">Phone</Label>
+                    <p className="text-sm">{selectedDriver.phone_number || "Not provided"}</p>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium text-muted-foreground">Family Phone</Label>
+                    <p className="text-sm">{selectedDriver.family_phone_number || "Not provided"}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* License Information Section */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold border-b pb-2">License Information</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-sm font-medium text-muted-foreground">SIM Number</Label>
+                    <p className="text-sm">{selectedDriver.license_number || "Not provided"}</p>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium text-muted-foreground">License Expiry</Label>
+                    <p className="text-sm">{selectedDriver.license_expiry || "Not provided"}</p>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium text-muted-foreground">STNK Expiry</Label>
+                    <p className="text-sm">{selectedDriver.stnk_expiry || "Not provided"}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Documents Section */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold border-b pb-2">Documents</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  {selectedDriver.selfie_url && (
+                    <div>
+                      <Label className="text-sm font-medium text-muted-foreground">Selfie</Label>
+                      <div className="mt-2">
+                        <a
+                          href={selectedDriver.selfie_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block"
+                        >
+                          <img
+                            src={selectedDriver.selfie_url}
+                            alt="Selfie"
+                            className="w-20 h-20 rounded-full object-cover border hover:opacity-80 transition-opacity"
+                          />
+                        </a>
+                      </div>
+                    </div>
+                  )}
+                  {selectedDriver.sim_url && (
+                    <div>
+                      <Label className="text-sm font-medium text-muted-foreground">SIM Document</Label>
+                      <div className="mt-2">
+                        <a
+                          href={selectedDriver.sim_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block"
+                        >
+                          <img
+                            src={selectedDriver.sim_url}
+                            alt="SIM"
+                            className="w-20 h-20 rounded object-cover border hover:opacity-80 transition-opacity"
+                          />
+                        </a>
+                      </div>
+                    </div>
+                  )}
+                  {selectedDriver.stnk_url && (
+                    <div>
+                      <Label className="text-sm font-medium text-muted-foreground">STNK Document</Label>
+                      <div className="mt-2">
+                        <a
+                          href={selectedDriver.stnk_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block"
+                        >
+                          <img
+                            src={selectedDriver.stnk_url}
+                            alt="STNK"
+                            className="w-20 h-20 rounded object-cover border hover:opacity-80 transition-opacity"
+                          />
+                        </a>
+                      </div>
+                    </div>
+                  )}
+                  {selectedDriver.kk_url && (
+                    <div>
+                      <Label className="text-sm font-medium text-muted-foreground">Kartu Keluarga</Label>
+                      <div className="mt-2">
+                        <a
+                          href={selectedDriver.kk_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block"
+                        >
+                          <img
+                            src={selectedDriver.kk_url}
+                            alt="KK"
+                            className="w-20 h-20 rounded object-cover border hover:opacity-80 transition-opacity"
+                          />
+                        </a>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDetailDialogOpen(false)}>
+              Close
+            </Button>
+            {selectedDriver && (
+              <Button onClick={() => {
+                setIsDetailDialogOpen(false);
+                openEditDialog(selectedDriver);
+              }}>
+                Edit Driver
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* FIXED: Edit Driver Dialog - Keep existing functionality */}
       <Dialog open={isEditDialogOpen} onOpenChange={(open) => {

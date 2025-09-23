@@ -1004,6 +1004,14 @@ const BookingAgentManagement = () => {
                     </div>
                     <div>
                       <Label className="text-sm font-medium text-gray-600">
+                        Dropoff Area
+                      </Label>
+                      <p className="text-sm">
+                        {selectedBooking.dropoff_area}
+                      </p>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium text-gray-600">
                         Pickup Date
                       </Label>
                       <p className="text-sm">
