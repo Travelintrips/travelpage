@@ -348,9 +348,9 @@ const DriverManagement = () => {
       console.log("Fetching drivers...");
 
       const { data, error } = await supabase
-        .from("drivers")
-        .select("*")
-        .order("created_at", { ascending: false });
+  .from("drivers")
+  .select("*")
+  .order("full_name", { ascending: true });
 
       if (error) {
         console.error("Error fetching drivers:", error);
