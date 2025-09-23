@@ -44,6 +44,7 @@ const Reports = () => {
   const [serviceTypeOptions, setServiceTypeOptions] = useState<ServiceTypeOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [selectedKPI, setSelectedKPI] = useState<string | null>(null); // Track which KPI card is selected
   const { toast } = useToast();
 
   // Get current month's first and last day as default
@@ -474,6 +475,16 @@ const Reports = () => {
     });
   };
 
+  // Handle KPI card click
+  const handleKPIClick = (kpiType: string) => {
+    setSelectedKPI(kpiType);
+  };
+
+  // Reset KPI selection
+  const resetKPISelection = () => {
+    setSelectedKPI(null);
+  };
+
   return (
     <div className="bg-white min-h-screen p-6">
       <div className="max-w-7xl mx-auto">
@@ -484,362 +495,512 @@ const Reports = () => {
           </p>
         </div>
 
-        <Tabs defaultValue="journal-entries" className="w-full">
-          <TabsList className="grid w-full grid-cols-1 lg:w-auto">
-            <TabsTrigger value="journal-entries">Journal Entries</TabsTrigger>
-          </TabsList>
+        {/* KPI Cards - Always visible and clickable */}
+        {journalEntries.length > 0 && (
+          <div className="mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+              {/* Journal Entries Card */}
+              <Card 
+                className={`cursor-pointer transition-all hover:shadow-md ${
+                  selectedKPI === 'journal-entries' ? 'ring-2 ring-blue-500 bg-blue-50' : 'hover:bg-gray-50'
+                }`}
+                onClick={() => handleKPIClick('journal-entries')}
+              >
+                <CardContent className="p-4 text-center">
+                  <div className="text-2xl font-bold text-gray-900">
+                    {journalEntries.length}
+                  </div>
+                  <div className="text-sm text-gray-600">Journal Entries</div>
+                </CardContent>
+              </Card>
 
-          <TabsContent value="journal-entries" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <span>Journal Entries</span>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={fetchJournalEntries}
-                      disabled={loading}
-                    >
-                      <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                      Refresh
-                    </Button>
-                    <Button
-                      variant="default"
-                      size="sm"
-                      onClick={exportToCSV}
-                      disabled={exporting || filteredEntries.length === 0}
-                    >
-                      <FileDown className="h-4 w-4 mr-2" />
-                      {exporting ? 'Exporting...' : 'Export CSV'}
-                    </Button>
+              {/* Total Debit Card */}
+              <Card 
+                className={`cursor-pointer transition-all hover:shadow-md ${
+                  selectedKPI === 'total-debit' ? 'ring-2 ring-green-500 bg-green-50' : 'hover:bg-gray-50'
+                }`}
+                onClick={() => handleKPIClick('total-debit')}
+              >
+                <CardContent className="p-4 text-center">
+                  <div className="text-2xl font-bold text-green-600">
+                    {formatCurrency(
+                      journalEntries.reduce((sum, entry) => sum + (entry.total_debit || 0), 0)
+                    )}
                   </div>
-                </CardTitle>
-              </CardHeader>
+                  <div className="text-sm text-gray-600">Total Debit</div>
+                </CardContent>
+              </Card>
 
-              <CardContent className="space-y-6">
-                {/* Filters */}
-                <div className="space-y-4 mb-6">
-                  {/* Global Search */}
-                  <div>
-                    <Label htmlFor="globalSearch">Global Search</Label>
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                      <Input
-                        id="globalSearch"
-                        type="text"
-                        placeholder="Search across all fields (nama, description, service type, status, vehicle, license plate, date, amounts, balances...)"
-                        value={filters.globalSearch}
-                        onChange={(e) => setFilters(prev => ({ ...prev, globalSearch: e.target.value }))}
-                        className="pl-10"
-                      />
-                    </div>
+              {/* Total Credit Card */}
+              <Card 
+                className={`cursor-pointer transition-all hover:shadow-md ${
+                  selectedKPI === 'total-credit' ? 'ring-2 ring-blue-500 bg-blue-50' : 'hover:bg-gray-50'
+                }`}
+                onClick={() => handleKPIClick('total-credit')}
+              >
+                <CardContent className="p-4 text-center">
+                  <div className="text-2xl font-bold text-blue-600">
+                    {formatCurrency(
+                      journalEntries.reduce((sum, entry) => sum + (entry.total_credit || 0), 0)
+                    )}
                   </div>
-                  
-                  {/* Other Filters */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div>
-                      <Label htmlFor="startDate">Start Date</Label>
-                      <Input
-                        id="startDate"
-                        type="date"
-                        value={filters.startDate}
-                        onChange={(e) => {
-                          setFilters(prev => ({ ...prev, startDate: e.target.value }));
-                          setCurrentPage(0); // Reset page when filter changes
-                        }}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="endDate">End Date</Label>
-                      <Input
-                        id="endDate"
-                        type="date"
-                        value={filters.endDate}
-                        onChange={(e) => setFilters(prev => ({ ...prev, endDate: e.target.value }))}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="nama">Nama</Label>
-                      <Select
-                        value={filters.nama}
-                        onValueChange={(value) => {
-                          setFilters(prev => ({ ...prev, nama: value }));
-                          setCurrentPage(0); // Reset page when filter changes
-                        }}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder={loadingNamaOptions ? "Loading..." : "Select name"} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {namaOptions.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                              {option.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label htmlFor="serviceType">Service Type</Label>
-                      <Select
-                        value={filters.serviceType}
-                        onValueChange={(value) => {
-                          setFilters(prev => ({ ...prev, serviceType: value }));
-                          setCurrentPage(0); // Reset page when filter changes
-                        }}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="All service types" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {serviceTypeOptions.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                              {option.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                </div>
+                  <div className="text-sm text-gray-600">Total Credit</div>
+                </CardContent>
+              </Card>
 
-                <div className="flex justify-between items-center">
-                  <div className="text-sm text-gray-600">
-                    Showing {journalEntries.length} of {journalEntries.length} entries
+              {/* Net Amount Card */}
+              <Card 
+                className={`cursor-pointer transition-all hover:shadow-md ${
+                  selectedKPI === 'net-amount' ? 'ring-2 ring-purple-500 bg-purple-50' : 'hover:bg-gray-50'
+                }`}
+                onClick={() => handleKPIClick('net-amount')}
+              >
+                <CardContent className="p-4 text-center">
+                  <div className="text-2xl font-bold text-purple-600">
+                    {formatCurrency(
+                      journalEntries.reduce((sum, entry) => sum + (entry.total_debit || 0) - (entry.total_credit || 0), 0)
+                    )}
                   </div>
-                  <Button variant="outline" size="sm" onClick={resetFilters}>
-                    Reset Filters
+                  <div className="text-sm text-gray-600">Net Amount</div>
+                </CardContent>
+              </Card>
+
+              {/* Total Driver Balance Card */}
+              <Card 
+                className={`cursor-pointer transition-all hover:shadow-md ${
+                  selectedKPI === 'driver-balance' ? 'ring-2 ring-orange-500 bg-orange-50' : 'hover:bg-gray-50'
+                }`}
+                onClick={() => handleKPIClick('driver-balance')}
+              >
+                <CardContent className="p-4 text-center">
+                  <div className="text-2xl font-bold text-orange-600">
+                    {formatCurrency(
+                      journalEntries.reduce((sum, entry) => sum + (entry.saldo_driver_now || 0), 0)
+                    )}
+                  </div>
+                  <div className="text-sm text-gray-600">Total Driver Balance</div>
+                </CardContent>
+              </Card>
+
+              {/* Total Agent Balance Card */}
+              <Card 
+                className={`cursor-pointer transition-all hover:shadow-md ${
+                  selectedKPI === 'agent-balance' ? 'ring-2 ring-indigo-500 bg-indigo-50' : 'hover:bg-gray-50'
+                }`}
+                onClick={() => handleKPIClick('agent-balance')}
+              >
+                <CardContent className="p-4 text-center">
+                  <div className="text-2xl font-bold text-indigo-600">
+                    {formatCurrency(
+                      journalEntries.reduce((sum, entry) => sum + (entry.saldo_agent_now || 0), 0)
+                    )}
+                  </div>
+                  <div className="text-sm text-gray-600">Total Agent Balance</div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Selected KPI Info */}
+            {selectedKPI && (
+              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-blue-800">
+                    Selected: <strong>
+                      {selectedKPI === 'journal-entries' && 'Journal Entries'}
+                      {selectedKPI === 'total-debit' && 'Total Debit'}
+                      {selectedKPI === 'total-credit' && 'Total Credit'}
+                      {selectedKPI === 'net-amount' && 'Net Amount'}
+                      {selectedKPI === 'driver-balance' && 'Total Driver Balance'}
+                      {selectedKPI === 'agent-balance' && 'Total Agent Balance'}
+                    </strong>
+                  </span>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={resetKPISelection}
+                    className="text-blue-600 border-blue-300 hover:bg-blue-100"
+                  >
+                    Clear Selection
                   </Button>
                 </div>
+              </div>
+            )}
+          </div>
+        )}
 
-                {/* Summary - Updated to include balance columns */}
-                {journalEntries.length > 0 && (
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-gray-900">
-                          {journalEntries.length}
-                        </div>
-                        <div className="text-sm text-gray-600">Total Entries</div>
+        {/* Journal Entries Table - Only show when 'journal-entries' KPI is selected */}
+        {selectedKPI === 'journal-entries' && (
+          <Tabs defaultValue="journal-entries" className="w-full">
+            <TabsList className="grid w-full grid-cols-1 lg:w-auto">
+              <TabsTrigger value="journal-entries">Journal Entries</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="journal-entries" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-between">
+                    <span>Journal Entries</span>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={fetchJournalEntries}
+                        disabled={loading}
+                      >
+                        <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                        Refresh
+                      </Button>
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={exportToCSV}
+                        disabled={exporting || filteredEntries.length === 0}
+                      >
+                        <FileDown className="h-4 w-4 mr-2" />
+                        {exporting ? 'Exporting...' : 'Export CSV'}
+                      </Button>
+                    </div>
+                  </CardTitle>
+                </CardHeader>
+
+                <CardContent className="space-y-6">
+                  {/* Filters */}
+                  <div className="space-y-4 mb-6">
+                    {/* Global Search */}
+                    <div>
+                      <Label htmlFor="globalSearch">Global Search</Label>
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                        <Input
+                          id="globalSearch"
+                          type="text"
+                          placeholder="Search across all fields (nama, description, service type, status, vehicle, license plate, date, amounts, balances...)"
+                          value={filters.globalSearch}
+                          onChange={(e) => setFilters(prev => ({ ...prev, globalSearch: e.target.value }))}
+                          className="pl-10"
+                        />
                       </div>
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-green-600">
-                          {formatCurrency(
-                            journalEntries.reduce((sum, entry) => sum + (entry.total_debit || 0), 0)
-                          )}
-                        </div>
-                        <div className="text-sm text-gray-600">Total Debit</div>
+                    </div>
+                    
+                    {/* Other Filters */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                      <div>
+                        <Label htmlFor="startDate">Start Date</Label>
+                        <Input
+                          id="startDate"
+                          type="date"
+                          value={filters.startDate}
+                          onChange={(e) => {
+                            setFilters(prev => ({ ...prev, startDate: e.target.value }));
+                            setCurrentPage(0); // Reset page when filter changes
+                          }}
+                        />
                       </div>
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-blue-600">
-                          {formatCurrency(
-                            journalEntries.reduce((sum, entry) => sum + (entry.total_credit || 0), 0)
-                          )}
-                        </div>
-                        <div className="text-sm text-gray-600">Total Credit</div>
+                      <div>
+                        <Label htmlFor="endDate">End Date</Label>
+                        <Input
+                          id="endDate"
+                          type="date"
+                          value={filters.endDate}
+                          onChange={(e) => setFilters(prev => ({ ...prev, endDate: e.target.value }))}
+                        />
                       </div>
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-purple-600">
-                          {formatCurrency(
-                            journalEntries.reduce((sum, entry) => sum + (entry.total_debit || 0) - (entry.total_credit || 0), 0)
-                          )}
-                        </div>
-                        <div className="text-sm text-gray-600">Net Amount</div>
+                      <div>
+                        <Label htmlFor="nama">Nama</Label>
+                        <Select
+                          value={filters.nama}
+                          onValueChange={(value) => {
+                            setFilters(prev => ({ ...prev, nama: value }));
+                            setCurrentPage(0); // Reset page when filter changes
+                          }}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder={loadingNamaOptions ? "Loading..." : "Select name"} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {namaOptions.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-orange-600">
-                          {formatCurrency(
-                            journalEntries.reduce((sum, entry) => sum + (entry.saldo_driver_now || 0), 0)
-                          )}
-                        </div>
-                        <div className="text-sm text-gray-600">Total Driver Balance</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-indigo-600">
-                          {formatCurrency(
-                            journalEntries.reduce((sum, entry) => sum + (entry.saldo_agent_now || 0), 0)
-                          )}
-                        </div>
-                        <div className="text-sm text-gray-600">Total Agent Balance</div>
+                      <div>
+                        <Label htmlFor="serviceType">Service Type</Label>
+                        <Select
+                          value={filters.serviceType}
+                          onValueChange={(value) => {
+                            setFilters(prev => ({ ...prev, serviceType: value }));
+                            setCurrentPage(0); // Reset page when filter changes
+                          }}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="All service types" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {serviceTypeOptions.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                     </div>
                   </div>
-                )}
 
-                {/* Table */}
-                <div className="border rounded-lg overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead className="bg-gray-50 border-b">
-                        <tr>
-                          <th 
-                            className="px-4 py-3 text-left font-medium text-gray-900 cursor-pointer hover:bg-gray-100"
-                            onClick={() => handleSort('nama')}
-                          >
-                            <div className="flex items-center gap-1">
-                              Nama
-                              {sortConfig.key === 'nama' && (
-                                <span className="text-xs">
-                                  {sortConfig.direction === 'asc' ? '↑' : '↓'}
-                                </span>
-                              )}
-                            </div>
-                          </th>
-                          <th 
-                            className="px-4 py-3 text-left font-medium text-gray-900 cursor-pointer hover:bg-gray-100"
-                            onClick={() => handleSort('date')}
-                          >
-                            <div className="flex items-center gap-1">
-                              Date
-                              {sortConfig.key === 'date' && (
-                                <span className="text-xs">
-                                  {sortConfig.direction === 'asc' ? '↑' : '↓'}
-                                </span>
-                              )}
-                            </div>
-                          </th>
-                          <th className="px-4 py-3 text-left font-medium text-gray-900">
-                            Description
-                          </th>
-                          <th 
-                            className="px-4 py-3 text-left font-medium text-gray-900 cursor-pointer hover:bg-gray-100"
-                            onClick={() => handleSort('service_type')}
-                          >
-                            <div className="flex items-center gap-1">
-                              Service Type
-                              {sortConfig.key === 'service_type' && (
-                                <span className="text-xs">
-                                  {sortConfig.direction === 'asc' ? '↑' : '↓'}
-                                </span>
-                              )}
-                            </div>
-                          </th>
-                          <th 
-                            className="px-4 py-3 text-right font-medium text-gray-900 cursor-pointer hover:bg-gray-100"
-                            onClick={() => handleSort('total_debit')}
-                          >
-                            <div className="flex items-center justify-end gap-1">
-                              Total Debit
-                              {sortConfig.key === 'total_debit' && (
-                                <span className="text-xs">
-                                  {sortConfig.direction === 'asc' ? '↑' : '↓'}
-                                </span>
-                              )}
-                            </div>
-                          </th>
-                          <th 
-                            className="px-4 py-3 text-right font-medium text-gray-900 cursor-pointer hover:bg-gray-100"
-                            onClick={() => handleSort('total_credit')}
-                          >
-                            <div className="flex items-center justify-end gap-1">
-                              Total Credit
-                              {sortConfig.key === 'total_credit' && (
-                                <span className="text-xs">
-                                  {sortConfig.direction === 'asc' ? '↑' : '↓'}
-                                </span>
-                              )}
-                            </div>
-                          </th>
-                          <th 
-                            className="px-4 py-3 text-right font-medium text-gray-900 cursor-pointer hover:bg-gray-100"
-                            onClick={() => handleSort('saldo_driver_now')}
-                          >
-                            <div className="flex items-center justify-end gap-1">
-                              Saldo Driver Now
-                              {sortConfig.key === 'saldo_driver_now' && (
-                                <span className="text-xs">
-                                  {sortConfig.direction === 'asc' ? '↑' : '↓'}
-                                </span>
-                              )}
-                            </div>
-                          </th>
-                          <th 
-                            className="px-4 py-3 text-right font-medium text-gray-900 cursor-pointer hover:bg-gray-100"
-                            onClick={() => handleSort('saldo_agent_now')}
-                          >
-                            <div className="flex items-center justify-end gap-1">
-                              Saldo Agent Now
-                              {sortConfig.key === 'saldo_agent_now' && (
-                                <span className="text-xs">
-                                  {sortConfig.direction === 'asc' ? '↑' : '↓'}
-                                </span>
-                              )}
-                            </div>
-                          </th>
-                          <th className="px-4 py-3 text-left font-medium text-gray-900">
-                            Vehicle
-                          </th>
-                          <th className="px-4 py-3 text-left font-medium text-gray-900">
-                            License Plate
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-200">
-                        {loading ? (
+                  <div className="flex justify-between items-center">
+                    <div className="text-sm text-gray-600">
+                      Showing {journalEntries.length} of {journalEntries.length} entries
+                    </div>
+                    <Button variant="outline" size="sm" onClick={resetFilters}>
+                      Reset Filters
+                    </Button>
+                  </div>
+
+                  {/* Table */}
+                  <div className="border rounded-lg overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50 border-b">
                           <tr>
-                            <td colSpan={10} className="px-4 py-8 text-center text-gray-500">
-                              <div className="flex items-center justify-center">
-                                <RefreshCw className="h-5 w-5 animate-spin mr-2" />
-                                Loading journal entries...
+                            <th 
+                              className="px-4 py-3 text-left font-medium text-gray-900 cursor-pointer hover:bg-gray-100"
+                              onClick={() => handleSort('nama')}
+                            >
+                              <div className="flex items-center gap-1">
+                                Nama
+                                {sortConfig.key === 'nama' && (
+                                  <span className="text-xs">
+                                    {sortConfig.direction === 'asc' ? '↑' : '↓'}
+                                  </span>
+                                )}
                               </div>
-                            </td>
+                            </th>
+                            <th 
+                              className="px-4 py-3 text-left font-medium text-gray-900 cursor-pointer hover:bg-gray-100"
+                              onClick={() => handleSort('date')}
+                            >
+                              <div className="flex items-center gap-1">
+                                Date
+                                {sortConfig.key === 'date' && (
+                                  <span className="text-xs">
+                                    {sortConfig.direction === 'asc' ? '↑' : '↓'}
+                                  </span>
+                                )}
+                              </div>
+                            </th>
+                            <th className="px-4 py-3 text-left font-medium text-gray-900">
+                              Description
+                            </th>
+                            <th 
+                              className="px-4 py-3 text-left font-medium text-gray-900 cursor-pointer hover:bg-gray-100"
+                              onClick={() => handleSort('service_type')}
+                            >
+                              <div className="flex items-center gap-1">
+                                Service Type
+                                {sortConfig.key === 'service_type' && (
+                                  <span className="text-xs">
+                                    {sortConfig.direction === 'asc' ? '↑' : '↓'}
+                                  </span>
+                                )}
+                              </div>
+                            </th>
+                            <th 
+                              className="px-4 py-3 text-right font-medium text-gray-900 cursor-pointer hover:bg-gray-100"
+                              onClick={() => handleSort('total_debit')}
+                            >
+                              <div className="flex items-center justify-end gap-1">
+                                Total Debit
+                                {sortConfig.key === 'total_debit' && (
+                                  <span className="text-xs">
+                                    {sortConfig.direction === 'asc' ? '↑' : '↓'}
+                                  </span>
+                                )}
+                              </div>
+                            </th>
+                            <th 
+                              className="px-4 py-3 text-right font-medium text-gray-900 cursor-pointer hover:bg-gray-100"
+                              onClick={() => handleSort('total_credit')}
+                            >
+                              <div className="flex items-center justify-end gap-1">
+                                Total Credit
+                                {sortConfig.key === 'total_credit' && (
+                                  <span className="text-xs">
+                                    {sortConfig.direction === 'asc' ? '↑' : '↓'}
+                                  </span>
+                                )}
+                              </div>
+                            </th>
+                            <th 
+                              className="px-4 py-3 text-right font-medium text-gray-900 cursor-pointer hover:bg-gray-100"
+                              onClick={() => handleSort('saldo_driver_now')}
+                            >
+                              <div className="flex items-center justify-end gap-1">
+                                Saldo Driver Now
+                                {sortConfig.key === 'saldo_driver_now' && (
+                                  <span className="text-xs">
+                                    {sortConfig.direction === 'asc' ? '↑' : '↓'}
+                                  </span>
+                                )}
+                              </div>
+                            </th>
+                            <th 
+                              className="px-4 py-3 text-right font-medium text-gray-900 cursor-pointer hover:bg-gray-100"
+                              onClick={() => handleSort('saldo_agent_now')}
+                            >
+                              <div className="flex items-center justify-end gap-1">
+                                Saldo Agent Now
+                                {sortConfig.key === 'saldo_agent_now' && (
+                                  <span className="text-xs">
+                                    {sortConfig.direction === 'asc' ? '↑' : '↓'}
+                                  </span>
+                                )}
+                              </div>
+                            </th>
+                            <th className="px-4 py-3 text-left font-medium text-gray-900">
+                              Vehicle
+                            </th>
+                            <th className="px-4 py-3 text-left font-medium text-gray-900">
+                              License Plate
+                            </th>
                           </tr>
-                        ) : journalEntries.length === 0 ? (
-                          <tr>
-                            <td colSpan={10} className="px-4 py-8 text-center text-gray-500">
-                              No journal entries found matching your criteria
-                            </td>
-                          </tr>
-                        ) : (
-                          journalEntries.map((entry, index) => (
-                            <tr key={index} className="hover:bg-gray-50">
-                              <td className="px-4 py-3 font-medium text-gray-900">
-                                {entry.nama}
-                              </td>
-                              <td className="px-4 py-3 text-gray-600">
-                                {formatDate(entry.date)}
-                              </td>
-                              <td className="px-4 py-3 text-gray-600 max-w-xs truncate">
-                                {entry.description}
-                              </td>
-                              <td className="px-4 py-3">
-                                <Badge variant="outline" className="text-xs">
-                                  {entry.service_type}
-                                </Badge>
-                              </td>
-                              <td className="px-4 py-3 text-right font-medium text-gray-900">
-                                {formatCurrency(entry.total_debit || 0)}
-                              </td>
-                              <td className="px-4 py-3 text-right font-medium text-blue-600">
-                                {formatCurrency(entry.total_credit || 0)}
-                              </td>
-                              <td className="px-4 py-3 text-right font-medium text-green-600">
-                                {formatCurrency(entry.saldo_driver_now || 0)}
-                              </td>
-                              <td className="px-4 py-3 text-right font-medium text-purple-600">
-                                {formatCurrency(entry.saldo_agent_now || 0)}
-                              </td>
-                              <td className="px-4 py-3 text-gray-600">
-                                <div className="flex flex-col">
-                                  <span className="font-medium">{entry.vehicle_name}</span>
-                                  <span className="text-xs text-gray-500">{entry.vehicle_type}</span>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200">
+                          {loading ? (
+                            <tr>
+                              <td colSpan={10} className="px-4 py-8 text-center text-gray-500">
+                                <div className="flex items-center justify-center">
+                                  <RefreshCw className="h-5 w-5 animate-spin mr-2" />
+                                  Loading journal entries...
                                 </div>
                               </td>
-                              <td className="px-4 py-3 text-gray-600 font-mono text-sm">
-                                {entry.license_plate}
+                            </tr>
+                          ) : journalEntries.length === 0 ? (
+                            <tr>
+                              <td colSpan={10} className="px-4 py-8 text-center text-gray-500">
+                                No journal entries found matching your criteria
                               </td>
                             </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
+                          ) : (
+                            journalEntries.map((entry, index) => (
+                              <tr key={index} className="hover:bg-gray-50">
+                                <td className="px-4 py-3 font-medium text-gray-900">
+                                  {entry.nama}
+                                </td>
+                                <td className="px-4 py-3 text-gray-600">
+                                  {formatDate(entry.date)}
+                                </td>
+                                <td className="px-4 py-3 text-gray-600 max-w-xs truncate">
+                                  {entry.description}
+                                </td>
+                                <td className="px-4 py-3">
+                                  <Badge variant="outline" className="text-xs">
+                                    {entry.service_type}
+                                  </Badge>
+                                </td>
+                                <td className="px-4 py-3 text-right font-medium text-gray-900">
+                                  {formatCurrency(entry.total_debit || 0)}
+                                </td>
+                                <td className="px-4 py-3 text-right font-medium text-blue-600">
+                                  {formatCurrency(entry.total_credit || 0)}
+                                </td>
+                                <td className="px-4 py-3 text-right font-medium text-green-600">
+                                  {formatCurrency(entry.saldo_driver_now || 0)}
+                                </td>
+                                <td className="px-4 py-3 text-right font-medium text-purple-600">
+                                  {formatCurrency(entry.saldo_agent_now || 0)}
+                                </td>
+                                <td className="px-4 py-3 text-gray-600">
+                                  <div className="flex flex-col">
+                                    <span className="font-medium">{entry.vehicle_name}</span>
+                                    <span className="text-xs text-gray-500">{entry.vehicle_type}</span>
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3 text-gray-600 font-mono text-sm">
+                                  {entry.license_plate}
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        )}
+
+        {/* Message when no KPI is selected or non-journal KPI is selected */}
+        {!selectedKPI && journalEntries.length > 0 && (
+          <div className="text-center py-12">
+            <div className="text-gray-500 text-lg mb-2">
+              Click on any KPI card above to view details
+            </div>
+            <div className="text-gray-400 text-sm">
+              Select "Journal Entries" to view the detailed table
+            </div>
+          </div>
+        )}
+
+        {selectedKPI && selectedKPI !== 'journal-entries' && (
+          <div className="text-center py-12">
+            <Card className="max-w-md mx-auto">
+              <CardContent className="p-8">
+                <div className="text-gray-500 text-lg mb-2">
+                  {selectedKPI === 'total-debit' && 'Total Debit Details'}
+                  {selectedKPI === 'total-credit' && 'Total Credit Details'}
+                  {selectedKPI === 'net-amount' && 'Net Amount Details'}
+                  {selectedKPI === 'driver-balance' && 'Driver Balance Details'}
+                  {selectedKPI === 'agent-balance' && 'Agent Balance Details'}
                 </div>
+                <div className="text-gray-400 text-sm mb-4">
+                  Detailed analysis for this KPI will be available soon
+                </div>
+                <Button 
+                  variant="outline" 
+                  onClick={() => handleKPIClick('journal-entries')}
+                  className="mr-2"
+                >
+                  View Journal Entries
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={resetKPISelection}
+                >
+                  Clear Selection
+                </Button>
               </CardContent>
             </Card>
-          </TabsContent>
-        </Tabs>
+          </div>
+        )}
+
+        {/* Message when no data is available */}
+        {journalEntries.length === 0 && !loading && (
+          <div className="text-center py-12">
+            <Card className="max-w-md mx-auto">
+              <CardContent className="p-8">
+                <div className="text-gray-500 text-lg mb-2">
+                  No Data Available
+                </div>
+                <div className="text-gray-400 text-sm mb-4">
+                  No journal entries found. Please check your data or try refreshing.
+                </div>
+                <Button 
+                  variant="outline" 
+                  onClick={fetchJournalEntries}
+                  disabled={loading}
+                >
+                  <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                  Refresh Data
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </div>
     </div>
   );

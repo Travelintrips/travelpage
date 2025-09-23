@@ -760,7 +760,7 @@ const AdminLayout = () => {
                 )}
 
                 {/* Only show API Settings for non-Staff Trips and non-Staff Traffic users */}
-                {userRole !== "Staff Trips" && userRole !== "Staff Traffic" && userRole !== "Staff" &&  (
+                {userRole !== "Staff Trips" && userRole !== "Staff Traffic" && userRole !== "Staff" &&  userRole !== "Staff Admin" && (
                   <Link
                     to="/admin/api-settings"
                     className={`flex items-center p-3 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/api-settings") ? "bg-white/20 font-medium text-white" : "text-white/80"} ${!sidebarOpen ? "justify-center" : ""}`}

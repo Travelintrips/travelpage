@@ -60,6 +60,90 @@
     "inspection": "Inspection",
     "payment": "Payment"
   },
+  "destinations": {
+    "title": "Destinasi Populer",
+    "list": {
+      "bali": {
+        "name": "Bali",
+        "description": "An island paradise with beautiful beaches and rich culture."
+      },
+      "jakarta": {
+        "name": "Jakarta",
+        "description": "A vibrant capital city with a variety of modern attractions."
+      },
+      "yogyakarta": {
+        "name": "Yogyakarta",
+        "description": "Java cultural center with ancient temples."
+      },
+      "lombok": {
+        "name": "Lombok",
+        "description": "Quiet beaches and stunning mountain views."
+      }
+    },
+    "jelajahi": "Explore"
+  },
+  "transportasi":{
+  "title": "Transportation Services",
+  "description" : "Choose our premium transportation services for a comfortable and reliable travel experience.",
+  "backToHome": "Back to Home",
+  "services": {
+    "airportTransfer": {
+      "title": "Airport Pickup and Dropoff",
+      "description": "Reliable airport pickup and drop-off service",
+      "features": {
+        "drivers": "Professional driver",
+        "availability": "Available 24/7",
+        "tracking": "Flight monitoring",
+        "greet": "Pick-up service with nameplate"
+      },
+      "choose": "Select Airport Transfer"
+    },
+    "rentCar": {
+      "title": "Rent Car",
+      "description": "Wide selection of vehicles for your travel needs",
+      "features": {
+        "models": "Various car models",
+        "prices": "Competitive price",
+        "insurance": "Insurance included",
+        "flexible": "Flexible rental period"
+      },
+      "choose": "Select Car Rental"
+    },
+    "interprovincial": {
+      "title": "Inter-Provincial Transportation",
+      "description": "Convenient and affordable",
+      "features": {
+        "models": "Various car models",
+        "prices": "Competitive price",
+        "seats": "Comfortable chairs",
+        "driver": "Professional driver"
+      },
+      "choose": "Select Inter-Provincial Transportation"
+    }
+  },
+  "whyChoose": {
+    "title": "Why Choose Our Transportation Services?",
+    "description": "We provide reliable, safe and comfortable transportation solutions for all your travel needs.",
+    "availability": {
+      "title": "Available 24/7",
+      "description": "Our services are available around the clock to meet your transportation needs."
+    },
+    "safety": {
+      "title": "Safe & Secure",
+      "description": "All our vehicles are regularly maintained and our drivers are professionally trained."
+    },
+    "quality": {
+      "title": "Premium Quality",
+      "description": "Experience premium quality service with competitive pricing and excellent customer support."
+    }
+  },
+  "cta": {
+    "title": "Ready to Book Your Transportation?",
+    "description": "Choose from our reliable transportation services and enjoy a comfortable journey.",
+    "bookAirport": "Book Airport Transfer",
+    "rentCar": "Rent Car"
+  }
+},
   "payment": {
     "details": "Payment Details",
     "summary": "Booking Summary",
