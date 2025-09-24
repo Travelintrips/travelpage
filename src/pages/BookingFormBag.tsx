@@ -63,8 +63,9 @@ const createFormSchema = (selectedSize: string) => {
         ? z.string().min(1, { message: "Item name is required" })
         : z.string().optional(),
     flightNumber: z.string().optional(),
+    notes: z.string().optional(),
     airport: z.string({ required_error: "Please select an airport" }),
-    terminal: z.string({ required_error: "Please select a terminal" }),
+    terminal: z.string().optional(),
     // Separate fields for Hours mode
     startDate_Hours: z
       .date({ required_error: "Please select a date" })
@@ -335,8 +336,9 @@ const BookingForm = ({
       phone: prefilledData?.phone || userPhone || localStorage.getItem("userPhone") || "",
       itemName: "",
       flightNumber: "",
-      airport: "soekarno_hatta",
-      terminal: "3_DOMESTIK",
+      notes: "",
+      airport: "", // Start with empty airport
+      terminal: "", // Start with empty terminal
       startDate_Hours: hoursStartDate,
       startTime_Hours: hoursTime,
       hours: hourCount,
@@ -747,33 +749,69 @@ const finalUserEmail = session.user.email;
             : 1
           : Math.ceil((data.hours || 0) / 4);
 
-      const serviceName = `Baggage Storage - ${
-        selectedSize === "small"
-          ? "Small"
-          : selectedSize === "medium"
-            ? "Medium"
-            : selectedSize === "large"
-              ? "Large"
-              : selectedSize === "extra_large"
-                ? "Extra Large"
-                : selectedSize === "electronic"
-                  ? "Electronic"
-                  : selectedSize === "surfingboard"
-                    ? "Surfing Board"
-                    : selectedSize === "wheelchair"
-                      ? "Wheel Chair"
-                      : selectedSize === "stickgolf"
-                        ? "Stick Golf"
-                        : "Unknown"
-      }`;
+      // Create display names mapping
+      const displayNames: Record<string, string> = {
+        small: "Small",
+        medium: "Medium", 
+        large: "Large",
+        extra_large: "Extra Large",
+        electronic: "Electronic",
+        surfingboard: "Surfing Board",
+        wheelchair: "Wheel Chair",
+        stickgolf: "Stick Golf",
+      };
+
+      // Normalize the selected size to lowercase and ensure it's valid
+      const normalizedSize = selectedSize?.toLowerCase().trim() || "electronic";
+      
+      // Debug the exact values
+      console.log("[BookingForm] DEBUG - Exact values:", {
+        originalSelectedSize: selectedSize,
+        selectedSizeType: typeof selectedSize,
+        normalizedSize,
+        normalizedSizeType: typeof normalizedSize,
+        displayNamesKeys: Object.keys(displayNames),
+        hasElectronicKey: displayNames.hasOwnProperty("electronic"),
+        electronicValue: displayNames["electronic"],
+        lookupResult: displayNames[normalizedSize]
+      });
+      
+      // FIXED: Ensure we get the display name correctly
+      
+      const displayName = displayNames[normalizedSize] || displayNames["electronic"] || "Electronic";
+      if (!displayName) {
+        console.error("[BookingForm] ERROR - No display name found for:", normalizedSize);
+        console.error("[BookingForm] Available keys:", Object.keys(displayNames));
+      }
+      
+      const serviceName = `Baggage Storage – ${displayName}`;
+      console.log("[BookingForm] DEBUG - Service name creation:", {
+        originalSelectedSize: selectedSize,
+        normalizedSize,
+        displayName,
+        serviceName,
+        displayNamesObject: displayNames,
+        isElectronicMatch: normalizedSize === "electronic",
+        electronicDisplayName: displayNames["electronic"],
+        hasElectronicKey: "electronic" in displayNames
+      });
+
+      console.log("[BookingForm] Creating cart item with:", {
+        selectedSize,
+        normalizedSize,
+        displayName,
+        serviceName,
+        item_id: normalizedSize,
+        mapping: displayNames
+      });
 
       const currentBookingCode = getBookingCode();
       const bookingUUID = uuidv4();
 
       const cartItem = {
         item_type: "baggage" as "airport_transfer" | "baggage" | "car",
-        item_id: selectedSize,
-        service_name: serviceName,
+        item_id: normalizedSize,
+        service_name: serviceName, // Use the serviceName we just created
         price: calculateTotalPrice(),
         quantity: 1,
         booking_id: bookingUUID,
@@ -782,30 +820,29 @@ const finalUserEmail = session.user.email;
           customer_name: data.name,
           customer_phone: data.phone,
           customer_email: data.email,
-          item_name: selectedSize === "electronic" ? data.itemName || "" : null,
+          item_name: normalizedSize === "electronic" ? data.itemName || "" : null,
           flight_number: data.flightNumber || "-",
-          baggage_size: selectedSize,
+          baggage_size: normalizedSize,
+          baggage_size_display: displayName,
           duration: calculatedDuration,
-          storage_location:
-            localStorage.getItem("baggage_storage_location") ||
-            "Terminal 1, Level 1",
-          start_date:
-            durationType === "hours"
-              ? data.startDate_Hours
-              : data.startDate_Days,
-          end_date:
-            durationType === "hours" ? data.startDate_Hours : data.endDate_Days,
-          start_time:
-            durationType === "hours"
-              ? data.startTime_Hours
-              : data.startTime_Days,
+          storage_location: localStorage.getItem("baggage_storage_location") || "Terminal 1, Level 1",
+          start_date: durationType === "hours" ? data.startDate_Hours : data.startDate_Days,
+          end_date: durationType === "hours" ? data.startDate_Hours : data.endDate_Days,
+          start_time: durationType === "hours" ? data.startTime_Hours : data.startTime_Days,
           airport: data.airport,
+          notes: data.notes,
           terminal: data.terminal,
           duration_type: durationType,
           hours: durationType === "hours" ? data.hours : null,
           booking_code: currentBookingCode,
         },
       };
+
+      console.log("[BookingForm] Final cart item:", {
+        service_name: cartItem.service_name,
+        baggage_size: cartItem.details.baggage_size,
+        baggage_size_display: cartItem.details.baggage_size_display
+      });
 
       console.log("[BookingForm] Adding item to cart:", {
         item_type: cartItem.item_type,
@@ -1097,7 +1134,17 @@ const finalUserEmail = session.user.email;
 
   const isStepValid = () => {
     if (step === 0) {
-      return isValid; // Standard form validation for all users
+      // For step 0, check basic form validation AND ensure terminal is selected if airport is selected
+      const basicValidation = isValid;
+      const airportSelected = watch("airport");
+      const terminalSelected = watch("terminal");
+      
+      // If airport is selected, terminal must also be selected
+      if (airportSelected && !terminalSelected) {
+        return false;
+      }
+      
+      return basicValidation && airportSelected && terminalSelected;
     }
     if (step === 1) {
       // Validasi berdasarkan mode durasi yang aktif
@@ -1279,28 +1326,14 @@ const finalUserEmail = session.user.email;
               )}
             </div>
           )}
-
-          <div className="grid gap-2">
-            <Label htmlFor="flightNumber">Flight Number (Optional)</Label>
-            <Input
-              id="flightNumber"
-              placeholder="GA-123"
-              {...register("flightNumber")}
-            />
-          </div>
-
           <div className="grid gap-2">
             <Label htmlFor="airport">Airport</Label>
             <Select
-              defaultValue={watch("airport")}
+              value={watch("airport") || ""}
               onValueChange={(value) => {
                 setValue("airport", value);
-                setValue(
-                  "terminal",
-                  terminalsByAirport[
-                    value as keyof typeof terminalsByAirport
-                  ][0].id,
-                );
+                // Reset terminal when airport changes
+                setValue("terminal", "");
                 setSelectedAirport(value);
               }}
             >
@@ -1317,25 +1350,45 @@ const finalUserEmail = session.user.email;
             </Select>
           </div>
 
+          {/* Only show Terminal field if Airport is selected */}
+          {watch("airport") && (
+            <div className="grid gap-2">
+              <Label htmlFor="terminal">Terminal</Label>
+              <Select
+                value={watch("terminal") || ""}
+                onValueChange={(value) => setValue("terminal", value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a terminal" />
+                </SelectTrigger>
+                <SelectContent>
+                  {terminalsByAirport[
+                    watch("airport") as keyof typeof terminalsByAirport
+                  ]?.map((terminal) => (
+                    <SelectItem key={terminal.id} value={terminal.id}>
+                      {terminal.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           <div className="grid gap-2">
-            <Label htmlFor="terminal">Terminal</Label>
-            <Select
-              defaultValue={watch("terminal")}
-              onValueChange={(value) => setValue("terminal", value)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select a terminal" />
-              </SelectTrigger>
-              <SelectContent>
-                {terminalsByAirport[
-                  selectedAirport as keyof typeof terminalsByAirport
-                ]?.map((terminal) => (
-                  <SelectItem key={terminal.id} value={terminal.id}>
-                    {terminal.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label htmlFor="flightNumber">Flight Number (Optional)</Label>
+            <Input
+              id="flightNumber"
+              placeholder="GA-123"
+              {...register("flightNumber")}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="notes">Notes (Optional)</Label>
+            <Input
+              id="notes"
+              placeholder="Saya membawa bagasi"
+              {...register("notes")}
+            />
           </div>
         </div>
       ),
@@ -1665,6 +1718,9 @@ const finalUserEmail = session.user.email;
                   </div>
                 </>
               )}
+
+              <div>Notes:</div>
+              <div className="font-medium">{watch("notes")}</div>
 
               <div className="col-span-2 text-base font-bold pt-2">
                 Total Price:

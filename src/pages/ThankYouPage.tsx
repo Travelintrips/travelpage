@@ -8,6 +8,8 @@ import {
   CheckCircle,
   ArrowLeft,
   Download,
+  Plane,
+  StickyNote,
   Mail,
   Phone,
   MapPin,
@@ -50,6 +52,7 @@ interface BookingDetails {
   terminal?: string;
   duration_type?: string;
   hours?: string;
+  notes?: string;
   status: string;
   // Airport transfer specific fields
   pickup_location?: string;
@@ -895,13 +898,27 @@ const ThankYouPage: React.FC = () => {
                             {booking.flight_number &&
                               booking.flight_number !== "-" && (
                                 <div className="flex items-center gap-2">
-                                  <Car className="h-4 w-4 text-gray-500" />
+                                  <Plane className="h-4 w-4 text-gray-500" />
                                   <div>
                                     <p className="text-xs text-gray-600">
                                       Flight Number
                                     </p>
                                     <p className="text-sm font-medium">
                                       {booking.flight_number}
+                                    </p>
+                                  </div>
+                                </div>
+                              )}
+                              {booking.notes &&
+                              booking.notes !== "-" && (
+                                <div className="flex items-center gap-2">
+                                  <StickyNote className="h-4 w-4 text-gray-500" />
+                                  <div>
+                                    <p className="text-xs text-gray-600">
+                                      Notes
+                                    </p>
+                                    <p className="text-sm font-medium">
+                                      {booking.notes}
                                     </p>
                                   </div>
                                 </div>

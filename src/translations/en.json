@@ -82,68 +82,6 @@
     },
     "jelajahi": "Explore"
   },
-  "transportasi":{
-  "title": "Transportation Services",
-  "description" : "Choose our premium transportation services for a comfortable and reliable travel experience.",
-  "backToHome": "Back to Home",
-  "services": {
-    "airportTransfer": {
-      "title": "Airport Pickup and Dropoff",
-      "description": "Reliable airport pickup and drop-off service",
-      "features": {
-        "drivers": "Professional driver",
-        "availability": "Available 24/7",
-        "tracking": "Flight monitoring",
-        "greet": "Pick-up service with nameplate"
-      },
-      "choose": "Select Airport Transfer"
-    },
-    "rentCar": {
-      "title": "Rent Car",
-      "description": "Wide selection of vehicles for your travel needs",
-      "features": {
-        "models": "Various car models",
-        "prices": "Competitive price",
-        "insurance": "Insurance included",
-        "flexible": "Flexible rental period"
-      },
-      "choose": "Select Car Rental"
-    },
-    "interprovincial": {
-      "title": "Inter-Provincial Transportation",
-      "description": "Convenient and affordable",
-      "features": {
-        "models": "Various car models",
-        "prices": "Competitive price",
-        "seats": "Comfortable chairs",
-        "driver": "Professional driver"
-      },
-      "choose": "Select Inter-Provincial Transportation"
-    }
-  },
-  "whyChoose": {
-    "title": "Why Choose Our Transportation Services?",
-    "description": "We provide reliable, safe and comfortable transportation solutions for all your travel needs.",
-    "availability": {
-      "title": "Available 24/7",
-      "description": "Our services are available around the clock to meet your transportation needs."
-    },
-    "safety": {
-      "title": "Safe & Secure",
-      "description": "All our vehicles are regularly maintained and our drivers are professionally trained."
-    },
-    "quality": {
-      "title": "Premium Quality",
-      "description": "Experience premium quality service with competitive pricing and excellent customer support."
-    }
-  },
-  "cta": {
-    "title": "Ready to Book Your Transportation?",
-    "description": "Choose from our reliable transportation services and enjoy a comfortable journey.",
-    "bookAirport": "Book Airport Transfer",
-    "rentCar": "Rent Car"
-  }
-},
   "payment": {
     "details": "Payment Details",
     "summary": "Booking Summary",
@@ -243,5 +181,122 @@
   "currency": {
     "code": "USD",
     "symbol": "$"
+  },
+  "airportBaggage": {
+    "title": "Airport Baggage Storage",
+    "subtitle": "Secure, convenient, and affordable baggage storage solutions at the airport. Choose from our range of storage options to suit your needs.",
+    "backToHome": "Back to Home",
+    "loadingOptions": "Loading baggage options...",
+    "bookingTitle": "Book",
+    "completeBooking": "Complete your baggage storage booking",
+    "options": {
+      "small": {
+        "name": "Small Baggage",
+        "description": "Perfect for small personal items and documents"
+      },
+      "electronic": {
+        "name": "Electronic Items",
+        "description": "Specialized storage for electronic devices"
+      },
+      "medium": {
+        "name": "Medium Baggage",
+        "description": "Ideal for standard travel luggage"
+      },
+      "large": {
+        "name": "Large Baggage",
+        "description": "For bigger luggage and multiple items"
+      },
+      "extraLarge": {
+        "name": "Extra Large Baggage",
+        "description": "Maximum storage for oversized items"
+      },
+      "surfingBoard": {
+        "name": "Surfing Board",
+        "description": "Specialized storage for surfboards and long items"
+      },
+      "wheelchair": {
+        "name": "Wheelchair",
+        "description": "Safe and secure wheelchair storage"
+      },
+      "golfEquipment": {
+        "name": "Golf Equipment",
+        "description": "Secure storage for golf clubs and equipment"
+      }
+    },
+    "features": {
+      "secureStorage": "Secure storage",
+      "access24_7": "24/7 access",
+      "insuranceIncluded": "Insurance included",
+      "climateControlled": "Climate controlled",
+      "antiStaticProtection": "Anti-static protection",
+      "secureHandling": "Secure handling",
+      "standardStorage": "Standard storage",
+      "easyRetrieval": "Easy retrieval",
+      "damageProtection": "Damage protection",
+      "spaciousStorage": "Spacious storage",
+      "multipleItemHandling": "Multiple item handling",
+      "extendedSecurity": "Extended security",
+      "maximumCapacity": "Maximum capacity",
+      "oversizedItemHandling": "Oversized item handling",
+      "premiumSecurity": "Premium security",
+      "verticalStorage": "Vertical storage",
+      "protectivePadding": "Protective padding",
+      "accessibilityFocused": "Accessibility focused",
+      "carefulHandling": "Careful handling",
+      "priorityService": "Priority service",
+      "sportsEquipmentCare": "Sports equipment care",
+      "organizedStorage": "Organized storage",
+      "quickAccess": "Quick access"
+    },
+    "examples": {
+      "laptopBag": "Laptop bag",
+      "smallBackpack": "Small backpack",
+      "documents": "Documents",
+      "laptops": "Laptops",
+      "cameras": "Cameras",
+      "gamingConsoles": "Gaming consoles",
+      "carryOnLuggage": "Carry-on luggage",
+      "mediumSuitcase": "Medium suitcase",
+      "travelBag": "Travel bag",
+      "largeSuitcase": "Large suitcase",
+      "multipleBags": "Multiple bags",
+      "sportsEquipment": "Sports equipment",
+      "oversizedLuggage": "Oversized luggage",
+      "multipleLargeItems": "Multiple large items",
+      "bulkStorage": "Bulk storage",
+      "surfboards": "Surfboards",
+      "skis": "Skis",
+      "longSportingEquipment": "Long sporting equipment",
+      "manualWheelchair": "Manual wheelchair",
+      "electricWheelchair": "Electric wheelchair",
+      "mobilityAids": "Mobility aids",
+      "golfClubs": "Golf clubs",
+      "golfBag": "Golf bag",
+      "golfAccessories": "Golf accessories"
+    },
+    "pertime/Day": "per time/day",
+    "perfectFor": "Perfect for:",
+    "selectThisOption": "Select This Option",
+    "whyChoose": {
+      "title": "Why Choose Our Baggage Storage?",
+      "secureStorage": {
+        "title": "Secure Storage",
+        "description": "24/7 monitored facilities with advanced security systems and insurance coverage for your peace of mind."
+      },
+      "convenientLocation": {
+        "title": "Convenient Location",
+        "description": "Located right at the airport for easy drop-off and pickup. No need to travel far from your terminal."
+      },
+      "flexibleOptions": {
+        "title": "Flexible Options",
+        "description": "Multiple size options and storage durations to fit your specific needs and budget requirements."
+      }
+    },
+    "authRequired": {
+      "title": "Authentication Required",
+      "message": "Please sign in to book baggage storage services.",
+      "signIn": "Sign In",
+      "cancel": "Cancel"
+    }
   }
 }

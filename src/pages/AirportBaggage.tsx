@@ -8,6 +8,8 @@ import { supabase } from "@/lib/supabase";
 import BookingForm from "@/pages/BookingFormBag";
 import { Home } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+
 import {
   JoinedIcon,
   SurfingIcon,
@@ -61,6 +63,8 @@ const AirportBaggage: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { t } = useTranslation();
+
 
   // Fetch baggage prices from database
   const fetchBaggagePrices = useCallback(async () => {
@@ -384,115 +388,99 @@ const AirportBaggage: React.FC = () => {
     return [
       {
         id: "small",
-        name: "Small Baggage",
-        description: "Perfect for small personal items and documents",
+        name: t('airportBaggage.options.small.name'),
+        description: t('airportBaggage.options.small.description'),
         price: getPriceForSize("small"),
         icon: <Package className="h-8 w-8" />,
-        features: ["Secure storage", "24/7 access", "Insurance included"],
-        //maxDimensions: "40cm x 30cm x 20cm",
-        //maxWeight: "5kg",
-        examples: ["Laptop bag", "Small backpack", "Documents"],
+        features: [t('airportBaggage.features.secureStorage'), t('airportBaggage.features.access24_7'), t('airportBaggage.features.insuranceIncluded')],
+        examples: [t('airportBaggage.examples.laptopBag'), t('airportBaggage.examples.smallBackpack'), t('airportBaggage.examples.documents')],
       },
       {
         id: "electronic",
-        name: "Electronic Items",
-        description: "Specialized storage for electronic devices",
+        name: t('airportBaggage.options.electronic.name'),
+        description: t('airportBaggage.options.electronic.description'),
         price: getPriceForSize("electronic"),
         icon: <JoinedIcon className="h-8 w-8" />,
         features: [
-          "Climate controlled",
-          "Anti-static protection",
-          "Secure handling",
+          t('airportBaggage.features.climateControlled'),
+          t('airportBaggage.features.antiStaticProtection'),
+          t('airportBaggage.features.secureHandling'),
         ],
-       // maxDimensions: "50cm x 40cm x 30cm",
-       // maxWeight: "10kg",
-        examples: ["Laptops", "Cameras", "Gaming consoles"],
+        examples: [t('airportBaggage.examples.laptops'), t('airportBaggage.examples.cameras'), t('airportBaggage.examples.gamingConsoles')],
       },
       {
         id: "medium",
-        name: "Medium Baggage",
-        description: "Ideal for standard travel luggage",
+        name: t('airportBaggage.options.medium.name'),
+        description: t('airportBaggage.options.medium.description'),
         price: getPriceForSize("medium"),
         icon: <Luggage className="h-8 w-8" />,
-        features: ["Standard storage", "Easy retrieval", "Damage protection"],
-       // maxDimensions: "60cm x 40cm x 30cm",
-       // maxWeight: "15kg",
-        examples: ["Carry-on luggage", "Medium suitcase", "Travel bag"],
+        features: [t('airportBaggage.features.standardStorage'), t('airportBaggage.features.easyRetrieval'), t('airportBaggage.features.damageProtection')],
+        examples: [t('airportBaggage.examples.carryOnLuggage'), t('airportBaggage.examples.mediumSuitcase'), t('airportBaggage.examples.travelBag')],
       },
       {
         id: "large",
-        name: "Large Baggage",
-        description: "For bigger luggage and multiple items",
+        name: t('airportBaggage.options.large.name'),
+        description: t('airportBaggage.options.large.description'),
         price: getPriceForSize("large"),
         icon: <PackageOpen className="h-8 w-8" />,
         features: [
-          "Spacious storage",
-          "Multiple item handling",
-          "Extended security",
+          t('airportBaggage.features.spaciousStorage'),
+          t('airportBaggage.features.multipleItemHandling'),
+          t('airportBaggage.features.extendedSecurity'),
         ],
-       // maxDimensions: "80cm x 60cm x 40cm",
-       // maxWeight: "25kg",
-        examples: ["Large suitcase", "Multiple bags", "Sports equipment"],
+        examples: [t('airportBaggage.examples.largeSuitcase'), t('airportBaggage.examples.multipleBags'), t('airportBaggage.examples.sportsEquipment')],
       },
       {
         id: "extra_large",
-        name: "Extra Large Baggage",
-        description: "Maximum storage for oversized items",
+        name: t('airportBaggage.options.extraLarge.name'),
+        description: t('airportBaggage.options.extraLarge.description'),
         price: getPriceForSize("extra_large"),
         icon: <Boxes className="h-8 w-8" />,
         features: [
-          "Maximum capacity",
-          "Oversized item handling",
-          "Premium security",
+          t('airportBaggage.features.maximumCapacity'),
+          t('airportBaggage.features.oversizedItemHandling'),
+          t('airportBaggage.features.premiumSecurity'),
         ],
-       // maxDimensions: "100cm x 80cm x 60cm",
-      //  maxWeight: "35kg",
-        examples: ["Oversized luggage", "Multiple large items", "Bulk storage"],
+        examples: [t('airportBaggage.examples.oversizedLuggage'), t('airportBaggage.examples.multipleLargeItems'), t('airportBaggage.examples.bulkStorage')],
       },
       {
         id: "surfingboard",
-        name: "Surfing Board",
-        description: "Specialized storage for surfboards and long items",
+        name: t('airportBaggage.options.surfingBoard.name'),
+        description: t('airportBaggage.options.surfingBoard.description'),
         price: getPriceForSize("surfingboard"),
         icon: <SurfingIcon className="h-8 w-8" />,
         features: [
-          "Vertical storage",
-          "Protective padding",
-          "Climate controlled",
+          t('airportBaggage.features.verticalStorage'),
+          t('airportBaggage.features.protectivePadding'),
+          t('airportBaggage.features.climateControlled'),
         ],
-       // maxDimensions: "300cm x 60cm x 20cm",
-       // maxWeight: "15kg",
-        examples: ["Surfboards", "Skis", "Long sporting equipment"],
+        examples: [t('airportBaggage.examples.surfboards'), t('airportBaggage.examples.skis'), t('airportBaggage.examples.longSportingEquipment')],
       },
       {
         id: "wheelchair",
-        name: "Wheelchair",
-        description: "Safe and secure wheelchair storage",
+        name: t('airportBaggage.options.wheelchair.name'),
+        description: t('airportBaggage.options.wheelchair.description'),
         price: getPriceForSize("wheelchair"),
         icon: <WheelchairIcon className="h-8 w-8" />,
         features: [
-          "Accessibility focused",
-          "Careful handling",
-          "Priority service",
+          t('airportBaggage.features.accessibilityFocused'),
+          t('airportBaggage.features.carefulHandling'),
+          t('airportBaggage.features.priorityService'),
         ],
-       // maxDimensions: "120cm x 70cm x 90cm",
-      // maxWeight: "50kg",
-        examples: ["Manual wheelchair", "Electric wheelchair", "Mobility aids"],
+        examples: [t('airportBaggage.examples.manualWheelchair'), t('airportBaggage.examples.electricWheelchair'), t('airportBaggage.examples.mobilityAids')],
       },
       {
         id: "stickgolf",
-        name: "Golf Equipment",
-        description: "Secure storage for golf clubs and equipment",
+        name: t('airportBaggage.options.golfEquipment.name'),
+        description: t('airportBaggage.options.golfEquipment.description'),
         price: getPriceForSize("stickgolf"),
         icon: <GolfIcon className="h-8 w-8" />,
         features: [
-          "Sports equipment care",
-          "Organized storage",
-          "Quick access",
+          t('airportBaggage.features.sportsEquipmentCare'),
+          t('airportBaggage.features.organizedStorage'),
+          t('airportBaggage.features.quickAccess'),
         ],
-       // maxDimensions: "130cm x 40cm x 30cm",
-       // maxWeight: "20kg",
-        examples: ["Golf clubs", "Golf bag", "Golf accessories"],
+        examples: [t('airportBaggage.examples.golfClubs'), t('airportBaggage.examples.golfBag'), t('airportBaggage.examples.golfAccessories')],
       },
     ];
   }, [baggagePrices, arePricesLoaded]);
@@ -522,7 +510,7 @@ const AirportBaggage: React.FC = () => {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading baggage options...</p>
+          <p className="text-gray-600">{t('airportBaggage.loadingOptions')}</p>
         </div>
       </div>
     );
@@ -547,10 +535,10 @@ const AirportBaggage: React.FC = () => {
               </Button>
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">
-                  Book {selectedOption?.name}
+                  {t('airportBaggage.bookingTitle')} {selectedOption?.name}
                 </h1>
                 <p className="text-gray-600">
-                  Complete your baggage storage booking
+                  {t('airportBaggage.completeBooking')}
                 </p>
               </div>
             </div>
@@ -577,17 +565,16 @@ const AirportBaggage: React.FC = () => {
               className="flex items-center gap-2 hover:bg-blue-50 hover:border-blue-300"
             >
               <Home className="h-4 w-4" />
-              Back to Home Page
+              {t('airportBaggage.backToHome')}
             </Button>
           </div>
           {/* Header */}
           <div className="text-center mb-12">
             <h1 className="text-4xl font-bold text-gray-900 mb-4">
-              Airport Baggage Storage
+              {t('airportBaggage.title')}
             </h1>
             <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-              Secure, convenient, and affordable baggage storage solutions at the airport.
-              Choose from our range of storage options to suit your needs.
+              {t('airportBaggage.subtitle')}
             </p>
           </div>
           
@@ -619,24 +606,12 @@ const AirportBaggage: React.FC = () => {
                     <div className="text-2xl font-bold text-green-600">
                       Rp {option.price.toLocaleString('id-ID')}
                     </div>
-                    <div className="text-sm text-gray-500">per day</div>
+                    <div className="text-sm text-gray-500">{t('airportBaggage.pertime/Day')}</div>
                   </div>
-
-                  {/* Specifications */}
-              {  /*  <div className="space-y-2 text-sm">
-                    <div>
-                      <span className="font-medium">Max Size:</span>{" "}
-                      {option.maxDimensions}
-                    </div>
-                    <div>
-                      <span className="font-medium">Max Weight:</span>{" "}
-                      {option.maxWeight}
-                    </div>
-                  </div>*/}
 
                   {/* Features */}
                   <div className="space-y-2">
-                    <div className="font-medium text-sm">Features:</div>
+                    <div className="font-medium text-sm">{t('airportBaggage.features.title', 'Features')}:</div>
                     <div className="flex flex-wrap gap-1">
                       {option.features.map((feature, index) => (
                         <Badge
@@ -652,7 +627,7 @@ const AirportBaggage: React.FC = () => {
 
                   {/* Examples */}
                   <div className="space-y-2">
-                    <div className="font-medium text-sm">Perfect for:</div>
+                    <div className="font-medium text-sm">{t('airportBaggage.perfectFor')}:</div>
                     <div className="text-xs text-gray-600">
                       {option.examples.join(", ")}
                     </div>
@@ -660,7 +635,7 @@ const AirportBaggage: React.FC = () => {
 
                   {/* Select Button */}
                   <Button className="w-full mt-4 group-hover:bg-blue-700 transition-colors">
-                    Select This Option
+                    {t('airportBaggage.selectThisOption')}
                   </Button>
                 </CardContent>
               </Card>
@@ -670,37 +645,34 @@ const AirportBaggage: React.FC = () => {
           {/* Additional Information */}
           <div className="mt-16 bg-white rounded-lg shadow-sm p-8">
             <h2 className="text-2xl font-bold text-gray-900 mb-6 text-center">
-              Why Choose Our Baggage Storage?
+              {t('airportBaggage.whyChoose.title')}
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               <div className="text-center">
                 <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <Package className="h-8 w-8 text-blue-600" />
                 </div>
-                <h3 className="text-lg font-semibold mb-2">Secure Storage</h3>
+                <h3 className="text-lg font-semibold mb-2">{t('airportBaggage.whyChoose.secureStorage.title')}</h3>
                 <p className="text-gray-600">
-                  24/7 monitored facilities with advanced security systems and
-                  insurance coverage for your peace of mind.
+                  {t('airportBaggage.whyChoose.secureStorage.description')}
                 </p>
               </div>
               <div className="text-center">
                 <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <Luggage className="h-8 w-8 text-green-600" />
                 </div>
-                <h3 className="text-lg font-semibold mb-2">Convenient Location</h3>
+                <h3 className="text-lg font-semibold mb-2">{t('airportBaggage.whyChoose.convenientLocation.title')}</h3>
                 <p className="text-gray-600">
-                  Located right at the airport for easy drop-off and pickup.
-                  No need to travel far from your terminal.
+                  {t('airportBaggage.whyChoose.convenientLocation.description')}
                 </p>
               </div>
               <div className="text-center">
                 <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <PackageOpen className="h-8 w-8 text-purple-600" />
                 </div>
-                <h3 className="text-lg font-semibold mb-2">Flexible Options</h3>
+                <h3 className="text-lg font-semibold mb-2">{t('airportBaggage.whyChoose.flexibleOptions.title')}</h3>
                 <p className="text-gray-600">
-                  Multiple size options and storage durations to fit your
-                  specific needs and budget requirements.
+                  {t('airportBaggage.whyChoose.flexibleOptions.description')}
                 </p>
               </div>
             </div>
@@ -713,7 +685,7 @@ const AirportBaggage: React.FC = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="bg-white rounded-lg p-6 max-w-md w-full">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold">Authentication Required</h2>
+              <h2 className="text-xl font-semibold">{t('airportBaggage.authRequired.title')}</h2>
               <Button
                 variant="ghost"
                 size="icon"
@@ -723,7 +695,7 @@ const AirportBaggage: React.FC = () => {
               </Button>
             </div>
             <p className="text-gray-600 mb-4">
-              Please sign in to book baggage storage services.
+              {t('airportBaggage.authRequired.message')}
             </p>
             <div className="flex gap-2">
               <Button
@@ -733,14 +705,14 @@ const AirportBaggage: React.FC = () => {
                 }}
                 className="flex-1"
               >
-                Sign In
+                {t('airportBaggage.authRequired.signIn')}
               </Button>
               <Button
                 variant="outline"
                 onClick={() => setShowAuthModal(false)}
                 className="flex-1"
               >
-                Cancel
+                {t('airportBaggage.authRequired.cancel')}
               </Button>
             </div>
           </div>

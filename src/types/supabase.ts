@@ -502,6 +502,7 @@ export type Database = {
           id: string
           item_name: string | null
           journal_entry_id: string | null
+          notes: string | null
           payment_id: string | null
           payment_method: string | null
           price: number
@@ -536,6 +537,7 @@ export type Database = {
           id?: string
           item_name?: string | null
           journal_entry_id?: string | null
+          notes?: string | null
           payment_id?: string | null
           payment_method?: string | null
           price: number
@@ -570,6 +572,7 @@ export type Database = {
           id?: string
           item_name?: string | null
           journal_entry_id?: string | null
+          notes?: string | null
           payment_id?: string | null
           payment_method?: string | null
           price?: number
@@ -3156,6 +3159,7 @@ export type Database = {
           balance_total: number | null
           booking_id: string | null
           bookings_id: string | null
+          code_booking: string | null
           created_at: string
           credit: number | null
           date: string
@@ -3195,6 +3199,7 @@ export type Database = {
           balance_total?: number | null
           booking_id?: string | null
           bookings_id?: string | null
+          code_booking?: string | null
           created_at?: string
           credit?: number | null
           date?: string
@@ -3234,6 +3239,7 @@ export type Database = {
           balance_total?: number | null
           booking_id?: string | null
           bookings_id?: string | null
+          code_booking?: string | null
           created_at?: string
           credit?: number | null
           date?: string
@@ -5714,36 +5720,52 @@ export type Database = {
         }
         Relationships: []
       }
+      vw_chart_of_accounts: {
+        Row: {
+          account_code: string | null
+          account_name: string | null
+          account_type: string | null
+          credit_total: number | null
+          debit_total: number | null
+        }
+        Insert: {
+          account_code?: string | null
+          account_name?: string | null
+          account_type?: string | null
+          credit_total?: number | null
+          debit_total?: number | null
+        }
+        Update: {
+          account_code?: string | null
+          account_name?: string | null
+          account_type?: string | null
+          credit_total?: number | null
+          debit_total?: number | null
+        }
+        Relationships: []
+      }
+      vw_general_ledger: {
+        Row: {
+          credit: number | null
+          date: string | null
+          debit: number | null
+          description: string | null
+        }
+        Relationships: []
+      }
       vw_journal_entries: {
         Row: {
           date: string | null
           description: string | null
           license_plate: string | null
           nama: string | null
+          saldo_agent_now: number | null
+          saldo_driver_now: number | null
           service_type: string | null
+          total_credit: number | null
           total_debit: number | null
           vehicle_name: string | null
           vehicle_type: string | null
-        }
-        Insert: {
-          date?: string | null
-          description?: string | null
-          license_plate?: string | null
-          nama?: string | null
-          service_type?: string | null
-          total_debit?: number | null
-          vehicle_name?: string | null
-          vehicle_type?: string | null
-        }
-        Update: {
-          date?: string | null
-          description?: string | null
-          license_plate?: string | null
-          nama?: string | null
-          service_type?: string | null
-          total_debit?: number | null
-          vehicle_name?: string | null
-          vehicle_type?: string | null
         }
         Relationships: []
       }
@@ -5824,6 +5846,15 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: Json
       }
+      get_general_ledger_by_date_range: {
+        Args: { end_date_str: string; start_date_str: string }
+        Returns: {
+          credit: number
+          date: string
+          debit: number
+          description: string
+        }[]
+      }
       get_service_types: {
         Args: Record<PropertyKey, never>
         Returns: {
@@ -5862,6 +5893,15 @@ export type Database = {
           period_debit: number
           period_end: string
           period_start: string
+        }[]
+      }
+      get_trial_balance_by_date_range: {
+        Args: { end_date_str: string; start_date_str: string }
+        Returns: {
+          account_name: string
+          balance: number
+          total_credit: number
+          total_debit: number
         }[]
       }
       get_trial_balance_summary: {

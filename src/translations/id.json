@@ -274,6 +274,123 @@
     "rentCar": "Sewa Mobil"
   }
 },
+"airportBaggage": {
+  "title": "Penyimpanan Bagasi Bandara",
+  "subtitle": "Solusi penyimpanan bagasi yang aman, nyaman, dan terjangkau di bandara. Pilih dari berbagai opsi penyimpanan yang sesuai dengan kebutuhan Anda.",
+  "backToHome": "Kembali ke Beranda",
+  "loadingOptions": "Memuat opsi bagasi...",
+  "bookingTitle": "Pesan",
+  "completeBooking": "Lengkapi pemesanan penyimpanan bagasi Anda",
+  "options": {
+    "small": {
+      "name": "Bagasi Kecil",
+      "description": "Sempurna untuk barang pribadi kecil dan dokumen"
+    },
+    "electronic": {
+      "name": "Barang Elektronik",
+      "description": "Penyimpanan khusus untuk perangkat elektronik"
+    },
+    "medium": {
+      "name": "Bagasi Sedang",
+      "description": "Ideal untuk koper perjalanan standar"
+    },
+    "large": {
+      "name": "Bagasi Besar",
+      "description": "Untuk koper besar dan beberapa barang"
+    },
+    "extraLarge": {
+      "name": "Bagasi Ekstra Besar",
+      "description": "Penyimpanan maksimum untuk barang berukuran besar"
+    },
+    "surfingBoard": {
+      "name": "Papan Selancar",
+      "description": "Penyimpanan khusus untuk papan selancar dan barang panjang"
+    },
+    "wheelchair": {
+      "name": "Kursi Roda",
+      "description": "Penyimpanan kursi roda yang aman dan terjamin"
+    },
+    "golfEquipment": {
+      "name": "Peralatan Golf",
+      "description": "Penyimpanan aman untuk stik golf dan peralatan"
+    }
+  },
+  "features": {
+    "secureStorage": "Penyimpanan aman",
+    "access24_7": "Akses 24/7",
+    "insuranceIncluded": "Asuransi termasuk",
+    "climateControlled": "Kontrol iklim",
+    "antiStaticProtection": "Perlindungan anti-statis",
+    "secureHandling": "Penanganan aman",
+    "standardStorage": "Penyimpanan standar",
+    "easyRetrieval": "Pengambilan mudah",
+    "damageProtection": "Perlindungan kerusakan",
+    "spaciousStorage": "Penyimpanan luas",
+    "multipleItemHandling": "Penanganan beberapa barang",
+    "extendedSecurity": "Keamanan diperpanjang",
+    "maximumCapacity": "Kapasitas maksimum",
+    "oversizedItemHandling": "Penanganan barang berukuran besar",
+    "premiumSecurity": "Keamanan premium",
+    "verticalStorage": "Penyimpanan vertikal",
+    "protectivePadding": "Bantalan pelindung",
+    "accessibilityFocused": "Fokus aksesibilitas",
+    "carefulHandling": "Penanganan hati-hati",
+    "priorityService": "Layanan prioritas",
+    "sportsEquipmentCare": "Perawatan peralatan olahraga",
+    "organizedStorage": "Penyimpanan terorganisir",
+    "quickAccess": "Akses cepat"
+  },
+  "examples": {
+    "laptopBag": "Tas laptop",
+    "smallBackpack": "Ransel kecil",
+    "documents": "Dokumen",
+    "laptops": "Laptop",
+    "cameras": "Kamera",
+    "gamingConsoles": "Konsol game",
+    "carryOnLuggage": "Bagasi kabin",
+    "mediumSuitcase": "Koper sedang",
+    "travelBag": "Tas perjalanan",
+    "largeSuitcase": "Koper besar",
+    "multipleBags": "Beberapa tas",
+    "sportsEquipment": "Peralatan olahraga",
+    "oversizedLuggage": "Bagasi berukuran besar",
+    "multipleLargeItems": "Beberapa barang besar",
+    "bulkStorage": "Penyimpanan massal",
+    "surfboards": "Papan selancar",
+    "skis": "Ski",
+    "longSportingEquipment": "Peralatan olahraga panjang",
+    "manualWheelchair": "Kursi roda manual",
+    "electricWheelchair": "Kursi roda listrik",
+    "mobilityAids": "Alat bantu mobilitas",
+    "golfClubs": "Stik golf",
+    "golfBag": "Tas golf",
+    "golfAccessories": "Aksesori golf"
+  },
+  "pertime/Day": "per waktu/hari",
+  "perfectFor": "Sempurna untuk:",
+  "selectThisOption": "Pilih Opsi Ini",
+  "whyChoose": {
+    "title": "Mengapa Memilih Penyimpanan Bagasi Kami?",
+    "secureStorage": {
+      "title": "Penyimpanan Aman",
+      "description": "Fasilitas yang dipantau 24/7 dengan sistem keamanan canggih dan perlindungan asuransi untuk ketenangan pikiran Anda."
+    },
+    "convenientLocation": {
+      "title": "Lokasi Nyaman",
+      "description": "Berlokasi tepat di bandara untuk kemudahan drop-off dan pickup. Tidak perlu bepergian jauh dari terminal Anda."
+    },
+    "flexibleOptions": {
+      "title": "Opsi Fleksibel",
+      "description": "Berbagai pilihan ukuran dan durasi penyimpanan untuk memenuhi kebutuhan spesifik dan anggaran Anda."
+    }
+  },
+  "authRequired": {
+    "title": "Autentikasi Diperlukan",
+    "message": "Silakan masuk untuk memesan layanan penyimpanan bagasi.",
+    "signIn": "Masuk",
+    "cancel": "Batal"
+  }
+},
   "language": {
     "select": "Pilih Bahasa",
     "en": "Inggris",

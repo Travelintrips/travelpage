@@ -41,7 +41,8 @@ import { useNavigate } from "react-router-dom";
 // Function to validate baggage_size
 const validateBaggageSize = (
   size: string | null | undefined,
-): string | null => {
+  defaultSize: string = "electronic" // fallback default
+): string => {
   const allowedSizes = [
     "small",
     "medium",
@@ -52,11 +53,14 @@ const validateBaggageSize = (
     "wheelchair",
     "stickgolf",
   ];
+
   if (typeof size === "string" && allowedSizes.includes(size.toLowerCase())) {
     return size.toLowerCase();
   }
-  return null;
+
+  return defaultSize.toLowerCase();
 };
+
 
 interface ShoppingCartProps {}
 
@@ -351,9 +355,9 @@ const ShoppingCart: React.FC<ShoppingCartProps> = () => {
     }
   };
 
-  const handleClearCart = async () => {
+  const handleClearCart = async (id:string) => {
     try {
-      await clearCart();
+      await clearCart(id);
       toast({
         title: "Cart cleared",
         description: "All items successfully removed from cart.",
@@ -576,7 +580,38 @@ const ShoppingCart: React.FC<ShoppingCartProps> = () => {
                                 )}
                               </div>
                               <h3 className="font-medium text-lg">
-                                {item.service_name}
+                                {(() => {
+                                  // Create display names mapping
+                                  const displayNames: Record<string, string> = {
+                                    small: "Small",
+                                    medium: "Medium",
+                                    large: "Large",
+                                    extra_large: "Extra Large",
+                                    electronic: "Electronic",
+                                    surfingboard: "Surfing Board",
+                                    wheelchair: "Wheel Chair",
+                                    stickgolf: "Stick Golf",
+                                  };
+
+                                  // Utility function to get display name with proper fallback
+                                  const getDisplayName = (item_type: string, service_name?: string) => {
+                                    return (
+                                      displayNames[item_type.toLowerCase()] ||
+                                      service_name ||
+                                      item_type ||
+                                      "Unknown"
+                                    );
+                                  };
+
+                                  // If service_name contains "Unknown", try to fix it using item_id
+                                  if (item.service_name && item.service_name.includes("Unknown") && item.item_id) {
+                                    const fixedDisplayName = getDisplayName(item.item_id);
+                                    return `Baggage Storage – ${fixedDisplayName}`;
+                                  }
+
+                                  // Otherwise return the original service_name
+                                  return item.service_name;
+                                })()}
                               </h3>
 
                               {/* Baggage Details Information - Enhanced display */}
@@ -640,67 +675,58 @@ const ShoppingCart: React.FC<ShoppingCartProps> = () => {
                                       )}
 
                                       {/* Baggage Information */}
-                                      {(parsedDetails.baggage_size ||
-                                        parsedDetails.baggage_size_display) && (
-                                        <p className="text-sm text-gray-600">
-                                          <span className="font-medium">
-                                            Baggage Size:
-                                          </span>{" "}
-                                          {(() => {
-                                            // First try to use the display name if available
-                                            if (
-                                              parsedDetails.baggage_size_display
-                                            ) {
-                                              return parsedDetails.baggage_size_display;
-                                            }
+                                      {(parsedDetails.baggage_size || parsedDetails.baggage_size_display) && (
+  <p className="text-sm text-gray-600">
+    <span className="font-medium">Baggage Size:</span>{" "}
+    {(() => {
+      // Create display names mapping
+      const displayNames: Record<string, string> = {
+        small: "Small",
+        medium: "Medium",
+        large: "Large",
+        extra_large: "Extra Large",
+        electronic: "Electronic",
+        surfingboard: "Surfing Board",
+        wheelchair: "Wheel Chair",
+        stickgolf: "Stick Golf",
+      };
 
-                                            // Then try to validate and format the baggage_size
-                                            const validatedSize =
-                                              validateBaggageSize(
-                                                parsedDetails.baggage_size,
-                                              );
-                                            if (validatedSize) {
-                                              // Create proper display names
-                                              const displayNames = {
-                                                small: "Small",
-                                                medium: "Medium",
-                                                large: "Large",
-                                                extra_large: "Extra Large",
-                                                electronic: "Electronic",
-                                                surfingboard: "Surfing Board",
-                                                wheelchair: "Wheel Chair",
-                                                stickgolf: "Stick Golf",
-                                              };
-                                              return (
-                                                displayNames[validatedSize] ||
-                                                validatedSize
-                                                  .charAt(0)
-                                                  .toUpperCase() +
-                                                  validatedSize.slice(1)
-                                              );
-                                            } else {
-                                              console.warn(
-                                                "Invalid baggage size in cart:",
-                                                parsedDetails.baggage_size,
-                                              );
-                                              return "Invalid Size";
-                                            }
-                                          })()}
-                                        </p>
-                                      )}
-                                      {parsedDetails.item_name && (
-                                        <p className="text-sm text-gray-600">
-                                          <span className="font-medium">
-                                            Item Name:
-                                          </span>{" "}
-                                          {parsedDetails.item_name}
-                                        </p>
-                                      )}
+      // Utility function to get display name with proper fallback
+      const getDisplayName = (item_type: string, service_name?: string) => {
+        return (
+          displayNames[item_type.toLowerCase()] ||
+          service_name ||
+          item_type ||
+          "Unknown"
+        );
+      };
+
+      // Use display name if available
+      if (parsedDetails.baggage_size_display) {
+        return parsedDetails.baggage_size_display;
+      }
+
+      // Validate and normalize baggage_size
+      const validatedSize =
+        validateBaggageSize(parsedDetails.baggage_size) ?? "electronic";
+
+      // Return proper display name using utility function
+      return getDisplayName(validatedSize);
+    })()}
+  </p>
+)}
+{parsedDetails.item_name && (
+  <p className="text-sm text-gray-600">
+    <span className="font-medium">Item Name:</span>{" "}
+    {parsedDetails.item_name}
+  </p>
+)}
+
                                       {parsedDetails.flight_number &&
                                         parsedDetails.flight_number !== "-" && (
                                           <p className="text-sm text-gray-600">
                                             <span className="font-medium">
-                                              Flight Number1:
+                                              Flight Number:
                                             </span>{" "}
                                             {parsedDetails.flight_number}
                                           </p>
@@ -790,6 +816,14 @@ const ShoppingCart: React.FC<ShoppingCartProps> = () => {
                                             Hours:
                                           </span>{" "}
                                           {parsedDetails.hours}
+                                        </p>
+                                      )}
+                                      {parsedDetails.notes && (
+                                        <p className="text-sm text-gray-600">
+                                          <span className="font-medium">
+                                            Notes:
+                                          </span>{" "}
+                                          {parsedDetails.notes}
                                         </p>
                                       )}
                                     </div>

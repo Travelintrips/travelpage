@@ -57,8 +57,164 @@ const validateBaggageSize = (
   return null;
 };
 
+// Currency formatting function
+const formatCurrency = (amount: number): string => {
+  return new Intl.NumberFormat('id-ID', {
+    style: 'currency',
+    currency: 'IDR',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(amount);
+};
+
+// Format pesan booking untuk WA
+function formatBookingMessage(booking: any) { 
+  // format duration gabungan
+  const durationText =
+    booking.duration && booking.duration_type
+      ? `${booking.duration} ${booking.duration_type}`
+      : "-";
+
+  // format start date
+  const startDate = booking.start_date
+    ? new Date(booking.start_date).toLocaleDateString("id-ID")
+    : "-";
+
+  // format start time
+  let startTime = "-";
+  if (booking.start_time) {
+    // jika start_time berupa "HH:MM" string
+    startTime = booking.start_time;
+    // atau jika start_time berupa timestamp, bisa pakai:
+    // startTime = new Date(booking.start_time).toLocaleTimeString("id-ID", { hour: '2-digit', minute:'2-digit' });
+  }
+
+  return `
+  === Details Order ===
+Booking ID: ${booking.code_booking}
+Baggage Storage – ${booking.baggage_size ?? "-"}
+Customer: ${booking.customer_name}
+Email: ${booking.customer_email ?? "-"}
+Phone: ${booking.customer_phone ?? "-"}
+Flight Number: ${booking.flight_number ?? "-"}
+Terminal: ${booking.terminal ?? "-"}
+Start Date: ${startDate}
+Start Time: ${startTime}
+Duration: ${durationText}
+Item: ${booking.item_name ?? "-"}
+Notes: ${booking.notes ?? "-"}
+`;
+}
+
+
+
+export async function sendBookingWhatsApp(code_booking: string) {
+  try {
+    // ✅ Ambil data booking
+    const { data, error } = await supabase
+      .from("baggage_booking")
+      .select("*")
+      .eq("code_booking", code_booking)
+      .single();
+
+    if (error || !data) {
+      console.error("Booking not found", error);
+      return;
+    }
+
+    const message = formatBookingMessage(data);
+
+    // ✅ Panggil Edge Function
+    const { data: result, error: fnError } = await supabase.functions.invoke(
+      "supabase-functions-send-whatsapp",
+      {
+        body: {
+          target: data.customer_phone.startsWith("62")
+            ? data.customer_phone
+            : `62${data.customer_phone.replace(/^0+/, "")}`,
+          message,
+        },
+      }
+    );
+
+    if (fnError) {
+      console.error("Edge Function error:", fnError);
+      return null;
+    }
+
+    console.log("WA API result:", result);
+    return result;
+  } catch (error) {
+    console.error("Error sending baggage booking WhatsApp:", error);
+    return null;
+  }
+}
+
+// Format pesan handling booking untuk WA
+function formatHandlingBookingMessage(booking: any) {
+  return `
+  === Details Order ===
+Booking ID: ${booking.code_booking}
+Handling Service – ${booking.category ?? "-"}
+Customer: ${booking.customer_name}
+Email: ${booking.customer_email ?? "-"}
+Phone: ${booking.customer_phone ?? "-"}
+Category: ${booking.category ?? "-"}
+Passenger Area: ${booking.passenger_area ?? "-"}
+Pickup Date: ${booking.pickup_date ? new Date(booking.pickup_date).toLocaleDateString("id-ID") : "-"}
+Pickup Time: ${booking.pickup_time ?? "-"}
+${booking.passengers ? `Passengers: ${booking.passengers}` : ""}
+${booking.extra_baggage_count ? `Extra Baggage: ${booking.extra_baggage_count}` : ""}
+Notes: ${booking.additional_notes ?? "-"}
+`;
+}
+
+export async function sendHandlingBookingWhatsApp(code_booking: string) {
+  try {
+    // ✅ Ambil data handling booking
+    const { data, error } = await supabase
+      .from("handling_bookings")
+      .select("*")
+      .eq("code_booking", code_booking)
+      .single();
+
+    if (error || !data) {
+      console.error("Handling booking not found", error);
+      return;
+    }
+
+    const message = formatHandlingBookingMessage(data);
+
+    // ✅ Panggil Edge Function
+    const { data: result, error: fnError } = await supabase.functions.invoke(
+      "supabase-functions-send-whatsapp",
+      {
+        body: {
+          target: data.customer_phone.startsWith("62")
+            ? data.customer_phone
+            : `62${data.customer_phone.replace(/^0+/, "")}`,
+          message,
+        },
+      }
+    );
+
+    if (fnError) {
+      console.error("Edge Function error:", fnError);
+      return null;
+    }
+
+    console.log("WA API result:", result);
+    return result;
+  } catch (error) {
+    console.error("Error sending handling booking WhatsApp:", error);
+    return null;
+  }
+}
+
 const CheckoutPage: React.FC = () => {
   const navigate = useNavigate();
+  
+  // CRITICAL FIX: ALL hooks must be called at the very top, before any conditional logic
   const {
     isAuthenticated,
     userId,
@@ -68,37 +224,43 @@ const CheckoutPage: React.FC = () => {
     isLoading,
   } = useAuth();
 
-  // FIXED: Move ALL hooks to the top before any conditional returns
   const { cartItems, totalAmount, clearCart } = useShoppingCart();
   
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>(
     () => {
       // Try to restore from sessionStorage
-      return sessionStorage.getItem("checkout-payment-method") || "";
+      if (typeof window !== 'undefined') {
+        return sessionStorage.getItem("checkout-payment-method") || "";
+      }
+      return "";
     },
   );
   
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [selectedBank, setSelectedBank] = useState<any | null>(() => {
     // Try to restore from sessionStorage
-    const saved = sessionStorage.getItem("checkout-selected-bank");
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (error) {
-        console.error("Error parsing saved bank data:", error);
+    if (typeof window !== 'undefined') {
+      const saved = sessionStorage.getItem("checkout-selected-bank");
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch (error) {
+          console.error("Error parsing saved bank data:", error);
+        }
       }
     }
     return null;
   });
   const [manualBanks, setManualBanks] = useState<any[]>(() => {
     // Try to restore from sessionStorage
-    const saved = sessionStorage.getItem("checkout-manual-banks");
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (error) {
-        console.error("Error parsing saved banks data:", error);
+    if (typeof window !== 'undefined') {
+      const saved = sessionStorage.getItem("checkout-manual-banks");
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch (error) {
+          console.error("Error parsing saved banks data:", error);
+        }
       }
     }
     return [];
@@ -106,12 +268,14 @@ const CheckoutPage: React.FC = () => {
   const [isFetchingBanks, setIsFetchingBanks] = useState(false);
   const [paylabsMethods, setPaylabsMethods] = useState<any[]>(() => {
     // Try to restore from sessionStorage
-    const saved = sessionStorage.getItem("checkout-paylabs-methods");
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (error) {
-        console.error("Error parsing saved Paylabs methods data:", error);
+    if (typeof window !== 'undefined') {
+      const saved = sessionStorage.getItem("checkout-paylabs-methods");
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch (error) {
+          console.error("Error parsing saved Paylabs methods data:", error);
+        }
       }
     }
     return [];
@@ -121,24 +285,28 @@ const CheckoutPage: React.FC = () => {
     any | null
   >(() => {
     // Try to restore from sessionStorage
-    const saved = sessionStorage.getItem("checkout-selected-paylabs-method");
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (error) {
-        console.error("Error parsing saved Paylabs method data:", error);
+    if (typeof window !== 'undefined') {
+      const saved = sessionStorage.getItem("checkout-selected-paylabs-method");
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch (error) {
+          console.error("Error parsing saved Paylabs method data:", error);
+        }
       }
     }
     return null;
   });
   const [customerData, setCustomerData] = useState(() => {
     // Try to restore from sessionStorage first
-    const saved = sessionStorage.getItem("checkout-customer-data");
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (error) {
-        console.error("Error parsing saved customer data:", error);
+    if (typeof window !== 'undefined') {
+      const saved = sessionStorage.getItem("checkout-customer-data");
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch (error) {
+          console.error("Error parsing saved customer data:", error);
+        }
       }
     }
     return {
@@ -148,122 +316,7 @@ const CheckoutPage: React.FC = () => {
     };
   });
 
-  // 🎯 BLOCKING GUARD: Prevent rendering until session is hydrated
-  if (!isHydrated || isLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center max-w-md mx-auto p-6">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500 mx-auto mb-6"></div>
-          <h2 className="text-xl font-semibold text-gray-800 mb-2">
-            Loading session...
-          </h2>
-          <p className="text-sm text-gray-600 mb-4">
-            Please wait while we restore your session
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  // WhatsApp message sending function
-  const sendWhatsAppMessage = async (
-    targetNumber: string,
-    messageContent: string,
-  ) => {
-    try {
-      const formData = new FormData();
-      formData.append("target", targetNumber);
-      formData.append("message", messageContent);
-
-      const response = await fetch("https://api.fonnte.com/send", {
-        method: "POST",
-        headers: {
-          Authorization:
-            import.meta.env.VITE_FONNTE_API_KEY ||
-            import.meta.env.FONNTE_API_KEY ||
-            "3hYIZghAc5N1!sUe3dMb",
-        },
-        body: formData,
-      });
-
-      const result = await response.json();
-      console.log("Fonnte response:", result);
-      return result;
-    } catch (error) {
-      console.error("Error sending WhatsApp message:", error);
-    }
-  };
-
-  useEffect(() => {
-    if (!isHydrated) return; // 🎯 Wait for hydration
-
-    // Auto-fill customer data if user is authenticated
-    if (isAuthenticated) {
-      setCustomerData((prev) => {
-        const newData = {
-          name: userName || prev.name || "",
-          email: userEmail || prev.email || "",
-          phone: prev.phone || "", // Keep existing phone or will be fetched
-        };
-        // Save to sessionStorage
-        sessionStorage.setItem(
-          "checkout-customer-data",
-          JSON.stringify(newData),
-        );
-        return newData;
-      });
-      fetchCustomerPhone();
-    }
-  }, [isAuthenticated, userName, userEmail, isHydrated]);
-
-  // Add useEffect to validate cart and redirect if empty
-  useEffect(() => {
-    if (!userId || cartItems.length === 0) {
-      console.log("[CheckoutPage] Cart validation: redirecting to home", {
-        userId: !!userId,
-        cartItemsLength: cartItems.length,
-      });
-      // Small delay to allow for cart loading
-      const timer = setTimeout(() => {
-        if (cartItems.length === 0) {
-          navigate("/");
-        }
-      }, 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [userId, cartItems.length, navigate]);
-
-  // Listen for form reset events
-  useEffect(() => {
-    const handleFormReset = () => {
-      console.log("[CheckoutPage] Received form reset event");
-      const resetData = {
-        name: isAuthenticated ? userName || "" : "",
-        email: isAuthenticated ? userEmail || "" : "",
-        phone: "",
-      };
-      setCustomerData(resetData);
-      setSelectedPaymentMethod("");
-      setSelectedBank(null);
-      setSelectedPaylabsMethod(null);
-
-      // Clear sessionStorage
-      sessionStorage.removeItem("checkout-customer-data");
-      sessionStorage.removeItem("checkout-payment-method");
-      sessionStorage.removeItem("checkout-selected-bank");
-      sessionStorage.removeItem("checkout-manual-banks");
-      sessionStorage.removeItem("checkout-paylabs-methods");
-      sessionStorage.removeItem("checkout-selected-paylabs-method");
-      sessionStorage.removeItem("checkout-paylabs-methods");
-      sessionStorage.removeItem("checkout-selected-paylabs-method");
-    };
-
-    window.addEventListener("resetBookingForms", handleFormReset);
-    return () => {
-      window.removeEventListener("resetBookingForms", handleFormReset);
-    };
-  }, [isAuthenticated, userName, userEmail]);
-
+  // Function definitions must come before useEffect hooks that use them
   const fetchCustomerPhone = async () => {
     if (isAuthenticated && userId) {
       try {
@@ -384,6 +437,77 @@ const CheckoutPage: React.FC = () => {
     }
   };
 
+  // ALL useEffect hooks must be called here, before any conditional returns
+  useEffect(() => {
+    if (!isHydrated) return; // 🎯 Wait for hydration
+
+    // Auto-fill customer data if user is authenticated
+    if (isAuthenticated) {
+      setCustomerData((prev) => {
+        const newData = {
+          name: userName || prev.name || "",
+          email: userEmail || prev.email || "",
+          phone: prev.phone || "", // Keep existing phone or will be fetched
+        };
+        // Save to sessionStorage
+        sessionStorage.setItem(
+          "checkout-customer-data",
+          JSON.stringify(newData),
+        );
+        return newData;
+      });
+      fetchCustomerPhone();
+    }
+  }, [isAuthenticated, userName, userEmail, isHydrated]);
+
+  // Add useEffect to validate cart and redirect if empty
+  useEffect(() => {
+    if (!userId || cartItems.length === 0) {
+      console.log("[CheckoutPage] Cart validation: redirecting to home", {
+        userId: !!userId,
+        cartItemsLength: cartItems.length,
+      });
+      // Small delay to allow for cart loading
+      const timer = setTimeout(() => {
+        if (cartItems.length === 0) {
+          navigate("/");
+        }
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [userId, cartItems.length, navigate]);
+
+  // Listen for form reset events
+  useEffect(() => {
+    const handleFormReset = () => {
+      console.log("[CheckoutPage] Received form reset event");
+      const resetData = {
+        name: isAuthenticated ? userName || "" : "",
+        email: isAuthenticated ? userEmail || "" : "",
+        phone: "",
+      };
+      setCustomerData(resetData);
+      setSelectedPaymentMethod("");
+      setSelectedBank(null);
+      setSelectedPaylabsMethod(null);
+
+      // Clear sessionStorage
+      sessionStorage.removeItem("checkout-customer-data");
+      sessionStorage.removeItem("checkout-payment-method");
+      sessionStorage.removeItem("checkout-selected-bank");
+      sessionStorage.removeItem("checkout-manual-banks");
+      sessionStorage.removeItem("checkout-paylabs-methods");
+      sessionStorage.removeItem("checkout-selected-paylabs-method");
+      sessionStorage.removeItem("checkout-paylabs-methods");
+      sessionStorage.removeItem("checkout-selected-paylabs-method");
+    };
+
+    window.addEventListener("resetBookingForms", handleFormReset);
+    return () => {
+      window.removeEventListener("resetBookingForms", handleFormReset);
+    };
+  }, [isAuthenticated, userName, userEmail]);
+
   // Fetch manual payment methods when bank transfer is selected
   useEffect(() => {
     if (selectedPaymentMethod === "bank_transfer") {
@@ -468,7 +592,7 @@ const CheckoutPage: React.FC = () => {
       paylabsMethods.length === 0 &&
       !isFetchingPaylabs
     ) {
-      console.log("🔄 Component mounted with Paylabs selected, fetching...");
+      console.log("💳 Component mounted with Paylabs selected, fetching...");
       fetchPaylabsPaymentMethods(true);
     }
 
@@ -491,6 +615,52 @@ const CheckoutPage: React.FC = () => {
     paylabsMethods.length,
     isFetchingPaylabs,
   ]);
+
+  // 🎯 BLOCKING GUARD: Prevent rendering until session is hydrated
+  if (!isHydrated || isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center max-w-md mx-auto p-6">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500 mx-auto mb-6"></div>
+          <h2 className="text-xl font-semibold text-gray-800 mb-2">
+            Loading session...
+          </h2>
+          <p className="text-sm text-gray-600 mb-4">
+            Please wait while we restore your session
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // WhatsApp message sending function
+ /* const sendWhatsAppMessage = async (
+    targetNumber: string,
+    messageContent: string,
+  ) => {
+    try {
+      const formData = new FormData();
+      formData.append("target", targetNumber);
+      formData.append("message", messageContent);
+
+      const response = await fetch("https://api.fonnte.com/send", {
+        method: "POST",
+        headers: {
+          Authorization:
+            import.meta.env.VITE_FONNTE_API_KEY ||
+            import.meta.env.FONNTE_API_KEY ||
+            "3hYIZghAc5N1!sUe3dMb",
+        },
+        body: formData,
+      });
+
+      const result = await response.json();
+      console.log("Fonnte response:", result);
+      return result;
+    } catch (error) {
+      console.error("Error sending WhatsApp message:", error);
+    }
+  };*/
 
   // Helper function to link payment with booking
   const linkPaymentBooking = async (
@@ -1279,7 +1449,8 @@ const CheckoutPage: React.FC = () => {
             customer_id: userIdForPayment, // Use the same user ID as TEXT
             payment_id: paymentId, // UUID from payment insert
             payment_method: selectedPaymentMethod, // Add payment method to baggage booking
-            code_booking: item.code_booking || bookingCode, // Use code_booking from cart item or generated code (TEXT)
+            code_booking: item.code_booking || bookingCode,
+            notes: parsedDetails.notes || item.details?.notes || null,
           };
 
           console.log("💼 Final booking data with booking_id:", {
@@ -1362,6 +1533,16 @@ const CheckoutPage: React.FC = () => {
             code_booking_type: typeof baggageBooking.code_booking,
             customer_name: baggageBooking.customer_name,
           });
+
+          // Send WhatsApp message after successful baggage booking creation
+          try {
+            console.log("📱 Sending WhatsApp message for baggage booking:", baggageBooking.code_booking);
+            await sendBookingWhatsApp(baggageBooking.code_booking);
+            console.log("✅ WhatsApp message sent successfully for baggage booking");
+          } catch (whatsappError) {
+            console.error("❌ Failed to send WhatsApp message:", whatsappError);
+            // Don't throw error - continue with checkout process
+          }
 
           // CRITICAL FIX: Only update payment with booking details if payment doesn't already have booking_id
           // This prevents overwriting the booking_id that was set during payment creation
@@ -1634,6 +1815,16 @@ const CheckoutPage: React.FC = () => {
             const handlingBooking = handlingBookings[0];
             console.log("✅ Handling booking updated:", handlingBooking.id);
 
+            // Send WhatsApp message after successful handling booking update
+            try {
+              console.log("📱 Sending WhatsApp message for handling booking:", handlingBooking.code_booking);
+              await sendHandlingBookingWhatsApp(handlingBooking.code_booking);
+              console.log("✅ WhatsApp message sent successfully for handling booking");
+            } catch (whatsappError) {
+              console.error("❌ Failed to send WhatsApp message:", whatsappError);
+              // Don't throw error - continue with checkout process
+            }
+
             // Update payment with booking details if this is a handling-only payment
             if (hasHandlingItems && !hasBaggageItems && !hasRegularItems) {
               const { error: updatePaymentError } = await supabase
@@ -1826,6 +2017,16 @@ const CheckoutPage: React.FC = () => {
             }
 
             console.log("✅ Handling booking created:", handlingBooking.id);
+
+            // Send WhatsApp message after successful handling booking creation
+            try {
+              console.log("📱 Sending WhatsApp message for handling booking:", handlingBooking.code_booking);
+              await sendHandlingBookingWhatsApp(handlingBooking.code_booking);
+              console.log("✅ WhatsApp message sent successfully for handling booking");
+            } catch (whatsappError) {
+              console.error("❌ Failed to send WhatsApp message:", whatsappError);
+              // Don't throw error - continue with checkout process
+            }
 
             // Update payment with booking details if this is a handling-only payment
             if (hasHandlingItems && !hasBaggageItems && !hasRegularItems) {
@@ -2340,24 +2541,29 @@ const CheckoutPage: React.FC = () => {
                       Phone Number
                     </Label>
                     <Input
-                      id="customer-phone"
-                      value={customerData.phone}
-                      onChange={(e) =>
-                        setCustomerData((prev) => {
-                          const newData = {
-                            ...prev,
-                            phone: e.target.value,
-                          };
-                          // Save to sessionStorage
-                          sessionStorage.setItem(
-                            "checkout-customer-data",
-                            JSON.stringify(newData),
-                          );
-                          return newData;
-                        })
-                      }
-                      placeholder="Enter phone number"
-                    />
+      id="customer-phone"
+      value={customerData.phone}
+      onChange={(e) =>
+        setCustomerData((prev) => {
+          const newData = {
+            ...prev,
+            phone: e.target.value,
+          };
+          sessionStorage.setItem(
+            "checkout-customer-data",
+            JSON.stringify(newData),
+          );
+          return newData;
+        })
+      }
+      placeholder="Enter phone number"
+      disabled={isAuthenticated && !!customerData.phone_number}
+      className={
+        isAuthenticated && !!customerData.phone_number
+          ? "bg-gray-100 cursor-not-allowed"
+          : ""
+      }
+    />
                   </div>
                 </div>
               </div>

@@ -1378,7 +1378,7 @@ const HandlingPage = () => {
                   {/* Porter Service Price Calculation Display */}
                   <div className="mt-4 p-4 bg-purple-50 border border-purple-200 rounded-lg">
                     <h4 className="font-semibold text-purple-800 mb-2">
-                      Kalkulasi Harga Porter Service
+                      Harga Porter Service
                     </h4>
                     <div className="space-y-2 text-sm">
                       <div className="flex justify-between">
@@ -1567,7 +1567,7 @@ const HandlingPage = () => {
               <div className="space-y-2">
                 <label className="flex items-center text-sm font-medium text-gray-700">
                   <FileText className="h-4 w-4 mr-2 text-green-600" />
-                  Catatan Lokasi Tambahan
+                  Catatan Tambahan
                 </label>
                 <Textarea
                   placeholder="Masukkan catatan tambahan mengenai lokasi jemput (opsional)"

@@ -190,7 +190,7 @@ const BaggageSizeSelector = ({
                             className={`cursor-pointer transition-all hover:shadow-lg ${bookingData.size === option.id ? "border-2 border-blue-500 shadow-md" : "border border-gray-200"}`}
                             onClick={() =>
                               handleSizeSelect(
-                                validateBaggageSize(option.id),
+                                option.id,
                                 option.price,
                               )
                             }
@@ -219,7 +219,7 @@ const BaggageSizeSelector = ({
                                 className="w-full"
                                 onClick={() =>
                                   handleSizeSelect(
-                                    validateBaggageSize(option.id),
+                                    option.id,
                                     option.price,
                                   )
                                 }
