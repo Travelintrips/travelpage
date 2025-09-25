@@ -1094,12 +1094,31 @@ const ShoppingCart: React.FC<ShoppingCartProps> = () => {
                                         </p>
                                       )}
 
+                                      {parsedDetails.passengerArea && (
+                                        <p className="text-sm text-gray-600">
+                                          <span className="font-medium">
+                                            Passenger Area:
+                                          </span>{" "}
+                                          {parsedDetails.passengerArea}
+                                        </p>
+                                      )}
+
                                       {parsedDetails.pickupArea && (
                                         <p className="text-sm text-gray-600">
                                           <span className="font-medium">
                                             Pickup Area:
                                           </span>{" "}
                                           {parsedDetails.pickupArea}
+                                        </p>
+                                      )}
+
+                                      
+                                      {parsedDetails.dropoffArea && (
+                                        <p className="text-sm text-gray-600">
+                                          <span className="font-medium">
+                                            Dropoff Area:
+                                          </span>{" "}
+                                          {parsedDetails.dropoffArea}
                                         </p>
                                       )}
 

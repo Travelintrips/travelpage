@@ -491,7 +491,7 @@ export default function BookingManagementDriver() {
           <TableBody>
             {filteredBookings.map((booking) => (
               <TableRow key={booking.id}>
-                <TableCell>{booking.kode_booking || booking.id}</TableCell>
+                <TableCell>{booking.code_booking || code_booking}</TableCell>
                 <TableCell className="font-medium">
                   {booking.driver?.name ? (
                     <button 

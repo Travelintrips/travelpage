@@ -49,9 +49,10 @@ const Reports = () => {
   const [exporting, setExporting] = useState(false);
   const { toast } = useToast();
   const [selectedKPI, setSelectedKPI] = useState<string | null>(null);
-  const [showJournal, setShowJournal] = useState(false);
+  const [showJournal, setShowJournal] = useState(true);
   const [activeTab, setActiveTab] = useState("journal-entries");
   const [serviceTypeOptions, setServiceTypeOptions] = useState<ServiceTypeOption[]>([]);
+  const [loadingJournal, setLoadingJournal] = useState(false);
 
   // Get current month's first and last day as default
   const currentDate = new Date();
@@ -156,14 +157,14 @@ const Reports = () => {
     }
   };
 
-  // Fetch journal entries from the view
+  // Fetch journal entries from the view - no filters
   const fetchJournalEntries = async () => {
     try {
-      setLoading(true);
+      setLoadingJournal(true);
       console.log('[Reports] Fetching journal entries from public.vw_journal_entries...');
       
-      // Fetch directly from the public.vw_journal_entries view
-      let { data, error } = await supabase
+      // Simple query without any filters
+      const { data, error } = await supabase
         .from('vw_journal_entries')
         .select('*')
         .order('date', { ascending: false });
@@ -173,63 +174,18 @@ const Reports = () => {
         throw error;
       }
 
-      let filteredData = data || [];
-
-      // Apply date filters
-      if (filters.startDate) {
-        const startDate = new Date(filters.startDate);
-        filteredData = filteredData.filter(entry => new Date(entry.transaction_date) >= startDate);
-      }
-      if (filters.endDate) {
-        const endDate = new Date(filters.endDate);
-        filteredData = filteredData.filter(entry => new Date(entry.transaction_date) <= endDate);
-      }
-
-      // Apply nama filter - modified logic
-      if (filters.nama && filters.nama !== '' && filters.nama !== 'all') {
-        filteredData = filteredData.filter(entry => 
-          (entry.nama || '').toLowerCase().includes(filters.nama.toLowerCase())
-        );
-      }
-
-      // Apply service type filter - modified logic
-      if (filters.serviceType && filters.serviceType !== '' && filters.serviceType !== 'all') {
-        filteredData = filteredData.filter(entry => 
-          (entry.service_type || '').toLowerCase() === filters.serviceType.toLowerCase()
-        );
-      }
-
-      // Apply global search filter - only when global_search is not empty
-      if (filters.globalSearch && filters.globalSearch.trim() !== '') {
-        const searchTerm = filters.globalSearch.toLowerCase();
-        filteredData = filteredData.filter(entry => {
-          return (
-            (entry.nama || '').toLowerCase().includes(searchTerm) ||
-            (entry.description || '').toLowerCase().includes(searchTerm) ||
-            (entry.service_type || '').toLowerCase().includes(searchTerm) ||
-            (entry.account_name || '').toLowerCase().includes(searchTerm) ||
-            (entry.reference_number || '').toLowerCase().includes(searchTerm) ||
-           // (entry.transaction_date || '').toString().toLowerCase().includes(searchTerm) ||
-            (entry.debit_amount || '').toString().toLowerCase().includes(searchTerm) ||
-            (entry.credit_amount || '').toString().toLowerCase().includes(searchTerm)
-          );
-        });
-      }
-
-      console.log('[Reports] Fetched entries from vw_journal_entries:', filteredData?.length || 0);
-      setJournalEntries(filteredData);
-      setFilteredEntries(filteredData); // Also set filtered entries
+      console.log('[Reports] Fetched entries from vw_journal_entries:', data?.length || 0);
+      setJournalEntries(data || []);
     } catch (error) {
       console.error('Error fetching journal entries from vw_journal_entries:', error);
       toast({
         variant: "destructive",
         title: "Error fetching data",
-        description: "Failed to load journal entries from vw_journal_entries view. Please check if the view exists.",
+        description: "Failed to load journal entries from vw_journal_entries view.",
       });
-      // Set empty array to prevent infinite loading
       setJournalEntries([]);
     } finally {
-      setLoading(false);
+      setLoadingJournal(false);
     }
   };
 
@@ -630,6 +586,20 @@ const Reports = () => {
     fetchTrialBalance();
   }, [filters.startDate, filters.endDate, filters.nama, filters.serviceType, activeTab, showJournal]);
 
+  // Auto-refetch when filters change
+  useEffect(() => {
+    if (showJournal) {
+      fetchJournalEntries();
+    }
+  }, [filters.startDate, filters.endDate, filters.nama, filters.serviceType, showJournal]);
+
+  // Auto-fetch when showJournal becomes true
+  useEffect(() => {
+    if (showJournal) {
+      fetchJournalEntries();
+    }
+  }, [showJournal]);
+
   const handleKPIClick = (kpiType: string) => {
     setSelectedKPI(kpiType);
     
@@ -719,7 +689,7 @@ const Reports = () => {
 
               <CardContent className="space-y-6">
                 {/* Journal Entries Date Filters */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 p-4 bg-gray-50 rounded-lg">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 p-4 bg-gray-50 rounded-lg">
                   <div>
                     <Label htmlFor="startDate">Start Date</Label>
                     <Input
@@ -765,6 +735,16 @@ const Reports = () => {
                       </SelectContent>
                     </Select>
                   </div>
+                  <div className="flex items-end">
+                    <Button
+                      onClick={fetchJournalEntries}
+                      disabled={loading}
+                      className="w-full"
+                    >
+                      <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                      Apply
+                    </Button>
+                  </div>
                 </div>
 
                 {showJournal && (
@@ -782,7 +762,7 @@ const Reports = () => {
                           <thead className="bg-gray-50 border-b">
                             <tr>
                               <th className="px-4 py-3 text-left font-medium text-gray-900">Date</th>
-                              <th className="px-4 py-3 text-left font-medium text-gray-900">Account</th>
+                              <th className="px-4 py-3 text-left font-medium text-gray-900">Account1</th>
                               <th className="px-4 py-3 text-left font-medium text-gray-900">Description</th>
                               <th className="px-4 py-3 text-right font-medium text-gray-900">Debit</th>
                               <th className="px-4 py-3 text-right font-medium text-gray-900">Credit</th>
@@ -790,7 +770,7 @@ const Reports = () => {
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-gray-200">
-                            {loading ? (
+                            {loading || loadingJournal ? (
                               <tr>
                                 <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
                                   <div className="flex items-center justify-center">
@@ -809,7 +789,7 @@ const Reports = () => {
                               journalEntries.map((entry, index) => (
                                 <tr key={index} className="hover:bg-gray-50">
                                   <td className="px-4 py-3 text-gray-900">
-                                    {new Date(entry.transaction_date).toLocaleDateString()}
+                                    {new Date(entry.date).toLocaleDateString()}
                                   </td>
                                   <td className="px-4 py-3 font-medium text-gray-900">
                                     {entry.account_name}
@@ -1369,7 +1349,7 @@ const Reports = () => {
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-gray-200">
-                            {loading ? (
+                            {loading || loadingJournal ? (
                               <tr>
                                 <td colSpan={10} className="px-4 py-8 text-center text-gray-500">
                                   <div className="flex items-center justify-center">

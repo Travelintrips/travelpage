@@ -90,7 +90,7 @@ function formatBookingMessage(booking: any) {
   }
 
   return `
-  === Details Order ===
+  === Details Order Baggage ===
 Booking ID: ${booking.code_booking}
 Baggage Storage – ${booking.baggage_size ?? "-"}
 Customer: ${booking.customer_name}
@@ -150,10 +150,14 @@ export async function sendBookingWhatsApp(code_booking: string) {
   }
 }
 
+function formatTime(value?: string | null) {
+  if (!value) return "-";
+  return value.split(":").slice(0, 2).join(":");
+}
 // Format pesan handling booking untuk WA
 function formatHandlingBookingMessage(booking: any) {
   return `
-  === Details Order ===
+  === Details Order Handling ===
 Booking ID: ${booking.code_booking}
 Handling Service – ${booking.category ?? "-"}
 Customer: ${booking.customer_name}
@@ -161,9 +165,12 @@ Email: ${booking.customer_email ?? "-"}
 Phone: ${booking.customer_phone ?? "-"}
 Category: ${booking.category ?? "-"}
 Passenger Area: ${booking.passenger_area ?? "-"}
+${booking.pickup_area ? `Pickup Area: ${booking.pickup_area}` : ""}
+${booking.dropoff_area ? `Dropoff Area: ${booking.dropoff_area}` : ""}
 Pickup Date: ${booking.pickup_date ? new Date(booking.pickup_date).toLocaleDateString("id-ID") : "-"}
-Pickup Time: ${booking.pickup_time ?? "-"}
+Pickup Time: ${formatTime(booking.pickup_time)}
 ${booking.passengers ? `Passengers: ${booking.passengers}` : ""}
+${booking.travel_type ? `Travel Type: ${booking.travel_type}` : ""}
 ${booking.extra_baggage_count ? `Extra Baggage: ${booking.extra_baggage_count}` : ""}
 Notes: ${booking.additional_notes ?? "-"}
 `;
