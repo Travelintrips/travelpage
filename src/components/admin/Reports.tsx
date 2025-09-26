@@ -1363,8 +1363,13 @@ const Reports = () => {
                                   </td>
                                   <td className="px-4 py-3 text-gray-600">
                                     <div className="flex flex-col">
-                                      <span className="font-medium">{entry.vehicle_name}</span>
-                                      <span className="text-xs text-gray-500">{entry.vehicle_type}</span>
+                                      <span className="font-medium">
+  {entry.make} {entry.model}
+</span>
+<span className="text-xs text-gray-500">
+  {entry.vehicle_type}
+</span>
+
                                     </div>
                                   </td>
                                   <td className="px-4 py-3 text-gray-600 font-mono text-sm">

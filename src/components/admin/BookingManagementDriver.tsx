@@ -526,14 +526,14 @@ export default function BookingManagementDriver() {
       <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Button
+           {/* <Button
               variant="ghost"
               size="sm"
               onClick={() => navigate("/admin")}
               className="text-white hover:bg-white/20"
             >
               ← Back
-            </Button>
+            </Button>*/}
             <div>
               <h1 className="text-2xl font-bold">Driver Bookings</h1>
               <p className="text-blue-100">Manage driver bookings and assignments</p>
@@ -870,6 +870,17 @@ export default function BookingManagementDriver() {
                                         <span className="font-medium">{formatTimeTo12Hour(booking.pickup_time)}</span>
                                       </div>
                                     )}
+                                  </div>
+                                </div>
+
+                                {/* Payment Methode */}
+                                <div className="bg-white p-3 rounded border">
+                                  <h5 className="font-medium text-gray-700 mb-2">Payment Information</h5>
+                                  <div className="space-y-1 text-sm">
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-600">Payment Methode:</span>
+                                      <span className="font-medium">{booking.payment_method || 'N/A'}</span>
+                                    </div>
                                   </div>
                                 </div>
 

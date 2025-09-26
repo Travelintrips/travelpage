@@ -365,7 +365,7 @@ const BaggageBookingManagement = () => {
                         className="border-b hover:bg-muted/50 transition-colors"
                       >
                         <td className="py-3 px-4 font-mono text-sm">
-                          {booking.booking_id}
+                          {booking.code_booking}
                         </td>
                         <td className="py-3 px-4">
                           <div>
@@ -652,7 +652,7 @@ const BaggageBookingManagement = () => {
             <div className="py-4">
               <p>
                 <span className="font-medium">Booking ID:</span>{" "}
-                {selectedBooking.booking_id}
+                {selectedBooking.code_booking}
               </p>
               <p>
                 <span className="font-medium">Customer:</span>{" "}
