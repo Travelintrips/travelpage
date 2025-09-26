@@ -95,7 +95,7 @@ interface DriverTopUpRequest {
 interface HistoriTransaksi {
   id: string;
   user_id: string | null;
-  kode_booking: string;
+  code_booking: string;
   nominal: number;
   saldo_akhir: number;
   jenis_transaksi: string | null;
@@ -437,7 +437,7 @@ const TopUpDriver = ({
         .select(`
           id,
           user_id,
-          kode_booking,
+          code_booking,
           nominal,
           saldo_akhir,
           jenis_transaksi,
@@ -671,7 +671,7 @@ const TopUpDriver = ({
       (item.driver_email || "")
         .toLowerCase()
         .includes(searchTerm.toLowerCase()) ||
-      (item.kode_booking || "")
+      (item.code_booking || "")
         .toLowerCase()
         .includes(searchTerm.toLowerCase());
 
@@ -775,7 +775,7 @@ const TopUpDriver = ({
       .from("histori_transaksi")
       .insert({
         user_id: selectedDriverId,
-        kode_booking: bookingCode,
+        code_booking: bookingCode,
         nominal: amount,
         saldo_akhir: newSaldo,
         keterangan: `Topup Manual Driver by Admin (${bookingCode})`,
@@ -1405,7 +1405,7 @@ const TopUpDriver = ({
                         filteredAdminTopupHistory.map((item) => (
                           <TableRow key={item.id}>
                             <TableCell className="font-mono text-sm">
-                              {item.kode_booking}
+                              {item.code_booking}
                             </TableCell>
                             <TableCell>
                               <div className="flex flex-col">
@@ -1470,7 +1470,7 @@ const TopUpDriver = ({
                                   const detailItem = {
                                     id: item.id,
                                     user_id: item.user_id || "",
-                                    reference_no: item.kode_booking,
+                                    reference_no: item.code_booking,
                                     amount: item.nominal,
                                     method: "Manual Admin Topup",
                                     bank_name: null,

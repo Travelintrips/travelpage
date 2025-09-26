@@ -59,7 +59,7 @@ interface Agent {
 interface TopUpTransaction {
   id: string;
   user_id: string | null;
-  kode_booking: string;
+  code_booking: string;
   nominal: number;
   saldo_akhir: number;
   keterangan: string | null;
@@ -375,7 +375,7 @@ const TopUpAgent = () => {
         .from("histori_transaksi")
         .insert({
           user_id: selectedAgent,
-          kode_booking: transactionCode,
+          code_booking: transactionCode,
           nominal: topUpValue,
           jenis_transaksi: "Topup Manual Agent",
           saldo_akhir: newBalance,
@@ -428,7 +428,7 @@ const TopUpAgent = () => {
       (transaction.agent_email?.toLowerCase() || "").includes(
         searchTerm.toLowerCase(),
       ) ||
-      (transaction.kode_booking || "").includes(searchTerm),
+      (transaction.code_booking || "").includes(searchTerm),
   );
 
   const totalBalance = agents.reduce(
@@ -676,7 +676,7 @@ const TopUpAgent = () => {
                   filteredTransactions.map((transaction) => (
                     <TableRow key={transaction.id}>
                       <TableCell className="font-mono text-sm">
-                        {transaction.kode_booking}
+                        {transaction.code_booking}
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-col">

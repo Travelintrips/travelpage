@@ -38,7 +38,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 
 interface Booking {
   id: string;
-  kode_booking?: string;
+  code_booking?: string;
   user_id: string;
   vehicle_id: string;
   start_date: string;
@@ -271,7 +271,7 @@ export default function BookingManagementCustomer() {
 
       toast({
         title: "Booking approved",
-        description: `Booking #${booking.kode_booking || booking.id} has been approved successfully`,
+        description: `Booking #${booking.code_booking || booking.id} has been approved successfully`,
       });
 
       fetchBookings();
@@ -366,7 +366,7 @@ export default function BookingManagementCustomer() {
       (booking) =>
         booking.user?.full_name?.toLowerCase().includes(lowercasedSearch) ||
         booking.user?.email?.toLowerCase().includes(lowercasedSearch) ||
-        booking.kode_booking?.toLowerCase().includes(lowercasedSearch) ||
+        booking.code_booking?.toLowerCase().includes(lowercasedSearch) ||
         booking.id.toString().includes(lowercasedSearch) ||
         booking.status?.toLowerCase().includes(lowercasedSearch) ||
         booking.payment_status?.toLowerCase().includes(lowercasedSearch),
@@ -434,7 +434,7 @@ export default function BookingManagementCustomer() {
           <TableBody>
             {filteredBookings.map((booking) => (
               <TableRow key={booking.id}>
-                <TableCell>{booking.kode_booking || booking.id}</TableCell>
+                <TableCell>{booking.code_booking || booking.id}</TableCell>
                 <TableCell className="font-medium">
                   {booking.user?.full_name || "Unknown"}
                 </TableCell>

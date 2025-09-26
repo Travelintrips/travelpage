@@ -790,47 +790,68 @@ const HandlingPage = () => {
       console.log("Handling booking created:", handlingBooking);
 
       // Then add to shopping cart with reference to the handling booking
-      await addToCart({
-        item_type: "handling",
-        item_id: handlingBooking.id, // Use the handling booking UUID as item_id
-        booking_id: bookingUUID, // UUID for booking_id field in shopping_cart
-        code_booking: currentBookingId, // Text-based booking code for code_booking field
-        service_name: `Handling Service - ${formData.passengerArea}`,
-        price: totalPrice || 150000, // Use calculated total price or fallback
-        quantity: 1,
-        details: {
-          bookingId: currentBookingId, // Text-based booking code for display
-          booking_id: bookingUUID, // UUID for compatibility with checkout processing
-          code_booking: currentBookingId, // Text-based booking code for payment processing
-          handling_booking_id: handlingBooking.id, // Reference to the handling booking record
-          customerName: formData.name,
-          companyName: formData.companyName,
-          customerEmail: formData.email,
-          customerPhone: formData.phone,
-          passengerArea: formData.passengerArea,
-          category: formData.category,
-          // Only include passengers for Group categories
-          ...(formData.category === "Handling Group" && {
-            passengers: formData.passengers,
-          }),
-          pickupDate: format(formData.pickDate, "yyyy-MM-dd"),
-          pickupTime: formData.pickTime,
-          flightNumber: formData.flightNumber,
-          travelTypes: formData.travelTypes,
-          travelType: formData.travelTypes.join(", "), // Add single field for compatibility
-          pickupArea: formData.pickupArea,
-          dropoffArea: formData.dropoffArea,
-          additionalNotes: formData.additionalNotes,
-          extraBaggageCount:
-            formData.category === "Porter Service"
-              ? formData.extraBaggageCount
-              : null,
-          serviceType: "handling",
-          servicePrice: servicePrice,
-          categoryPrice: categoryPrice,
-          totalPrice: totalPrice,
-        },
-      });
+      // Tentukan item_type dan service_name berdasarkan kategori
+// Tentukan item_type dan service_name berdasarkan kategori
+let itemType = "handling";
+let serviceName = "Handling Service";
+
+switch (formData.category) {
+  case "Porter Service":
+    itemType = "handling";
+    serviceName = "Porter Service";
+    break;
+  case "Handling Group":
+    itemType = "handling_group";
+    serviceName = "Handling Group";
+    break;
+  case "International - Individual":
+  case "Domestik - Individual":
+    itemType = "handling";
+    serviceName = "Handling Service";
+    break;
+}
+
+await addToCart({
+  item_type: itemType,  // ✅ pakai variabel yang sudah ditentukan
+  item_id: handlingBooking.id,
+  booking_id: bookingUUID,
+  code_booking: currentBookingId,
+  service_name: serviceName,  // ✅ bukan hardcode lagi
+  price: totalPrice || 150000,
+  quantity: 1,
+  details: {
+    bookingId: currentBookingId,
+    booking_id: bookingUUID,
+    code_booking: currentBookingId,
+    handling_booking_id: handlingBooking.id,
+    customerName: formData.name,
+    companyName: formData.companyName,
+    customerEmail: formData.email,
+    customerPhone: formData.phone,
+    passengerArea: formData.passengerArea,
+    category: formData.category,
+    ...(formData.category === "Handling Group" && {
+      passengers: formData.passengers,
+    }),
+    pickupDate: format(formData.pickDate, "yyyy-MM-dd"),
+    pickupTime: formData.pickTime,
+    flightNumber: formData.flightNumber,
+    travelTypes: formData.travelTypes,
+    travelType: formData.travelTypes.join(", "),
+    pickupArea: formData.pickupArea,
+    dropoffArea: formData.dropoffArea,
+    additionalNotes: formData.additionalNotes,
+    extraBaggageCount:
+      formData.category === "Porter Service"
+        ? formData.extraBaggageCount
+        : null,
+    serviceType: itemType,     // ✅ biar konsisten
+    servicePrice: servicePrice,
+    categoryPrice: categoryPrice,
+    totalPrice: totalPrice,
+  },
+});
+
 
       toast({
         title: "Berhasil ditambahkan",

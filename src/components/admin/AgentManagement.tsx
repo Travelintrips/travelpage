@@ -629,7 +629,7 @@ supabase
     jenis_transaksi,
     status,
     keterangan,
-    kode_booking,
+    code_booking,
     user:user_id(id, full_name, email)
   `)
   .in("user_id", agentIds)
@@ -1908,7 +1908,7 @@ const handleConfirmSuspend = async () => {
                       </TableCell>
                       <TableCell>
                         <div className="font-mono text-sm">
-                          {transaction.kode_booking}
+                          {transaction.code_booking}
                         </div>
                       </TableCell>
                       <TableCell>

@@ -40,7 +40,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 interface Booking {
   id: string;
   driver_name?: string;
-  kode_booking?: string;
+  code_booking?: string;
   user_id: string;
   vehicle_id: string;
   start_date: string;
@@ -442,7 +442,7 @@ export default function BookingManagement() {
 
       toast({
         title: "Booking approved",
-        description: `Booking #${booking.kode_booking || booking.id} has been approved successfully`,
+        description: `Booking #${booking.code_booking || booking.id} has been approved successfully`,
       });
 
       // Update local state immediately to reflect changes
@@ -552,7 +552,7 @@ export default function BookingManagement() {
       (booking) =>
         booking.user?.full_name?.toLowerCase().includes(lowercasedSearch) ||
         booking.user?.email?.toLowerCase().includes(lowercasedSearch) ||
-        booking.kode_booking?.toLowerCase().includes(lowercasedSearch) ||
+        booking.code_booking?.toLowerCase().includes(lowercasedSearch) ||
         booking.id.toString().includes(lowercasedSearch) ||
         booking.vehicle_id.toString().includes(lowercasedSearch) ||
         booking.status?.toLowerCase().includes(lowercasedSearch) ||
@@ -759,7 +759,7 @@ export default function BookingManagement() {
                     className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
                   />
                 </TableCell>
-                <TableCell>{booking.kode_booking || booking.id}</TableCell>
+                <TableCell>{booking.code_booking || booking.id}</TableCell>
                 <TableCell>
                   {booking.created_by_role === "Driver Perusahaan"
                     ? "Driver Perusahaan"
@@ -1092,7 +1092,7 @@ export default function BookingManagement() {
             <DialogTitle>Process Payment</DialogTitle>
             <DialogDescription>
               Enter payment details for booking #
-              {currentBooking?.kode_booking || currentBooking?.id}
+              {currentBooking?.code_booking || currentBooking?.id}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleProcessPayment}>
@@ -1155,7 +1155,7 @@ export default function BookingManagement() {
             <DialogTitle>Process Vehicle Return</DialogTitle>
             <DialogDescription>
               Complete the post-rental inspection and damage assessment for
-              booking #{currentBooking?.kode_booking || currentBooking?.id}
+              booking #{currentBooking?.code_booking || currentBooking?.id}
             </DialogDescription>
           </DialogHeader>
           {currentBooking && (
@@ -1213,7 +1213,7 @@ export default function BookingManagement() {
             <DialogTitle>Process Vehicle Pickup</DialogTitle>
             <DialogDescription>
               Complete the pickup checklist for booking #
-              {currentBooking?.kode_booking || currentBooking?.id}
+              {currentBooking?.code_booking || currentBooking?.id}
             </DialogDescription>
           </DialogHeader>
           {currentBooking && (
@@ -1278,7 +1278,7 @@ export default function BookingManagement() {
             <DialogTitle>Pre-Rental Inspection</DialogTitle>
             <DialogDescription>
               Complete the pre-rental inspection for booking #
-              {currentBooking?.kode_booking || currentBooking?.id}
+              {currentBooking?.code_booking || currentBooking?.id}
             </DialogDescription>
           </DialogHeader>
           {currentBooking && (

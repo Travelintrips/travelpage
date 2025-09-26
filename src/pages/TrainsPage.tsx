@@ -1,7 +1,17 @@
 import React, { useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
+import { Button } from "@/components/ui/button";
 import AuthRequiredModal from "@/components/auth/AuthRequiredModal";
+import {
+  Car,
+  MapPin,
+  ArrowLeft,
+  Plane,
+  Clock,
+  Shield,
+  Star,
+} from "lucide-react";
 
 const TrainsPage = () => {
   const { isAuthenticated, isLoading } = useAuth();
@@ -37,18 +47,31 @@ const TrainsPage = () => {
   return (
     <div className="min-h-screen bg-white">
       <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4">
+    <div className="flex items-center mb-6">
+      <Button
+        variant="ghost"
+        className="text-green hover:bg-green-700 mr-4"
+        onClick={() => navigate("/")}
+      >
+        <ArrowLeft className="h-5 w-5 mr-2" />
+        Back To Home
+      </Button>
+    </div>
         <h1 className="text-3xl font-bold mb-6">Trains</h1>
         <p className="text-gray-600">
           Book train tickets for comfortable travel.
         </p>
         {/* Train content will be implemented here */}
       </div>
+      
 
       {/* Auth modal for protected actions */}
       <AuthRequiredModal
         isOpen={showAuthModal}
         onClose={() => setShowAuthModal(false)}
       />
+    </div>
     </div>
   );
 };

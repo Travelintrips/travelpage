@@ -27,7 +27,7 @@ import { useAuth } from "@/contexts/AuthContext";
 
 interface Booking {
   id: string;
-  kode_booking?: string;
+  code_booking?: string;
   user_id: string;
   vehicle_id: string;
   start_date: string;

@@ -825,7 +825,7 @@ const finalUserEmail = session.user.email;
           baggage_size: normalizedSize,
           baggage_size_display: displayName,
           duration: calculatedDuration,
-          storage_location: localStorage.getItem("baggage_storage_location") || "Terminal 1, Level 1",
+        //  storage_location: localStorage.getItem("baggage_storage_location") || "Terminal 1, Level 1",
           start_date: durationType === "hours" ? data.startDate_Hours : data.startDate_Days,
           end_date: durationType === "hours" ? data.startDate_Hours : data.endDate_Days,
           start_time: durationType === "hours" ? data.startTime_Hours : data.startTime_Days,

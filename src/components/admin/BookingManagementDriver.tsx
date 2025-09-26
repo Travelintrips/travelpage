@@ -20,6 +20,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Eye,
   CreditCard,
@@ -41,7 +44,7 @@ import { useAuth } from "@/contexts/AuthContext";
 
 interface Booking {
   id: string;
-  kode_booking?: string;
+  code_booking?: string;
   user_id: string;
   vehicle_id: string;
   start_date: string;
@@ -95,14 +98,48 @@ export default function BookingManagementDriver() {
   const [isReturnProcessOpen, setIsReturnProcessOpen] = useState(false);
   const [isPickupProcessOpen, setIsPickupProcessOpen] = useState(false);
   const [isPreInspectionOpen, setIsPreInspectionOpen] = useState(false);
+  const [showCancelForm, setShowCancelForm] = useState(false);
   const [currentBooking, setCurrentBooking] = useState<Booking | null>(null);
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [payments, setPayments] = useState<Payment[]>([]);
   const [paymentAmount, setPaymentAmount] = useState<number>(0);
   const [paymentMethod, setPaymentMethod] = useState<string>("Cash");
+  const [cancelReason, setCancelReason] = useState<string>("");
+  const [isCancelling, setIsCancelling] = useState(false);
+  
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  
   const { toast } = useToast();
   const location = useLocation();
   const navigate = useNavigate();
-  const { userRole } = useAuth();
+  const { userRole, user } = useAuth();
+
+  // Calculate pagination
+  const totalPages = Math.ceil(filteredBookings.length / rowsPerPage);
+  const startIndex = (currentPage - 1) * rowsPerPage;
+  const endIndex = startIndex + rowsPerPage;
+  const currentBookings = filteredBookings.slice(startIndex, endIndex);
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  const handleRowsPerPageChange = (rows: number) => {
+    setRowsPerPage(rows);
+    setCurrentPage(1); // Reset to first page
+  };
+
+  const toggleRowExpansion = (bookingId: string) => {
+    const newExpandedRows = new Set(expandedRows);
+    if (newExpandedRows.has(bookingId)) {
+      newExpandedRows.delete(bookingId);
+    } else {
+      newExpandedRows.add(bookingId);
+    }
+    setExpandedRows(newExpandedRows);
+  };
 
   useEffect(() => {
     fetchBookings();
@@ -340,7 +377,7 @@ export default function BookingManagementDriver() {
     const filtered = bookings.filter(
       (booking) =>
         booking.driver?.name?.toLowerCase().includes(lowercasedSearch) ||
-        booking.kode_booking?.toLowerCase().includes(lowercasedSearch) ||
+        booking.code_booking?.toLowerCase().includes(lowercasedSearch) ||
         booking.id.toString().includes(lowercasedSearch) ||
         booking.status?.toLowerCase().includes(lowercasedSearch) ||
         booking.payment_status?.toLowerCase().includes(lowercasedSearch),
@@ -414,215 +451,509 @@ export default function BookingManagementDriver() {
     }
   };
 
-  const handleCancelBooking = async (booking: Booking) => {
-    try {
-      const { error } = await supabase
-        .from("bookings")
-        .update({ status: "cancelled" })
-        .eq("id", booking.id);
-
-      if (error) throw error;
-
-      toast({
-        title: "Booking cancelled",
-        description: "Booking status has been updated to cancelled",
-      });
-
-      fetchBookings();
-    } catch (error) {
-      console.error("Error cancelling booking:", error);
-      toast({
-        variant: "destructive",
-        title: "Error cancelling booking",
-        description: error.message,
-      });
-    }
+  const canCancelBooking = () => {
+    const allowedRoles = ['Super Admin', 'Admin', 'Staff Admin', 'Staff Traffic'];
+    return allowedRoles.includes(userRole);
   };
 
+  const handleOpenCancelForm = (booking: Booking) => {
+    if (!canCancelBooking()) {
+      toast({
+        variant: "destructive",
+        title: "Access Denied",
+        description: "You don't have permission to cancel bookings.",
+      });
+      return;
+    }
+    setCurrentBooking(booking);
+    setCancelReason("");
+    setShowCancelForm(true);
+  };
+
+  const handleCloseCancelForm = () => {
+    setShowCancelForm(false);
+    setCancelReason("");
+    setCurrentBooking(null);
+  };
+
+  const handleCancelBooking = async () => {
+  if (!currentBooking || !user) return;
+
+  if (!cancelReason.trim()) {
+    toast({
+      variant: "destructive",
+      title: "Reason Required",
+      description: "Please provide a reason for cancellation.",
+    });
+    return;
+  }
+
+  try {
+    setIsCancelling(true);
+
+    const { error } = await supabase.rpc("cancel_booking_kembali_saldo", {
+      p_booking_id: currentBooking.id,
+      p_admin_id: user.id,
+      p_admin_name: user.full_name,
+      p_refund_reason: cancelReason.trim(),
+    });
+
+    if (error) throw error;
+
+    toast({
+      title: "Booking cancelled & refunded",
+      description: `Booking has been cancelled and refunded. Reason: ${cancelReason}`,
+    });
+
+    handleCloseCancelForm();
+    fetchBookings();
+  } catch (error: any) {
+    console.error("Error cancelling booking:", error);
+    toast({
+      variant: "destructive",
+      title: "Error cancelling booking",
+      description: error.message || "Failed to cancel booking",
+    });
+  } finally {
+    setIsCancelling(false);
+  }
+};
+
+
   return (
-    <div className="p-6 bg-white dark:bg-gray-800 rounded-lg shadow-md">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold">Driver Bookings</h2>
-        <div className="relative w-64">
-          <div className="relative flex items-center">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search bookings..."
-              value={searchTerm}
-              onChange={handleSearchChange}
-              className="w-full pl-10 pr-10 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-            />
-            {searchTerm && (
-              <button
-                onClick={clearSearch}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
-                aria-label="Clear search"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            )}
+    <div className="bg-white min-h-screen">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate("/admin")}
+              className="text-white hover:bg-white/20"
+            >
+              ← Back
+            </Button>
+            <div>
+              <h1 className="text-2xl font-bold">Driver Bookings</h1>
+              <p className="text-blue-100">Manage driver bookings and assignments</p>
+            </div>
           </div>
         </div>
       </div>
 
-      {isLoading ? (
-        <div className="flex justify-center items-center h-64">
-          <p>Loading driver bookings...</p>
+      {/* Cancel Form Layout */}
+      {showCancelForm && currentBooking && (
+        <div className="bg-red-50 border-l-4 border-red-500 p-6 m-6">
+          <div className="flex items-start justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <XCircle className="h-6 w-6 text-red-600" />
+              <h2 className="text-xl font-semibold text-red-800">Cancel Booking</h2>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleCloseCancelForm}
+              className="text-red-600 hover:bg-red-100"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Booking Details */}
+            <div className="bg-white p-4 rounded-lg border">
+              <h3 className="font-medium text-gray-900 mb-3">Booking Details</h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Booking Code:</span>
+                  <span className="font-medium">{currentBooking.code_booking}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Driver:</span>
+                  <span className="font-medium">{currentBooking.driver?.name || 'Unknown'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Vehicle:</span>
+                  <span className="font-medium">{currentBooking.vehicle?.license_plate || 'N/A'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Amount:</span>
+                  <span className="font-medium text-green-600">{formatCurrency(currentBooking.total_amount)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Status:</span>
+                  <Badge variant="outline">{currentBooking.status}</Badge>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Dates:</span>
+                  <span className="font-medium">
+                    {format(new Date(currentBooking.start_date), "dd/MM/yyyy")} - 
+                    {format(new Date(currentBooking.end_date), "dd/MM/yyyy")}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Cancellation Form */}
+            <div className="bg-white p-4 rounded-lg border">
+              <h3 className="font-medium text-gray-900 mb-3">Cancellation Details</h3>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="cancelReason" className="text-sm font-medium text-gray-700">
+                    Reason for Cancellation *
+                  </Label>
+                  <Textarea
+                    id="cancelReason"
+                    placeholder="Please provide a detailed reason for cancelling this booking..."
+                    value={cancelReason}
+                    onChange={(e) => setCancelReason(e.target.value)}
+                    rows={4}
+                    className="mt-1 resize-none"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    This reason will be recorded in the booking history and transaction records.
+                  </p>
+                </div>
+
+                <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-200">
+                  <div className="flex items-start gap-2">
+                    <Flag className="h-4 w-4 text-yellow-600 mt-0.5" />
+                    <div className="text-sm">
+                      <p className="font-medium text-yellow-800">Important Notice</p>
+                      <p className="text-yellow-700">
+                        Cancelling this booking will automatically refund the customer and update the booking status. 
+                        This action cannot be undone.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <Button
+                    variant="outline"
+                    onClick={handleCloseCancelForm}
+                    disabled={isCancelling}
+                    className="flex-1"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    onClick={handleCancelBooking}
+                    disabled={isCancelling || !cancelReason.trim()}
+                    className="flex-1"
+                  >
+                    {isCancelling ? "Processing..." : "Confirm Cancellation"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-      ) : (
-        <Table>
-          <TableCaption>List of all driver bookings</TableCaption>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Kode Booking</TableHead>
-              <TableHead>Driver Name</TableHead>
-              <TableHead>Tipe Kendaraan</TableHead>
-              <TableHead>Plat Kendaraan</TableHead>
-              <TableHead>Driver Status</TableHead>
-              <TableHead>Dates</TableHead>
-              <TableHead>Amount</TableHead>
-              <TableHead>Payment</TableHead>
-              <TableHead>Booking Status</TableHead>
-
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filteredBookings.map((booking) => (
-              <TableRow key={booking.id}>
-                <TableCell>{booking.code_booking || code_booking}</TableCell>
-                <TableCell className="font-medium">
-                  {booking.driver?.name ? (
-                    <button 
-                      onClick={() => {
-                        console.log('Navigating to driver:', booking.driver.id);
-                        navigate(`/admin/drivers/${booking.driver.id}`);
-                      }}
-                      className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer bg-transparent border-none p-0 font-medium"
-                    >
-                      {booking.driver.name}
-                    </button>
-                  ) : (
-                    "Unknown"
-                  )}
-                </TableCell>
-                <TableCell>{booking.vehicle_type}</TableCell>
-                <TableCell>{booking.license_plate}</TableCell>
-                <TableCell>
-                  {booking.driver?.driver_status ? (
-                    <Badge
-                      variant="outline"
-                      className={
-                        booking.driver.driver_status === "On Ride"
-                          ? "bg-green-100 text-green-800 border-green-300"
-                          : "bg-yellow-100 text-yellow-800 border-yellow-300"
-                      }
-                    >
-                      {booking.driver.driver_status}
-                    </Badge>
-                  ) : (
-                    <Badge
-                      variant="outline"
-                      className="bg-gray-100 text-gray-800 border-gray-300"
-                    >
-                      No Status
-                    </Badge>
-                  )}
-                </TableCell>
-                <TableCell>
-                  {formatDateDDMMYYYY(booking.start_date)} -{" "}
-                  {formatDateDDMMYYYY(booking.end_date)}
-                </TableCell>
-                <TableCell>
-                  {formatCurrency(booking.total_amount || 0)}
-                </TableCell>
-                <TableCell>
-                  {getPaymentStatusBadge(booking.payment_status)}
-                </TableCell>
-                <TableCell>{getStatusBadge(booking.status)}</TableCell>
-
-                <TableCell className="text-right flex items-center justify-end space-x-1">
-                  {booking.status === "confirmed" && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="flex items-center gap-1"
-                      onClick={() => handleFinishBooking(booking)}
-                    >
-                      <Flag className="h-4 w-4" />
-                      Finish
-                    </Button>
-                  )}
-                  
-                  {booking.status === "onride" && (
-                    <>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex items-center gap-1"
-                        disabled
-                      >
-                        <Activity className="h-4 w-4" />
-                        Onride{" "}
-                        {booking.pickup_time
-                          ? `(${formatTimeTo12Hour(booking.pickup_time)})`
-                          : ""}
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex items-center gap-1 bg-amber-100 hover:bg-amber-200 text-amber-800 border-amber-300"
-                        onClick={() => handleProcessReturn(booking)}
-                      >
-                        <ClipboardCheck className="h-4 w-4" />
-                        Process Return
-                      </Button>
-                    </>
-                  )}
-                  
-                  {userRole !== "Staff" && (
-                    <>
-                      {(booking.status === "pending" || booking.status === "booked" || booking.status !== "confirmed") && booking.status !== "cancelled" && booking.status !== "completed" && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="flex items-center gap-1 bg-green-100 hover:bg-green-200 text-green-800 border-green-300"
-                          onClick={() => {
-                            console.log('Confirmation button clicked for booking:', booking.id);
-                            handleConfirmBooking(booking);
-                          }}
-                        >
-                          <CheckCircle className="h-4 w-4" />
-                          Confirmation
-                        </Button>
-                      )}
-                      
-                      {booking.status !== "cancelled" && booking.status !== "completed" && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="flex items-center gap-1 bg-red-100 hover:bg-red-200 text-red-800 border-red-300"
-                          onClick={() => {
-                            console.log('Cancel button clicked for booking:', booking.id);
-                            handleCancelBooking(booking);
-                          }}
-                        >
-                          <XCircle className="h-4 w-4" />
-                          Cancel
-                        </Button>
-                      )}
-                    </>
-                  )}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
       )}
 
-      {/* Dialogs remain the same as in BookingManagementConnected */}
-      {/* ... (all dialog components) */}
+      {/* Main Content - Expandable Table */}
+      {!showCancelForm && (
+        <div className="p-6">
+          {/* Search and Controls */}
+          <div className="mb-6 space-y-4">
+            <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
+              <div className="relative flex-1 max-w-md">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                <Input
+                  type="text"
+                  placeholder="Search bookings..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              
+              {/* Rows per page selector */}
+              <div className="flex items-center gap-2">
+                <Label className="text-sm">Show:</Label>
+                <select
+                  value={rowsPerPage}
+                  onChange={(e) => handleRowsPerPageChange(Number(e.target.value))}
+                  className="border rounded px-2 py-1 text-sm"
+                >
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                  <option value={30}>30</option>
+                  <option value={50}>50</option>
+                </select>
+                <span className="text-sm text-gray-600">entries</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Expandable Table */}
+          {isLoading ? (
+            <div className="flex justify-center items-center h-64">
+              <p>Loading driver bookings...</p>
+            </div>
+          ) : (
+            <div className="border rounded-lg overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-gray-50">
+                    <TableHead className="w-12"></TableHead>
+                    <TableHead>Kode Booking</TableHead>
+                    <TableHead>Driver Name</TableHead>
+                    <TableHead>Driver Status</TableHead>
+                    <TableHead>Payment</TableHead>
+                    <TableHead>Booking Status</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {currentBookings.map((booking) => (
+                    <React.Fragment key={booking.id}>
+                      {/* Master Row */}
+                      <TableRow className="hover:bg-gray-50">
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => toggleRowExpansion(booking.id)}
+                            className="p-1 h-6 w-6"
+                          >
+                            {expandedRows.has(booking.id) ? (
+                              <span className="text-gray-600">−</span>
+                            ) : (
+                              <span className="text-gray-600">+</span>
+                            )}
+                          </Button>
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          {booking.code_booking || 'N/A'}
+                        </TableCell>
+                        <TableCell>
+                          {booking.driver?.name || 'Unknown Driver'}
+                        </TableCell>
+                        <TableCell>
+                          <Badge 
+                            variant="outline" 
+                            className={`text-xs ${
+                              booking.driver?.driver_status === 'standby' 
+                                ? 'bg-yellow-100 text-yellow-800' 
+                                : 'bg-green-100 text-green-800'
+                            }`}
+                          >
+                            {booking.driver?.driver_status || 'standby'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {getPaymentStatusBadge(booking.payment_status)}
+                        </TableCell>
+                        <TableCell>
+                          {getStatusBadge(booking.status)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-1">
+                         {/*   <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex items-center gap-1"
+                              onClick={() => handleViewDetails(booking)}
+                            >
+                              <Eye className="h-4 w-4" />
+                              Details
+                            </Button>*/}
+
+                            {booking.payment_status !== "paid" && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="flex items-center gap-1 bg-green-100 hover:bg-green-200 text-green-800 border-green-300"
+                                onClick={() => handleOpenPaymentDialog(booking)}
+                              >
+                                <CreditCard className="h-4 w-4" />
+                                Payment
+                              </Button>
+                            )}
+
+                            {booking.status === "pending" && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="flex items-center gap-1 bg-blue-100 hover:bg-blue-200 text-blue-800 border-blue-300"
+                                onClick={() => handleConfirmBooking(booking)}
+                              >
+                                <CheckCircle className="h-4 w-4" />
+                                Confirm
+                              </Button>
+                            )}
+
+                            {booking.status === "confirmed" && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="flex items-center gap-1 bg-purple-100 hover:bg-purple-200 text-purple-800 border-purple-300"
+                                onClick={() => handlePickupVehicle(booking)}
+                              >
+                                <Car className="h-4 w-4" />
+                                Pickup
+                              </Button>
+                            )}
+
+                            {booking.status === "onride" && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="flex items-center gap-1 bg-orange-100 hover:bg-orange-200 text-orange-800 border-orange-300"
+                                onClick={() => handleProcessReturn(booking)}
+                              >
+                                <Activity className="h-4 w-4" />
+                                Return
+                              </Button>
+                            )}
+
+                            {booking.status !== "cancelled" && booking.status !== "completed" && canCancelBooking() && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="flex items-center gap-1 bg-red-100 hover:bg-red-200 text-red-800 border-red-300"
+                                onClick={() => handleOpenCancelForm(booking)}
+                              >
+                                <XCircle className="h-4 w-4" />
+                                Cancel
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+
+                      {/* Detail Row - Expandable */}
+                      {expandedRows.has(booking.id) && (
+                        <TableRow className="bg-gray-50">
+                          <TableCell colSpan={7}>
+                            <div className="p-4 space-y-4">
+                              <h4 className="font-medium text-gray-900 mb-3">Booking Details</h4>
+                              
+                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {/* Vehicle Information */}
+                                <div className="bg-white p-3 rounded border">
+                                  <h5 className="font-medium text-gray-700 mb-2">Vehicle Information</h5>
+                                  <div className="space-y-1 text-sm">
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-600">Tipe Kendaraan:</span>
+                                      <span className="font-medium">{booking.vehicle_type || 'MPV'}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-600">Plat Kendaraan:</span>
+                                      <span className="font-medium">{booking.vehicle?.license_plate || 'N/A'}</span>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Booking Information */}
+                                <div className="bg-white p-3 rounded border">
+                                  <h5 className="font-medium text-gray-700 mb-2">Booking Information</h5>
+                                  <div className="space-y-1 text-sm">
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-600">Start Date:</span>
+                                      <span className="font-medium">{formatDateDDMMYYYY(booking.start_date)}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-600">End Date:</span>
+                                      <span className="font-medium">{formatDateDDMMYYYY(booking.end_date)}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-600">Amount:</span>
+                                      <span className="font-medium text-green-600">{formatCurrency(booking.total_amount)}</span>
+                                    </div>
+                                    {booking.pickup_time && (
+                                      <div className="flex justify-between">
+                                        <span className="text-gray-600">Pickup Time:</span>
+                                        <span className="font-medium">{formatTimeTo12Hour(booking.pickup_time)}</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Cancellation Information */}
+                                {booking.status === 'cancelled' && (
+                                  <div className="bg-red-50 p-3 rounded border border-red-200">
+                                    <h5 className="font-medium text-red-700 mb-2">Cancellation Information</h5>
+                                    <div className="space-y-1 text-sm">
+                                      <div className="flex justify-between">
+                                        <span className="text-red-600">Cancelled By:</span>
+                                        <span className="font-medium text-red-800">{booking.refunded_by || 'System'}</span>
+                                      </div>
+                                      {booking.refund_reason && (
+                                        <div className="mt-2">
+                                          <span className="text-red-600">Reason:</span>
+                                          <p className="text-red-800 mt-1 text-xs">{booking.refund_reason}</p>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </React.Fragment>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+
+          {/* Pagination */}
+          <div className="mt-6 flex items-center justify-between">
+            <div className="text-sm text-gray-600">
+              Showing {startIndex + 1} to {Math.min(endIndex, filteredBookings.length)} of {filteredBookings.length} entries
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+              >
+                Previous
+              </Button>
+              
+              {/* Page numbers */}
+              <div className="flex gap-1">
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  const pageNum = Math.max(1, currentPage - 2) + i;
+                  if (pageNum > totalPages) return null;
+                  
+                  return (
+                    <Button
+                      key={pageNum}
+                      variant={currentPage === pageNum ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => handlePageChange(pageNum)}
+                      className="w-8 h-8 p-0"
+                    >
+                      {pageNum}
+                    </Button>
+                  );
+                })}
+              </div>
+              
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage === totalPages}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Keep existing dialogs */}
+      {/* ... other dialogs ... */}
     </div>
   );
 }

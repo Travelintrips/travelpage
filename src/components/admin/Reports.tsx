@@ -43,9 +43,11 @@ const Reports = () => {
   const [filteredEntries, setFilteredEntries] = useState<any[]>([]);
   const [dsGL, setDsGL] = useState<any[]>([]);
   const [dsTB, setDsTB] = useState<any[]>([]);
+  const [dsCOA, setDsCOA] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingGL, setLoadingGL] = useState(false);
   const [loadingTB, setLoadingTB] = useState(false);
+  const [loadingCOA, setLoadingCOA] = useState(false);
   const [exporting, setExporting] = useState(false);
   const { toast } = useToast();
   const [selectedKPI, setSelectedKPI] = useState<string | null>(null);
@@ -59,6 +61,8 @@ const Reports = () => {
   const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
   const lastDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
 
+  const [showGL, setShowGL] = useState(true);
+
   // State for filters
   const [filters, setFilters] = useState({
     startDate: '',
@@ -69,9 +73,10 @@ const Reports = () => {
   });
 
   // State for General Ledger filters
-  const [glFilters, setGlFilters] = useState({
+  const [gl, setGl] = useState({
     startDate: '',
-    endDate: ''
+    endDate: '',
+    q: ''
   });
 
   const [namaOptions, setNamaOptions] = useState<Array<{label: string, value: string}>>([]);
@@ -157,17 +162,46 @@ const Reports = () => {
     }
   };
 
-  // Fetch journal entries from the view - no filters
+  // Fetch journal entries from the view
   const fetchJournalEntries = async () => {
     try {
       setLoadingJournal(true);
-      console.log('[Reports] Fetching journal entries from public.vw_journal_entries...');
+      console.log('[Reports] Fetching journal entries from public.vw_journal_entries with filters:', filters);
       
-      // Simple query without any filters
-      const { data, error } = await supabase
+      // Build query with filters
+      let query = supabase
         .from('vw_journal_entries')
-        .select('*')
-        .order('date', { ascending: false });
+        .select('*');
+
+      // Apply date filters
+      if (filters.startDate) {
+        query = query.gte('date', filters.startDate);
+      }
+      if (filters.endDate) {
+        query = query.lte('date', filters.endDate);
+      }
+
+      // Apply nama filter
+      if (filters.nama && filters.nama.trim() !== '' && filters.nama !== 'all') {
+        query = query.ilike('nama', `%${filters.nama}%`);
+      }
+
+      // Apply service type filter - FIXED
+      if (filters.serviceType && filters.serviceType !== '' && filters.serviceType !== 'all') {
+        query = query.eq('service_type', filters.serviceType);
+      }
+
+      // Apply global search filter
+      if (filters.globalSearch && filters.globalSearch.trim() !== '') {
+        const searchTerm = filters.globalSearch.toLowerCase();
+        // Use OR conditions for global search
+        query = query.or(`nama.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%,service_type.ilike.%${searchTerm}%,vehicle_name.ilike.%${searchTerm}%,license_plate.ilike.%${searchTerm}%`);
+      }
+
+      // Order by date descending
+      query = query.order('date', { ascending: false });
+
+      const { data, error } = await query;
 
       if (error) {
         console.error('Error fetching from vw_journal_entries:', error);
@@ -189,11 +223,11 @@ const Reports = () => {
     }
   };
 
-  // Apply filters and sorting - simplified since filtering is now done in fetchJournalEntries
+  // Apply filters and sorting - simplified since filtering is now done server-side
   const applyFilters = () => {
     let filtered = [...journalEntries];
 
-    // Apply sorting only (filtering is done in fetchJournalEntries)
+    // Apply sorting only (filtering is done server-side in fetchJournalEntries)
     filtered.sort((a, b) => {
       const aValue = a[sortConfig.key];
       const bValue = b[sortConfig.key];
@@ -354,212 +388,145 @@ const Reports = () => {
     }
   };
 
-  // Fetch General Ledger data
+  // Fetch General Ledger data with filters using specific query format
   const fetchGeneralLedger = async () => {
-    if (!supabase) return;
-    
-    setLoadingGL(true);
     try {
-      // Convert date format from YYYY-MM-DD to DD/MM/YYYY for the query
-      const formatDateForQuery = (dateStr: string) => {
-        if (!dateStr) return null;
-        const date = new Date(dateStr);
-        const day = String(date.getDate()).padStart(2, '0');
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const year = date.getFullYear();
-        return `${day}/${month}/${year}`;
-      };
-
-      const startDateFormatted = formatDateForQuery(glFilters.startDate || filters.startDate);
-      const endDateFormatted = formatDateForQuery(glFilters.endDate || filters.endDate);
-
-      // Query directly from public.vw_general_ledger view with custom date filtering
+      setLoadingGL(true);
+      console.log('[Reports] Fetching general ledger with filters:', gl);
+      
+      // Build query with specific WHERE conditions - select only needed columns
       let query = supabase
         .from('vw_general_ledger')
         .select('date, description, debit, credit');
 
-      // Apply date filters using to_date function if dates are provided
-      if (startDateFormatted && endDateFormatted) {
-        // Use RPC function for complex date filtering with to_date
-        const { data, error } = await supabase.rpc('get_general_ledger_by_date_range', {
-          start_date_str: startDateFormatted,
-          end_date_str: endDateFormatted
-        });
-
-        if (error) {
-          // Fallback to simple date comparison if RPC doesn't exist
-          console.log('RPC function not found, using simple date filtering');
-          
-          // Convert back to ISO format for simple comparison
-          const startDateISO = glFilters.startDate || filters.startDate;
-          const endDateISO = glFilters.endDate || filters.endDate;
-          
-          const { data: fallbackData, error: fallbackError } = await query
-            .gte('date', startDateISO)
-            .lte('date', endDateISO)
-            .order('date', { ascending: true })
-            .order('description', { ascending: true });
-
-          if (fallbackError) {
-            throw fallbackError;
-          }
-
-          setDsGL(fallbackData || []);
-          console.log('General Ledger data fetched (fallback):', fallbackData?.length || 0, 'entries');
-        } else {
-          setDsGL(data || []);
-          console.log('General Ledger data fetched (RPC):', data?.length || 0, 'entries');
-        }
-      } else if (startDateFormatted) {
-        // Single start date filter
-        const startDateISO = glFilters.startDate || filters.startDate;
-        const { data, error } = await query
-          .gte('date', startDateISO)
-          .order('date', { ascending: true })
-          .order('description', { ascending: true });
-
-        if (error) throw error;
-        setDsGL(data || []);
-      } else if (endDateFormatted) {
-        // Single end date filter
-        const endDateISO = glFilters.endDate || filters.endDate;
-        const { data, error } = await query
-          .lte('date', endDateISO)
-          .order('date', { ascending: true })
-          .order('description', { ascending: true });
-
-        if (error) throw error;
-        setDsGL(data || []);
-      } else {
-        // No date filters - get all data
-        const { data, error } = await query
-          .order('date', { ascending: true })
-          .order('description', { ascending: true });
-
-        if (error) throw error;
-        setDsGL(data || []);
+      // Apply date filters if provided
+      if (gl.startDate) {
+        query = query.gte('date', gl.startDate);
+      }
+      if (gl.endDate) {
+        query = query.lte('date', gl.endDate);
       }
 
+      // Apply global search filter ONLY if search query is not empty
+      if (gl.q && gl.q.trim() !== '') {
+        const searchTerm = gl.q.trim();
+        // Search only in description column
+        query = query.ilike('description', `%${searchTerm}%`);
+      }
+      // If search is empty, no additional filter is applied - all data will be shown
+
+      // Order by date descending
+      query = query.order('date', { ascending: false });
+
+      const { data, error } = await query;
+
+      if (error) {
+        throw error;
+      }
+
+      setDsGL(data || []);
+      console.log('[Reports] Fetched general ledger entries:', data?.length || 0);
     } catch (error) {
       console.error('Error fetching general ledger:', error);
       toast({
-        title: "Error",
-        description: "Failed to fetch general ledger data",
         variant: "destructive",
+        title: "Error fetching data",
+        description: "Failed to load general ledger data.",
       });
+      setDsGL([]);
     } finally {
       setLoadingGL(false);
     }
   };
 
-  // Fetch Trial Balance data
+  // Fetch Trial Balance data from trial_balance_view
   const fetchTrialBalance = async () => {
     if (!supabase) return;
     
     setLoadingTB(true);
     try {
-      // Convert date format from YYYY-MM-DD to DD/MM/YYYY for the query
-      const formatDateForQuery = (dateStr: string) => {
-        if (!dateStr) return null;
-        const date = new Date(dateStr);
-        const day = String(date.getDate()).padStart(2, '0');
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const year = date.getFullYear();
-        return `${day}/${month}/${year}`;
-      };
+      console.log('[Reports] Fetching trial balance from trial_balance_view');
 
-      const startDateFormatted = formatDateForQuery(filters.startDate);
-      const endDateFormatted = formatDateForQuery(filters.endDate);
-
-      // Query from public.trial_balance_view with date filtering using to_date function
+      // Query directly from trial_balance_view table - select only needed columns
       let query = supabase
         .from('trial_balance_view')
-        .select('*');
+        .select('account_name, debit, credit');
 
-      // Apply date filters using to_date function if dates are provided
-      if (startDateFormatted && endDateFormatted) {
-        // Use RPC function for complex date filtering with to_date
-        const { data, error } = await supabase.rpc('get_trial_balance_by_date_range', {
-          start_date_str: startDateFormatted,
-          end_date_str: endDateFormatted
-        });
-
-        if (error) {
-          // Fallback to simple date comparison if RPC doesn't exist
-          console.log('RPC function not found, using simple date filtering for trial balance');
-          
-          // Convert back to ISO format for simple comparison
-          const startDateISO = filters.startDate;
-          const endDateISO = filters.endDate;
-          
-          const { data: fallbackData, error: fallbackError } = await query
-            .gte('period_start', startDateISO)
-            .lte('period_end', endDateISO)
-            .order('account_name', { ascending: true });
-
-          if (fallbackError) {
-            throw fallbackError;
-          }
-
-          setDsTB(fallbackData || []);
-          console.log('Trial Balance data fetched (fallback):', fallbackData?.length || 0, 'entries');
-        } else {
-          setDsTB(data || []);
-          console.log('Trial Balance data fetched (RPC):', data?.length || 0, 'entries');
-        }
-      } else if (startDateFormatted) {
-        // Single start date filter
-        const startDateISO = filters.startDate;
-        const { data, error } = await query
-          .gte('period_start', startDateISO)
-          .order('account_name', { ascending: true });
-
-        if (error) throw error;
-        setDsTB(data || []);
-      } else if (endDateFormatted) {
-        // Single end date filter
-        const endDateISO = filters.endDate;
-        const { data, error } = await query
-          .lte('period_end', endDateISO)
-          .order('account_name', { ascending: true });
-
-        if (error) throw error;
-        setDsTB(data || []);
-      } else {
-        // No date filters - get all data
-        const { data, error } = await query
-          .order('account_name', { ascending: true });
-
-        if (error) throw error;
-        setDsTB(data || []);
+      // Apply date filters if provided
+      if (filters.startDate) {
+        query = query.gte('date', filters.startDate);
+      }
+      if (filters.endDate) {
+        query = query.lte('date', filters.endDate);
       }
 
+      // Order by account name
+      query = query.order('account_name', { ascending: true });
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error('Error fetching from trial_balance_view:', error);
+        throw error;
+      }
+
+      console.log('[Reports] Fetched trial balance entries from trial_balance_view:', data?.length || 0);
+      setDsTB(data || []);
     } catch (error) {
-      console.error('Error fetching trial balance:', error);
+      console.error('Error fetching trial balance from trial_balance_view:', error);
       toast({
-        title: "Error",
-        description: "Failed to fetch trial balance data",
         variant: "destructive",
+        title: "Error fetching data",
+        description: "Failed to load trial balance data from trial_balance_view.",
       });
+      setDsTB([]);
     } finally {
       setLoadingTB(false);
+    }
+  };
+
+  // Fetch Chart of Accounts data from vw_chart_of_accounts
+  const fetchChartOfAccounts = async () => {
+    try {
+      setLoadingCOA(true);
+      console.log('[Reports] Fetching chart of accounts from public.vw_chart_of_accounts');
+
+      // Query directly from vw_chart_of_accounts table - select specific columns
+      let query = supabase
+        .from('vw_chart_of_accounts')
+        .select('account_code, account_name, account_type, debit_total, credit_total');
+
+      // Order by account code or name
+      query = query.order('account_code', { ascending: true });
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error('Error fetching from vw_chart_of_accounts:', error);
+        throw error;
+      }
+
+      console.log('[Reports] Fetched chart of accounts entries from vw_chart_of_accounts:', data?.length || 0);
+      setDsCOA(data || []);
+    } catch (error) {
+      console.error('Error fetching chart of accounts from vw_chart_of_accounts:', error);
+      toast({
+        variant: "destructive",
+        title: "Error fetching data",
+        description: "Failed to load chart of accounts data from vw_chart_of_accounts.",
+      });
+      setDsCOA([]);
+    } finally {
+      setLoadingCOA(false);
     }
   };
 
   // Fetch nama options on component mount
   useEffect(() => {
     fetchNamaOptions();
-  }, []);
-
-  useEffect(() => {
     fetchServiceTypeOptions();
-    fetchNamaOptions();
     fetchJournalEntries();
   }, []);
-
-  useEffect(() => {
-    applyFilters();
-  }, [filters, sortConfig, journalEntries]);
 
   // Run query when inputs change (deps: start_date, end_date, nama, service_type, global_search, table.pageIndex, table.pageSize)
   useEffect(() => {
@@ -571,34 +538,25 @@ const Reports = () => {
     setCurrentPage(0);
   }, [filters.startDate, filters.endDate, filters.nama, filters.serviceType, filters.globalSearch]);
 
-  // Refetch data when filters change and tab is active
-  useEffect(() => {
-    if (activeTab === 'journal-entries' && showJournal) {
-      fetchJournalEntries();
-    } else if (activeTab === 'general-ledger' && showJournal) {
-      fetchGeneralLedger();
-    } else if (activeTab === 'trial-balance' && showJournal) {
-      fetchTrialBalance();
-    }
-    
-    // Also refetch General Ledger and Trial Balance data when filters change (for the main section)
-    fetchGeneralLedger();
-    fetchTrialBalance();
-  }, [filters.startDate, filters.endDate, filters.nama, filters.serviceType, activeTab, showJournal]);
-
-  // Auto-refetch when filters change
-  useEffect(() => {
-    if (showJournal) {
-      fetchJournalEntries();
-    }
-  }, [filters.startDate, filters.endDate, filters.nama, filters.serviceType, showJournal]);
-
   // Auto-fetch when showJournal becomes true
   useEffect(() => {
     if (showJournal) {
       fetchJournalEntries();
     }
   }, [showJournal]);
+
+  // Auto-refetch when GL filters change
+  useEffect(() => {
+    if (showGL) {
+      fetchGeneralLedger();
+    }
+  }, [showGL, gl.startDate, gl.endDate, gl.q]);
+
+  // Auto-fetch General Ledger on component mount
+  useEffect(() => {
+    fetchGeneralLedger();
+    fetchChartOfAccounts();
+  }, []);
 
   const handleKPIClick = (kpiType: string) => {
     setSelectedKPI(kpiType);
@@ -653,18 +611,18 @@ const Reports = () => {
           </p>
         </div>
 
-        <Tabs defaultValue="journal-entries" className="w-full">
-          <TabsList className="grid w-full grid-cols-3 lg:w-auto">
+       <Tabs defaultValue="journal-entries" className="w-full">
+         {/*  <TabsList className="grid w-full grid-cols-3 lg:w-auto">
             <TabsTrigger value="journal-entries">Journal Entries</TabsTrigger>
             <TabsTrigger value="general-ledger">General Ledger</TabsTrigger>
             <TabsTrigger value="trial-balance">Trial Balance</TabsTrigger>
-          </TabsList>
+          </TabsList>*/}
 
-          <TabsContent value="journal-entries" className="space-y-6">
+      {/*    <TabsContent value="journal-entries" className="space-y-6">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
-                  <span>Journal Entries</span>
+                  <span>Journal Entries1</span>
                   <div className="flex gap-2">
                     <Button
                       variant="outline"
@@ -685,11 +643,11 @@ const Reports = () => {
                     </Button>
                   </div>
                 </CardTitle>
-              </CardHeader>
+              </CardHeader>*/}
 
-              <CardContent className="space-y-6">
+         {/*     <CardContent className="space-y-6"> */}
                 {/* Journal Entries Date Filters */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 p-4 bg-gray-50 rounded-lg">
+             {/*   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 p-4 bg-gray-50 rounded-lg">
                   <div>
                     <Label htmlFor="startDate">Start Date</Label>
                     <Input
@@ -753,10 +711,10 @@ const Reports = () => {
                       <div className="text-sm text-gray-600">
                         Showing {journalEntries.length} journal entries
                       </div>
-                    </div>
+                    </div>*/}
 
                     {/* Journal Entries Table */}
-                    <div className="border rounded-lg overflow-hidden">
+              {/*      <div className="border rounded-lg overflow-hidden">
                       <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                           <thead className="bg-gray-50 border-b">
@@ -782,7 +740,7 @@ const Reports = () => {
                             ) : journalEntries.length === 0 ? (
                               <tr>
                                 <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
-                                  No journal entries found for the selected filters
+                                No journal entries found for the selected filters
                                 </td>
                               </tr>
                             ) : (
@@ -817,7 +775,7 @@ const Reports = () => {
                 )}
               </CardContent>
             </Card>
-          </TabsContent>
+          </TabsContent> */}
 
           <TabsContent value="general-ledger" className="space-y-6">
             <Card>
@@ -839,119 +797,140 @@ const Reports = () => {
               </CardHeader>
 
               <CardContent className="space-y-6">
-                {/* General Ledger Date Filters */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg">
-                  <div>
-                    <Label htmlFor="glStartDate">Start Date</Label>
-                    <Input
-                      id="glStartDate"
-                      type="date"
-                      value={filters.startDate}
-                      onChange={(e) => setFilters(prev => ({ ...prev, startDate: e.target.value }))}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="glEndDate">End Date</Label>
-                    <Input
-                      id="glEndDate"
-                      type="date"
-                      value={filters.endDate}
-                      onChange={(e) => setFilters(prev => ({ ...prev, endDate: e.target.value }))}
-                    />
-                  </div>
-                  <div className="flex items-end">
-                    <Button
-                      onClick={fetchGeneralLedger}
-                      disabled={loadingGL}
-                      className="w-full"
-                    >
-                      <RefreshCw className={`h-4 w-4 mr-2 ${loadingGL ? 'animate-spin' : ''}`} />
-                      Apply
-                    </Button>
-                  </div>
-                </div>
+                {/* General Ledger Section */}
+                <div className="bg-white rounded-lg shadow">
+                  <div className="p-6 border-b border-gray-200">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-medium text-gray-900">General Ledger</h3>
+                      <Button
+                        onClick={fetchGeneralLedger}
+                        disabled={loadingGL}
+                        variant="outline"
+                        size="sm"
+                      >
+                        <RefreshCw className={`h-4 w-4 mr-2 ${loadingGL ? 'animate-spin' : ''}`} />
+                        Refresh
+                      </Button>
+                    </div>
 
-                <div className="flex justify-between items-center">
-                  <div className="text-sm text-gray-600">
-                    Showing {dsGL.length} general ledger entries
-                  </div>
-                </div>
-
-                {/* General Ledger Summary */}
-                {dsGL.length > 0 && (
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-green-600">
-                          {formatCurrency(
-                            dsGL.reduce((sum, entry) => sum + (entry.total_debit || 0), 0)
-                          )}
-                        </div>
-                        <div className="text-sm text-gray-600">Total Debit</div>
+                    {/* GL Filters */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <Label htmlFor="gl-start-date">Start Date</Label>
+                        <Input
+                          id="gl-start-date"
+                          type="date"
+                          value={gl.startDate}
+                          onChange={(e) => setGl(prev => ({ ...prev, startDate: e.target.value }))}
+                          className="mt-1"
+                        />
                       </div>
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-blue-600">
-                          {formatCurrency(
-                            dsGL.reduce((sum, entry) => sum + (entry.total_credit || 0), 0)
-                          )}
-                        </div>
-                        <div className="text-sm text-gray-600">Total Credit</div>
+                      <div>
+                        <Label htmlFor="gl-end-date">End Date</Label>
+                        <Input
+                          id="gl-end-date"
+                          type="date"
+                          value={gl.endDate}
+                          onChange={(e) => setGl(prev => ({ ...prev, endDate: e.target.value }))}
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="gl-search">Search</Label>
+                        <Input
+                          id="gl-search"
+                          type="text"
+                          placeholder="Search description, date, amount..."
+                          value={gl.q}
+                          onChange={(e) => setGl(prev => ({ ...prev, q: e.target.value }))}
+                          className="mt-1"
+                        />
                       </div>
                     </div>
                   </div>
-                )}
 
-                {/* General Ledger Table */}
-                <div className="border rounded-lg overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead className="bg-gray-50 border-b">
-                        <tr>
-                          <th className="px-4 py-3 text-left font-medium text-gray-900">Account Name</th>
-                          <th className="px-4 py-3 text-right font-medium text-gray-900">Total Debit</th>
-                          <th className="px-4 py-3 text-right font-medium text-gray-900">Total Credit</th>
-                          <th className="px-4 py-3 text-right font-medium text-gray-900">Balance</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-200">
-                        {loadingGL ? (
+                  <div className="flex justify-between items-center">
+                    <div className="text-sm text-gray-600">
+                      Showing {dsGL.length} general ledger entries
+                    </div>
+                  </div>
+
+                  {/* General Ledger Summary */}
+                  {dsGL.length > 0 && (
+                    <div className="bg-gray-50 p-4 rounded-lg">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-green-600">
+                            {formatCurrency(
+                              dsGL.reduce((sum, entry) => sum + (entry.total_debit || 0), 0)
+                            )}
+                          </div>
+                          <div className="text-sm text-gray-600">Total Debit</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-blue-600">
+                            {formatCurrency(
+                              dsGL.reduce((sum, entry) => sum + (entry.total_credit || 0), 0)
+                            )}
+                          </div>
+                          <div className="text-sm text-gray-600">Total Credit</div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* General Ledger Table */}
+                  <div className="border rounded-lg overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50 border-b">
                           <tr>
-                            <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
-                              <div className="flex items-center justify-center">
-                                <RefreshCw className="h-5 w-5 animate-spin mr-2" />
-                                Loading general ledger...
-                              </div>
-                            </td>
+                            <th className="px-4 py-3 text-left font-medium text-gray-900">Account Name</th>
+                            <th className="px-4 py-3 text-right font-medium text-gray-900">Total Debit</th>
+                            <th className="px-4 py-3 text-right font-medium text-gray-900">Total Credit</th>
+                            <th className="px-4 py-3 text-right font-medium text-gray-900">Balance</th>
                           </tr>
-                        ) : dsGL.length === 0 ? (
-                          <tr>
-                            <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
-                              {!filters.startDate || !filters.endDate 
-                                ? "Please select both start and end dates to view general ledger data"
-                                : "No general ledger entries found for the selected date range"
-                              }
-                            </td>
-                          </tr>
-                        ) : (
-                          dsGL.map((entry, index) => (
-                            <tr key={index} className="hover:bg-gray-50">
-                              <td className="px-4 py-3 font-medium text-gray-900">
-                                {entry.account_name}
-                              </td>
-                              <td className="px-4 py-3 text-right font-medium text-gray-900">
-                                {formatCurrency(entry.total_debit || 0)}
-                              </td>
-                              <td className="px-4 py-3 text-right font-medium text-blue-600">
-                                {formatCurrency(entry.total_credit || 0)}
-                              </td>
-                              <td className="px-4 py-3 text-right font-medium text-green-600">
-                                {formatCurrency(entry.balance || 0)}
+                        </thead>
+                        <tbody className="divide-y divide-gray-200">
+                          {loadingGL ? (
+                            <tr>
+                              <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
+                                <div className="flex items-center justify-center">
+                                  <RefreshCw className="h-5 w-5 animate-spin mr-2" />
+                                  Loading general ledger...
+                                </div>
                               </td>
                             </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
+                          ) : dsGL.length === 0 ? (
+                            <tr>
+                              <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
+                                {!filters.startDate || !filters.endDate 
+                                  ? "Please select both start and end dates to view general ledger data"
+                                  : "No general ledger entries found for the selected date range"
+                                }
+                              </td>
+                            </tr>
+                          ) : (
+                            dsGL.map((entry, index) => (
+                              <tr key={index} className="hover:bg-gray-50">
+                                <td className="px-4 py-3 font-medium text-gray-900">
+                                  {entry.account_name}
+                                </td>
+                                <td className="px-4 py-3 text-right font-medium text-gray-900">
+                                  {formatCurrency(entry.total_debit || 0)}
+                                </td>
+                                <td className="px-4 py-3 text-right font-medium text-blue-600">
+                                  {formatCurrency(entry.total_credit || 0)}
+                                </td>
+                                <td className="px-4 py-3 text-right font-medium text-green-600">
+                                  {formatCurrency(entry.balance || 0)}
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 </div>
               </CardContent>
@@ -1019,11 +998,11 @@ const Reports = () => {
                 {/* Trial Balance Summary */}
                 {dsTB.length > 0 && (
                   <div className="bg-gray-50 p-4 rounded-lg">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="text-center">
                         <div className="text-2xl font-bold text-green-600">
                           {formatCurrency(
-                            dsTB.reduce((sum, entry) => sum + (entry.total_debit || 0), 0)
+                            dsTB.reduce((sum, entry) => sum + (entry.debit || 0), 0)
                           )}
                         </div>
                         <div className="text-sm text-gray-600">Total Debit</div>
@@ -1031,18 +1010,10 @@ const Reports = () => {
                       <div className="text-center">
                         <div className="text-2xl font-bold text-blue-600">
                           {formatCurrency(
-                            dsTB.reduce((sum, entry) => sum + (entry.total_credit || 0), 0)
+                            dsTB.reduce((sum, entry) => sum + (entry.credit || 0), 0)
                           )}
                         </div>
                         <div className="text-sm text-gray-600">Total Credit</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-purple-600">
-                          {formatCurrency(
-                            dsTB.reduce((sum, entry) => sum + (entry.total_debit || 0) - (entry.total_credit || 0), 0)
-                          )}
-                        </div>
-                        <div className="text-sm text-gray-600">Net Balance</div>
                       </div>
                     </div>
                   </div>
@@ -1057,13 +1028,12 @@ const Reports = () => {
                           <th className="px-4 py-3 text-left font-medium text-gray-900">Account Name</th>
                           <th className="px-4 py-3 text-right font-medium text-gray-900">Debit</th>
                           <th className="px-4 py-3 text-right font-medium text-gray-900">Credit</th>
-                          <th className="px-4 py-3 text-right font-medium text-gray-900">Balance</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200">
                         {loadingTB ? (
                           <tr>
-                            <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
+                            <td colSpan={3} className="px-4 py-8 text-center text-gray-500">
                               <div className="flex items-center justify-center">
                                 <RefreshCw className="h-5 w-5 animate-spin mr-2" />
                                 Loading trial balance...
@@ -1072,7 +1042,7 @@ const Reports = () => {
                           </tr>
                         ) : dsTB.length === 0 ? (
                           <tr>
-                            <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
+                            <td colSpan={3} className="px-4 py-8 text-center text-gray-500">
                               {!filters.startDate || !filters.endDate 
                                 ? "Please select both start and end dates to view trial balance data"
                                 : "No trial balance entries found for the selected date range"
@@ -1086,13 +1056,10 @@ const Reports = () => {
                                 {entry.account_name}
                               </td>
                               <td className="px-4 py-3 text-right font-medium text-gray-900">
-                                {formatCurrency(entry.total_debit || 0)}
+                                {formatCurrency(entry.debit || 0)}
                               </td>
                               <td className="px-4 py-3 text-right font-medium text-blue-600">
-                                {formatCurrency(entry.total_credit || 0)}
-                              </td>
-                              <td className="px-4 py-3 text-right font-medium text-green-600">
-                                {formatCurrency(entry.balance || 0)}
+                                {formatCurrency(entry.credit || 0)}
                               </td>
                             </tr>
                           ))
@@ -1110,8 +1077,9 @@ const Reports = () => {
         {showJournal && (
           <div id="journal-entries">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid w-full grid-cols-3 lg:w-auto">
+              <TabsList className="grid w-full grid-cols-4 lg:w-auto">
                 <TabsTrigger value="journal-entries">Journal Entries</TabsTrigger>
+                <TabsTrigger value="chart-of-accounts">Chart of Accounts</TabsTrigger>
                 <TabsTrigger value="general-ledger">General Ledger</TabsTrigger>
                 <TabsTrigger value="trial-balance">Trial Balance</TabsTrigger>
               </TabsList>
@@ -1413,6 +1381,94 @@ const Reports = () => {
                 </Card>
               </TabsContent>
 
+              <TabsContent value="chart-of-accounts" className="space-y-6">
+                <div id="chart-of-accounts">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center justify-between">
+                        <span>Chart of Accounts</span>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={fetchChartOfAccounts}
+                            disabled={loadingCOA}
+                          >
+                            <RefreshCw className={`h-4 w-4 mr-2 ${loadingCOA ? 'animate-spin' : ''}`} />
+                            Refresh
+                          </Button>
+                        </div>
+                      </CardTitle>
+                    </CardHeader>
+
+                    <CardContent className="space-y-6">
+                      <div className="flex justify-between items-center">
+                        <div className="text-sm text-gray-600">
+                          Showing {dsCOA.length} chart of accounts entries
+                        </div>
+                      </div>
+
+                      {/* Chart of Accounts Table */}
+                      <div className="border rounded-lg overflow-hidden">
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead className="bg-gray-50 border-b">
+                              <tr>
+                                <th className="px-4 py-3 text-left font-medium text-gray-900">Account Code</th>
+                                <th className="px-4 py-3 text-left font-medium text-gray-900">Account Name</th>
+                                <th className="px-4 py-3 text-left font-medium text-gray-900">Account Type</th>
+                                <th className="px-4 py-3 text-right font-medium text-gray-900">Debit Total</th>
+                                <th className="px-4 py-3 text-right font-medium text-gray-900">Credit Total</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-200">
+                              {loadingCOA ? (
+                                <tr>
+                                  <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
+                                    <div className="flex items-center justify-center">
+                                      <RefreshCw className="h-5 w-5 animate-spin mr-2" />
+                                      Loading chart of accounts...
+                                    </div>
+                                  </td>
+                                </tr>
+                              ) : dsCOA.length === 0 ? (
+                                <tr>
+                                  <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
+                                    No chart of accounts entries found
+                                  </td>
+                                </tr>
+                              ) : (
+                                dsCOA.map((entry, index) => (
+                                  <tr key={index} className="hover:bg-gray-50">
+                                    <td className="px-4 py-3 font-mono text-sm font-medium text-gray-900">
+                                      {entry.account_code}
+                                    </td>
+                                    <td className="px-4 py-3 font-medium text-gray-900">
+                                      {entry.account_name}
+                                    </td>
+                                    <td className="px-4 py-3 text-gray-600">
+                                      <Badge variant="outline" className="text-xs">
+                                        {entry.account_type}
+                                      </Badge>
+                                    </td>
+                                    <td className="px-4 py-3 text-right font-medium text-green-600">
+                                      {formatCurrency(entry.debit_total || 0)}
+                                    </td>
+                                    <td className="px-4 py-3 text-right font-medium text-blue-600">
+                                      {formatCurrency(entry.credit_total || 0)}
+                                    </td>
+                                  </tr>
+                                ))
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </TabsContent>
+
               <TabsContent value="general-ledger" className="space-y-6">
                 <div id="general-ledger">
                   <Card>
@@ -1434,6 +1490,44 @@ const Reports = () => {
                     </CardHeader>
 
                     <CardContent className="space-y-6">
+                      {/* General Ledger Filters */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg">
+                        <div>
+                          <Label htmlFor="gl-start-date">Start Date</Label>
+                          <Input
+                            id="gl-start-date"
+                            type="date"
+                            value={gl.startDate}
+                            onChange={(e) => setGl(prev => ({ ...prev, startDate: e.target.value }))}
+                            className="mt-1"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="gl-end-date">End Date</Label>
+                          <Input
+                            id="gl-end-date"
+                            type="date"
+                            value={gl.endDate}
+                            onChange={(e) => setGl(prev => ({ ...prev, endDate: e.target.value }))}
+                            className="mt-1"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="gl-search">Search</Label>
+                          <div className="relative mt-1">
+                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                            <Input
+                              id="gl-search"
+                              type="text"
+                              placeholder="Search date, description, debit, credit..."
+                              value={gl.q}
+                              onChange={(e) => setGl(prev => ({ ...prev, q: e.target.value }))}
+                              className="pl-10"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
                       <div className="flex justify-between items-center">
                         <div className="text-sm text-gray-600">
                           Showing {dsGL.length} general ledger entries
@@ -1447,17 +1541,15 @@ const Reports = () => {
                             <thead className="bg-gray-50 border-b">
                               <tr>
                                 <th className="px-4 py-3 text-left font-medium text-gray-900">Date</th>
-                                <th className="px-4 py-3 text-left font-medium text-gray-900">Account</th>
                                 <th className="px-4 py-3 text-left font-medium text-gray-900">Description</th>
                                 <th className="px-4 py-3 text-right font-medium text-gray-900">Debit</th>
                                 <th className="px-4 py-3 text-right font-medium text-gray-900">Credit</th>
-                                <th className="px-4 py-3 text-right font-medium text-gray-900">Balance</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-200">
                               {loadingGL ? (
                                 <tr>
-                                  <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                                  <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
                                     <div className="flex items-center justify-center">
                                       <RefreshCw className="h-5 w-5 animate-spin mr-2" />
                                       Loading general ledger...
@@ -1466,30 +1558,27 @@ const Reports = () => {
                                 </tr>
                               ) : dsGL.length === 0 ? (
                                 <tr>
-                                  <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
-                                    No general ledger entries found
+                                  <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
+                                    {!gl.startDate || !gl.endDate 
+                                      ? "Please select both start and end dates to view general ledger data"
+                                      : "No general ledger entries found for the selected criteria"
+                                    }
                                   </td>
                                 </tr>
                               ) : (
                                 dsGL.map((entry, index) => (
                                   <tr key={index} className="hover:bg-gray-50">
-                                    <td className="px-4 py-3 text-gray-600">
-                                      {formatDate(entry.date)}
+                                    <td className="px-4 py-3 text-gray-900">
+                                      {new Date(entry.date).toLocaleDateString('id-ID')}
                                     </td>
-                                    <td className="px-4 py-3 font-medium text-gray-900">
-                                      {entry.account_name}
-                                    </td>
-                                    <td className="px-4 py-3 text-gray-600 max-w-xs truncate">
+                                    <td className="px-4 py-3 text-gray-900">
                                       {entry.description}
                                     </td>
-                                    <td className="px-4 py-3 text-right font-medium text-gray-900">
+                                    <td className="px-4 py-3 text-right font-medium text-green-600">
                                       {formatCurrency(entry.debit || 0)}
                                     </td>
                                     <td className="px-4 py-3 text-right font-medium text-blue-600">
                                       {formatCurrency(entry.credit || 0)}
-                                    </td>
-                                    <td className="px-4 py-3 text-right font-medium text-green-600">
-                                      {formatCurrency(entry.balance || 0)}
                                     </td>
                                   </tr>
                                 ))
@@ -1539,13 +1628,12 @@ const Reports = () => {
                                 <th className="px-4 py-3 text-left font-medium text-gray-900">Account Name</th>
                                 <th className="px-4 py-3 text-right font-medium text-gray-900">Debit</th>
                                 <th className="px-4 py-3 text-right font-medium text-gray-900">Credit</th>
-                                <th className="px-4 py-3 text-right font-medium text-gray-900">Balance</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-200">
                               {loadingTB ? (
                                 <tr>
-                                  <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
+                                  <td colSpan={3} className="px-4 py-8 text-center text-gray-500">
                                     <div className="flex items-center justify-center">
                                       <RefreshCw className="h-5 w-5 animate-spin mr-2" />
                                       Loading trial balance...
@@ -1554,7 +1642,7 @@ const Reports = () => {
                                 </tr>
                               ) : dsTB.length === 0 ? (
                                 <tr>
-                                  <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
+                                  <td colSpan={3} className="px-4 py-8 text-center text-gray-500">
                                     No trial balance entries found
                                   </td>
                                 </tr>
@@ -1565,13 +1653,10 @@ const Reports = () => {
                                       {entry.account_name}
                                     </td>
                                     <td className="px-4 py-3 text-right font-medium text-gray-900">
-                                      {formatCurrency(entry.total_debit || 0)}
+                                      {formatCurrency(entry.debit || 0)}
                                     </td>
                                     <td className="px-4 py-3 text-right font-medium text-blue-600">
-                                      {formatCurrency(entry.total_credit || 0)}
-                                    </td>
-                                    <td className="px-4 py-3 text-right font-medium text-green-600">
-                                      {formatCurrency(entry.balance || 0)}
+                                      {formatCurrency(entry.credit || 0)}
                                     </td>
                                   </tr>
                                 ))

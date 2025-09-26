@@ -248,6 +248,7 @@
       "organizedStorage": "Organized storage",
       "quickAccess": "Quick access"
     },
+  
     "examples": {
       "laptopBag": "Laptop bag",
       "smallBackpack": "Small backpack",
@@ -297,6 +298,68 @@
       "message": "Please sign in to book baggage storage services.",
       "signIn": "Sign In",
       "cancel": "Cancel"
+    }
+  },
+  "transportasi": {
+    "title": "Transportation Services",
+    "description": "Reliable and comfortable transportation solutions for all your travel needs",
+    "backToHome": "Back to Home",
+    "services": {
+      "airportTransfer": {
+        "title": "Airport Transfer",
+        "description": "Professional airport transfer service with experienced drivers",
+        "features": {
+          "drivers": "Professional drivers",
+          "availability": "24/7 availability",
+          "tracking": "Real-time tracking",
+          "greet": "Meet & greet service"
+        },
+        "choose": "Choose Airport Transfer"
+      },
+      "rentCar": {
+        "title": "Car Rental",
+        "description": "Wide selection of vehicles for your travel convenience",
+        "features": {
+          "models": "Various car models",
+          "prices": "Competitive prices",
+          "insurance": "Full insurance coverage",
+          "flexible": "Flexible rental terms"
+        },
+        "choose": "Choose Car Rental"
+      },
+      "interprovincial": {
+        "title": "Interprovincial Travel",
+        "description": "Comfortable long-distance travel between cities",
+        "features": {
+          "models": "Comfortable vehicles",
+          "prices": "Affordable rates",
+          "seats": "Spacious seating",
+          "driver": "Experienced drivers"
+        },
+        "choose": "Choose Interprovincial"
+      }
+    },
+    "whyChoose": {
+      "title": "Why Choose Our Transportation?",
+      "description": "We provide the best transportation experience with professional service and competitive prices",
+      "availability": {
+        "title": "24/7 Availability",
+        "description": "Our services are available around the clock for your convenience"
+      },
+      "safety": {
+        "title": "Safety First",
+        "description": "All our vehicles are regularly maintained and our drivers are professionally trained"
+      },
+      "quality": {
+        "title": "Quality Service",
+        "description": "We are committed to providing the best service experience for every customer"
+      }
+    },
+    "cta": {
+      "title": "Ready to Travel?",
+      "description": "Book your transportation now and enjoy a comfortable and safe journey",
+      "bookAirport": "Book Airport Transfer",
+      "rentCar": "Rent a Car"
     }
   }
 }

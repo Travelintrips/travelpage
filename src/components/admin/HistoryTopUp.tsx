@@ -86,7 +86,7 @@ interface Agent {
 interface HistoriTransaksi {
   id: string;
   keterangan: string | null;
-  kode_booking: string;
+  code_booking: string;
   nominal: number;
   saldo_akhir: number;
   trans_date: string | null;
@@ -581,7 +581,7 @@ const HistoryTopUp = () => {
     const q = norm(searchTerm);
     return (historiTransaksi ?? []).filter((item: HistoriTransaksi) => {
       const matchesSearch =
-        norm(item.kode_booking).includes(q) ||
+        norm(item.code_booking).includes(q) ||
         norm(item.keterangan).includes(q) ||
         norm(item.admin_name).includes(q);
 
@@ -1220,7 +1220,7 @@ const HistoryTopUp = () => {
                           <TableRow key={item.id}>
                             <TableCell className="font-mono text-xs p-2">
                               <div className="break-all">
-                                {item.kode_booking}
+                                {item.code_booking}
                               </div>
                             </TableCell>
                             <TableCell className="p-2">
