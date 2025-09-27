@@ -75,7 +75,7 @@ interface DriverTopUpRequest {
   user_id: string;
   reference_no: string | null;
   amount: number;
-  method: string;
+  payment_method: string;
   bank_name: string | null;
   status: string;
   created_at: string;
@@ -197,7 +197,7 @@ const TopUpDriver = ({
         proof_url,
         reference_no,
         amount,
-        method,
+        payment_method,
         bank_name,
         created_at,
         status,
@@ -300,7 +300,7 @@ const TopUpDriver = ({
         id,
         user_id,
         amount,
-        method,
+        payment_method,
         bank_name,
         destination_account,
         proof_url,
@@ -756,7 +756,7 @@ const TopUpDriver = ({
         user_id: selectedDriverId,
         reference_no: bookingCode,
         amount: amount,
-        method: "Manual Admin Topup",
+        payment_method: "Manual Admin Topup",
         status: "verified",
         verified_by: userId,
         verified_at: new Date().toISOString(),

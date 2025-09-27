@@ -1416,21 +1416,37 @@ const CheckoutPage: React.FC = () => {
             startTime,
           });
 
-          // Validate data before creating booking record
-          if (!isValidUUID(paymentId)) {
-            console.error("❌ Invalid payment_id UUID:", paymentId);
-            throw new Error("Invalid payment_id UUID for baggage booking");
+          // Extract payment method details based on selected payment type
+          let selectedPaymentMethodId = null;
+          let paymentMethodDetails = null;
+
+          if (selectedPaymentMethod === "bank_transfer" && selectedBank) {
+            selectedPaymentMethodId = selectedBank.id;
+            paymentMethodDetails = {
+              account_holder: selectedBank.account_holder,
+              account_number: selectedBank.account_number,
+              bank_name: selectedBank.bank_name || selectedBank.name,
+            };
+            console.log("🏦 Bank transfer payment method details:", paymentMethodDetails);
+          } else if (selectedPaymentMethod === "paylabs" && selectedPaylabsMethod) {
+            selectedPaymentMethodId = selectedPaylabsMethod.id;
+            paymentMethodDetails = {
+              account_holder: selectedPaylabsMethod.account_holder || null,
+              account_number: selectedPaylabsMethod.account_number || null,
+              bank_name: selectedPaylabsMethod.bank_name || selectedPaylabsMethod.name,
+            };
+            console.log("💳 Paylabs payment method details:", paymentMethodDetails);
           }
 
           const bookingData = {
             id: baggageBookingUUID, // Use UUID for primary key
-            booking_id: baggageBookingUUID, // CRITICAL FIX: Set booking_id to the same UUID as id
+            booking_id: baggageBookingUUID, // UUID for booking_id
             customer_name: customerData.name,
             customer_phone: customerData.phone,
             customer_email: customerData.email,
-            item_name: parsedDetails.item_name || null,
             flight_number: parsedDetails.flight_number || "-",
             baggage_size: finalBaggageSize,
+            item_name: parsedDetails.item_name || null,
             price: item.price,
             duration: parsedDetails.duration || item.details?.duration || 1,
             storage_location:
@@ -1453,11 +1469,21 @@ const CheckoutPage: React.FC = () => {
               "hours",
             hours: parsedDetails.hours || item.details?.hours || 1,
             status: "confirmed",
-            customer_id: userIdForPayment, // Use the same user ID as TEXT
+            customer_id: userIdForPayment, // UUID for customer_id
             payment_id: paymentId, // UUID from payment insert
-            payment_method: selectedPaymentMethod, // Add payment method to baggage booking
-            code_booking: item.code_booking || bookingCode,
+           // payment_method: selectedPaymentMethod, // Add payment method
+            user_id: userIdForPayment, // UUID for user_id
+            booking_date: new Date().toISOString().split('T')[0], // Current date
+            quantity: 1, // Default quantity
+            total_amount: item.price, // Same as price
+            code_booking: item.code_booking || bookingCode, // Text booking code
+            created_by_role: "customer", // User role
             notes: parsedDetails.notes || item.details?.notes || null,
+            // Payment method details
+            payment_method_id: selectedPaymentMethodId,
+          //  account_holder: paymentMethodDetails?.account_holder || null,
+           // account_number: paymentMethodDetails?.account_number || null,
+           // bank_name: paymentMethodDetails?.bank_name || null,
           };
 
           console.log("💼 Final booking data with booking_id:", {
@@ -1937,47 +1963,46 @@ const CheckoutPage: React.FC = () => {
             }
 
             // Create handling booking with the SAME booking_id that will be used in payment_bookings
+            // STEP 1: Insert with status: "pending" and NO payment_method_id
             const handlingBookingData = {
-              id: handlingBookingUUID, // Use UUID for primary key
-              booking_id: handlingBookingUUID, // Use the SAME UUID for consistency
-              code_booking: handlingBookingCode, // Use text-based code for display/reference
-              user_id: userIdForPayment, // Add user_id field
-              customer_name: customerData.name,
-              customer_email: customerData.email,
-              customer_phone: customerData.phone,
-              travel_type:
-                parsedDetails?.travelType ||
-                parsedDetails?.travelTypes?.join(", ") ||
-                "departure",
-              pickup_area: parsedDetails?.pickupArea || "Terminal 1",
-              category: parsedDetails?.category || "Individual",
-              passenger_area: parsedDetails?.passengerArea,
-              flight_number: parsedDetails?.flightNumber,
-              passengers: parsedDetails?.passengers || 1,
-              pickup_date:
-                parsedDetails?.pickupDate ||
-                new Date().toISOString().split("T")[0],
-              pickup_time: parsedDetails?.pickupTime || "09:00",
-              additional_notes: parsedDetails?.additionalNotes || "",
-              service_price: parsedDetails?.servicePrice || 0,
-              category_price: parsedDetails?.categoryPrice || 0,
-              total_price: item.price,
-              payment_method: selectedPaymentMethod, // Add payment_method field
-              status: "confirmed",
-              payment_id: paymentId,
-              created_at: new Date().toISOString(),
-            };
+  id: handlingBookingUUID,
+  booking_id: handlingBookingUUID,
+  code_booking: handlingBookingCode,
+  user_id: userIdForPayment,
+  customer_name: customerData.name,
+  customer_email: customerData.email,
+  customer_phone: customerData.phone,
+  travel_type:
+    parsedDetails?.travelType ||
+    parsedDetails?.travelTypes?.join(", ") ||
+    "departure",
+  pickup_area: parsedDetails?.pickupArea || "Terminal 1",
+  category: parsedDetails?.category || "Individual",
+  passenger_area: parsedDetails?.passengerArea,
+  flight_number: parsedDetails?.flightNumber,
+  passengers: parsedDetails?.passengers || 1,
+  pickup_date:
+    parsedDetails?.pickupDate ||
+    new Date().toISOString().split("T")[0],
+  pickup_time: parsedDetails?.pickupTime || "09:00",
+  additional_notes: parsedDetails?.additionalNotes || "",
+  service_price: parsedDetails?.servicePrice || 0,
+  category_price: parsedDetails?.categoryPrice || 0,
+  total_price: item.price,
+  status: "pending",
+ //  payment_method_id: selectedPaymentMethodId,
+  payment_id: paymentId,
+  created_at: new Date().toISOString(),
+};
 
             console.log(
-              "🤝 Creating handling booking with consistent booking_id:",
+              "🤝 STEP 1: Creating handling booking with pending status:",
               {
                 handlingBookingUUID,
                 handlingBookingCode,
                 paymentId,
-                willUpdatePaymentWith: {
-                  booking_id: handlingBookingUUID,
-                  code_booking: handlingBookingCode,
-                },
+                status: "pending",
+                payment_method_id: "NOT_SET",
               },
             );
 
@@ -2023,61 +2048,98 @@ const CheckoutPage: React.FC = () => {
               );
             }
 
-            console.log("✅ Handling booking created:", handlingBooking.id);
+            console.log("✅ STEP 1: Handling booking created with pending status:", handlingBooking.id);
 
-            // Send WhatsApp message after successful handling booking creation
-            try {
-              console.log("📱 Sending WhatsApp message for handling booking:", handlingBooking.code_booking);
-              await sendHandlingBookingWhatsApp(handlingBooking.code_booking);
-              console.log("✅ WhatsApp message sent successfully for handling booking");
-            } catch (whatsappError) {
-              console.error("❌ Failed to send WhatsApp message:", whatsappError);
-              // Don't throw error - continue with checkout process
+            // ✅ STEP 2: Update with payment_method_id and status: "confirmed" to trigger bank snapshot
+            console.log("🔍 Debug before update:", {
+              bookingId: handlingBooking.id,
+              paymentMethodId: selectedPaymentMethodId,
+              validBookingId: isValidUUID(handlingBooking.id),
+              validPaymentMethodId: isValidUUID(selectedPaymentMethodId),
+            });
+
+            const { data: updatedHandlingBooking, error: updateError } = await supabase
+              .from("handling_bookings")
+              .update({
+                payment_method_id: selectedPaymentMethodId,
+                status: "confirmed",
+              })
+              .eq("id", handlingBooking.id)
+              .select()
+              .single();
+
+            console.log("🔍 Update result:", {
+              error: updateError,
+              updatedData: updatedHandlingBooking,
+            });
+
+            if (updateError) {
+              console.error("❌ Error updating handling booking with payment details:", {
+                error: updateError,
+                booking_id: handlingBooking.id,
+                payment_method_id: selectedPaymentMethodId
+              });
+              throw new Error(`Failed to update handling booking with payment details: ${updateError.message}`);
             }
 
-            // Update payment with booking details if this is a handling-only payment
-            if (hasHandlingItems && !hasBaggageItems && !hasRegularItems) {
-              const { error: updatePaymentError } = await supabase
-                .from("payments")
-                .update({
-                  booking_id: handlingBooking.id,
-                  code_booking: handlingBooking.code_booking,
-                })
-                .eq("id", paymentId);
+            console.log("✅ STEP 2: Handling booking updated successfully - trigger should fire bank snapshot:", {
+              booking_id: updatedHandlingBooking.id,
+              status: updatedHandlingBooking.status,
+              payment_method_id: updatedHandlingBooking.payment_method_id,
+              bank_name: updatedHandlingBooking.bank_name,
+              account_holder_received: updatedHandlingBooking.account_holder_received,
+              account_number: updatedHandlingBooking.account_number
+            });
 
-              if (updatePaymentError) {
-                console.error(
-                  "❌ Error updating payment with booking details:",
-                  updatePaymentError,
-                );
-                throw new Error(
-                  `Failed to update payment with booking details: ${updatePaymentError.message}`,
-                );
+            // ✅ STEP 3: Update handling_bookings if this is a handling service
+            if (item.item_type === "handling" || item.item_type === "handling_group") {
+              console.log("🤝 STEP 3: Updating handling booking with payment details:", {
+                handling_booking_id: item.details?.handling_booking_id,
+                payment_method_id: selectedPaymentMethodId,
+                status: "confirmed"
+              });
+
+              // Debug before handling booking update
+              console.log("🔍 Debug before handling booking update:", {
+                handlingBookingId: item.details?.handling_booking_id,
+                paymentMethodId: selectedPaymentMethodId,
+                validHandlingBookingId: item.details?.handling_booking_id ? isValidUUID(item.details.handling_booking_id) : false,
+                validPaymentMethodId: isValidUUID(selectedPaymentMethodId),
+              });
+
+              const { data: updatedHandlingBooking, error: handlingUpdateError } = await supabase
+                .from("handling_bookings")
+                .update({
+                  payment_method_id: selectedPaymentMethodId,
+                  status: "confirmed",
+                })
+                .eq("id", item.details?.handling_booking_id)
+                .select()
+                .single();
+
+              console.log("🔍 Handling booking update result:", {
+                error: handlingUpdateError,
+                updatedData: updatedHandlingBooking,
+              });
+
+              if (handlingUpdateError) {
+                console.error("❌ Error updating handling booking with payment details:", {
+                  error: handlingUpdateError,
+                  handling_booking_id: item.details?.handling_booking_id,
+                  payment_method_id: selectedPaymentMethodId
+                });
+                throw new Error(`Failed to update handling booking with payment details: ${handlingUpdateError.message}`);
               }
 
-              console.log(
-                "✅ Payment updated with booking details:",
-                handlingBooking.id,
-              );
+              console.log("✅ STEP 3: Handling booking updated successfully - trigger should fire bank snapshot:", {
+                booking_id: updatedHandlingBooking.id,
+                status: updatedHandlingBooking.status,
+                payment_method_id: updatedHandlingBooking.payment_method_id,
+                bank_name: updatedHandlingBooking.bank_name,
+                account_holder_received: updatedHandlingBooking.account_holder_received,
+                account_number: updatedHandlingBooking.account_number
+              });
             }
-
-            // Link to payment_bookings table using the SAME booking_id from handling_bookings
-            console.log("🔗 Linking payment_bookings with:", {
-              payment_id: paymentId,
-              booking_id: handlingBooking.id,
-              booking_type: "handling",
-              code_booking: handlingBooking.code_booking,
-            });
-            await linkPaymentBooking(
-              paymentId,
-              handlingBooking.id.toString(),
-              "handling",
-              handlingBooking.code_booking,
-            );
-            console.log(
-              "✅ Successfully linked payment_bookings with booking_id:",
-              handlingBooking.id,
-            );
           }
         } else if (item.item_type === "passenger_handling" && item.details) {
           // Handle passenger handling service bookings

@@ -745,6 +745,7 @@ const HandlingPage = () => {
       // Generate UUID for booking_id
       const bookingUUID = crypto.randomUUID();
 
+      
       // First, insert the handling booking into the handling_bookings table
       const { data: handlingBooking, error: handlingError } = await supabase
         .from("handling_bookings")
