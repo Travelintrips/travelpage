@@ -132,7 +132,7 @@ const TopUpDriver = ({
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [dateFilter, setDateFilter] = useState("");
-  const [amountFilter, setAmountFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
   const [selectedRequest, setSelectedRequest] = useState<DriverTopUpRequest | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
@@ -147,6 +147,11 @@ const TopUpDriver = ({
   const [manualTopupNote, setManualTopupNote] = useState("");
   const [driverSearchOpen, setDriverSearchOpen] = useState(false);
   const [driverSearchValue, setDriverSearchValue] = useState("");
+  
+  const [currentPageHistory, setCurrentPageHistory] = useState(1);
+  const [currentPageAdmin, setCurrentPageAdmin] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  
   const [activeTab, setActiveTab] = useState(() => {
     // Restore active tab from localStorage or default to "pending"
     return localStorage.getItem('topup-driver-active-tab') || 'pending';
@@ -219,7 +224,7 @@ const TopUpDriver = ({
 
     console.log("[TopUpDriver] Raw pending data:", requests);
 
-    // Step 2: Ambil user data
+    // Step 2: Ambil user data dari users table
     const userIds = requests?.map((r: any) => r.user_id).filter(Boolean) || [];
     let usersMap: Record<string, any> = {};
 
@@ -234,13 +239,35 @@ const TopUpDriver = ({
         throw usersError;
       }
 
+      console.log("[TopUpDriver] Users data:", users);
+
       usersMap = (users || []).reduce((acc: any, user: any) => {
         acc[user.id] = user;
         return acc;
       }, {});
     }
 
-    // Step 3: Filter berdasarkan role
+    // Step 3: Juga ambil data dari drivers table untuk mendapatkan nama driver
+    let driversMap: Record<string, any> = {};
+    if (userIds.length > 0) {
+      const { data: driversData, error: driversError } = await supabase
+        .from("drivers")
+        .select("id, full_name, email, phone_number")
+        .in("id", userIds);
+
+      if (driversError) {
+        console.error("Error fetching drivers data:", driversError);
+        // Don't throw error, just continue without drivers data
+      } else {
+        console.log("[TopUpDriver] Drivers data:", driversData);
+        driversMap = (driversData || []).reduce((acc: any, driver: any) => {
+          acc[driver.id] = driver;
+          return acc;
+        }, {});
+      }
+    }
+
+    // Step 4: Filter berdasarkan role
     const filteredRequests =
       requests
         ?.filter((request: any) => {
@@ -268,15 +295,30 @@ const TopUpDriver = ({
         })
         .map((request: any) => {
           const user = usersMap[request.user_id] || {};
+          const driver = driversMap[request.user_id] || {};
+          
+          // Prioritas nama: drivers table > users table > default
+          const driverName = driver.full_name || user.full_name || "Unknown Driver";
+          const driverEmail = driver.email || user.email || "Unknown";
+          const driverPhone = driver.phone_number || user.phone_number || "-";
+          
+          console.log(`[TopUpDriver] Mapping request ${request.id}:`, {
+            user_id: request.user_id,
+            driver_name: driverName,
+            driver_email: driverEmail,
+            from_drivers_table: !!driver.full_name,
+            from_users_table: !!user.full_name
+          });
+          
           return {
             ...request,
-            driver_name: user.full_name || "Unknown Driver",
-            driver_email: user.email || "Unknown",
-            driver_phone: user.phone_number || "-",
+            driver_name: driverName,
+            driver_email: driverEmail,
+            driver_phone: driverPhone,
           };
         }) || [];
 
-    console.log("[TopUpDriver] Filtered requests:", filteredRequests);
+    console.log("[TopUpDriver] Filtered requests with names:", filteredRequests);
     setPendingRequests(filteredRequests);
   } catch (error) {
     console.error("Error fetching pending requests:", error);
@@ -336,7 +378,29 @@ const TopUpDriver = ({
 
     console.log("[TopUpDriver] Raw history data (from view):", requests);
 
-    // Step 2: Ambil admin names dari users table berdasarkan admin_id
+    // Step 2: Ambil data dari drivers table untuk melengkapi nama driver
+    const userIds = requests?.map((r: any) => r.user_id).filter(Boolean) || [];
+    let driversMap: Record<string, any> = {};
+
+    if (userIds.length > 0) {
+      const { data: driversData, error: driversError } = await supabase
+        .from("drivers")
+        .select("id, full_name, email, phone_number")
+        .in("id", userIds);
+
+      if (driversError) {
+        console.error("Error fetching drivers data for history:", driversError);
+        // Don't throw error, just continue without drivers data
+      } else {
+        console.log("[TopUpDriver] Drivers data for history:", driversData);
+        driversMap = (driversData || []).reduce((acc: any, driver: any) => {
+          acc[driver.id] = driver;
+          return acc;
+        }, {});
+      }
+    }
+
+    // Step 3: Ambil admin names dari users table berdasarkan admin_id
     const adminIds = requests?.map((r: any) => r.admin_id).filter(Boolean) || [];
     let adminNamesMap: Record<string, any> = {};
 
@@ -357,10 +421,8 @@ const TopUpDriver = ({
       }
     }
 
-    // Step 3: Ambil phone numbers dari users table
-    const userIds = requests?.map((r: any) => r.user_id).filter(Boolean) || [];
-    let usersPhoneMap: Record<string, string> = {};
-
+    // Step 4: Ambil phone numbers dari users table
+    const usersPhoneMap: Record<string, string> = {};
     if (userIds.length > 0) {
       const { data: users, error: usersError } = await supabase
         .from("users")
@@ -371,14 +433,13 @@ const TopUpDriver = ({
         console.error("Error fetching user phone numbers:", usersError);
         // Don't throw error, just continue without phone numbers
       } else {
-        usersPhoneMap = (users || []).reduce((acc: any, user: any) => {
-          acc[user.id] = user.phone_number || "-";
-          return acc;
-        }, {});
+        users?.forEach((user: any) => {
+          usersPhoneMap[user.id] = user.phone_number || "-";
+        });
       }
     }
 
-    // Step 4: Filter + map dengan admin names dan phone numbers
+    // Step 5: Filter + map dengan admin names dan phone numbers
     const filteredHistory =
       requests
         ?.filter((request: any) => {
@@ -403,17 +464,32 @@ const TopUpDriver = ({
         })
         .map((request: any) => {
           const adminInfo = adminNamesMap[request.admin_id];
+          const driver = driversMap[request.user_id] || {};
+          
+          // Prioritas nama: drivers table > view data > default
+          const driverName = driver.full_name || request.user_full_name || "Unknown Driver";
+          const driverEmail = driver.email || request.user_email || "Unknown";
+          const driverPhone = driver.phone_number || usersPhoneMap[request.user_id] || "-";
+          
+          console.log(`[TopUpDriver] Mapping history request ${request.id}:`, {
+            user_id: request.user_id,
+            driver_name: driverName,
+            driver_email: driverEmail,
+            from_drivers_table: !!driver.full_name,
+            from_view: !!request.user_full_name
+          });
+          
           return {
             ...request,
-            driver_name: request.users?.full_name || "Unknown Driver",
-            driver_email: request.users?.email || "Unknown",
-            driver_phone: request.users?.phone_number || "-",
+            driver_name: driverName,
+            driver_email: driverEmail,
+            driver_phone: driverPhone,
             admin_name: adminInfo?.full_name || request.admin_name || "System Admin", // Prioritas: dari users table, lalu dari kolom admin_name
             admin_email: adminInfo?.email || "Unknown",
           };
         });
 
-    console.log("[TopUpDriver] Filtered history with admin names:", filteredHistory);
+    console.log("[TopUpDriver] Filtered history with driver names:", filteredHistory);
     setHistoryRequests(filteredHistory);
   } catch (error) {
     console.error("Error fetching history requests:", error);
@@ -671,6 +747,9 @@ const TopUpDriver = ({
       (item.driver_email || "")
         .toLowerCase()
         .includes(searchTerm.toLowerCase()) ||
+      (item.driver_phone || "")
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase()) ||
       (item.code_booking || "")
         .toLowerCase()
         .includes(searchTerm.toLowerCase());
@@ -683,15 +762,7 @@ const TopUpDriver = ({
       matchesDate = transactionDate === dateFilter;
     }
 
-    let matchesAmount = true;
-    if (amountFilter) {
-      const filterAmount = parseFloat(amountFilter);
-      if (!isNaN(filterAmount)) {
-        matchesAmount = item.nominal >= filterAmount;
-      }
-    }
-
-    return matchesSearch && matchesDate && matchesAmount;
+    return matchesSearch && matchesDate;
   });
 
   const handleManualTopup = async () => {
@@ -880,6 +951,12 @@ const TopUpDriver = ({
         .includes(searchTerm.toLowerCase()) ||
       (request.driver_email || "")
         .toLowerCase()
+        .includes(searchTerm.toLowerCase()) ||
+      (request.driver_phone || "")
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase()) ||
+      (request.reference_no || "")
+        .toLowerCase()
         .includes(searchTerm.toLowerCase());
 
     let matchesDate = true;
@@ -890,23 +967,21 @@ const TopUpDriver = ({
       matchesDate = requestDate === dateFilter;
     }
 
-    let matchesAmount = true;
-    if (amountFilter) {
-      const filterAmount = parseFloat(amountFilter);
-      if (!isNaN(filterAmount)) {
-        matchesAmount = request.amount >= filterAmount;
-      }
-    }
-
-    return matchesSearch && matchesDate && matchesAmount;
+    return matchesSearch && matchesDate;
   });
 
   const filteredHistoryRequests = historyRequests.filter((request) => {
     const matchesSearch = 
-      (request.driver_name || "")
+      (request.user_full_name || request.driver_name || "")
         .toLowerCase()
         .includes(searchTerm.toLowerCase()) ||
-      (request.driver_email || "")
+      (request.user_email || request.driver_email || "")
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase()) ||
+      (request.driver_phone || "")
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase()) ||
+      (request.reference_no || "")
         .toLowerCase()
         .includes(searchTerm.toLowerCase());
 
@@ -918,16 +993,39 @@ const TopUpDriver = ({
       matchesDate = requestDate === dateFilter;
     }
 
-    let matchesAmount = true;
-    if (amountFilter) {
-      const filterAmount = parseFloat(amountFilter);
-      if (!isNaN(filterAmount)) {
-        matchesAmount = request.amount >= filterAmount;
+    let matchesStatus = true;
+    if (statusFilter && statusFilter !== "all") {
+      if (statusFilter === "approved") {
+        matchesStatus = request.status === "verified" || request.status === "approved";
+      } else if (statusFilter === "rejected") {
+        matchesStatus = request.status === "rejected";
       }
     }
 
-    return matchesSearch && matchesDate && matchesAmount;
+    return matchesSearch && matchesDate && matchesStatus;
   });
+
+  // ✅ Pagination logic for History tab
+  const totalHistoryPages = Math.ceil(filteredHistoryRequests.length / rowsPerPage);
+  const startIndexHistory = (currentPageHistory - 1) * rowsPerPage;
+  const paginatedHistoryRequests = filteredHistoryRequests.slice(startIndexHistory, startIndexHistory + rowsPerPage);
+
+  // ✅ Pagination logic for Admin Topup tab
+  const totalAdminPages = Math.ceil(filteredAdminTopupHistory.length / rowsPerPage);
+  const startIndexAdmin = (currentPageAdmin - 1) * rowsPerPage;
+  const paginatedAdminTopupHistory = filteredAdminTopupHistory.slice(startIndexAdmin, startIndexAdmin + rowsPerPage);
+
+  // ✅ Calculate filtered totals
+  const filteredApprovedAmount = filteredHistoryRequests
+    .filter(r => r.status === "verified" || r.status === "approved")
+    .reduce((sum, r) => sum + r.amount, 0);
+  
+  const filteredRejectedAmount = filteredHistoryRequests
+    .filter(r => r.status === "rejected")
+    .reduce((sum, r) => sum + r.amount, 0);
+
+  const filteredApprovedCount = filteredHistoryRequests.filter(r => r.status === "verified" || r.status === "approved").length;
+  const filteredRejectedCount = filteredHistoryRequests.filter(r => r.status === "rejected").length;
 
   // Calculate statistics
   const totalPendingRequests = pendingRequests.length;
@@ -1054,14 +1152,54 @@ const TopUpDriver = ({
               value={dateFilter}
               onChange={(e) => setDateFilter(e.target.value)}
             />
-            <Input
-              type="number"
-              placeholder="Min amount"
-              value={amountFilter}
-              onChange={(e) => setAmountFilter(e.target.value)}
-            />
+            {/* ✅ Status filter for History and Admin tabs */}
+            {(activeTab === "history" || activeTab === "admin-topup") && (
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="By Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="approved">Approved</SelectItem>
+                  <SelectItem value="rejected">Rejected</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
           </div>
-          {(searchTerm || dateFilter || amountFilter) && (
+          
+          {/* ✅ Show filtered totals when status filter is applied */}
+          {statusFilter && statusFilter !== "all" && activeTab === "history" && (
+            <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+              <div className="grid grid-cols-2 gap-4">
+                {statusFilter === "approved" && (
+                  <>
+                    <div>
+                      <p className="text-sm font-medium text-green-600">Filtered Approved Count</p>
+                      <p className="text-2xl font-bold text-green-600">{filteredApprovedCount}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-green-600">Filtered Approved Amount</p>
+                      <p className="text-2xl font-bold text-green-600">Rp {filteredApprovedAmount.toLocaleString()}</p>
+                    </div>
+                  </>
+                )}
+                {statusFilter === "rejected" && (
+                  <>
+                    <div>
+                      <p className="text-sm font-medium text-red-600">Filtered Rejected Count</p>
+                      <p className="text-2xl font-bold text-red-600">{filteredRejectedCount}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-red-600">Filtered Rejected Amount</p>
+                      <p className="text-2xl font-bold text-red-600">Rp {filteredRejectedAmount.toLocaleString()}</p>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+          
+          {(searchTerm || dateFilter || (statusFilter && statusFilter !== "all")) && (
             <div className="mt-4 flex gap-2">
               <Button
                 variant="outline"
@@ -1069,7 +1207,7 @@ const TopUpDriver = ({
                 onClick={() => {
                   setSearchTerm("");
                   setDateFilter("");
-                  setAmountFilter("");
+                  setStatusFilter("all");
                 }}
               >
                 Clear Filters
@@ -1120,10 +1258,10 @@ const TopUpDriver = ({
                     <TableBody>
                       {filteredPendingRequests.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={5} className="text-center py-8">
+                          <TableCell colSpan={8} className="text-center py-8">
                             {loading
                               ? "Loading..."
-                              : searchTerm || dateFilter || amountFilter
+                              : searchTerm || dateFilter
                                 ? "No requests match your filters"
                                 : "No pending requests found"}
                           </TableCell>
@@ -1247,18 +1385,18 @@ const TopUpDriver = ({
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredHistoryRequests.length === 0 ? (
+                      {paginatedHistoryRequests.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={9} className="text-center py-8">
+                          <TableCell colSpan={10} className="text-center py-8">
                             {loading
                               ? "Loading..."
-                              : searchTerm || dateFilter || amountFilter
+                              : searchTerm || dateFilter || statusFilter
                                 ? "No history matches your filters"
                                 : "No history found"}
                           </TableCell>
                         </TableRow>
                       ) : (
-                        filteredHistoryRequests.map((request) => (
+                        paginatedHistoryRequests.map((request) => (
                           <TableRow key={request.id}>
                             <TableCell className="font-mono text-sm">
                               {request.reference_no || request.id.slice(0, 8)}
@@ -1356,6 +1494,52 @@ const TopUpDriver = ({
                 </div>
               )}
             </CardContent>
+            
+            {/* ✅ Pagination for History tab */}
+            {!loading && filteredHistoryRequests.length > 0 && (
+              <div className="px-6 py-4 border-t">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-600">Rows per page:</span>
+                    <Select value={rowsPerPage.toString()} onValueChange={(value) => {
+                      setRowsPerPage(Number(value));
+                      setCurrentPageHistory(1);
+                    }}>
+                      <SelectTrigger className="w-20">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="10">10</SelectItem>
+                        <SelectItem value="20">20</SelectItem>
+                        <SelectItem value="50">50</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-600">
+                      {startIndexHistory + 1}-{Math.min(startIndexHistory + rowsPerPage, filteredHistoryRequests.length)} of {filteredHistoryRequests.length}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPageHistory(Math.max(1, currentPageHistory - 1))}
+                      disabled={currentPageHistory === 1}
+                    >
+                      Previous
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPageHistory(Math.min(totalHistoryPages, currentPageHistory + 1))}
+                      disabled={currentPageHistory === totalHistoryPages}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
           </Card>
         </TabsContent>
 
@@ -1391,18 +1575,18 @@ const TopUpDriver = ({
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredAdminTopupHistory.length === 0 ? (
+                      {paginatedAdminTopupHistory.length === 0 ? (
                         <TableRow>
                           <TableCell colSpan={9} className="text-center py-8">
                             {loading
                               ? "Loading..."
-                              : searchTerm || dateFilter || amountFilter
+                              : searchTerm || dateFilter
                                 ? "No admin topups match your filters"
                                 : "No admin topups found"}
                           </TableCell>
                         </TableRow>
                       ) : (
-                        filteredAdminTopupHistory.map((item) => (
+                        paginatedAdminTopupHistory.map((item) => (
                           <TableRow key={item.id}>
                             <TableCell className="font-mono text-sm">
                               {item.code_booking}
@@ -1501,6 +1685,52 @@ const TopUpDriver = ({
                 </div>
               )}
             </CardContent>
+            
+            {/* ✅ Pagination for Admin Topup tab */}
+            {!loading && filteredAdminTopupHistory.length > 0 && (
+              <div className="px-6 py-4 border-t">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-600">Rows per page:</span>
+                    <Select value={rowsPerPage.toString()} onValueChange={(value) => {
+                      setRowsPerPage(Number(value));
+                      setCurrentPageAdmin(1);
+                    }}>
+                      <SelectTrigger className="w-20">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="10">10</SelectItem>
+                        <SelectItem value="20">20</SelectItem>
+                        <SelectItem value="50">50</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-600">
+                      {startIndexAdmin + 1}-{Math.min(startIndexAdmin + rowsPerPage, filteredAdminTopupHistory.length)} of {filteredAdminTopupHistory.length}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPageAdmin(Math.max(1, currentPageAdmin - 1))}
+                      disabled={currentPageAdmin === 1}
+                    >
+                      Previous
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPageAdmin(Math.min(totalAdminPages, currentPageAdmin + 1))}
+                      disabled={currentPageAdmin === totalAdminPages}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
           </Card>
         </TabsContent>
       </Tabs>
