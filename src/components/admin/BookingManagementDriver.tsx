@@ -790,11 +790,11 @@ export default function BookingManagementDriver() {
                               <Button
                                 variant="outline"
                                 size="sm"
-                                className="flex items-center gap-1 bg-purple-100 hover:bg-purple-200 text-purple-800 border-purple-300"
-                                onClick={() => handlePickupVehicle(booking)}
+                                className="flex items-center gap-1 bg-green-100 hover:bg-green-200 text-green-800 border-green-300"
+                                onClick={() => handleFinishBooking(booking)}
                               >
-                                <Car className="h-4 w-4" />
-                                Pickup
+                                <CheckCircle className="h-4 w-4" />
+                                Finish
                               </Button>
                             )}
 

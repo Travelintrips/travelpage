@@ -745,114 +745,65 @@ const HandlingPage = () => {
       // Generate UUID for booking_id
       const bookingUUID = crypto.randomUUID();
 
-      
-      // First, insert the handling booking into the handling_bookings table
-      const { data: handlingBooking, error: handlingError } = await supabase
-        .from("handling_bookings")
-        .insert({
-          user_id: userId, // Add user_id from AuthContext
-          booking_id: bookingUUID, // UUID for booking_id column
-          code_booking: currentBookingId, // Text-based booking code for code_booking column
-          customer_name: formData.name,
-          company_name: formData.companyName || null,
-          customer_email: formData.email,
-          customer_phone: formData.phone,
-          passenger_area: formData.passengerArea,
+      // Tentukan item_type dan service_name berdasarkan kategori
+      let itemType = "handling";
+      let serviceName = "Handling Service";
+
+      switch (formData.category) {
+        case "Porter Service":
+          itemType = "handling";
+          serviceName = "Porter Service";
+          break;
+        case "Handling Group":
+          itemType = "handling_group";
+          serviceName = "Handling Group";
+          break;
+        case "International - Individual":
+        case "Domestik - Individual":
+          itemType = "handling";
+          serviceName = "Handling Service";
+          break;
+      }
+
+      await addToCart({
+        item_type: itemType,  // ✅ pakai variabel yang sudah ditentukan
+        item_id: null, // ✅ No handling_booking_id yet - will be created in CheckoutPage
+        booking_id: bookingUUID,
+        code_booking: currentBookingId,
+        service_name: serviceName,  // ✅ bukan hardcode lagi
+        price: totalPrice || 150000,
+        quantity: 1,
+        details: {
+          bookingId: currentBookingId,
+          booking_id: bookingUUID,
+          code_booking: currentBookingId,
+          customerName: formData.name,
+          companyName: formData.companyName,
+          customerEmail: formData.email,
+          customerPhone: formData.phone,
+          passengerArea: formData.passengerArea,
           category: formData.category,
-          // Only include passengers for Group categories
           ...(formData.category === "Handling Group" && {
             passengers: formData.passengers,
           }),
-          pickup_date: format(formData.pickDate, "yyyy-MM-dd"),
-          pickup_time: formData.pickTime,
-          flight_number: formData.flightNumber,
-          travel_type: formData.travelTypes.join(", "), // Join array to string
-          pickup_area: formData.pickupArea,
-          dropoff_area: formData.dropoffArea,
-          additional_notes: formData.additionalNotes,
-          extra_baggage_count:
+          pickupDate: format(formData.pickDate, "yyyy-MM-dd"),
+          pickupTime: formData.pickTime,
+          flightNumber: formData.flightNumber,
+          travelTypes: formData.travelTypes,
+          travelType: formData.travelTypes.join(", "),
+          pickupArea: formData.pickupArea,
+          dropoffArea: formData.dropoffArea,
+          additionalNotes: formData.additionalNotes,
+          extraBaggageCount:
             formData.category === "Porter Service"
               ? formData.extraBaggageCount
               : null,
-          service_price: servicePrice,
-          category_price: categoryPrice,
-          total_amount: totalPrice || 150000,
-          total_price: totalPrice || 150000,
-          status: "pending",
-        })
-        .select()
-        .single();
-
-      if (handlingError) {
-        console.error("Error inserting handling booking:", handlingError);
-        throw new Error("Failed to create handling booking");
-      }
-
-      console.log("Handling booking created:", handlingBooking);
-
-      // Then add to shopping cart with reference to the handling booking
-      // Tentukan item_type dan service_name berdasarkan kategori
-// Tentukan item_type dan service_name berdasarkan kategori
-let itemType = "handling";
-let serviceName = "Handling Service";
-
-switch (formData.category) {
-  case "Porter Service":
-    itemType = "handling";
-    serviceName = "Porter Service";
-    break;
-  case "Handling Group":
-    itemType = "handling_group";
-    serviceName = "Handling Group";
-    break;
-  case "International - Individual":
-  case "Domestik - Individual":
-    itemType = "handling";
-    serviceName = "Handling Service";
-    break;
-}
-
-await addToCart({
-  item_type: itemType,  // ✅ pakai variabel yang sudah ditentukan
-  item_id: handlingBooking.id,
-  booking_id: bookingUUID,
-  code_booking: currentBookingId,
-  service_name: serviceName,  // ✅ bukan hardcode lagi
-  price: totalPrice || 150000,
-  quantity: 1,
-  details: {
-    bookingId: currentBookingId,
-    booking_id: bookingUUID,
-    code_booking: currentBookingId,
-    handling_booking_id: handlingBooking.id,
-    customerName: formData.name,
-    companyName: formData.companyName,
-    customerEmail: formData.email,
-    customerPhone: formData.phone,
-    passengerArea: formData.passengerArea,
-    category: formData.category,
-    ...(formData.category === "Handling Group" && {
-      passengers: formData.passengers,
-    }),
-    pickupDate: format(formData.pickDate, "yyyy-MM-dd"),
-    pickupTime: formData.pickTime,
-    flightNumber: formData.flightNumber,
-    travelTypes: formData.travelTypes,
-    travelType: formData.travelTypes.join(", "),
-    pickupArea: formData.pickupArea,
-    dropoffArea: formData.dropoffArea,
-    additionalNotes: formData.additionalNotes,
-    extraBaggageCount:
-      formData.category === "Porter Service"
-        ? formData.extraBaggageCount
-        : null,
-    serviceType: itemType,     // ✅ biar konsisten
-    servicePrice: servicePrice,
-    categoryPrice: categoryPrice,
-    totalPrice: totalPrice,
-  },
-});
-
+          serviceType: itemType,     // ✅ biar konsisten
+          servicePrice: servicePrice,
+          categoryPrice: categoryPrice,
+          totalPrice: totalPrice,
+        },
+      });
 
       toast({
         title: "Berhasil ditambahkan",

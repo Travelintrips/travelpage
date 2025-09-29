@@ -1,9 +1,8 @@
-import React, { useEffect, useState } from "react";
+import React, { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import {
   Table,
   TableBody,
-  TableCaption,
   TableCell,
   TableHead,
   TableHeader,
@@ -11,38 +10,118 @@ import {
 } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CreditCard, RefreshCcw, Search } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { RefreshCw } from "lucide-react";
 
 interface Payment {
-  id: number;
-  booking_id: number | null;
-  user_id: string | null;
-  user?: { full_name: string } | null;
+  name: string | null;
+  code_booking: string | null;
+  description: string | null;
   amount: number | null;
   payment_method: string | null;
-  status: string | null;
-  created_at: string | null;
+  bank_name: string | null;
+  account_holder_received: string | null;
+  date: string | null;
 }
 
-const Payments = () => {
+interface Filters {
+  startDate: string;
+  endDate: string;
+  name: string;
+  q: string;
+}
+
+export default function Payments() {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [distinctNames, setDistinctNames] = useState<string[]>([]);
+  const [filters, setFilters] = useState<Filters>({
+    startDate: "",
+    endDate: "",
+    name: "All",
+    q: ""
+  });
+
+  const formatCurrency = (amount: number | null) => {
+    if (!amount) return "Rp 0";
+    return new Intl.NumberFormat("id-ID", {
+      style: "currency",
+      currency: "IDR",
+    }).format(amount);
+  };
+
+  // Fetch distinct names for dropdown
+  const fetchDistinctNames = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("vw_payments")
+        .select("name")
+        .not("name", "is", null);
+
+      if (error) {
+        console.error('Error fetching distinct names:', error);
+        return;
+      }
+
+      // Get unique names and sort them
+      const uniqueNames = [...new Set(data.map(item => item.name))].filter(Boolean).sort();
+      setDistinctNames(uniqueNames);
+    } catch (error) {
+      console.error("Error fetching distinct names:", error);
+    }
+  };
 
   const fetchPayments = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from("payments")
-        .select("*")
-        .order("created_at", { ascending: false });
+      console.log('[Payments] Fetching from public.vw_payments view with filters:', filters);
+      
+      let query = supabase
+        .from("vw_payments")
+        .select(`
+          name,
+          code_booking,
+          description,
+          amount,
+          payment_method,
+          bank_name,
+          account_holder_received,
+          date
+        `);
+
+      // Apply date filters
+      if (filters.startDate) {
+        query = query.gte('date', filters.startDate);
+      }
+      if (filters.endDate) {
+        query = query.lte('date', filters.endDate);
+      }
+
+      // Apply name filter
+      if (filters.name && filters.name !== 'All') {
+        query = query.eq('name', filters.name);
+      }
+
+      // Apply search filter with OR conditions using correct column names
+      if (filters.q && filters.q.trim() !== '') {
+        const searchTerm = filters.q.trim();
+        query = query.or(`code_booking.ilike.*${searchTerm}*,user_name.ilike.*${searchTerm}*,description.ilike.*${searchTerm}*,payment_method.ilike.*${searchTerm}*,bank_name.ilike.*${searchTerm}*,account_holder_received.ilike.*${searchTerm}*,amount::text.ilike.*${searchTerm}*,payment_date::text.ilike.*${searchTerm}*`);
+      }
+
+      // Order by date descending
+      query = query.order("date", { ascending: false });
+
+      const { data, error } = await query;
 
       if (error) {
+        console.error('Error fetching from vw_payments:', error);
         throw error;
       }
 
-      if (data) {
-        setPayments(data as Payment[]);
-      }
+      console.log('[Payments] Fetched payments from vw_payments:', data?.length || 0);
+      setPayments(data || []);
     } catch (error) {
       console.error("Error fetching payments:", error);
     } finally {
@@ -50,124 +129,160 @@ const Payments = () => {
     }
   };
 
+  const handleFilterChange = (key: keyof Filters, value: string) => {
+    setFilters(prev => ({
+      ...prev,
+      [key]: value
+    }));
+  };
+
+  const handleRefresh = () => {
+    fetchPayments();
+  };
+
   useEffect(() => {
+    fetchDistinctNames();
     fetchPayments();
   }, []);
 
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return "N/A";
-    return new Date(dateString).toLocaleString();
-  };
-
-  const formatCurrency = (amount: number | null) => {
-    if (amount === null) return "N/A";
-    return new Intl.NumberFormat("id-ID", {
-      style: "currency",
-      currency: "IDR",
-      minimumFractionDigits: 0,
-    }).format(amount);
-  };
-
-  const getStatusColor = (status: string | null) => {
-    if (!status) return "bg-gray-100 text-gray-800";
-    switch (status.toLowerCase()) {
-      case "completed":
-      case "success":
-        return "bg-green-100 text-green-800";
-      case "pending":
-        return "bg-yellow-100 text-yellow-800";
-      case "failed":
-        return "bg-red-100 text-red-800";
-      default:
-        return "bg-gray-100 text-gray-800";
-    }
-  };
+  useEffect(() => {
+    fetchPayments();
+  }, [filters]);
 
   return (
-    <div className="p-8">
-      <div className="flex justify-between items-center mb-6">
+    <div className="space-y-6 bg-white min-h-screen">
+      <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-indigo-500 to-purple-600 bg-clip-text text-transparent">
-          Payment Management1
+          Payment Management
         </h1>
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className="border-indigo-200 hover:bg-indigo-50 text-indigo-700"
-            onClick={fetchPayments}
-          >
-            <RefreshCcw className="h-4 w-4 mr-2 text-indigo-500" />
-            Refresh
-          </Button>
-          <Button
-            size="sm"
-            className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white"
-          >
-            <Search className="h-4 w-4 mr-2" />
-            Search Payments
-          </Button>
-        </div>
+        <Button onClick={handleRefresh} disabled={loading} className="flex items-center gap-2">
+          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+          Refresh
+        </Button>
       </div>
 
-      <Card className="bg-white shadow-md border-0 overflow-hidden rounded-xl mb-6">
-        <CardHeader className="bg-gradient-to-r from-indigo-500/10 to-purple-500/10 pb-4">
-          <CardTitle className="text-lg font-medium text-indigo-700">
-            <div className="flex items-center">
-              <CreditCard className="h-5 w-5 mr-2 text-indigo-500" />
-              Payment Transactions
-            </div>
-          </CardTitle>
+      {/* Filters */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Filters</CardTitle>
         </CardHeader>
-        <CardContent className="p-0">
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="search">Search</Label>
+              <Input
+                id="search"
+                type="text"
+                placeholder="Search payments..."
+                value={filters.q}
+                onChange={(e) => handleFilterChange('q', e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="startDate">Start Date</Label>
+              <Input
+                id="startDate"
+                type="date"
+                value={filters.startDate}
+                onChange={(e) => handleFilterChange('startDate', e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="endDate">End Date</Label>
+              <Input
+                id="endDate"
+                type="date"
+                value={filters.endDate}
+                onChange={(e) => handleFilterChange('endDate', e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="name">Name</Label>
+              <Select value={filters.name} onValueChange={(value) => handleFilterChange('name', value)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select name" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="All">All</SelectItem>
+                  {distinctNames.map((name) => (
+                    <SelectItem key={name} value={name}>
+                      {name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-end">
+              <Button 
+                onClick={() => setFilters({ startDate: "", endDate: "", name: "All", q: "" })}
+                variant="outline"
+                className="w-full"
+              >
+                Clear Filters
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Payment Records</CardTitle>
+        </CardHeader>
+        <CardContent>
           {loading ? (
-            <div className="p-8 flex justify-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
+            <div className="flex items-center justify-center py-8">
+              <RefreshCw className="h-6 w-6 animate-spin mr-2" />
+              Loading payments...
             </div>
           ) : (
             <Table>
-              <TableCaption>A list of all payment transactions</TableCaption>
               <TableHeader>
                 <TableRow>
-                  <TableHead>ID</TableHead>
-                  <TableHead>Booking ID</TableHead>
-                  <TableHead>Customer</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Code Booking</TableHead>
+                  <TableHead>Description</TableHead>
                   <TableHead>Amount</TableHead>
                   <TableHead>Payment Method</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Date</TableHead>
+                  <TableHead>Bank Name</TableHead>
+                  <TableHead>Account Holder</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {payments.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8">
+                    <TableCell colSpan={8} className="text-center py-8">
                       No payment records found
                     </TableCell>
                   </TableRow>
                 ) : (
-                  payments.map((payment) => (
-                    <TableRow key={payment.id}>
+                  payments.map((payment, index) => (
+                    <TableRow key={index}>
+                      <TableCell className="font-medium text-gray-600">
+                        {payment.date ? new Date(payment.date).toLocaleDateString('id-ID') : "N/A"}
+                      </TableCell>
                       <TableCell className="font-medium">
-                        {payment.id}
+                        {payment.name || "N/A"}
                       </TableCell>
-                      <TableCell>{payment.booking_id || "N/A"}</TableCell>
-                      <TableCell>
-                        {payment.user_id
-                          ? payment.user_id.substring(0, 8) + "..."
-                          : "N/A"}
+                      <TableCell className="font-mono text-sm">
+                        {payment.code_booking || "N/A"}
                       </TableCell>
-                      <TableCell>{formatCurrency(payment.amount)}</TableCell>
+                      <TableCell className="max-w-xs truncate">
+                        {payment.description || "N/A"}
+                      </TableCell>
+                      <TableCell className="font-medium text-green-600">
+                        {formatCurrency(payment.amount)}
+                      </TableCell>
                       <TableCell className="capitalize">
                         {payment.payment_method || "N/A"}
                       </TableCell>
                       <TableCell>
-                        <span
-                          className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(payment.status)}`}
-                        >
-                          {payment.status || "Unknown"}
-                        </span>
+                        {payment.bank_name || "N/A"}
                       </TableCell>
-                      <TableCell>{formatDate(payment.created_at)}</TableCell>
+                      <TableCell>
+                        {payment.account_holder_received || "N/A"}
+                      </TableCell>
                     </TableRow>
                   ))
                 )}
@@ -178,6 +293,4 @@ const Payments = () => {
       </Card>
     </div>
   );
-};
-
-export default Payments;
+}

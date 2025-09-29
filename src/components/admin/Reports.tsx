@@ -168,10 +168,22 @@ const Reports = () => {
       setLoadingJournal(true);
       console.log('[Reports] Fetching journal entries from public.vw_journal_entries with filters:', filters);
       
-      // Build query with filters
+      // Build query with filters - select specific columns as requested
       let query = supabase
         .from('vw_journal_entries')
-        .select('*');
+        .select(`
+          date,
+          nama,
+          description,
+          service_type,
+          total_debit,
+          total_credit,
+          saldo_awal,
+          saldo_akhir,
+          model,
+          vehicle_type,
+          license_plate
+        `);
 
       // Apply date filters
       if (filters.startDate) {
@@ -194,8 +206,8 @@ const Reports = () => {
       // Apply global search filter
       if (filters.globalSearch && filters.globalSearch.trim() !== '') {
         const searchTerm = filters.globalSearch.toLowerCase();
-        // Use OR conditions for global search
-        query = query.or(`nama.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%,service_type.ilike.%${searchTerm}%,vehicle_name.ilike.%${searchTerm}%,license_plate.ilike.%${searchTerm}%`);
+        // Use OR conditions for global search across all requested columns
+        query = query.or(`nama.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%,service_type.ilike.%${searchTerm}%,model.ilike.%${searchTerm}%,vehicle_type.ilike.%${searchTerm}%,license_plate.ilike.%${searchTerm}%`);
       }
 
       // Order by date descending
@@ -244,41 +256,39 @@ const Reports = () => {
     setFilteredEntries(filtered);
   };
 
-  // Export to CSV with all filtered data and additional balance columns
+  // Export to CSV with all filtered data and requested columns
   const exportToCSV = () => {
     setExporting(true);
     
     try {
       const headers = [
-        'Nama',
         'Date',
+        'Nama',
         'Description',
         'Service Type',
         'Total Debit',
         'Total Credit',
-        'Saldo Driver Now', // Add driver balance column
-        'Saldo Agent Now',  // Add agent balance column
+        'Saldo Awal',
+        'Saldo Akhir',
+        'Model',
         'Vehicle Type',
-        'Vehicle Name',
-        'License Plate',
-        'Status'
+        'License Plate'
       ];
 
       const csvContent = [
         headers.join(','),
         ...journalEntries.map(entry => [
-          `"${entry.nama}"`,
           entry.date,
-          `"${entry.description}"`,
-          `"${entry.service_type}"`,
-          entry.total_debit,
+          `"${entry.nama || ''}"`,
+          `"${entry.description || ''}"`,
+          `"${entry.service_type || ''}"`,
+          entry.total_debit || 0,
           entry.total_credit || 0,
-          entry.saldo_driver_now || 0, // Include driver balance
-          entry.saldo_agent_now || 0,  // Include agent balance
-          `"${entry.vehicle_type}"`,
-          `"${entry.vehicle_name}"`,
-          `"${entry.license_plate}"`,
-          `"${entry.status || ''}"`
+          entry.saldo_awal || 0,
+          entry.saldo_akhir || 0,
+          `"${entry.model || ''}"`,
+          `"${entry.vehicle_type || ''}"`,
+          `"${entry.license_plate || ''}"`
         ].join(','))
       ].join('\n');
 
@@ -1216,11 +1226,11 @@ const Reports = () => {
                             <tr>
                               <th 
                                 className="px-4 py-3 text-left font-medium text-gray-900 cursor-pointer hover:bg-gray-100"
-                                onClick={() => handleSort('nama')}
+                                onClick={() => handleSort('date')}
                               >
                                 <div className="flex items-center gap-1">
-                                  Nama
-                                  {sortConfig.key === 'nama' && (
+                                  Date
+                                  {sortConfig.key === 'date' && (
                                     <span className="text-xs">
                                       {sortConfig.direction === 'asc' ? '↑' : '↓'}
                                     </span>
@@ -1229,11 +1239,11 @@ const Reports = () => {
                               </th>
                               <th 
                                 className="px-4 py-3 text-left font-medium text-gray-900 cursor-pointer hover:bg-gray-100"
-                                onClick={() => handleSort('date')}
+                                onClick={() => handleSort('nama')}
                               >
                                 <div className="flex items-center gap-1">
-                                  Date
-                                  {sortConfig.key === 'date' && (
+                                  Nama
+                                  {sortConfig.key === 'nama' && (
                                     <span className="text-xs">
                                       {sortConfig.direction === 'asc' ? '↑' : '↓'}
                                     </span>
@@ -1284,11 +1294,11 @@ const Reports = () => {
                               </th>
                               <th 
                                 className="px-4 py-3 text-right font-medium text-gray-900 cursor-pointer hover:bg-gray-100"
-                                onClick={() => handleSort('saldo_driver_now')}
+                                onClick={() => handleSort('saldo_awal')}
                               >
                                 <div className="flex items-center justify-end gap-1">
-                                  Saldo Driver Now
-                                  {sortConfig.key === 'saldo_driver_now' && (
+                                  Saldo Awal
+                                  {sortConfig.key === 'saldo_awal' && (
                                     <span className="text-xs">
                                       {sortConfig.direction === 'asc' ? '↑' : '↓'}
                                     </span>
@@ -1297,11 +1307,11 @@ const Reports = () => {
                               </th>
                               <th 
                                 className="px-4 py-3 text-right font-medium text-gray-900 cursor-pointer hover:bg-gray-100"
-                                onClick={() => handleSort('saldo_agent_now')}
+                                onClick={() => handleSort('saldo_akhir')}
                               >
                                 <div className="flex items-center justify-end gap-1">
-                                  Saldo Agent Now
-                                  {sortConfig.key === 'saldo_agent_now' && (
+                                  Saldo Akhir
+                                  {sortConfig.key === 'saldo_akhir' && (
                                     <span className="text-xs">
                                       {sortConfig.direction === 'asc' ? '↑' : '↓'}
                                     </span>
@@ -1309,7 +1319,10 @@ const Reports = () => {
                                 </div>
                               </th>
                               <th className="px-4 py-3 text-left font-medium text-gray-900">
-                                Vehicle
+                                Model
+                              </th>
+                              <th className="px-4 py-3 text-left font-medium text-gray-900">
+                                Vehicle Type
                               </th>
                               <th className="px-4 py-3 text-left font-medium text-gray-900">
                                 License Plate
@@ -1319,7 +1332,7 @@ const Reports = () => {
                           <tbody className="divide-y divide-gray-200">
                             {loading || loadingJournal ? (
                               <tr>
-                                <td colSpan={10} className="px-4 py-8 text-center text-gray-500">
+                                <td colSpan={11} className="px-4 py-8 text-center text-gray-500">
                                   <div className="flex items-center justify-center">
                                     <RefreshCw className="h-5 w-5 animate-spin mr-2" />
                                     Loading journal entries...
@@ -1328,52 +1341,47 @@ const Reports = () => {
                               </tr>
                             ) : journalEntries.length === 0 ? (
                               <tr>
-                                <td colSpan={10} className="px-4 py-8 text-center text-gray-500">
+                                <td colSpan={11} className="px-4 py-8 text-center text-gray-500">
                                   No journal entries found matching your criteria
                                 </td>
                               </tr>
                             ) : (
                               journalEntries.map((entry, index) => (
                                 <tr key={index} className="hover:bg-gray-50">
-                                  <td className="px-4 py-3 font-medium text-gray-900">
-                                    {entry.nama}
-                                  </td>
                                   <td className="px-4 py-3 text-gray-600">
                                     {formatDate(entry.date)}
                                   </td>
+                                  <td className="px-4 py-3 font-medium text-gray-900">
+                                    {entry.nama || '-'}
+                                  </td>
                                   <td className="px-4 py-3 text-gray-600 max-w-xs truncate">
-                                    {entry.description}
+                                    {entry.description || '-'}
                                   </td>
                                   <td className="px-4 py-3">
                                     <Badge variant="outline" className="text-xs">
-                                      {entry.service_type}
+                                      {entry.service_type || '-'}
                                     </Badge>
                                   </td>
-                                  <td className="px-4 py-3 text-right font-medium text-gray-900">
+                                  <td className="px-4 py-3 text-right font-medium text-green-600">
                                     {formatCurrency(entry.total_debit || 0)}
                                   </td>
                                   <td className="px-4 py-3 text-right font-medium text-blue-600">
                                     {formatCurrency(entry.total_credit || 0)}
                                   </td>
-                                  <td className="px-4 py-3 text-right font-medium text-green-600">
-                                    {formatCurrency(entry.saldo_driver_now || 0)}
-                                  </td>
                                   <td className="px-4 py-3 text-right font-medium text-purple-600">
-                                    {formatCurrency(entry.saldo_agent_now || 0)}
+                                    {formatCurrency(entry.saldo_awal || 0)}
+                                  </td>
+                                  <td className="px-4 py-3 text-right font-medium text-orange-600">
+                                    {formatCurrency(entry.saldo_akhir || 0)}
                                   </td>
                                   <td className="px-4 py-3 text-gray-600">
-                                    <div className="flex flex-col">
-                                      <span className="font-medium">
-  {entry.make} {entry.model}
-</span>
-<span className="text-xs text-gray-500">
-  {entry.vehicle_type}
-</span>
-
-                                    </div>
+                                    {entry.model || '-'}
+                                  </td>
+                                  <td className="px-4 py-3 text-gray-600">
+                                    {entry.vehicle_type || '-'}
                                   </td>
                                   <td className="px-4 py-3 text-gray-600 font-mono text-sm">
-                                    {entry.license_plate}
+                                    {entry.license_plate || '-'}
                                   </td>
                                 </tr>
                               ))
