@@ -109,7 +109,7 @@ const HandlingPage = () => {
       .toString()
       .padStart(3, "0");
 
-    return `HS-${year}${month}${day}-${hours}${minutes}${seconds}-${random}`;
+    return `HS-${year}${month}${day}${hours}${minutes}${seconds}-${random}`;
   };
 
   // Location options for Porter service - moved here to be available before getCurrentOptions

@@ -8,6 +8,8 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/lib/supabase";
 import {
   Search,
@@ -19,6 +21,9 @@ import {
   Edit,
   Trash2,
   Car,
+  ChevronLeft,
+  ChevronRight,
+  RefreshCw,
 } from "lucide-react";
 import { Tables } from "@/types/supabase";
 import { useAuth } from "@/contexts/AuthContext";
@@ -31,6 +36,11 @@ const VehicleInventory = () => {
   const [loading, setLoading] = useState(true);
   const { userRole } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
+  const [makeFilter, setMakeFilter] = useState("All");
+  const [vehicleTypeFilter, setVehicleTypeFilter] = useState("All");
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [sortConfig, setSortConfig] = useState<{
     key: keyof Vehicle | "";
     direction: "asc" | "desc";
@@ -60,22 +70,47 @@ const VehicleInventory = () => {
   };
 
   const handleSearch = () => {
-    if (!searchQuery.trim()) {
-      setFilteredVehicles(vehicles);
-      return;
+    applyFilters();
+  };
+
+  const applyFilters = () => {
+    let filtered = vehicles;
+
+    // Search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        (vehicle) =>
+          vehicle.make?.toLowerCase().includes(query) ||
+          vehicle.model?.toLowerCase().includes(query) ||
+          vehicle.license_plate?.toLowerCase().includes(query) ||
+          vehicle.name?.toLowerCase().includes(query),
+      );
     }
 
-    const query = searchQuery.toLowerCase();
-    const filtered = vehicles.filter(
-      (vehicle) =>
-        vehicle.make?.toLowerCase().includes(query) ||
-        vehicle.model?.toLowerCase().includes(query) ||
-        vehicle.license_plate?.toLowerCase().includes(query) ||
-        vehicle.name?.toLowerCase().includes(query),
-    );
+    // Make filter
+    if (makeFilter !== "All") {
+      filtered = filtered.filter((vehicle) => vehicle.make === makeFilter);
+    }
+
+    // Vehicle Type filter
+    if (vehicleTypeFilter !== "All") {
+      filtered = filtered.filter((vehicle) => vehicle.vehicle_type === vehicleTypeFilter);
+    }
+
+    // Status filter
+    if (statusFilter !== "All") {
+      filtered = filtered.filter((vehicle) => vehicle.status === statusFilter);
+    }
 
     setFilteredVehicles(filtered);
+    setCurrentPage(1); // Reset to first page when filters change
   };
+
+  // Apply filters whenever filter values change
+  useEffect(() => {
+    applyFilters();
+  }, [vehicles, searchQuery, makeFilter, vehicleTypeFilter, statusFilter]);
 
   const handleSort = (key: keyof Vehicle) => {
     let direction: "asc" | "desc" = "asc";
@@ -117,6 +152,17 @@ const VehicleInventory = () => {
     }).format(amount);
   };
 
+  // Get unique values for filter options
+  const uniqueMakes = [...new Set(vehicles.map(v => v.make).filter(Boolean))];
+  const uniqueVehicleTypes = [...new Set(vehicles.map(v => v.vehicle_type).filter(Boolean))];
+  const uniqueStatuses = [...new Set(vehicles.map(v => v.status).filter(Boolean))];
+
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredVehicles.length / rowsPerPage);
+  const startIndex = (currentPage - 1) * rowsPerPage;
+  const endIndex = startIndex + rowsPerPage;
+  const currentVehicles = filteredVehicles.slice(startIndex, endIndex);
+
   return (
     <div className="p-6">
       <Card>
@@ -135,7 +181,8 @@ const VehicleInventory = () => {
             </Button>
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-2 mt-4">
+          <div className="flex flex-col gap-4 mt-4">
+            {/* Search Bar */}
             <div className="relative flex-1">
               <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
@@ -146,12 +193,81 @@ const VehicleInventory = () => {
                 onKeyDown={(e) => e.key === "Enter" && handleSearch()}
               />
             </div>
-            <Button variant="outline" onClick={handleSearch}>
-              <Filter className="mr-2 h-4 w-4" /> Filter
-            </Button>
-            <Button variant="outline">
-              <FileDown className="mr-2 h-4 w-4" /> Export
-            </Button>
+
+            {/* Filters Row */}
+            <div className="flex flex-col sm:flex-row gap-4 items-end">
+              <div className="min-w-[150px]">
+                <Label htmlFor="make-filter" className="text-sm font-medium mb-2 block">
+                  By Make
+                </Label>
+                <Select value={makeFilter} onValueChange={setMakeFilter}>
+                  <SelectTrigger className="h-10">
+                    <SelectValue placeholder="All Makes" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="All">All Makes</SelectItem>
+                    {uniqueMakes.map((make) => (
+                      <SelectItem key={make} value={make}>
+                        {make}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="min-w-[150px]">
+                <Label htmlFor="type-filter" className="text-sm font-medium mb-2 block">
+                  By Vehicle Type
+                </Label>
+                <Select value={vehicleTypeFilter} onValueChange={setVehicleTypeFilter}>
+                  <SelectTrigger className="h-10">
+                    <SelectValue placeholder="All Types" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="All">All Types</SelectItem>
+                    {uniqueVehicleTypes.map((type) => (
+                      <SelectItem key={type} value={type}>
+                        {type}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="min-w-[150px]">
+                <Label htmlFor="status-filter" className="text-sm font-medium mb-2 block">
+                  Status
+                </Label>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="h-10">
+                    <SelectValue placeholder="All Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="All">All Status</SelectItem>
+                    {uniqueStatuses.map((status) => (
+                      <SelectItem key={status} value={status}>
+                        {status}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex items-end gap-2">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={fetchVehicles}
+                  disabled={loading}
+                  className="h-10 w-10"
+                >
+                  <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+                </Button>
+                <Button variant="outline" className="h-10">
+                  <FileDown className="mr-2 h-4 w-4" /> Export
+                </Button>
+              </div>
+            </div>
           </div>
         </CardHeader>
 
@@ -240,8 +356,8 @@ const VehicleInventory = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredVehicles.length > 0 ? (
-                      filteredVehicles.map((vehicle) => (
+                    {currentVehicles.length > 0 ? (
+                      currentVehicles.map((vehicle) => (
                         <tr
                           key={vehicle.id}
                           className="border-b hover:bg-muted/50 transition-colors"
@@ -320,6 +436,81 @@ const VehicleInventory = () => {
             </div>
           )}
         </CardContent>
+
+        {/* Pagination */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">
+              Showing {Math.min(startIndex + 1, filteredVehicles.length)} to{" "}
+              {Math.min(endIndex, filteredVehicles.length)} of{" "}
+              {filteredVehicles.length} entries
+            </span>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <Label htmlFor="rows-per-page" className="text-sm font-medium">
+                Rows per page:
+              </Label>
+              <Select
+                value={rowsPerPage.toString()}
+                onValueChange={(value) => {
+                  setRowsPerPage(Number(value));
+                  setCurrentPage(1);
+                }}
+              >
+                <SelectTrigger className="w-20">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="20">20</SelectItem>
+                  <SelectItem value="30">30</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                disabled={currentPage === 1}
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Previous
+              </Button>
+              
+              <div className="flex items-center gap-1">
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  const pageNumber = Math.max(1, Math.min(totalPages - 4, currentPage - 2)) + i;
+                  return (
+                    <Button
+                      key={pageNumber}
+                      variant={currentPage === pageNumber ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setCurrentPage(pageNumber)}
+                      className="w-10"
+                    >
+                      {pageNumber}
+                    </Button>
+                  );
+                })}
+              </div>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                disabled={currentPage === totalPages}
+              >
+                Next
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </div>
       </Card>
     </div>
   );

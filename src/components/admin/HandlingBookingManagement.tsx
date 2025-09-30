@@ -3,6 +3,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
+import { format } from "date-fns";
 import {
   Table,
   TableBody,
@@ -25,15 +30,17 @@ import {
   Edit,
   Trash2,
   Search,
-  Calendar,
+  Calendar as CalendarIcon,
   User,
   MapPin,
   ChevronDown,
   ChevronRight,
+  ChevronLeft,
   Plane,
   Clock,
   CreditCard,
   Users,
+  RefreshCw,
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -68,12 +75,22 @@ const BookingAgentManagement = () => {
   );
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [dateRange, setDateRange] = useState<{
+    from: Date | undefined;
+    to: Date | undefined;
+  }>({
+    from: undefined,
+    to: undefined,
+  });
   const [selectedBooking, setSelectedBooking] =
     useState<HandlingBooking | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const { toast } = useToast();
   const { userRole, isAdmin } = useAuth();
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
 
   useEffect(() => {
     fetchBookings();
@@ -225,13 +242,35 @@ const BookingAgentManagement = () => {
     }
   };
 
-  const filteredBookings = handlingBookings.filter(
-    (booking) =>
+  const filteredBookings = handlingBookings.filter((booking) => {
+    // Search filter
+    const matchesSearch = 
       booking.customer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       booking.customer_email.toLowerCase().includes(searchTerm.toLowerCase()) ||
       booking.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      booking.flight_number.toLowerCase().includes(searchTerm.toLowerCase()),
-  );
+      booking.flight_number.toLowerCase().includes(searchTerm.toLowerCase());
+
+    // Status filter
+    const matchesStatus = statusFilter === "All" || booking.status === statusFilter;
+
+    // Date range filter
+    let matchesDateRange = true;
+    if (dateRange.from || dateRange.to) {
+      const bookingDate = new Date(booking.created_at);
+      const fromDate = dateRange.from ? new Date(dateRange.from) : null;
+      const toDate = dateRange.to ? new Date(dateRange.to) : null;
+
+      if (fromDate && toDate) {
+        matchesDateRange = bookingDate >= fromDate && bookingDate <= toDate;
+      } else if (fromDate) {
+        matchesDateRange = bookingDate >= fromDate;
+      } else if (toDate) {
+        matchesDateRange = bookingDate <= toDate;
+      }
+    }
+
+    return matchesSearch && matchesStatus && matchesDateRange;
+  });
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("id-ID", {
@@ -247,6 +286,9 @@ const BookingAgentManagement = () => {
       day: "numeric",
     });
   };
+  
+  const totalPages = Math.ceil(filteredBookings.length / rowsPerPage);
+  const currentBookings = filteredBookings.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
 
   if (loading) {
     return (
@@ -276,8 +318,12 @@ const BookingAgentManagement = () => {
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={fetchBookings} disabled={loading}>
-            {loading ? "Loading..." : "Refresh"}
-          </Button>
+  {loading ? (
+    "Loading..."
+  ) : (
+    <RefreshCw className="h-4 w-4" />
+  )}
+</Button>
           <Button className="bg-primary-tosca hover:bg-primary-dark">
             <Plus className="h-4 w-4 mr-2" />
             New Booking
@@ -285,20 +331,118 @@ const BookingAgentManagement = () => {
         </div>
       </div>
 
-      <div className="flex items-center space-x-2 mb-4">
-        <Search className="h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Search bookings..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="max-w-sm"
-        />
+      <div className="flex flex-col sm:flex-row gap-4 mb-6 items-end">
+
+        <div className="flex-1">
+          <div className="relative w-70">
+            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+            <Input
+              placeholder="Search by customer name, email, category, or flight number..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+        </div>
+
+        <div className="flex flex-col sm:flex-row gap-4 items-end">
+          <div className="min-w-[250px]">
+            <Label htmlFor="date-range" className="text-sm font-medium mb-2 block">
+              Date Range
+            </Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  id="date-range"
+                  variant="outline"
+                  className={cn(
+                    "w-full justify-start text-left font-normal h-10",
+                    !dateRange.from && !dateRange.to && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {dateRange.from ? (
+                    dateRange.to ? (
+                      <>
+                        {format(dateRange.from, "LLL dd, y")} -{" "}
+                        {format(dateRange.to, "LLL dd, y")}
+                      </>
+                    ) : (
+                      format(dateRange.from, "LLL dd, y")
+                    )
+                  ) : (
+                    <span>Pick a date range</span>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  initialFocus
+                  mode="range"
+                  defaultMonth={dateRange.from}
+                  selected={{
+                    from: dateRange.from,
+                    to: dateRange.to,
+                  }}
+                  onSelect={(range) => {
+                    setDateRange({
+                      from: range?.from,
+                      to: range?.to,
+                    });
+                  }}
+                  numberOfMonths={2}
+                />
+                <div className="p-3 border-t">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setDateRange({ from: undefined, to: undefined })}
+                    className="w-full"
+                  >
+                    Clear
+                  </Button>
+                </div>
+              </PopoverContent>
+            </Popover>
+          </div>
+
+          <div className="min-w-[150px]">
+            <Label htmlFor="status-filter" className="text-sm font-medium mb-2 block">
+              Status
+            </Label>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="h-10">
+                <SelectValue placeholder="All Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="All">All Status</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="confirmed">Confirmed</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
+                <SelectItem value="cancelled">Cancelled</SelectItem>
+                <SelectItem value="rejected">Rejected</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-end">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={fetchBookings}
+              disabled={loading}
+              className="h-10 w-10"
+            >
+              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+            </Button>
+          </div>
+        </div>
       </div>
 
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Calendar className="h-5 w-5" />
+            <Users className="h-5 w-5" />
             Handling Bookings
           </CardTitle>
           <p className="text-sm text-muted-foreground">
@@ -308,7 +452,7 @@ const BookingAgentManagement = () => {
         <CardContent>
           {filteredBookings.length === 0 ? (
             <div className="text-center py-8">
-              <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+              <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
               <h3 className="text-lg font-semibold mb-2">No bookings found</h3>
               <p className="text-muted-foreground mb-4">
                 {searchTerm
@@ -345,8 +489,8 @@ const BookingAgentManagement = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredBookings.map((booking) => (
-                  <React.Fragment key={booking.id}>
+                {currentBookings.map((booking) => (
+                  <tbody key={booking.id}>
                     {/* Master Row */}
                     <TableRow className="hover:bg-gray-50">
                       <TableCell>
@@ -550,6 +694,20 @@ const BookingAgentManagement = () => {
                                     >
                                       Cancel
                                     </Button>
+                                    <Button
+                                      variant="destructive"
+                                      onClick={() =>
+                                        updateBookingStatus(
+                                          selectedBooking.id,
+                                          "rejected",
+                                        )
+                                      }
+                                      disabled={
+                                        selectedBooking.status === "rejected"
+                                      }
+                                    >
+                                      Reject
+                                    </Button>
                                   </div>
                                 </div>
                               )}
@@ -622,7 +780,7 @@ const BookingAgentManagement = () => {
                               {/* Travel Type */}
                               <div className="flex items-start space-x-3">
                                 <div className="bg-orange-100 p-2 rounded-lg">
-                                  <Calendar className="h-4 w-4 text-orange-600" />
+                                  <CalendarIcon className="h-4 w-4 text-orange-600" />
                                 </div>
                                 <div>
                                   <p className="text-sm font-medium text-gray-900">
@@ -698,13 +856,87 @@ const BookingAgentManagement = () => {
                         </TableCell>
                       </TableRow>
                     )}
-                  </React.Fragment>
+                  </tbody>
                 ))}
               </TableBody>
             </Table>
           )}
         </CardContent>
       </Card>
+
+      {/* Pagination */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6">
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">
+            Showing {Math.min((currentPage - 1) * rowsPerPage + 1, filteredBookings.length)} to{" "}
+            {Math.min(currentPage * rowsPerPage, filteredBookings.length)} of{" "}
+            {filteredBookings.length} entries
+          </span>
+        </div>
+
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <Label htmlFor="rows-per-page" className="text-sm font-medium">
+              Rows per page:
+            </Label>
+            <Select
+              value={rowsPerPage.toString()}
+              onValueChange={(value) => {
+                setRowsPerPage(Number(value));
+                setCurrentPage(1);
+              }}
+            >
+              <SelectTrigger className="w-20">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="10">10</SelectItem>
+                <SelectItem value="20">20</SelectItem>
+                <SelectItem value="30">30</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+              disabled={currentPage === 1}
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Previous
+            </Button>
+            
+            <div className="flex items-center gap-1">
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                const pageNumber = Math.max(1, Math.min(totalPages - 4, currentPage - 2)) + i;
+                return (
+                  <Button
+                    key={pageNumber}
+                    variant={currentPage === pageNumber ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setCurrentPage(pageNumber)}
+                    className="w-10"
+                  >
+                    {pageNumber}
+                  </Button>
+                );
+              })}
+            </div>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+              disabled={currentPage === totalPages}
+            >
+              Next
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

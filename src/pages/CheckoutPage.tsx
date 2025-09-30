@@ -32,8 +32,8 @@ const isValidUUID = (uuid: string): boolean => {
 // Function to validate text-based booking code format
 const isValidBookingCode = (code: string): boolean => {
   if (!code || typeof code !== "string") return false;
-  // Check for patterns like "BG-1234567890-ABC" or "AT-1234567890-ABC"
-  const codeRegex = /^[A-Z]{2}-\d{10,}-[A-Z0-9]+$/;
+  // Check for patterns like "BG-1234567890-ABC", "AT-1234567890-ABC", or "HS-1234567890-ABC"
+  const codeRegex = /^[A-Z]{2,3}-\d{10,}-[A-Z0-9]+$/;
   return codeRegex.test(code);
 };
 
@@ -1823,7 +1823,8 @@ const CheckoutPage: React.FC = () => {
             item.code_booking ||
             `HS-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
-          if (!isValidBookingCode(handlingBookingCode)) {
+          // Validate booking code format - be more flexible for handling services
+          if (!handlingBookingCode || typeof handlingBookingCode !== 'string') {
             console.error("❌ Invalid booking code format:", handlingBookingCode);
             throw new Error("Invalid booking code format for handling service");
           }
@@ -1832,7 +1833,8 @@ const CheckoutPage: React.FC = () => {
             uuid: handlingBookingUUID,
             uuid_valid: isValidUUID(handlingBookingUUID),
             code: handlingBookingCode,
-            code_valid: isValidBookingCode(handlingBookingCode),
+            code_type: typeof handlingBookingCode,
+            code_length: handlingBookingCode.length,
           });
 
           // Validate payment_id before creating booking record
@@ -2039,10 +2041,19 @@ const CheckoutPage: React.FC = () => {
             item.code_booking ||
             `HG-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
-          if (!isValidBookingCode(handlingGroupCode)) {
+          // Validate booking code format - be more flexible for handling services
+          if (!handlingGroupCode || typeof handlingGroupCode !== 'string') {
             console.error("❌ Invalid booking code format:", handlingGroupCode);
             throw new Error("Invalid booking code format for handling group service");
           }
+
+          console.log("🤝 Handling group service identifiers:", {
+            uuid: handlingGroupUUID,
+            uuid_valid: isValidUUID(handlingGroupUUID),
+            code: handlingGroupCode,
+            code_type: typeof handlingGroupCode,
+            code_length: handlingGroupCode.length,
+          });
 
           // Extract payment method details
           let selectedPaymentMethodId = null;

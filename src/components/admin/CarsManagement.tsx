@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/lib/supabase";
 import {
   Car,
@@ -49,6 +50,9 @@ import {
   Tag,
   Settings,
   Wrench,
+  ChevronLeft,
+  ChevronRight,
+  RefreshCw,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import MaintenanceDialog from "./MaintenanceDialog";
@@ -113,6 +117,11 @@ const CarsManagement = () => {
   const vehicleListRef = useRef<HTMLDivElement>(null);
 
   const [searchTerm, setSearchTerm] = useState("");
+  const [makeFilter, setMakeFilter] = useState("All");
+  const [vehicleTypeFilter, setVehicleTypeFilter] = useState("All");
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(() => {
     const saved = localStorage.getItem('carsManagement_selectedCategory');
     return saved ? JSON.parse(saved) : null;
@@ -756,10 +765,54 @@ const CarsManagement = () => {
     localStorage.removeItem('carsManagement_isEditDialogOpen');
   };
 
-  // ✅ FIXED: Update filtered cars logic to work with card filter
+  // ✅ FIXED: Update filtered cars logic to work with card filter and new filters
   const getDisplayedCars = () => {
+    let carsToFilter = cars;
+
+    // Apply search filter
+    if (searchTerm.trim()) {
+      const query = searchTerm.toLowerCase();
+      carsToFilter = carsToFilter.filter(
+        (car) =>
+          car.model.toLowerCase().includes(query) ||
+          car.make.toLowerCase().includes(query) ||
+          car.license_plate?.toLowerCase().includes(query) ||
+          car.color?.toLowerCase().includes(query)
+      );
+    }
+
+    // Apply make filter
+    if (makeFilter !== "All") {
+      carsToFilter = carsToFilter.filter((car) => car.make === makeFilter);
+    }
+
+    // Apply vehicle type filter
+    if (vehicleTypeFilter !== "All") {
+      carsToFilter = carsToFilter.filter((car) => car.vehicle_type_name === vehicleTypeFilter);
+    }
+
+    // Apply status filter
+    if (statusFilter !== "All") {
+      carsToFilter = carsToFilter.filter((car) => {
+        if (statusFilter === "Available") return car.status === "available" && car.is_active;
+        if (statusFilter === "In Active") return !car.is_active;
+        if (statusFilter === "Maintenance") return car.status === "maintenance";
+        return false;
+      });
+    }
+
+    // Apply existing category filter if active
+    if (selectedCategory !== null) {
+      carsToFilter = carsToFilter.filter((car) => car.category === selectedCategory);
+    }
+
+    // Apply existing vehicle type ID filter if active
+    if (selectedVehicleTypeId !== null) {
+      carsToFilter = carsToFilter.filter((car) => car.vehicle_type_id === selectedVehicleTypeId);
+    }
+
+    // Apply card filter if active
     if (isFilterActive && filteredVehicles.length >= 0) {
-      // When card filter is active, show filtered vehicles
       return filteredVehicles.filter(
         (car) =>
           (car.model.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -767,25 +820,25 @@ const CarsManagement = () => {
             car.license_plate?.toLowerCase().includes(searchTerm.toLowerCase()) ||
             car.color?.toLowerCase().includes(searchTerm.toLowerCase()))
       );
-    } else {
-      // Normal filtering when no card filter is active
-      return cars.filter(
-        (car) =>
-          (car.model.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            car.make.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            car.license_plate?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            car.color?.toLowerCase().includes(searchTerm.toLowerCase())) &&
-          (selectedCategory === null || car.category === selectedCategory) &&
-          (selectedVehicleTypeId === null ||
-            car.vehicle_type_id === selectedVehicleTypeId)
-      );
     }
+
+    return carsToFilter;
   };
 
   const displayedCars = getDisplayedCars();
 
+  // Get unique values for filter options
+  const uniqueMakes = [...new Set(cars.map(car => car.make).filter(Boolean))];
+  const uniqueVehicleTypes = [...new Set(cars.map(car => car.vehicle_type_name).filter(Boolean))];
+
+  // Pagination calculations
+  const totalPages = Math.ceil(displayedCars.length / rowsPerPage);
+  const startIndex = (currentPage - 1) * rowsPerPage;
+  const endIndex = startIndex + rowsPerPage;
+  const currentCars = displayedCars.slice(startIndex, endIndex);
+
   // Group cars by model
-  const groupedCars = displayedCars.reduce<Record<string, CarData[]>>(
+  const groupedCars = currentCars.reduce<Record<string, CarData[]>>(
     (acc, car) => {
       const model = car.model;
       if (!acc[model]) {
@@ -1434,10 +1487,15 @@ const CarsManagement = () => {
                 </CardTitle>
                 <CardDescription>Manage your car fleet</CardDescription>
               </div>
-              <div className="relative w-64">
+            </div>
+            
+            {/* Enhanced Filters Section */}
+            <div className="flex flex-col gap-4 mt-4">
+              {/* Search Bar */}
+              <div className="relative flex-1">
                 <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search cars..."
+                  placeholder="Search by make, model, or license plate..."
                   className="pl-8"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
@@ -1453,7 +1511,78 @@ const CarsManagement = () => {
                   </Button>
                 )}
               </div>
+
+              {/* Filters Row */}
+              <div className="flex flex-col sm:flex-row gap-4 items-end">
+                <div className="min-w-[150px]">
+                  <Label htmlFor="make-filter" className="text-sm font-medium mb-2 block">
+                    By Make
+                  </Label>
+                  <Select value={makeFilter} onValueChange={setMakeFilter}>
+                    <SelectTrigger className="h-10">
+                      <SelectValue placeholder="All Makes" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="All">All Makes</SelectItem>
+                      {uniqueMakes.map((make) => (
+                        <SelectItem key={make} value={make}>
+                          {make}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="min-w-[150px]">
+                  <Label htmlFor="type-filter" className="text-sm font-medium mb-2 block">
+                    Vehicle Type
+                  </Label>
+                  <Select value={vehicleTypeFilter} onValueChange={setVehicleTypeFilter}>
+                    <SelectTrigger className="h-10">
+                      <SelectValue placeholder="All Types" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="All">All Types</SelectItem>
+                      {uniqueVehicleTypes.map((type) => (
+                        <SelectItem key={type} value={type}>
+                          {type}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="min-w-[150px]">
+                  <Label htmlFor="status-filter" className="text-sm font-medium mb-2 block">
+                    Vehicle Status
+                  </Label>
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="h-10">
+                      <SelectValue placeholder="All Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="All">All Status</SelectItem>
+                      <SelectItem value="Available">Available</SelectItem>
+                      <SelectItem value="In Active">In Active</SelectItem>
+                      <SelectItem value="Maintenance">Maintenance</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex items-end gap-2">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => fetchCars(true)}
+                    disabled={loading}
+                    className="h-10 w-10"
+                  >
+                    <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+                  </Button>
+                </div>
+              </div>
             </div>
+
             {searchTerm && (
               <div className="mt-2 text-sm text-muted-foreground">
                 Search results for:{" "}
@@ -1640,15 +1769,80 @@ const CarsManagement = () => {
               </div>
             )}
           </CardContent>
-          <CardFooter className="flex justify-between">
-            <div className="text-sm text-muted-foreground">
-              Showing {displayedCars.length} of {cars.length} cars
-              {searchTerm && ` (filtered by "${searchTerm}")`}
-              {isFilterActive && ` (${getFilterDisplayName(cardFilter)})`}
+          
+          {/* Pagination */}
+          <CardFooter className="flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">
+                Showing {Math.min(startIndex + 1, displayedCars.length)} to{" "}
+                {Math.min(endIndex, displayedCars.length)} of{" "}
+                {displayedCars.length} entries
+              </span>
             </div>
-            <Button variant="outline" onClick={() => fetchCars(true)}>
-              Refresh
-            </Button>
+
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <Label htmlFor="rows-per-page" className="text-sm font-medium">
+                  Rows per page:
+                </Label>
+                <Select
+                  value={rowsPerPage.toString()}
+                  onValueChange={(value) => {
+                    setRowsPerPage(Number(value));
+                    setCurrentPage(1);
+                  }}
+                >
+                  <SelectTrigger className="w-20">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="20">20</SelectItem>
+                    <SelectItem value="30">30</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                  disabled={currentPage === 1}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Previous
+                </Button>
+                
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    const pageNumber = Math.max(1, Math.min(totalPages - 4, currentPage - 2)) + i;
+                    return (
+                      <Button
+                        key={pageNumber}
+                        variant={currentPage === pageNumber ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setCurrentPage(pageNumber)}
+                        className="w-10"
+                      >
+                        {pageNumber}
+                      </Button>
+                    );
+                  })}
+                </div>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                  disabled={currentPage === totalPages}
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
           </CardFooter>
         </Card>
       </div>

@@ -11,19 +11,29 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
+import { format } from "date-fns";
 import {
   Search,
   RefreshCw,
   FileDown,
-  Eye,
   Edit,
   Trash2,
   Package,
-  Calendar,
+  Calendar as CalendarIcon,
   User,
   Phone,
   Mail,
   MapPin,
+  ChevronLeft,
+  ChevronRight,
+  ChevronDown,
+  ChevronUp,
+  Clock,
 } from "lucide-react";
 import {
   Dialog,
@@ -33,7 +43,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { format } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface BaggageBooking {
@@ -67,10 +76,29 @@ const BaggageBookingManagement = () => {
   );
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [customerFilter, setCustomerFilter] = useState("All");
+  const [distinctCustomers, setDistinctCustomers] = useState<string[]>([]);
+  
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  
+  // Expanded rows state
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  
+  // Date range state
+  const [dateRange, setDateRange] = useState<{
+    from: Date | undefined;
+    to: Date | undefined;
+  }>({
+    from: undefined,
+    to: undefined,
+  });
+
   const [selectedBooking, setSelectedBooking] = useState<BaggageBooking | null>(
     null,
   );
-  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const { toast } = useToast();
   const { userRole } = useAuth();
@@ -90,6 +118,11 @@ const BaggageBookingManagement = () => {
       if (error) throw error;
 
       setBookings(data || []);
+      
+      // Get distinct customers for filter
+      const uniqueCustomers = [...new Set(data?.map(booking => booking.customer_name))].filter(Boolean).sort();
+      setDistinctCustomers(uniqueCustomers);
+      
       setFilteredBookings(data || []);
     } catch (error) {
       console.error("Error fetching baggage bookings:", error);
@@ -103,25 +136,79 @@ const BaggageBookingManagement = () => {
     }
   };
 
+  // Filter bookings based on search, status, customer, and date range
   useEffect(() => {
-    if (searchQuery.trim() === "") {
-      setFilteredBookings(bookings);
-      return;
+    let filtered = bookings;
+
+    // Search filter
+    if (searchQuery) {
+      filtered = filtered.filter(
+        (booking) =>
+          booking.code_booking
+            .toLowerCase()
+            .includes(searchQuery.toLowerCase()) ||
+          booking.customer_name
+            .toLowerCase()
+            .includes(searchQuery.toLowerCase()) ||
+          booking.customer_email
+            ?.toLowerCase()
+            .includes(searchQuery.toLowerCase()) ||
+          booking.customer_phone?.includes(searchQuery),
+      );
     }
 
-    const lowercasedSearch = searchQuery.toLowerCase();
-    const filtered = bookings.filter(
-      (booking) =>
-        booking.customer_name.toLowerCase().includes(lowercasedSearch) ||
-        booking.customer_email.toLowerCase().includes(lowercasedSearch) ||
-        booking.customer_phone.toLowerCase().includes(lowercasedSearch) ||
-        booking.booking_id.toLowerCase().includes(lowercasedSearch) ||
-        booking.baggage_size.toLowerCase().includes(lowercasedSearch) ||
-        booking.status.toLowerCase().includes(lowercasedSearch),
-    );
+    // Status filter
+    if (statusFilter !== "All") {
+      filtered = filtered.filter((booking) => booking.status === statusFilter);
+    }
+
+    // Customer filter
+    if (customerFilter !== "All") {
+      filtered = filtered.filter(
+        (booking) => booking.customer_name === customerFilter,
+      );
+    }
+
+    // Date range filter
+    if (dateRange.from || dateRange.to) {
+      filtered = filtered.filter((booking) => {
+        const bookingDate = new Date(booking.created_at);
+        const fromDate = dateRange.from ? new Date(dateRange.from) : null;
+        const toDate = dateRange.to ? new Date(dateRange.to) : null;
+
+        if (fromDate && toDate) {
+          return bookingDate >= fromDate && bookingDate <= toDate;
+        } else if (fromDate) {
+          return bookingDate >= fromDate;
+        } else if (toDate) {
+          return bookingDate <= toDate;
+        }
+        return true;
+      });
+    }
 
     setFilteredBookings(filtered);
-  }, [searchQuery, bookings]);
+    setCurrentPage(1); // Reset to first page when filters change
+  }, [bookings, searchQuery, statusFilter, customerFilter, dateRange]);
+
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredBookings.length / rowsPerPage);
+  const startIndex = (currentPage - 1) * rowsPerPage;
+  const endIndex = startIndex + rowsPerPage;
+  const currentBookings = filteredBookings.slice(startIndex, endIndex);
+
+  const handlePreviousPage = () => {
+    setCurrentPage(prev => Math.max(prev - 1, 1));
+  };
+
+  const handleNextPage = () => {
+    setCurrentPage(prev => Math.min(prev + 1, totalPages));
+  };
+
+  const handleRowsPerPageChange = (value: string) => {
+    setRowsPerPage(parseInt(value));
+    setCurrentPage(1);
+  };
 
   const handleViewDetails = (booking: BaggageBooking) => {
     setSelectedBooking(booking);
@@ -191,6 +278,41 @@ const BaggageBookingManagement = () => {
     }
   };
 
+  const toggleRowExpansion = (bookingId: string) => {
+    const newExpandedRows = new Set(expandedRows);
+    if (newExpandedRows.has(bookingId)) {
+      newExpandedRows.delete(bookingId);
+    } else {
+      newExpandedRows.add(bookingId);
+    }
+    setExpandedRows(newExpandedRows);
+  };
+
+  const formatDetailDate = (dateStr: string, timeStr?: string) => {
+    if (!dateStr) return "N/A";
+    
+    try {
+      const date = new Date(dateStr);
+      const options: Intl.DateTimeFormatOptions = {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: timeStr ? 'numeric' : undefined,
+        minute: timeStr ? 'numeric' : undefined,
+        hour12: true
+      };
+      
+      if (timeStr) {
+        const [hours, minutes] = timeStr.split(':');
+        date.setHours(parseInt(hours), parseInt(minutes));
+      }
+      
+      return date.toLocaleDateString('en-US', options);
+    } catch (error) {
+      return dateStr;
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status.toLowerCase()) {
       case "confirmed":
@@ -233,6 +355,32 @@ const BaggageBookingManagement = () => {
     } catch (e) {
       return dateString;
     }
+  };
+
+  const formatDateWithTime = (dateStr: string, timeStr?: string) => {
+    if (!dateStr) return "N/A";
+    
+    const date = new Date(dateStr);
+    const options: Intl.DateTimeFormatOptions = {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    };
+    
+    let formattedDate = date.toLocaleDateString('en-US', options);
+    
+    if (timeStr) {
+      formattedDate += ` ${timeStr}`;
+    } else {
+      const timeOptions: Intl.DateTimeFormatOptions = {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      };
+      formattedDate += ` ${date.toLocaleTimeString('en-US', timeOptions)}`;
+    }
+    
+    return formattedDate;
   };
 
   const exportToCSV = () => {
@@ -323,95 +471,191 @@ const BaggageBookingManagement = () => {
               </Button>
             </div>
           </div>
+          
+          {/* Filters */}
+          <div className="flex flex-col sm:flex-row gap-4 mb-6">
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="min-w-[200px]">
+                <Label htmlFor="customer-filter" className="text-sm font-medium">
+                  Customer
+                </Label>
+                <Select value={customerFilter} onValueChange={setCustomerFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="All Customers" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="All">All Customers</SelectItem>
+                    {distinctCustomers.map((customer) => (
+                      <SelectItem key={customer} value={customer}>
+                        {customer}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="min-w-[250px]">
+                <Label htmlFor="date-range" className="text-sm font-medium">
+                  Date Range
+                </Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      id="date-range"
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !dateRange.from && !dateRange.to && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {dateRange.from ? (
+                        dateRange.to ? (
+                          <>
+                            {format(dateRange.from, "LLL dd, y")} -{" "}
+                            {format(dateRange.to, "LLL dd, y")}
+                          </>
+                        ) : (
+                          format(dateRange.from, "LLL dd, y")
+                        )
+                      ) : (
+                        <span>Pick a date range</span>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      initialFocus
+                      mode="range"
+                      defaultMonth={dateRange.from}
+                      selected={{
+                        from: dateRange.from,
+                        to: dateRange.to,
+                      }}
+                      onSelect={(range) => {
+                        setDateRange({
+                          from: range?.from,
+                          to: range?.to,
+                        });
+                      }}
+                      numberOfMonths={2}
+                    />
+                    <div className="p-3 border-t">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setDateRange({ from: undefined, to: undefined })}
+                        className="w-full"
+                      >
+                        Clear
+                      </Button>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              <div className="min-w-[150px]">
+                <Label htmlFor="status-filter" className="text-sm font-medium">
+                  Status Booking
+                </Label>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="All Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="All">All Status</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="confirmed">Confirmed</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="cancelled">Cancelled</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+           {/*   <div className="flex items-end">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={fetchBookings}
+                  disabled={loading}
+                >
+                  <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+                </Button>
+              </div>*/}
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="rounded-md border overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full">
                 <thead>
-                  <tr className="bg-muted/50 border-b">
-                    <th className="py-3 px-4 text-left font-medium">
+                  <tr className="border-b bg-muted/50">
+                    <th className="text-left py-3 px-4 font-medium w-12"></th>
+                    <th className="text-left py-3 px-4 font-medium">
                       Booking ID
                     </th>
-                    <th className="py-3 px-4 text-left font-medium">
+                    <th className="text-left py-3 px-4 font-medium">
                       Customer
                     </th>
-                    <th className="py-3 px-4 text-left font-medium">
-                      Baggage Size
-                    </th>
-                    <th className="py-3 px-4 text-left font-medium">Price</th>
-                    <th className="py-3 px-4 text-left font-medium">Payment Method</th>
-                    <th className="py-3 px-4 text-left font-medium">
+                    <th className="text-left py-3 px-4 font-medium">
                       Duration
                     </th>
-                    <th className="py-3 px-4 text-left font-medium">
-                      Start Date
+                    <th className="text-left py-3 px-4 font-medium">
+                      Price
                     </th>
-                    <th className="py-3 px-4 text-left font-medium">Status</th>
-                    <th className="py-3 px-4 text-left font-medium">Actions</th>
+                    <th className="text-left py-3 px-4 font-medium">
+                      Status
+                    </th>
+                    <th className="text-left py-3 px-4 font-medium">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan={8} className="py-6 text-center">
+                      <td colSpan={7} className="py-6 text-center">
                         Loading bookings...
                       </td>
                     </tr>
-                  ) : filteredBookings.length > 0 ? (
-                    filteredBookings.map((booking) => (
-                      <tr
-                        key={booking.id}
-                        className="border-b hover:bg-muted/50 transition-colors"
-                      >
+                  ) : currentBookings.length > 0 ? (
+                    currentBookings.flatMap((booking) => [
+                      // Master Row
+                      <tr key={`master-${booking.id}`} className="border-b hover:bg-muted/50 transition-colors">
+                        <td className="py-3 px-4">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => toggleRowExpansion(booking.id)}
+                            className="p-1"
+                          >
+                            {expandedRows.has(booking.id) ? (
+                              <ChevronDown className="h-4 w-4" />
+                            ) : (
+                              <ChevronRight className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </td>
                         <td className="py-3 px-4 font-mono text-sm">
                           {booking.code_booking}
                         </td>
                         <td className="py-3 px-4">
-                          <div>
-                            <div className="font-medium">
-                              {booking.customer_name}
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              {booking.customer_email}
-                            </div>
+                          <div className="font-medium">
+                            {booking.customer_name}
                           </div>
-                        </td>
-                        <td className="py-3 px-4">
-                          <div className="flex items-center gap-2">
-                            <Package className="h-4 w-4" />
-                            <span className="capitalize">
-                              {booking.baggage_size.replace("_", " ")}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="py-3 px-4 font-medium">
-                          {formatCurrency(booking.price)}
-                        </td>
-                        <td className="py-3 px-4">
-                          {booking.payment_method}
                         </td>
                         <td className="py-3 px-4">
                           {booking.duration} {booking.duration_type}
                         </td>
-                        <td className="py-3 px-4">
-                          {formatDateTime(
-                            booking.start_date,
-                            booking.start_time,
-                          )}
+                        <td className="py-3 px-4 font-medium">
+                          {formatCurrency(booking.price)}
                         </td>
                         <td className="py-3 px-4">
                           {getStatusBadge(booking.status)}
                         </td>
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-1">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleViewDetails(booking)}
-                            >
-                              <Eye className="h-4 w-4" />
-                            </Button>
                             {booking.status === "pending" && (
                               <>
                                 <Button
@@ -463,12 +707,89 @@ const BaggageBookingManagement = () => {
                             )}
                           </div>
                         </td>
-                      </tr>
-                    ))
+                      </tr>,
+                      
+                      // Detail Row (conditionally rendered)
+                      ...(expandedRows.has(booking.id) ? [
+                        <tr key={`detail-${booking.id}`} className="bg-muted/20">
+                          <td colSpan={7} className="py-4 px-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
+                              <div className="space-y-2">
+                                <div className="flex items-center gap-2">
+                                  <Phone className="h-4 w-4 text-muted-foreground" />
+                                  <span className="font-medium">Phone:</span>
+                                  <span>{booking.customer_phone || "N/A"}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Mail className="h-4 w-4 text-muted-foreground" />
+                                  <span className="font-medium">Email:</span>
+                                  <span>{booking.customer_email || "N/A"}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Package className="h-4 w-4 text-muted-foreground" />
+                                  <span className="font-medium">Baggage Size:</span>
+                                  <span className="capitalize">
+                                    {booking.baggage_size.replace("_", " ")}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Clock className="h-4 w-4 text-muted-foreground" />
+                                  <span className="font-medium">Start Date:</span>
+                                  <span>{formatDetailDate(booking.start_date, booking.start_time)}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Clock className="h-4 w-4 text-muted-foreground" />
+                                  <span className="font-medium">End Date:</span>
+                                  <span>{formatDetailDate(booking.end_date, booking.end_time)}</span>
+                                </div>
+                              </div>
+                              
+                              <div className="space-y-2">
+                                <div className="flex items-center gap-2">
+                                  <MapPin className="h-4 w-4 text-muted-foreground" />
+                                  <span className="font-medium">Airport:</span>
+                                  <span>{booking.airport || "N/A"}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <MapPin className="h-4 w-4 text-muted-foreground" />
+                                  <span className="font-medium">Terminal:</span>
+                                  <span>{booking.terminal || "N/A"}</span>
+                                </div>
+                                <div className="flex flex-col">
+  <span className="font-medium">Payment Method</span>
+  <span>
+    {booking.payment_method
+      ? booking.payment_method.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())
+      : "N/A"}
+  </span>
+  <span>{booking.bank_name || "N/A"}</span>
+  {booking.account_number && <span>{booking.account_number}</span>}
+</div>
+
+
+
+                              </div>
+                              
+                              <div className="space-y-2">
+                                
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium">Created:</span>
+                                  <span>{formatDetailDate(booking.created_at)}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium">Updated:</span>
+                                  <span>{formatDetailDate(booking.updated_at)}</span>
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      ] : [])
+                    ])
                   ) : (
                     <tr>
                       <td
-                        colSpan={8}
+                        colSpan={7}
                         className="py-6 text-center text-muted-foreground"
                       >
                         No baggage bookings found
@@ -479,164 +800,82 @@ const BaggageBookingManagement = () => {
               </table>
             </div>
           </div>
-        </CardContent>
-      </Card>
+          
+          {/* Pagination */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">
+                Showing {Math.min((currentPage - 1) * rowsPerPage + 1, filteredBookings.length)} to{" "}
+                {Math.min(currentPage * rowsPerPage, filteredBookings.length)} of{" "}
+                {filteredBookings.length} entries
+              </span>
+            </div>
 
-      {/* Booking Details Dialog */}
-      <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Baggage Booking Details</DialogTitle>
-            <DialogDescription>
-              Complete information about the baggage booking
-            </DialogDescription>
-          </DialogHeader>
-          {selectedBooking && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                    <User className="h-5 w-5" />
-                    Customer Information
-                  </h3>
-                  <div className="space-y-2">
-                    <p>
-                      <span className="font-medium">Name:</span>{" "}
-                      {selectedBooking.customer_name}
-                    </p>
-                    <p className="flex items-center gap-2">
-                      <Mail className="h-4 w-4" />
-                      <span className="font-medium">Email:</span>{" "}
-                      {selectedBooking.customer_email}
-                    </p>
-                    <p className="flex items-center gap-2">
-                      <Phone className="h-4 w-4" />
-                      <span className="font-medium">Phone:</span>{" "}
-                      {selectedBooking.customer_phone}
-                    </p>
-                    {selectedBooking.flight_number && (
-                      <p>
-                        <span className="font-medium">Flight:</span>{" "}
-                        {selectedBooking.flight_number}
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                <div>
-                  <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                    <Package className="h-5 w-5" />
-                    Baggage Information
-                  </h3>
-                  <div className="space-y-2">
-                    <p>
-                      <span className="font-medium">Size:</span>{" "}
-                      <span className="capitalize">
-                        {selectedBooking.baggage_size.replace("_", " ")}
-                      </span>
-                    </p>
-                    <p>
-                      <span className="font-medium">Price:</span>{" "}
-                      {formatCurrency(selectedBooking.price)}
-                    </p>
-                    <p>
-                      <span className="font-medium">Duration:</span>{" "}
-                      {selectedBooking.duration} {selectedBooking.duration_type}
-                    </p>
-                    {selectedBooking.hours && (
-                      <p>
-                        <span className="font-medium">Hours:</span>{" "}
-                        {selectedBooking.hours}
-                      </p>
-                    )}
-                  </div>
-                </div>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <Label htmlFor="rows-per-page" className="text-sm font-medium">
+                  Rows per page:
+                </Label>
+                <Select
+                  value={rowsPerPage.toString()}
+                  onValueChange={(value) => {
+                    setRowsPerPage(Number(value));
+                    setCurrentPage(1);
+                  }}
+                >
+                  <SelectTrigger className="w-20">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="20">20</SelectItem>
+                    <SelectItem value="30">30</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                    <Calendar className="h-5 w-5" />
-                    Schedule Information
-                  </h3>
-                  <div className="space-y-2">
-                    <p>
-                      <span className="font-medium">Start:</span>{" "}
-                      {formatDateTime(
-                        selectedBooking.start_date,
-                        selectedBooking.start_time,
-                      )}
-                    </p>
-                    <p>
-                      <span className="font-medium">End:</span>{" "}
-                      {formatDateTime(
-                        selectedBooking.end_date,
-                        selectedBooking.end_time,
-                      )}
-                    </p>
-                    <p>
-                      <span className="font-medium">Status:</span>{" "}
-                      {getStatusBadge(selectedBooking.status)}
-                    </p>
-                  </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                  disabled={currentPage === 1}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Previous
+                </Button>
+                
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    const pageNumber = Math.max(1, Math.min(totalPages - 4, currentPage - 2)) + i;
+                    return (
+                      <Button
+                        key={pageNumber}
+                        variant={currentPage === pageNumber ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setCurrentPage(pageNumber)}
+                        className="w-10"
+                      >
+                        {pageNumber}
+                      </Button>
+                    );
+                  })}
                 </div>
 
-                <div>
-                  <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                    <MapPin className="h-5 w-5" />
-                    Location Information
-                  </h3>
-                  <div className="space-y-2">
-                    <p>
-                      <span className="font-medium">Airport:</span>{" "}
-                      {selectedBooking.airport}
-                    </p>
-                    <p>
-                      <span className="font-medium">Terminal:</span>{" "}
-                      {selectedBooking.terminal}
-                    </p>
-                    {selectedBooking.storage_location && (
-                      <p>
-                        <span className="font-medium">Storage:</span>{" "}
-                        {selectedBooking.storage_location}
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                <div>
-                  <h3 className="text-lg font-semibold mb-3">
-                    Booking Information
-                  </h3>
-                  <div className="space-y-2">
-                    <p>
-                      <span className="font-medium">Booking ID:</span>{" "}
-                      <span className="font-mono text-sm">
-                        {selectedBooking.booking_id}
-                      </span>
-                    </p>
-                    <p>
-                      <span className="font-medium">Created:</span>{" "}
-                      {formatDate(selectedBooking.created_at)}
-                    </p>
-                    {selectedBooking.updated_at && (
-                      <p>
-                        <span className="font-medium">Updated:</span>{" "}
-                        {formatDate(selectedBooking.updated_at)}
-                      </p>
-                    )}
-                  </div>
-                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                  disabled={currentPage === totalPages}
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
               </div>
             </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDetailsOpen(false)}>
-              Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
