@@ -874,7 +874,7 @@ const HistoryTopUp = () => {
                   <TableRow>
                     <TableHead>Code</TableHead>
                     <TableHead>Agent</TableHead>
-                    <TableHead>Status</TableHead>
+                    <TableHead>Status1</TableHead>
                     <TableHead>Amount</TableHead>
                     <TableHead>Method</TableHead>
                     <TableHead>Note</TableHead>
@@ -921,7 +921,9 @@ const HistoryTopUp = () => {
                           </span>
                         </TableCell>
                         <TableCell className="font-medium">
-                          {transaction.method}
+                        <span>{transaction.payment_method? transaction.payment_method.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()): "N/A"}</span>
+                        <span>{transaction.bank_name || "N/A"}</span>
+                        <span>{transaction.account_number}</span>
                         </TableCell>
                         <TableCell className="max-w-xs">
                           <div

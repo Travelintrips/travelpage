@@ -756,23 +756,19 @@ const BaggageBookingManagement = () => {
                                   <span>{booking.terminal || "N/A"}</span>
                                 </div>
                                 <div className="flex flex-col">
-  <span className="font-medium">Payment Method</span>
-  <span>
-    {booking.payment_method
-      ? booking.payment_method.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())
-      : "N/A"}
-  </span>
-  <span>{booking.bank_name || "N/A"}</span>
-  {booking.account_number && <span>{booking.account_number}</span>}
-</div>
-
-
-
+                                <span className="font-medium">Payment Method</span>
+                                <span>
+                                {booking.payment_method
+                                ? booking.payment_method.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())
+                                : "N/A"}
+                                </span>
+                                <span>{booking.bank_name || "N/A"}</span>
+                                {booking.account_number && <span>{booking.account_number}</span>}
+                                </div>
                               </div>
                               
                               <div className="space-y-2">
-                                
-                                <div className="flex items-center gap-2">
+                               <div className="flex items-center gap-2">
                                   <span className="font-medium">Created:</span>
                                   <span>{formatDetailDate(booking.created_at)}</span>
                                 </div>

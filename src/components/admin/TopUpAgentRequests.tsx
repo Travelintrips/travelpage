@@ -258,7 +258,7 @@ const TopUpAgentRequests = () => {
           id,
           user_id,
           amount,
-          method,
+          payment_method,
           bank_name,
           destination_account,
           proof_url,
@@ -1012,7 +1012,7 @@ const TopUpAgentRequests = () => {
                           Created At
                         </TableHead>
                         <TableHead className="min-w-[140px] text-xs font-medium">
-                          Verified By/At1
+                          Verified By/At
                         </TableHead>
                         <TableHead className="min-w-[100px] text-xs font-medium">
                           Note

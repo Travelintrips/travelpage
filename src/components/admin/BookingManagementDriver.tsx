@@ -99,6 +99,8 @@ export default function BookingManagementDriver() {
   const [isPickupProcessOpen, setIsPickupProcessOpen] = useState(false);
   const [isPreInspectionOpen, setIsPreInspectionOpen] = useState(false);
   const [showCancelForm, setShowCancelForm] = useState(false);
+  const [showNotesForm, setShowNotesForm] = useState(false);
+  const [adminNotes, setAdminNotes] = useState("");
   const [currentBooking, setCurrentBooking] = useState<Booking | null>(null);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -421,13 +423,24 @@ export default function BookingManagementDriver() {
   };
 
   const handleConfirmBooking = async (booking: Booking) => {
+    setCurrentBooking(booking);
+    setAdminNotes("");
+    setShowNotesForm(true);
+  };
+
+  const handleSubmitConfirmation = async () => {
+    if (!currentBooking) return;
+
     try {
-      console.log('Confirming booking:', booking.id, 'Current status:', booking.status);
+      console.log('Confirming booking:', currentBooking.id, 'Current status:', currentBooking.status);
       
       const { error } = await supabase
         .from("bookings")
-        .update({ status: "confirmed" })
-        .eq("id", booking.id);
+        .update({ 
+          status: "confirmed",
+          notes_admin: adminNotes.trim() || null
+        })
+        .eq("id", currentBooking.id);
 
       if (error) {
         console.error('Supabase error:', error);
@@ -436,10 +449,13 @@ export default function BookingManagementDriver() {
 
       toast({
         title: "Booking confirmed",
-        description: "Booking status has been updated to confirmed",
+        description: "Booking status has been updated to confirmed with admin notes",
       });
 
-      // Refresh the bookings list
+      // Close the notes form and refresh bookings
+      setShowNotesForm(false);
+      setAdminNotes("");
+      setCurrentBooking(null);
       await fetchBookings();
     } catch (error) {
       console.error("Error confirming booking:", error);
@@ -449,6 +465,12 @@ export default function BookingManagementDriver() {
         description: error.message || "Failed to confirm booking",
       });
     }
+  };
+
+  const handleCloseNotesForm = () => {
+    setShowNotesForm(false);
+    setAdminNotes("");
+    setCurrentBooking(null);
   };
 
   const canCancelBooking = () => {
@@ -541,6 +563,113 @@ export default function BookingManagementDriver() {
           </div>
         </div>
       </div>
+
+      {/* Notes Admin Form Layout */}
+      {showNotesForm && currentBooking && (
+        <div className="bg-blue-50 border-l-4 border-blue-500 p-6 m-6">
+          <div className="flex items-start justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <CheckCircle className="h-6 w-6 text-blue-600" />
+              <h2 className="text-xl font-semibold text-blue-800">Confirm Booking - Admin Notes</h2>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleCloseNotesForm}
+              className="text-blue-600 hover:bg-blue-100"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Booking Details */}
+            <div className="bg-white p-4 rounded-lg border">
+              <h3 className="font-medium text-gray-900 mb-3">Booking Details</h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Booking Code:</span>
+                  <span className="font-medium">{currentBooking.code_booking}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Driver:</span>
+                  <span className="font-medium">{currentBooking.driver?.name || 'Unknown'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Vehicle:</span>
+                  <span className="font-medium">{currentBooking.vehicle?.license_plate || 'N/A'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Amount:</span>
+                  <span className="font-medium text-green-600">{formatCurrency(currentBooking.total_amount)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Current Status:</span>
+                  <Badge variant="outline">{currentBooking.status}</Badge>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Dates:</span>
+                  <span className="font-medium">
+                    {format(new Date(currentBooking.start_date), "dd/MM/yyyy")} - 
+                    {format(new Date(currentBooking.end_date), "dd/MM/yyyy")}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Admin Notes Form */}
+            <div className="bg-white p-4 rounded-lg border">
+              <h3 className="font-medium text-gray-900 mb-3">Admin Notes</h3>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="adminNotes" className="text-sm font-medium text-gray-700">
+                    Notes (Optional)
+                  </Label>
+                  <Textarea
+                    id="adminNotes"
+                    placeholder="Add any admin notes for this booking confirmation..."
+                    value={adminNotes}
+                    onChange={(e) => setAdminNotes(e.target.value)}
+                    rows={4}
+                    className="mt-1 resize-none"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    These notes will be saved with the booking and can be viewed later.
+                  </p>
+                </div>
+
+                <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
+                  <div className="flex items-start gap-2">
+                    <CheckCircle className="h-4 w-4 text-blue-600 mt-0.5" />
+                    <div className="text-sm">
+                      <p className="font-medium text-blue-800">Confirmation Action</p>
+                      <p className="text-blue-700">
+                        This will change the booking status from "Pending" to "Confirmed" and save any admin notes.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <Button
+                    variant="outline"
+                    onClick={handleCloseNotesForm}
+                    className="flex-1"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleSubmitConfirmation}
+                    className="flex-1 bg-blue-600 hover:bg-blue-700"
+                  >
+                    Confirm Booking
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Cancel Form Layout */}
       {showCancelForm && currentBooking && (
@@ -654,7 +783,7 @@ export default function BookingManagementDriver() {
       )}
 
       {/* Main Content - Expandable Table */}
-      {!showCancelForm && (
+      {!showCancelForm && !showNotesForm && (
         <div className="p-6">
           {/* Search and Controls */}
           <div className="mb-6 space-y-4">
