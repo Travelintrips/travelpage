@@ -56,25 +56,24 @@ const ResetPasswordPage: React.FC = () => {
   });
 
   useEffect(() => {
-  const hash = window.location.hash;
-  if (hash) {
-    const params = new URLSearchParams(hash.replace('#', ''));
-    const accessToken = params.get('access_token');
-    const refreshToken = params.get('refresh_token');
+    const hash = window.location.hash;
+    if (hash) {
+      const params = new URLSearchParams(hash.replace('#', ''));
+      const accessToken = params.get('access_token');
+      const refreshToken = params.get('refresh_token');
+      const type = params.get('type');
 
-    if (accessToken && refreshToken) {
-      supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
-        .then(({ error }) => {
-          if (error) setError("Invalid or expired reset link.");
-        });
+      if (accessToken && refreshToken && type === 'recovery') {
+        // Store tokens for later use but don't set session yet
+        sessionStorage.setItem('reset_access_token', accessToken);
+        sessionStorage.setItem('reset_refresh_token', refreshToken);
+      } else {
+        setError("Invalid or expired reset link.");
+      }
     } else {
       setError("Invalid or expired reset link.");
     }
-  } else {
-    setError("Invalid or expired reset link.");
-  }
-}, []);
-
+  }, []);
 
   const handleSubmit = async (data: ResetPasswordFormValues) => {
     setIsSubmitting(true);
@@ -82,6 +81,27 @@ const ResetPasswordPage: React.FC = () => {
     setError(null);
 
     try {
+      // Get stored tokens
+      const accessToken = sessionStorage.getItem('reset_access_token');
+      const refreshToken = sessionStorage.getItem('reset_refresh_token');
+
+      if (!accessToken || !refreshToken) {
+        setError("Invalid or expired reset link. Please request a new password reset.");
+        return;
+      }
+
+      // Set session temporarily to update password
+      const { error: sessionError } = await supabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken
+      });
+
+      if (sessionError) {
+        setError("Invalid or expired reset link. Please request a new password reset.");
+        return;
+      }
+
+      // Update password
       const { error } = await supabase.auth.updateUser({
         password: data.password,
       });
@@ -90,8 +110,14 @@ const ResetPasswordPage: React.FC = () => {
         setError(error.message);
       } else {
         setMessage("Password has been successfully updated!");
-        // Redirect to login page after 2 seconds
-        setTimeout(() => {
+        
+        // Clear stored tokens
+        sessionStorage.removeItem('reset_access_token');
+        sessionStorage.removeItem('reset_refresh_token');
+        
+        // Sign out the user and redirect to login page after 2 seconds
+        setTimeout(async () => {
+          await supabase.auth.signOut();
           navigate("/");
         }, 2000);
       }

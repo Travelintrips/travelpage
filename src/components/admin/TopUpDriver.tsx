@@ -1036,6 +1036,22 @@ const TopUpDriver = ({
     .reduce((sum, r) => sum + r.amount, 0);
   const totalRejectedRequests = historyRequests.filter(r => r.status === "rejected").length;
 
+  const formatPaymentMethod = (method?: string) => {
+  if (!method) return "-";
+  switch (method.toLowerCase()) {
+    case "bank_transfer":
+      return "Bank Transfer";
+    case "ewallet":
+      return "E-Wallet";
+    case "cash":
+      return "Cash";
+    default:
+      // ubah snake_case ke Capitalized
+      return method.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+  }
+};
+
+
   return (
     <div className="space-y-6 bg-white">
       <div className="flex justify-between items-center">
@@ -1249,7 +1265,7 @@ const TopUpDriver = ({
                         <TableHead>Driver Name</TableHead>
                         <TableHead>Nominal Topup</TableHead>
                         <TableHead>Method</TableHead>
-                        <TableHead>Bukti Transfer</TableHead>
+                        <TableHead>Bukti Transfer1</TableHead>
                         <TableHead>Request Date</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead className="text-center">Aksi</TableHead>
@@ -1292,8 +1308,8 @@ const TopUpDriver = ({
                             <TableCell>
                               <div className="flex flex-col">
                                 <span className="font-medium">
-                                  {request.method || "-"}
-                                </span>
+  {formatPaymentMethod(request.payment_method)}
+</span>
                                 {request.bank_name && (
                                   <span className="text-sm text-gray-500">
                                     {request.bank_name}
@@ -1407,9 +1423,6 @@ const TopUpDriver = ({
     <span className="text-sm text-gray-500">{request.user_email}</span>
   </div>
 </TableCell>
-
-
-
                             <TableCell>
                               <span className="font-medium text-green-600">
                                 Rp {(Number(request?.amount) || 0).toLocaleString()}
@@ -1418,8 +1431,8 @@ const TopUpDriver = ({
                             <TableCell>
                               <div className="flex flex-col">
                                 <span className="font-medium">
-                                  {request.method || "-"}
-                                </span>
+  {formatPaymentMethod(request.payment_method)}
+</span>
                                 {request.bank_name && (
                                   <span className="text-sm text-gray-500">
                                     {request.bank_name}

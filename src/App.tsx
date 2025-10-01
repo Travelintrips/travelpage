@@ -75,6 +75,7 @@ import DriverDetailPage from "./pages/DriverDetailPage";
 import IasBookingGroup from "./components/admin/IasBookingGroup";
 import Reports from "./components/admin/Reports";
 import BookingAndProfileUserPage from "./pages/Booking&ProfileUserPage";
+import PurchaseRequestManagement from "./components/admin/PurchaseRequestManagement";
 
 declare global {
   interface Window {
@@ -468,6 +469,7 @@ function AppContent() {
             <Route path="concierge-group" element={<IasBookingGroup />} />
             <Route path="drivers" element={<DriverManagement />} />
             <Route path="cars" element={<CarsManagement />} />
+            <Route path="purchase-requests" element={<PurchaseRequestManagement />} />
             <Route path="payments" element={<Payments />} />
             <Route path="bookings" element={<BookingManagement />} />
             <Route path="bookings/customer" element={<BookingManagementCustomer />} />

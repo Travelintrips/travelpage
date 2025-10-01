@@ -104,10 +104,10 @@ export default function Payments() {
         query = query.eq('name', filters.name);
       }
 
-      // Apply search filter with OR conditions using correct column names
+      // Apply search filter with OR conditions using ILIKE for case-insensitive search
       if (filters.q && filters.q.trim() !== '') {
         const searchTerm = filters.q.trim();
-        query = query.or(`code_booking.ilike.*${searchTerm}*,user_name.ilike.*${searchTerm}*,description.ilike.*${searchTerm}*,payment_method.ilike.*${searchTerm}*,bank_name.ilike.*${searchTerm}*,account_holder_received.ilike.*${searchTerm}*,amount::text.ilike.*${searchTerm}*,payment_date::text.ilike.*${searchTerm}*`);
+        query = query.or(`name.ilike.%${searchTerm}%,code_booking.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`);
       }
 
       // Order by date descending

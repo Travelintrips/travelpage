@@ -971,6 +971,10 @@ export default function BookingManagementDriver() {
                                       <span className="font-medium">{booking.vehicle_type || 'MPV'}</span>
                                     </div>
                                     <div className="flex justify-between">
+                                      <span className="text-gray-600">Model Kendaraan:</span>
+                                      <span className="font-medium">{booking.model || 'N/A'}</span>
+                                    </div>
+                                    <div className="flex justify-between">
                                       <span className="text-gray-600">Plat Kendaraan:</span>
                                       <span className="font-medium">{booking.vehicle?.license_plate || 'N/A'}</span>
                                     </div>
@@ -1009,6 +1013,12 @@ export default function BookingManagementDriver() {
                                     <div className="flex justify-between">
                                       <span className="text-gray-600">Payment Methode:</span>
                                       <span className="font-medium">{booking.payment_method || 'N/A'}</span>
+                                    </div>
+                                  </div>
+                                  <div className="space-y-1 text-sm">
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-600">Admin Notes:</span>
+                                      <span className="font-medium">{booking.notes_admin || 'N/A'}</span>
                                     </div>
                                   </div>
                                 </div>

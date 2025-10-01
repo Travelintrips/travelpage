@@ -55,6 +55,7 @@ import StaffPage from "./StaffPage";
 import StatCard from "./StatCard";
 import DashboardCharts from "./DashboardCharts";
 import VehicleInventory from "./VehicleInventory";
+import PurchaseRequestManagement from "./PurchaseRequestManagement";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface DashboardStats {
