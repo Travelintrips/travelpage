@@ -452,7 +452,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUser(null);
           setSession(null);
           setRole(null);
-          setUserRole(null);
           setIsLoading(false);
           setIsSessionReady(true);
           setIsHydrated(true);
@@ -467,7 +466,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUser(null);
           setSession(null);
           setRole(null);
-          setUserRole(null);
           
           // If this is SIGNED_IN during recovery, force sign out
           if (event === 'SIGNED_IN') {
@@ -490,7 +488,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         // GUARD: Prevent duplicate SIGNED_IN events for the same user
         if (event === 'SIGNED_IN' && session?.user) {
-          if (user?.id === session.user.id) {
+          // Check if this is the same user as currently logged in
+          const currentUserId = localStorage.getItem("auth_user") ? JSON.parse(localStorage.getItem("auth_user") || "{}").id : null;
+          if (currentUserId === session.user.id) {
             console.log('🔄 [AuthContext] Duplicate SIGNED_IN ignored for user:', session.user.id);
             return;
           }
@@ -524,7 +524,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUser(null);
           setSession(null);
           setRole(null);
-          setUserRole(null);
           setIsLoading(false);
           setIsSessionReady(true);
           setIsHydrated(true);
@@ -580,7 +579,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setUser(null);
             setSession(null);
             setRole(null);
-            setUserRole(null);
             setIsLoading(false);
             setIsSessionReady(true);
             setIsHydrated(true);
@@ -615,7 +613,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUser(sessionUser);
           setSession(session);
           setRole(userRole);
-          setUserRole(userRole);
           setIsLoading(false);
           setIsSessionReady(true);
           setIsHydrated(true);
@@ -650,7 +647,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log('[AuthContext] Cleaning up auth state listener');
       subscription.unsubscribe();
     };
-  }, [user]); // Add user as dependency to access current user for duplicate check
+  }, []); // Remove user dependency to prevent infinite loops
 
   // FIXED: Enhanced visibility change handler with strict session validation
   useEffect(() => {
@@ -698,8 +695,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             if (session?.user && session.expires_at && session.expires_at > Date.now() / 1000) {
               console.log('[AuthContext] Valid Supabase session found');
               
-              // Only restore if we don't have current user or if user data differs
-              if (!user || user.id !== session.user.id) {
+              // Check if we need to restore user state
+              const currentUserId = localStorage.getItem("auth_user") ? JSON.parse(localStorage.getItem("auth_user") || "{}").id : null;
+              if (!currentUserId || currentUserId !== session.user.id) {
                 const storedUser = localStorage.getItem("auth_user");
                 if (storedUser) {
                   try {
@@ -766,7 +764,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [isSessionReady, user]);
+  }, [isSessionReady]); // Remove user dependency
 
   // FIXED: Enhanced cross-tab logout synchronization
   useEffect(() => {
@@ -799,48 +797,51 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       
       // Handle cross-tab login synchronization
-      if (e.key === "auth_user" && e.newValue && !user) {
-        console.log('[AuthContext] Login detected in another tab, checking session...');
-        
-        // Only sync if no logout flags are set
-        const loggedOut = sessionStorage.getItem("loggedOut");
-        const forceLogout = sessionStorage.getItem("forceLogout");
-        
-        if (loggedOut !== "true" && forceLogout !== "true") {
-          // Validate with Supabase before syncing
-          const validateAndSync = async () => {
-            try {
-              const { data: { session } } = await supabase.auth.getSession();
-              
-              if (session?.user) {
-                const userData = JSON.parse(e.newValue);
-                console.log('[AuthContext] Syncing login from another tab');
-                
-                setUser({
-                  id: userData.id,
-                  email: userData.email,
-                  user_metadata: {
-                    name: userData.name,
-                    role: userData.role,
-                    phone: userData.phone || "",
-                  },
-                });
-                setRole(userData.role);
-                setSession(session);
-              }
-            } catch (error) {
-              console.warn('[AuthContext] Error syncing login from another tab:', error);
-            }
-          };
+      if (e.key === "auth_user" && e.newValue) {
+        const currentUserId = localStorage.getItem("auth_user") ? JSON.parse(localStorage.getItem("auth_user") || "{}").id : null;
+        if (!currentUserId) {
+          console.log('[AuthContext] Login detected in another tab, checking session...');
           
-          validateAndSync();
+          // Only sync if no logout flags are set
+          const loggedOut = sessionStorage.getItem("loggedOut");
+          const forceLogout = sessionStorage.getItem("forceLogout");
+          
+          if (loggedOut !== "true" && forceLogout !== "true") {
+            // Validate with Supabase before syncing
+            const validateAndSync = async () => {
+              try {
+                const { data: { session } } = await supabase.auth.getSession();
+                
+                if (session?.user) {
+                  const userData = JSON.parse(e.newValue);
+                  console.log('[AuthContext] Syncing login from another tab');
+                  
+                  setUser({
+                    id: userData.id,
+                    email: userData.email,
+                    user_metadata: {
+                      name: userData.name,
+                      role: userData.role,
+                      phone: userData.phone || "",
+                    },
+                  });
+                  setRole(userData.role);
+                  setSession(session);
+                }
+              } catch (error) {
+                console.warn('[AuthContext] Error syncing login from another tab:', error);
+              }
+            };
+            
+            validateAndSync();
+          }
         }
       }
     };
 
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
-  }, [user]);
+  }, []);
 
   // Computed values for compatibility
   const isAuthenticated = !!user && !!session;
