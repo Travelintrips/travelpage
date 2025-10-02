@@ -165,6 +165,18 @@ function AppContent() {
     let isRecovering = false;
 
     const recoverSession = async () => {
+      // CRITICAL: Don't recover session if this is a PASSWORD_RECOVERY flow
+      const hash = window.location.hash;
+      if (hash) {
+        const params = new URLSearchParams(hash.replace('#', ''));
+        const type = params.get('type');
+        
+        if (type === 'recovery') {
+          console.log('[App] PASSWORD_RECOVERY detected in recoverSession - blocking recovery');
+          return; // Don't recover session during password recovery
+        }
+      }
+
       const now = Date.now();
       if (now - lastRecoveryTime < RECOVERY_COOLDOWN || isRecovering) {
         return;
@@ -237,6 +249,18 @@ function AppContent() {
     const VISIBILITY_THROTTLE = 10000;
 
     const handleVisibilityChange = async () => {
+      // CRITICAL: Don't handle visibility change during PASSWORD_RECOVERY
+      const hash = window.location.hash;
+      if (hash) {
+        const params = new URLSearchParams(hash.replace('#', ''));
+        const type = params.get('type');
+        
+        if (type === 'recovery') {
+          console.log('[App] PASSWORD_RECOVERY detected in visibility change - blocking');
+          return;
+        }
+      }
+
       const now = Date.now();
       if (now - lastVisibilityTime < VISIBILITY_THROTTLE) {
         return;
@@ -270,7 +294,16 @@ function AppContent() {
       setIsAuthReady(true);
     };
 
-    if (isHydrated && (!isAuthenticated || !userId || !userRole || !isSessionReady)) {
+    // CRITICAL: Don't run recovery if this is PASSWORD_RECOVERY
+    const hash = window.location.hash;
+    let isPasswordRecovery = false;
+    if (hash) {
+      const params = new URLSearchParams(hash.replace('#', ''));
+      const type = params.get('type');
+      isPasswordRecovery = type === 'recovery';
+    }
+
+    if (isHydrated && (!isAuthenticated || !userId || !userRole || !isSessionReady) && !isPasswordRecovery) {
       recoverSession();
     }
 

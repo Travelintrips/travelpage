@@ -209,7 +209,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-  // FIXED: Enhanced initialization with forced logout flag cleanup
+  // FIXED: Enhanced initialization with PASSWORD_RECOVERY detection
   useEffect(() => {
     const initializeAuth = async () => {
       if (isInitializingRef.current) {
@@ -221,6 +221,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log('[AuthContext] Starting auth initialization...');
 
       try {
+        // CRITICAL: Check if this is a PASSWORD_RECOVERY session first
+        const hash = window.location.hash;
+        if (hash) {
+          const params = new URLSearchParams(hash.replace('#', ''));
+          const type = params.get('type');
+          
+          if (type === 'recovery') {
+            console.log('[AuthContext] PASSWORD_RECOVERY session detected during init - blocking auto-login');
+            // Don't initialize any session, just set loading states
+            setUser(null);
+            setSession(null);
+            setRole(null);
+            setIsLoading(false);
+            setIsSessionReady(true);
+            setIsHydrated(true);
+            isInitializingRef.current = false;
+            return; // STOP - don't process any session
+          }
+        }
+
         // CRITICAL: Check and validate logout flags
         const loggedOut = sessionStorage.getItem("loggedOut");
         const forceLogout = sessionStorage.getItem("forceLogout");
