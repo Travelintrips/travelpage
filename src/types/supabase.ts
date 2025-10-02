@@ -4286,45 +4286,123 @@ export type Database = {
           },
         ]
       }
+      purchase_request: {
+        Row: {
+          created_at: string | null
+          date: string
+          harga_satuan: number
+          id: string
+          jumlah: number
+          nama: string
+          nama_barang: string
+          ongkos_kirim: number | null
+          rejected_at: string | null
+          rejected_by: string | null
+          rejection_reason: string | null
+          request_code: string
+          status: string | null
+          total_harga: number
+          updated_at: string | null
+          verified_at: string | null
+          verified_by: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          date: string
+          harga_satuan: number
+          id?: string
+          jumlah: number
+          nama: string
+          nama_barang: string
+          ongkos_kirim?: number | null
+          rejected_at?: string | null
+          rejected_by?: string | null
+          rejection_reason?: string | null
+          request_code: string
+          status?: string | null
+          total_harga: number
+          updated_at?: string | null
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          date?: string
+          harga_satuan?: number
+          id?: string
+          jumlah?: number
+          nama?: string
+          nama_barang?: string
+          ongkos_kirim?: number | null
+          rejected_at?: string | null
+          rejected_by?: string | null
+          rejection_reason?: string | null
+          request_code?: string
+          status?: string | null
+          total_harga?: number
+          updated_at?: string | null
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Relationships: []
+      }
       purchase_requests: {
         Row: {
           created_at: string | null
+          email: string | null
           id: string
           item_name: string
           name: string
           qty: number
+          rejected_at: string | null
+          rejected_by: string | null
           request_date: string
           requester_id: string
           shipping_cost: number
+          status: string | null
           total_amount: number
           unit_price: number
           updated_at: string | null
+          verified_at: string | null
+          verified_by: string | null
         }
         Insert: {
           created_at?: string | null
+          email?: string | null
           id?: string
           item_name: string
           name: string
           qty?: number
+          rejected_at?: string | null
+          rejected_by?: string | null
           request_date: string
           requester_id: string
           shipping_cost?: number
+          status?: string | null
           total_amount?: number
           unit_price?: number
           updated_at?: string | null
+          verified_at?: string | null
+          verified_by?: string | null
         }
         Update: {
           created_at?: string | null
+          email?: string | null
           id?: string
           item_name?: string
           name?: string
           qty?: number
+          rejected_at?: string | null
+          rejected_by?: string | null
           request_date?: string
           requester_id?: string
           shipping_cost?: number
+          status?: string | null
           total_amount?: number
           unit_price?: number
           updated_at?: string | null
+          verified_at?: string | null
+          verified_by?: string | null
         }
         Relationships: []
       }

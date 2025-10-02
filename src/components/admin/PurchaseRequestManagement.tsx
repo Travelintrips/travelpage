@@ -67,27 +67,33 @@ import {
   CheckCircle,
   XCircle,
   Package,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
 interface PurchaseRequest {
   id: string;
-  date: string;
-  requester_id: string;
+  request_date: string;
   requester_name: string;
-  item: string;
+  item_name: string;
   quantity: number;
   unit_price: number;
   shipping_cost: number;
   total_amount: number;
-  status: "pending" | "approved" | "rejected";
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  request_code?: string;
   approved_by?: string;
   approved_at?: string;
   rejection_reason?: string;
   notes?: string;
   created_at: string;
   updated_at: string;
+  verified_at?: string;
+  verified_by?: string;
+  rejected_by?: string;
+  rejected_at?: string;
 }
 
 interface KPIData {
@@ -100,6 +106,7 @@ interface KPIData {
 const PurchaseRequestManagement = () => {
   const [requests, setRequests] = useState<PurchaseRequest[]>([]);
   const [filteredRequests, setFilteredRequests] = useState<PurchaseRequest[]>([]);
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [kpiData, setKpiData] = useState<KPIData>({
     pendingCount: 0,
     pendingAmount: 0,
@@ -129,6 +136,16 @@ const PurchaseRequestManagement = () => {
   const { user } = useAuth();
   const { toast } = useToast();
 
+  const toggleRowExpansion = (requestId: string) => {
+    const newExpandedRows = new Set(expandedRows);
+    if (newExpandedRows.has(requestId)) {
+      newExpandedRows.delete(requestId);
+    } else {
+      newExpandedRows.add(requestId);
+    }
+    setExpandedRows(newExpandedRows);
+  };
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("id-ID", {
       style: "currency",
@@ -149,15 +166,55 @@ const PurchaseRequestManagement = () => {
   const fetchRequests = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      
+      // First get the purchase requests
+      const { data: requestsData, error: requestsError } = await supabase
         .from("purchase_requests")
         .select("*")
-        .order("created_at", { ascending: false });
+        .order("request_date", { ascending: false });
 
-      if (error) throw error;
+      if (requestsError) throw requestsError;
 
-      setRequests(data || []);
-      calculateKPIs(data || []);
+      // Get unique user IDs for verified_by and rejected_by
+      const userIds = new Set<string>();
+      requestsData?.forEach(request => {
+        if (request.verified_by) userIds.add(request.verified_by);
+        if (request.rejected_by) userIds.add(request.rejected_by);
+      });
+
+      // Fetch user names
+      let usersMap: Record<string, string> = {};
+      if (userIds.size > 0) {
+        const { data: usersData, error: usersError } = await supabase
+          .from("users")
+          .select("id, full_name, email")
+          .in("id", Array.from(userIds));
+
+        if (!usersError && usersData) {
+          usersMap = usersData.reduce((acc, user) => {
+            acc[user.id] = user.full_name || user.email || "Unknown User";
+            return acc;
+          }, {} as Record<string, string>);
+        }
+      }
+
+      // Map the requests with user names
+      const mappedRequests = requestsData?.map(request => ({
+        ...request,
+        request_date: request.request_date,
+        requester_name: request.name || request.requester_name,
+        item_name: request.item_name,
+        quantity: request.qty || request.quantity,
+        unit_price: request.unit_price,
+        shipping_cost: request.shipping_cost,
+        total_amount: request.total_amount,
+        status: request.status || (request.verified_at ? "APPROVED" : "PENDING"),
+        verified_by: request.verified_by ? usersMap[request.verified_by] : undefined,
+        rejected_by: request.rejected_by ? usersMap[request.rejected_by] : undefined,
+      })) || [];
+
+      setRequests(mappedRequests);
+      calculateKPIs(mappedRequests);
     } catch (error) {
       console.error("Error fetching purchase requests:", error);
       toast({
@@ -171,8 +228,8 @@ const PurchaseRequestManagement = () => {
   };
 
   const calculateKPIs = (data: PurchaseRequest[]) => {
-    const pending = data.filter((req) => req.status === "pending");
-    const approved = data.filter((req) => req.status === "approved");
+    const pending = data.filter((req) => req.status === "PENDING");
+    const approved = data.filter((req) => req.status === "APPROVED");
 
     setKpiData({
       pendingCount: pending.length,
@@ -185,32 +242,22 @@ const PurchaseRequestManagement = () => {
   const applyFilters = () => {
     let filtered = requests;
 
-    // Search filter
+    // Search filter - search in requester_name, item_name, and request_code
     if (searchTerm.trim()) {
       const query = searchTerm.toLowerCase();
       filtered = filtered.filter(
         (req) =>
-          req.item.toLowerCase().includes(query) ||
-          req.requester_name.toLowerCase().includes(query)
+          (req.requester_name || "").toLowerCase().includes(query) ||
+          (req.item_name || "").toLowerCase().includes(query) ||
+          (req.request_code && req.request_code.toLowerCase().includes(query))
       );
-    }
-
-    // Status filter
-    if (statusFilter !== "all") {
-      filtered = filtered.filter((req) => req.status === statusFilter);
-    }
-
-    // Date filter
-    if (dateFilter) {
-      const filterDate = format(dateFilter, "yyyy-MM-dd");
-      filtered = filtered.filter((req) => req.date === filterDate);
     }
 
     // Tab filter
     if (activeTab === "pending") {
-      filtered = filtered.filter((req) => req.status === "pending");
+      filtered = filtered.filter((req) => req.status === "PENDING");
     } else {
-      filtered = filtered.filter((req) => req.status !== "pending");
+      filtered = filtered.filter((req) => req.status === "APPROVED" || req.status === "REJECTED");
     }
 
     setFilteredRequests(filtered);
@@ -227,16 +274,16 @@ const PurchaseRequestManagement = () => {
     }
 
     try {
-      const { error } = await supabase.from("purchase_requests").insert({
+      const requestCode = `PR-${Date.now()}`;
+      const { error } = await supabase.from("purchase_request").insert({
+        request_code: requestCode,
         date: format(formData.date, "yyyy-MM-dd"),
-        requester_id: user.id,
-        requester_name: user.user_metadata?.full_name || user.email || "Unknown",
-        item: formData.item.trim(),
-        quantity: formData.quantity,
-        unit_price: formData.unit_price,
-        shipping_cost: formData.shipping_cost,
-        notes: formData.notes.trim() || null,
-        status: "pending",
+        nama: user.user_metadata?.full_name || user.email || "Unknown",
+        nama_barang: formData.item.trim(),
+        jumlah: formData.quantity,
+        harga_satuan: formData.unit_price,
+        ongkos_kirim: formData.shipping_cost,
+        total_harga: formData.quantity * formData.unit_price + formData.shipping_cost,
       });
 
       if (error) throw error;
@@ -263,22 +310,22 @@ const PurchaseRequestManagement = () => {
     if (!user) return;
 
     try {
-      const { data, error } = await supabase.rpc("approve_purchase_request", {
-        request_id: request.id,
-        approver_id: user.id,
-      });
+      const { error } = await supabase
+        .from("purchase_requests")
+        .update({
+          status: "APPROVED",
+          verified_at: new Date().toISOString(),
+          verified_by: user.id,
+        })
+        .eq("id", request.id);
 
       if (error) throw error;
 
-      if (data?.success) {
-        toast({
-          title: "Success",
-          description: "Purchase request approved successfully",
-        });
-        await fetchRequests();
-      } else {
-        throw new Error(data?.message || "Failed to approve request");
-      }
+      toast({
+        title: "Success",
+        description: "Purchase request approved successfully",
+      });
+      await fetchRequests();
     } catch (error) {
       console.error("Error approving request:", error);
       toast({
@@ -293,26 +340,26 @@ const PurchaseRequestManagement = () => {
     if (!selectedRequest || !user) return;
 
     try {
-      const { data, error } = await supabase.rpc("reject_purchase_request", {
-        request_id: selectedRequest.id,
-        approver_id: user.id,
-        reason: rejectionReason.trim() || null,
-      });
+      const { error } = await supabase
+        .from("purchase_requests")
+        .update({
+          status: "REJECTED",
+          rejected_at: new Date().toISOString(),
+          rejected_by: user.id,
+          rejection_reason: rejectionReason.trim() || null,
+        })
+        .eq("id", selectedRequest.id);
 
       if (error) throw error;
 
-      if (data?.success) {
-        toast({
-          title: "Success",
-          description: "Purchase request rejected successfully",
-        });
-        setShowRejectDialog(false);
-        setSelectedRequest(null);
-        setRejectionReason("");
-        await fetchRequests();
-      } else {
-        throw new Error(data?.message || "Failed to reject request");
-      }
+      toast({
+        title: "Success",
+        description: "Purchase request rejected successfully",
+      });
+      setShowRejectDialog(false);
+      setSelectedRequest(null);
+      setRejectionReason("");
+      await fetchRequests();
     } catch (error) {
       console.error("Error rejecting request:", error);
       toast({
@@ -336,11 +383,11 @@ const PurchaseRequestManagement = () => {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case "pending":
+      case "PENDING":
         return <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">Pending</Badge>;
-      case "approved":
+      case "APPROVED":
         return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Approved</Badge>;
-      case "rejected":
+      case "REJECTED":
         return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">Rejected</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
@@ -353,7 +400,7 @@ const PurchaseRequestManagement = () => {
 
   useEffect(() => {
     applyFilters();
-  }, [requests, searchTerm, statusFilter, dateFilter, activeTab]);
+  }, [requests, searchTerm, activeTab]);
 
   const totalAmount = formData.quantity * formData.unit_price + formData.shipping_cost;
 
@@ -436,51 +483,12 @@ const PurchaseRequestManagement = () => {
               <div className="relative">
                 <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search by item or requester..."
+                  placeholder="Search by requester name, item name, or request code..."
                   className="pl-8"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
-            </div>
-
-            <div className="min-w-[150px]">
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "justify-start text-left font-normal",
-                      !dateFilter && "text-muted-foreground"
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {dateFilter ? format(dateFilter, "dd/MM/yyyy") : "Pick a date"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar
-                    mode="single"
-                    selected={dateFilter}
-                    onSelect={setDateFilter}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-
-            <div className="min-w-[120px]">
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="approved">Approved</SelectItem>
-                  <SelectItem value="rejected">Rejected</SelectItem>
-                </SelectContent>
-              </Select>
             </div>
 
             <Button
@@ -510,13 +518,11 @@ const PurchaseRequestManagement = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Requester</TableHead>
-                  <TableHead>Item</TableHead>
-                  <TableHead>Qty</TableHead>
-                  <TableHead>Unit Price</TableHead>
-                  <TableHead>Shipping</TableHead>
-                  <TableHead>Total</TableHead>
+                  <TableHead className="w-8"></TableHead>
+                  <TableHead>Request Date</TableHead>
+                  <TableHead>Requester Name</TableHead>
+                  <TableHead>Item Name</TableHead>
+                  <TableHead>Total Amount</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
@@ -524,54 +530,147 @@ const PurchaseRequestManagement = () => {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-8">
+                    <TableCell colSpan={7} className="text-center py-8">
                       <RefreshCw className="h-6 w-6 animate-spin mx-auto mb-2" />
                       Loading...
                     </TableCell>
                   </TableRow>
                 ) : filteredRequests.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                       No purchase requests found
                     </TableCell>
                   </TableRow>
                 ) : (
                   filteredRequests.map((request) => (
-                    <TableRow key={request.id}>
-                      <TableCell>{format(new Date(request.date), "dd/MM/yyyy")}</TableCell>
-                      <TableCell>{request.requester_name}</TableCell>
-                      <TableCell>{request.item}</TableCell>
-                      <TableCell>{request.quantity}</TableCell>
-                      <TableCell>{formatCurrency(request.unit_price)}</TableCell>
-                      <TableCell>{formatCurrency(request.shipping_cost)}</TableCell>
-                      <TableCell className="font-medium">{formatCurrency(request.total_amount)}</TableCell>
-                      <TableCell>{getStatusBadge(request.status)}</TableCell>
-                      <TableCell>
-                        {request.status === "pending" && (
-                          <div className="flex gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="text-green-600 hover:bg-green-50"
-                              onClick={() => handleApprove(request)}
-                            >
-                              <Check className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="text-red-600 hover:bg-red-50"
-                              onClick={() => {
-                                setSelectedRequest(request);
-                                setShowRejectDialog(true);
-                              }}
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        )}
-                      </TableCell>
-                    </TableRow>
+                    <React.Fragment key={request.id}>
+                      {/* Master Row */}
+                      <TableRow className="hover:bg-muted/50">
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => toggleRowExpansion(request.id)}
+                            className="p-1 h-6 w-6"
+                          >
+                            {expandedRows.has(request.id) ? (
+                              <ChevronDown className="h-4 w-4" />
+                            ) : (
+                              <ChevronRight className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </TableCell>
+                        <TableCell>{format(new Date(request.request_date), "dd/MM/yyyy")}</TableCell>
+                        <TableCell>{request.requester_name}</TableCell>
+                        <TableCell>{request.item_name}</TableCell>
+                        <TableCell className="font-medium">{formatCurrency(request.total_amount)}</TableCell>
+                        <TableCell>{getStatusBadge(request.status)}</TableCell>
+                        <TableCell>
+                          {request.status === "PENDING" && (
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-green-600 hover:bg-green-50"
+                                onClick={() => handleApprove(request)}
+                              >
+                                <Check className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-red-600 hover:bg-red-50"
+                                onClick={() => {
+                                  setSelectedRequest(request);
+                                  setShowRejectDialog(true);
+                                }}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                      
+                      {/* Detail Row */}
+                      {expandedRows.has(request.id) && (
+                        <TableRow className="bg-muted/30">
+                          <TableCell></TableCell>
+                          <TableCell colSpan={6}>
+                            <div className="py-4 space-y-4">
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                  <Label className="text-sm font-medium text-muted-foreground">Quantity</Label>
+                                  <p className="text-sm font-medium">{request.quantity}</p>
+                                </div>
+                                <div>
+                                  <Label className="text-sm font-medium text-muted-foreground">Unit Price</Label>
+                                  <p className="text-sm font-medium">{formatCurrency(request.unit_price)}</p>
+                                </div>
+                                <div>
+                                  <Label className="text-sm font-medium text-muted-foreground">Shipping Cost</Label>
+                                  <p className="text-sm font-medium">{formatCurrency(request.shipping_cost)}</p>
+                                </div>
+                              </div>
+                              
+                              {/* Verification/Rejection Details */}
+                              {request.status === "APPROVED" && (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t">
+                                  <div>
+                                    <Label className="text-sm font-medium text-green-600">Verified by</Label>
+                                    <p className="text-sm font-medium">{request.verified_by || "System Admin"}</p>
+                                  </div>
+                                  <div>
+                                    <Label className="text-sm font-medium text-green-600">Verified at</Label>
+                                    <p className="text-sm font-medium">
+                                      {request.verified_at 
+                                        ? format(new Date(request.verified_at), "dd/MM/yyyy HH:mm")
+                                        : "-"
+                                      }
+                                    </p>
+                                  </div>
+                                </div>
+                              )}
+                              
+                              {request.status === "REJECTED" && (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t">
+                                  <div>
+                                    <Label className="text-sm font-medium text-red-600">Rejected by</Label>
+                                    <p className="text-sm font-medium">{request.rejected_by || "System Admin"}</p>
+                                  </div>
+                                  <div>
+                                    <Label className="text-sm font-medium text-red-600">Rejected at</Label>
+                                    <p className="text-sm font-medium">
+                                      {request.rejected_at 
+                                        ? format(new Date(request.rejected_at), "dd/MM/yyyy HH:mm")
+                                        : "-"
+                                      }
+                                    </p>
+                                  </div>
+                                  {request.rejection_reason && (
+                                    <div className="md:col-span-2">
+                                      <Label className="text-sm font-medium text-red-600">Rejection Reason</Label>
+                                      <p className="text-sm bg-red-50 p-2 rounded border border-red-200">
+                                        {request.rejection_reason}
+                                      </p>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                              
+                              {request.notes && (
+                                <div className="pt-2 border-t">
+                                  <Label className="text-sm font-medium text-muted-foreground">Notes</Label>
+                                  <p className="text-sm bg-gray-50 p-2 rounded border">
+                                    {request.notes}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </React.Fragment>
                   ))
                 )}
               </TableBody>
@@ -628,10 +727,10 @@ const PurchaseRequestManagement = () => {
             </div>
 
             <div>
-              <Label htmlFor="item">Item *</Label>
+              <Label htmlFor="item">Item Name *</Label>
               <Input
                 id="item"
-                placeholder="Enter item description"
+                placeholder="Enter item name/description"
                 value={formData.item}
                 onChange={(e) => setFormData({ ...formData, item: e.target.value })}
               />

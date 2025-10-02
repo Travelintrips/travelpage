@@ -44,6 +44,7 @@ const ResetPasswordPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [sessionReady, setSessionReady] = useState(false);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -57,7 +58,6 @@ const ResetPasswordPage: React.FC = () => {
 
   useEffect(() => {
     const hash = window.location.hash;
-    const searchParams = new URLSearchParams(window.location.search);
     
     if (hash) {
       const params = new URLSearchParams(hash.replace('#', ''));
@@ -69,29 +69,30 @@ const ResetPasswordPage: React.FC = () => {
       if (accessToken && refreshToken && type === 'recovery') {
         console.log('[ResetPassword] Valid recovery session detected');
         
-        // CRITICAL: Force sign out any existing session immediately
-        const forceSignOut = async () => {
+        // CRITICAL: Set the session immediately with the recovery tokens
+        const setRecoverySession = async () => {
           try {
-            console.log('[ResetPassword] Force signing out existing session...');
-            await supabase.auth.signOut({ scope: 'local' });
+            console.log('[ResetPassword] Setting recovery session...');
             
-            // Clear all auth storage
-            localStorage.removeItem("auth_user");
-            sessionStorage.removeItem("loggedOut");
-            sessionStorage.removeItem("forceLogout");
-            sessionStorage.removeItem("signOutInProgress");
+            const { data, error } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken
+            });
             
-            console.log('[ResetPassword] Existing session cleared');
+            if (error) {
+              console.error('[ResetPassword] Error setting session:', error);
+              setError("Invalid or expired reset link.");
+            } else {
+              console.log('[ResetPassword] Recovery session established successfully');
+              setSessionReady(true);
+            }
           } catch (error) {
-            console.log('[ResetPassword] Error clearing session:', error);
+            console.error('[ResetPassword] Error setting recovery session:', error);
+            setError("Invalid or expired reset link.");
           }
         };
         
-        forceSignOut();
-        
-        // Store tokens for later use but don't set session yet
-        sessionStorage.setItem('reset_access_token', accessToken);
-        sessionStorage.setItem('reset_refresh_token', refreshToken);
+        setRecoverySession();
       } else {
         setError("Invalid or expired reset link.");
       }
@@ -101,35 +102,39 @@ const ResetPasswordPage: React.FC = () => {
   }, []);
 
   const handleSubmit = async (data: ResetPasswordFormValues) => {
-  setIsSubmitting(true);
-  setMessage(null);
-  setError(null);
-
-  try {
-    // ✅ Langsung update password (Supabase sudah tahu user dari recovery session)
-    const { error } = await supabase.auth.updateUser({
-      password: data.password,
-    });
-
-    if (error) {
-      setError(error.message);
-    } else {
-      setMessage("Password has been successfully updated!");
-
-      // ✅ Logout agar user tidak auto login dengan session recovery
-      setTimeout(async () => {
-        await supabase.auth.signOut();
-        navigate("/");
-      }, 2000);
+    if (!sessionReady) {
+      setError("Auth session missing!");
+      return;
     }
-  } catch (err) {
-    setError("An unexpected error occurred. Please try again.");
-    console.error("Reset password error:", err);
-  } finally {
-    setIsSubmitting(false);
-  }
-};
 
+    setIsSubmitting(true);
+    setMessage(null);
+    setError(null);
+
+    try {
+      // ✅ Langsung update password (Supabase sudah tahu user dari recovery session)
+      const { error } = await supabase.auth.updateUser({
+        password: data.password,
+      });
+
+      if (error) {
+        setError(error.message);
+      } else {
+        setMessage("Password has been successfully updated!");
+
+        // ✅ Logout agar user tidak auto login dengan session recovery
+        setTimeout(async () => {
+          await supabase.auth.signOut();
+          navigate("/");
+        }, 2000);
+      }
+    } catch (err) {
+      setError("An unexpected error occurred. Please try again.");
+      console.error("Reset password error:", err);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
@@ -231,7 +236,7 @@ const ResetPasswordPage: React.FC = () => {
                 <Button
                   type="submit"
                   className="w-full"
-                  disabled={isSubmitting || !!error}
+                  disabled={isSubmitting || !!error || !sessionReady}
                 >
                   {isSubmitting ? "Updating..." : "Update Password"}
                 </Button>

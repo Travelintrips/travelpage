@@ -131,7 +131,8 @@ const TopUpDriver = ({
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [dateFilter, setDateFilter] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [selectedRequest, setSelectedRequest] = useState<DriverTopUpRequest | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
@@ -754,15 +755,22 @@ const TopUpDriver = ({
         .toLowerCase()
         .includes(searchTerm.toLowerCase());
 
-    let matchesDate = true;
-    if (dateFilter && item.trans_date) {
+    let matchesDateRange = true;
+    if ((startDate || endDate) && item.trans_date) {
       const transactionDate = new Date(item.trans_date)
         .toISOString()
         .split("T")[0];
-      matchesDate = transactionDate === dateFilter;
+      
+      if (startDate && endDate) {
+        matchesDateRange = transactionDate >= startDate && transactionDate <= endDate;
+      } else if (startDate) {
+        matchesDateRange = transactionDate >= startDate;
+      } else if (endDate) {
+        matchesDateRange = transactionDate <= endDate;
+      }
     }
 
-    return matchesSearch && matchesDate;
+    return matchesSearch && matchesDateRange;
   });
 
   const handleManualTopup = async () => {
@@ -959,15 +967,22 @@ const TopUpDriver = ({
         .toLowerCase()
         .includes(searchTerm.toLowerCase());
 
-    let matchesDate = true;
-    if (dateFilter) {
+    let matchesDateRange = true;
+    if (startDate || endDate) {
       const requestDate = new Date(request.created_at)
         .toISOString()
         .split("T")[0];
-      matchesDate = requestDate === dateFilter;
+      
+      if (startDate && endDate) {
+        matchesDateRange = requestDate >= startDate && requestDate <= endDate;
+      } else if (startDate) {
+        matchesDateRange = requestDate >= startDate;
+      } else if (endDate) {
+        matchesDateRange = requestDate <= endDate;
+      }
     }
 
-    return matchesSearch && matchesDate;
+    return matchesSearch && matchesDateRange;
   });
 
   const filteredHistoryRequests = historyRequests.filter((request) => {
@@ -985,12 +1000,19 @@ const TopUpDriver = ({
         .toLowerCase()
         .includes(searchTerm.toLowerCase());
 
-    let matchesDate = true;
-    if (dateFilter) {
+    let matchesDateRange = true;
+    if (startDate || endDate) {
       const requestDate = new Date(request.created_at)
         .toISOString()
         .split("T")[0];
-      matchesDate = requestDate === dateFilter;
+      
+      if (startDate && endDate) {
+        matchesDateRange = requestDate >= startDate && requestDate <= endDate;
+      } else if (startDate) {
+        matchesDateRange = requestDate >= startDate;
+      } else if (endDate) {
+        matchesDateRange = requestDate <= endDate;
+      }
     }
 
     let matchesStatus = true;
@@ -1002,7 +1024,7 @@ const TopUpDriver = ({
       }
     }
 
-    return matchesSearch && matchesDate && matchesStatus;
+    return matchesSearch && matchesDateRange && matchesStatus;
   });
 
   // ✅ Pagination logic for History tab
@@ -1152,7 +1174,7 @@ const TopUpDriver = ({
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
             <div className="relative">
               <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
@@ -1162,12 +1184,24 @@ const TopUpDriver = ({
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-            <Input
-              type="date"
-              placeholder="Filter by date"
-              value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value)}
-            />
+            <div>
+              <Label className="text-sm font-medium">Start Date</Label>
+              <Input
+                type="date"
+                placeholder="Start date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label className="text-sm font-medium">End Date</Label>
+              <Input
+                type="date"
+                placeholder="End date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+              />
+            </div>
             {/* ✅ Status filter for History and Admin tabs */}
             {(activeTab === "history" || activeTab === "admin-topup") && (
               <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -1215,14 +1249,15 @@ const TopUpDriver = ({
             </div>
           )}
           
-          {(searchTerm || dateFilter || (statusFilter && statusFilter !== "all")) && (
+          {(searchTerm || startDate || endDate || (statusFilter && statusFilter !== "all")) && (
             <div className="mt-4 flex gap-2">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => {
                   setSearchTerm("");
-                  setDateFilter("");
+                  setStartDate("");
+                  setEndDate("");
                   setStatusFilter("all");
                 }}
               >
@@ -1277,7 +1312,7 @@ const TopUpDriver = ({
                           <TableCell colSpan={8} className="text-center py-8">
                             {loading
                               ? "Loading..."
-                              : searchTerm || dateFilter
+                              : searchTerm || startDate || endDate
                                 ? "No requests match your filters"
                                 : "No pending requests found"}
                           </TableCell>
@@ -1406,7 +1441,7 @@ const TopUpDriver = ({
                           <TableCell colSpan={10} className="text-center py-8">
                             {loading
                               ? "Loading..."
-                              : searchTerm || dateFilter || statusFilter
+                              : searchTerm || startDate || endDate || statusFilter
                                 ? "No history matches your filters"
                                 : "No history found"}
                           </TableCell>
@@ -1593,7 +1628,7 @@ const TopUpDriver = ({
                           <TableCell colSpan={9} className="text-center py-8">
                             {loading
                               ? "Loading..."
-                              : searchTerm || dateFilter
+                              : searchTerm || startDate
                                 ? "No admin topups match your filters"
                                 : "No admin topups found"}
                           </TableCell>
