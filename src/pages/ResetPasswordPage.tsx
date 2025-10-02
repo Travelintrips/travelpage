@@ -44,7 +44,6 @@ const ResetPasswordPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [sessionReady, setSessionReady] = useState(false);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -57,58 +56,25 @@ const ResetPasswordPage: React.FC = () => {
   });
 
   useEffect(() => {
-    const hash = window.location.hash;
-    
-    if (hash) {
-      const params = new URLSearchParams(hash.replace('#', ''));
-      const accessToken = params.get('access_token');
-      const refreshToken = params.get('refresh_token');
-      const type = params.get('type');
+  const hash = window.location.hash;
+  if (hash) {
+    const params = new URLSearchParams(hash.replace('#', ''));
+    const accessToken = params.get('access_token');
+    const refreshToken = params.get('refresh_token');
 
-      // CRITICAL: Validasi bahwa ini adalah recovery session
-      if (accessToken && refreshToken && type === 'recovery') {
-        console.log('[ResetPassword] Valid recovery session detected');
-        
-        // CRITICAL: Set the session immediately with the recovery tokens
-        const setRecoverySession = async () => {
-          try {
-            console.log('[ResetPassword] Setting recovery session...');
-            
-            const { data, error } = await supabase.auth.setSession({
-              access_token: accessToken,
-              refresh_token: refreshToken
-            });
-            
-            if (error) {
-              console.error('[ResetPassword] Error setting session:', error);
-              setError("Invalid or expired reset link.");
-              setSessionReady(false);
-            } else {
-              console.log('[ResetPassword] Recovery session established successfully');
-              setSessionReady(true);
-              setError(null); // Clear any previous errors
-            }
-          } catch (error) {
-            console.error('[ResetPassword] Error setting recovery session:', error);
-            setError("Invalid or expired reset link.");
-            setSessionReady(false);
-          }
-        };
-        
-        setRecoverySession();
-      } else {
-        // If no proper recovery tokens, still allow password reset but show warning
-        console.log('[ResetPassword] No recovery tokens found, allowing manual reset');
-        setSessionReady(true);
-        setError("Warning: No recovery session detected. Please ensure you accessed this page from a valid reset link.");
-      }
+    if (accessToken && refreshToken) {
+      supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
+        .then(({ error }) => {
+          if (error) setError("Invalid or expired reset link.");
+        });
     } else {
-      // If no hash at all, still allow password reset
-      console.log('[ResetPassword] No hash found, allowing manual reset');
-      setSessionReady(true);
-      setError("Warning: No recovery session detected. Please ensure you accessed this page from a valid reset link.");
+      setError("Invalid or expired reset link.");
     }
-  }, []);
+  } else {
+    setError("Invalid or expired reset link.");
+  }
+}, []);
+
 
   const handleSubmit = async (data: ResetPasswordFormValues) => {
     setIsSubmitting(true);
@@ -116,62 +82,22 @@ const ResetPasswordPage: React.FC = () => {
     setError(null);
 
     try {
-      console.log('[ResetPassword] Attempting to update password...');
-      
-      // Try to update password regardless of session status
       const { error } = await supabase.auth.updateUser({
         password: data.password,
       });
 
       if (error) {
-        console.error('[ResetPassword] Password update error:', error);
-        
-        // If update fails due to session, try to get current session first
-        if (error.message.includes('session') || error.message.includes('Auth')) {
-          console.log('[ResetPassword] Session error detected, checking current session...');
-          
-          const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-          
-          if (sessionError || !sessionData.session) {
-            console.error('[ResetPassword] No valid session found');
-            setError("Please access this page from a valid password reset link.");
-            setIsSubmitting(false);
-            return;
-          }
-          
-          console.log('[ResetPassword] Retrying password update with current session...');
-          
-          // Retry password update
-          const { error: retryError } = await supabase.auth.updateUser({
-            password: data.password,
-          });
-          
-          if (retryError) {
-            console.error('[ResetPassword] Retry failed:', retryError);
-            setError(retryError.message);
-            setIsSubmitting(false);
-            return;
-          }
-        } else {
-          setError(error.message);
-          setIsSubmitting(false);
-          return;
-        }
+        setError(error.message);
+      } else {
+        setMessage("Password has been successfully updated!");
+        // Redirect to login page after 2 seconds
+        setTimeout(() => {
+          navigate("/");
+        }, 2000);
       }
-
-      console.log('[ResetPassword] Password updated successfully');
-      setMessage("Password has been successfully updated!");
-
-      // Logout and redirect after success
-      setTimeout(async () => {
-        console.log('[ResetPassword] Signing out and redirecting...');
-        await supabase.auth.signOut();
-        navigate("/");
-      }, 2000);
-      
     } catch (err) {
-      console.error("Reset password error:", err);
       setError("An unexpected error occurred. Please try again.");
+      console.error("Reset password error:", err);
     } finally {
       setIsSubmitting(false);
     }
@@ -277,7 +203,7 @@ const ResetPasswordPage: React.FC = () => {
                 <Button
                   type="submit"
                   className="w-full"
-                  disabled={isSubmitting || !form.formState.isValid}
+                  disabled={isSubmitting || !!error}
                 >
                   {isSubmitting ? "Updating..." : "Update Password"}
                 </Button>
