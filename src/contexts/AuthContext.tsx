@@ -462,22 +462,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (isPasswordRecoveryMode || checkPasswordRecoveryMode()) {
           console.log('[AuthContext] BLOCKING auth event during password recovery mode:', event);
           
-          // Force clear any session that might be set
-          setUser(null);
-          setSession(null);
-          setRole(null);
-          
-          // If this is SIGNED_IN during recovery, force sign out
+          // Don't force clear session during password recovery - allow it for password update
+          // Only block navigation/state changes, not the actual session
           if (event === 'SIGNED_IN') {
-            console.log('[AuthContext] FORCE SIGN OUT during password recovery');
-            try {
-              await supabase.auth.signOut({ scope: 'local' });
-            } catch (error) {
-              console.log('[AuthContext] Error force signing out:', error);
-            }
+            console.log('[AuthContext] Allowing SIGNED_IN during password recovery for session establishment');
+            // Don't set user state, but allow the session to exist for password update
+            return; // Allow the session but don't update UI state
           }
           
-          return; // STOP all processing
+          return; // STOP all other processing
         }
 
         // Skip during initialization for non-critical events
