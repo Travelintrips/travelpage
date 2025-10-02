@@ -133,8 +133,8 @@ function AppContent() {
       if (isPasswordRecoveryActive && event !== "PASSWORD_RECOVERY" && event !== "SIGNED_OUT") {
         console.log('[App] BLOCKING auth event during password recovery:', event);
         
-        // Allow SIGNED_IN and INITIAL_SESSION for session establishment during password recovery
-        if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {
+        // Allow ALL session-related events during password recovery
+        if (event === "SIGNED_IN" || event === "INITIAL_SESSION" || event === "TOKEN_REFRESHED") {
           console.log('[App] Allowing', event, 'during password recovery for session establishment');
           return; // Allow but don't process further
         }

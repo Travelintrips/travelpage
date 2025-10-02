@@ -124,7 +124,7 @@ const ResetPasswordPage: React.FC = () => {
           console.log('[ResetPassword] Using recovery tokens directly for password update');
           
           // Set session again just before password update to ensure it's active
-          const { error: sessionError } = await supabase.auth.setSession({
+          const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
             access_token: accessToken,
             refresh_token: refreshToken
           });
@@ -135,8 +135,20 @@ const ResetPasswordPage: React.FC = () => {
             return;
           }
           
-          // Small delay to ensure session is fully established
-          await new Promise(resolve => setTimeout(resolve, 500));
+          console.log('[ResetPassword] Session set successfully:', sessionData.session?.user?.id);
+          
+          // Wait longer to ensure session is fully established
+          await new Promise(resolve => setTimeout(resolve, 1500));
+          
+          // Verify session is still active
+          const { data: verifySession, error: verifyError } = await supabase.auth.getSession();
+          console.log('[ResetPassword] Session verification:', { verifySession, verifyError });
+          
+          if (verifyError || !verifySession.session) {
+            console.error('[ResetPassword] Session verification failed');
+            setError("Session could not be established. Please try again.");
+            return;
+          }
         }
       }
       
