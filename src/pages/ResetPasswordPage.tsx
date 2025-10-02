@@ -116,20 +116,30 @@ const ResetPasswordPage: React.FC = () => {
     setError(null);
 
     try {
+      console.log('[ResetPassword] Attempting to update password...');
+      
       // Try to update password regardless of session status
       const { error } = await supabase.auth.updateUser({
         password: data.password,
       });
 
       if (error) {
+        console.error('[ResetPassword] Password update error:', error);
+        
         // If update fails due to session, try to get current session first
         if (error.message.includes('session') || error.message.includes('Auth')) {
+          console.log('[ResetPassword] Session error detected, checking current session...');
+          
           const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
           
           if (sessionError || !sessionData.session) {
+            console.error('[ResetPassword] No valid session found');
             setError("Please access this page from a valid password reset link.");
+            setIsSubmitting(false);
             return;
           }
+          
+          console.log('[ResetPassword] Retrying password update with current session...');
           
           // Retry password update
           const { error: retryError } = await supabase.auth.updateUser({
@@ -137,26 +147,31 @@ const ResetPasswordPage: React.FC = () => {
           });
           
           if (retryError) {
+            console.error('[ResetPassword] Retry failed:', retryError);
             setError(retryError.message);
+            setIsSubmitting(false);
             return;
           }
         } else {
           setError(error.message);
+          setIsSubmitting(false);
           return;
         }
       }
 
+      console.log('[ResetPassword] Password updated successfully');
       setMessage("Password has been successfully updated!");
 
       // Logout and redirect after success
       setTimeout(async () => {
+        console.log('[ResetPassword] Signing out and redirecting...');
         await supabase.auth.signOut();
         navigate("/");
       }, 2000);
       
     } catch (err) {
-      setError("An unexpected error occurred. Please try again.");
       console.error("Reset password error:", err);
+      setError("An unexpected error occurred. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
