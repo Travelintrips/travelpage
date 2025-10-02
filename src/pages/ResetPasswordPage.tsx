@@ -76,58 +76,35 @@ const ResetPasswordPage: React.FC = () => {
   }, []);
 
   const handleSubmit = async (data: ResetPasswordFormValues) => {
-    setIsSubmitting(true);
-    setMessage(null);
-    setError(null);
+  setIsSubmitting(true);
+  setMessage(null);
+  setError(null);
 
-    try {
-      // Get stored tokens
-      const accessToken = sessionStorage.getItem('reset_access_token');
-      const refreshToken = sessionStorage.getItem('reset_refresh_token');
+  try {
+    // ✅ Langsung update password (Supabase sudah tahu user dari recovery session)
+    const { error } = await supabase.auth.updateUser({
+      password: data.password,
+    });
 
-      if (!accessToken || !refreshToken) {
-        setError("Invalid or expired reset link. Please request a new password reset.");
-        return;
-      }
+    if (error) {
+      setError(error.message);
+    } else {
+      setMessage("Password has been successfully updated!");
 
-      // Set session temporarily to update password
-      const { error: sessionError } = await supabase.auth.setSession({
-        access_token: accessToken,
-        refresh_token: refreshToken
-      });
-
-      if (sessionError) {
-        setError("Invalid or expired reset link. Please request a new password reset.");
-        return;
-      }
-
-      // Update password
-      const { error } = await supabase.auth.updateUser({
-        password: data.password,
-      });
-
-      if (error) {
-        setError(error.message);
-      } else {
-        setMessage("Password has been successfully updated!");
-        
-        // Clear stored tokens
-        sessionStorage.removeItem('reset_access_token');
-        sessionStorage.removeItem('reset_refresh_token');
-        
-        // Sign out the user and redirect to login page after 2 seconds
-        setTimeout(async () => {
-          await supabase.auth.signOut();
-          navigate("/");
-        }, 2000);
-      }
-    } catch (err) {
-      setError("An unexpected error occurred. Please try again.");
-      console.error("Reset password error:", err);
-    } finally {
-      setIsSubmitting(false);
+      // ✅ Logout agar user tidak auto login dengan session recovery
+      setTimeout(async () => {
+        await supabase.auth.signOut();
+        navigate("/");
+      }, 2000);
     }
-  };
+  } catch (err) {
+    setError("An unexpected error occurred. Please try again.");
+    console.error("Reset password error:", err);
+  } finally {
+    setIsSubmitting(false);
+  }
+};
+
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
