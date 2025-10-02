@@ -378,6 +378,13 @@ function AppContent() {
     return children;
   };
 
+  supabase.auth.onAuthStateChange((event) => {
+  if (event === "PASSWORD_RECOVERY") {
+    navigate("/reset-password");
+  }
+});
+
+
   return (
     <div className="min-h-screen w-full">
       <Suspense
