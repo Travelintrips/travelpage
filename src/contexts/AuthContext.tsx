@@ -417,25 +417,74 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     initializeAuth();
   }, []);
 
-  // FIXED: Enhanced auth state change listener with PASSWORD_RECOVERY handling
+  // FIXED: Enhanced auth state change listener with aggressive PASSWORD_RECOVERY blocking
   useEffect(() => {
+    let isPasswordRecoveryMode = false;
+    
+    // Check if we're in password recovery mode
+    const checkPasswordRecoveryMode = () => {
+      const hash = window.location.hash;
+      if (hash) {
+        const params = new URLSearchParams(hash.replace('#', ''));
+        const type = params.get('type');
+        return type === 'recovery';
+      }
+      return false;
+    };
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('[AuthContext] Auth state change:', event, session?.user?.id);
 
-        // CRITICAL: Handle PASSWORD_RECOVERY event khusus
+        // CRITICAL: Set password recovery mode flag
         if (event === 'PASSWORD_RECOVERY') {
-          console.log('[AuthContext] PASSWORD_RECOVERY detected - blocking auto-login');
-          // Jangan set user/session, biarkan user di halaman reset password
+          isPasswordRecoveryMode = true;
+          console.log('[AuthContext] PASSWORD_RECOVERY detected - entering recovery mode');
+          
+          // FORCE sign out any existing session
+          try {
+            await supabase.auth.signOut({ scope: 'local' });
+          } catch (error) {
+            console.log('[AuthContext] Error signing out during recovery:', error);
+          }
+          
+          // Don't set any user/session data
+          setUser(null);
+          setSession(null);
+          setRole(null);
+          setUserRole(null);
           setIsLoading(false);
           setIsSessionReady(true);
           setIsHydrated(true);
-          return; // STOP processing, jangan lanjut ke SIGNED_IN logic
+          return; // STOP processing
         }
 
-        // Skip during initialization
-        if (isInitializingRef.current) {
-          console.log('[AuthContext] Skipping auth state change during initialization');
+        // CRITICAL: Block ALL events if we're in password recovery mode
+        if (isPasswordRecoveryMode || checkPasswordRecoveryMode()) {
+          console.log('[AuthContext] BLOCKING auth event during password recovery mode:', event);
+          
+          // Force clear any session that might be set
+          setUser(null);
+          setSession(null);
+          setRole(null);
+          setUserRole(null);
+          
+          // If this is SIGNED_IN during recovery, force sign out
+          if (event === 'SIGNED_IN') {
+            console.log('[AuthContext] FORCE SIGN OUT during password recovery');
+            try {
+              await supabase.auth.signOut({ scope: 'local' });
+            } catch (error) {
+              console.log('[AuthContext] Error force signing out:', error);
+            }
+          }
+          
+          return; // STOP all processing
+        }
+
+        // Skip during initialization for non-critical events
+        if (isInitializingRef.current && event !== 'SIGNED_IN' && event !== 'SIGNED_OUT') {
+          console.log('[AuthContext] Skipping auth state change during initialization:', event);
           return;
         }
 
@@ -469,9 +518,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (event === 'SIGNED_OUT') {
           console.log('[AuthContext] Processing SIGNED_OUT event');
           
+          // Reset password recovery mode when signing out
+          isPasswordRecoveryMode = false;
+          
           setUser(null);
           setSession(null);
           setRole(null);
+          setUserRole(null);
           setIsLoading(false);
           setIsSessionReady(true);
           setIsHydrated(true);
@@ -527,6 +580,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setUser(null);
             setSession(null);
             setRole(null);
+            setUserRole(null);
             setIsLoading(false);
             setIsSessionReady(true);
             setIsHydrated(true);
@@ -561,6 +615,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUser(sessionUser);
           setSession(session);
           setRole(userRole);
+          setUserRole(userRole);
           setIsLoading(false);
           setIsSessionReady(true);
           setIsHydrated(true);

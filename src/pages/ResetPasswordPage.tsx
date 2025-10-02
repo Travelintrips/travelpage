@@ -68,6 +68,27 @@ const ResetPasswordPage: React.FC = () => {
       // CRITICAL: Validasi bahwa ini adalah recovery session
       if (accessToken && refreshToken && type === 'recovery') {
         console.log('[ResetPassword] Valid recovery session detected');
+        
+        // CRITICAL: Force sign out any existing session immediately
+        const forceSignOut = async () => {
+          try {
+            console.log('[ResetPassword] Force signing out existing session...');
+            await supabase.auth.signOut({ scope: 'local' });
+            
+            // Clear all auth storage
+            localStorage.removeItem("auth_user");
+            sessionStorage.removeItem("loggedOut");
+            sessionStorage.removeItem("forceLogout");
+            sessionStorage.removeItem("signOutInProgress");
+            
+            console.log('[ResetPassword] Existing session cleared');
+          } catch (error) {
+            console.log('[ResetPassword] Error clearing session:', error);
+          }
+        };
+        
+        forceSignOut();
+        
         // Store tokens for later use but don't set session yet
         sessionStorage.setItem('reset_access_token', accessToken);
         sessionStorage.setItem('reset_refresh_token', refreshToken);

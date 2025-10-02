@@ -113,10 +113,31 @@ function AppContent() {
 
   // CRITICAL: Handle PASSWORD_RECOVERY event untuk redirect ke reset-password
   useEffect(() => {
+    let isPasswordRecoveryActive = false;
+    
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === "PASSWORD_RECOVERY") {
-        console.log('[App] PASSWORD_RECOVERY detected, navigating to reset-password');
+        console.log('[App] PASSWORD_RECOVERY detected, setting recovery mode and navigating');
+        isPasswordRecoveryActive = true;
+        
+        // Force clear any existing auth state
+        localStorage.removeItem("auth_user");
+        sessionStorage.removeItem("loggedOut");
+        sessionStorage.removeItem("forceLogout");
+        sessionStorage.removeItem("signOutInProgress");
+        
         navigate("/reset-password", { replace: true });
+      }
+      
+      // Block any other auth events during password recovery
+      if (isPasswordRecoveryActive && event !== "PASSWORD_RECOVERY" && event !== "SIGNED_OUT") {
+        console.log('[App] BLOCKING auth event during password recovery:', event);
+        return;
+      }
+      
+      // Reset recovery mode on sign out
+      if (event === "SIGNED_OUT") {
+        isPasswordRecoveryActive = false;
       }
     });
 
