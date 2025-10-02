@@ -462,12 +462,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (isPasswordRecoveryMode || checkPasswordRecoveryMode()) {
           console.log('[AuthContext] BLOCKING auth event during password recovery mode:', event);
           
-          // Don't force clear session during password recovery - allow it for password update
-          // Only block navigation/state changes, not the actual session
-          if (event === 'SIGNED_IN') {
-            console.log('[AuthContext] Allowing SIGNED_IN during password recovery for session establishment');
+          // Allow SIGNED_IN and INITIAL_SESSION during password recovery for session establishment
+          if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+            console.log('[AuthContext] Allowing', event, 'during password recovery for session establishment');
             // Don't set user state, but allow the session to exist for password update
             return; // Allow the session but don't update UI state
+          }
+          
+          // Don't force sign out during password recovery
+          if (event === 'SIGNED_OUT') {
+            console.log('[AuthContext] Ignoring SIGNED_OUT during password recovery');
+            return;
           }
           
           return; // STOP all other processing

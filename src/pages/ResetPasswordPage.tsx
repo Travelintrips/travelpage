@@ -112,8 +112,13 @@ const ResetPasswordPage: React.FC = () => {
     try {
       console.log('[ResetPassword] Attempting to update password...');
       
+      // Wait a bit to ensure session is fully established
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
       // First, try to get the current session to ensure we have a valid recovery session
       const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      
+      console.log('[ResetPassword] Session check result:', { sessionData, sessionError });
       
       if (sessionError || !sessionData.session) {
         console.error('[ResetPassword] No valid session found:', sessionError);
