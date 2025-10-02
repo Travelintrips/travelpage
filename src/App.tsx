@@ -111,6 +111,18 @@ function AppContent() {
   const [routes, setRoutes] = useState<any[]>([]);
   const [tempoRoutesLoaded, setTempoRoutesLoaded] = useState(false);
 
+  // CRITICAL: Handle PASSWORD_RECOVERY event untuk redirect ke reset-password
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "PASSWORD_RECOVERY") {
+        console.log('[App] PASSWORD_RECOVERY detected, navigating to reset-password');
+        navigate("/reset-password", { replace: true });
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [navigate]);
+
   // Move useRoutes call to top level - CRITICAL for hook order consistency
   const tempoRoutes = useMemo(() => {
     if (!tempoRoutesLoaded || !import.meta.env.VITE_TEMPO || routes.length === 0) {
@@ -377,13 +389,6 @@ function AppContent() {
 
     return children;
   };
-
-  supabase.auth.onAuthStateChange((event) => {
-  if (event === "PASSWORD_RECOVERY") {
-    navigate("/reset-password");
-  }
-});
-
 
   return (
     <div className="min-h-screen w-full">

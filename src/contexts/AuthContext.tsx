@@ -397,17 +397,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     initializeAuth();
   }, []);
 
-  // FIXED: Enhanced auth state change listener with forced flag cleanup
+  // FIXED: Enhanced auth state change listener with PASSWORD_RECOVERY handling
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        console.log('[AuthContext] Auth state change:', event, session?.user?.id);
+
+        // CRITICAL: Handle PASSWORD_RECOVERY event khusus
+        if (event === 'PASSWORD_RECOVERY') {
+          console.log('[AuthContext] PASSWORD_RECOVERY detected - blocking auto-login');
+          // Jangan set user/session, biarkan user di halaman reset password
+          setIsLoading(false);
+          setIsSessionReady(true);
+          setIsHydrated(true);
+          return; // STOP processing, jangan lanjut ke SIGNED_IN logic
+        }
+
         // Skip during initialization
         if (isInitializingRef.current) {
           console.log('[AuthContext] Skipping auth state change during initialization');
           return;
         }
-
-        console.log('[AuthContext] Auth state change:', event, session?.user?.id);
 
         // GUARD: Prevent duplicate SIGNED_IN events for the same user
         if (event === 'SIGNED_IN' && session?.user) {

@@ -57,13 +57,17 @@ const ResetPasswordPage: React.FC = () => {
 
   useEffect(() => {
     const hash = window.location.hash;
+    const searchParams = new URLSearchParams(window.location.search);
+    
     if (hash) {
       const params = new URLSearchParams(hash.replace('#', ''));
       const accessToken = params.get('access_token');
       const refreshToken = params.get('refresh_token');
       const type = params.get('type');
 
+      // CRITICAL: Validasi bahwa ini adalah recovery session
       if (accessToken && refreshToken && type === 'recovery') {
+        console.log('[ResetPassword] Valid recovery session detected');
         // Store tokens for later use but don't set session yet
         sessionStorage.setItem('reset_access_token', accessToken);
         sessionStorage.setItem('reset_refresh_token', refreshToken);
