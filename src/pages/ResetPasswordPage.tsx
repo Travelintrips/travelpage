@@ -5,6 +5,7 @@ import { z } from "zod";
 import { supabase } from "@/lib/supabase";
 import { useNavigate } from "react-router-dom";
 
+
 import {
   Card,
   CardContent,
@@ -43,6 +44,7 @@ export default function ResetPasswordPage() {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { exitRecoveryMode } = useAuth();
 
   const form = useForm<ResetPasswordFormValues>({
     resolver: zodResolver(resetPasswordSchema),
@@ -134,6 +136,8 @@ export default function ResetPasswordPage() {
 
       console.log("[ResetPassword] Password updated successfully");
       setMessage("Password has been successfully updated!");
+
+      exitRecoveryMode?.();
 
       // optional: sign out lalu redirect ke login
       setTimeout(async () => {

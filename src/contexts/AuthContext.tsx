@@ -53,6 +53,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isHydrated, setIsHydrated] = useState(false);
   const [isSessionReady, setIsSessionReady] = useState(false);
   const [isCheckingSession, setIsCheckingSession] = useState(false);
+  const [isPasswordRecoveryMode, setIsPasswordRecoveryMode] = useState(false);
+
+  const exitRecoveryMode = () => {
+    setIsPasswordRecoveryMode(false);
+    console.log("[AuthContext] Exiting password recovery mode");
+  };
   
   // FIXED: Use useRef instead of boolean
   const initializationRef = useRef(false);
@@ -438,49 +444,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         // CRITICAL: Set password recovery mode flag
         if (event === 'PASSWORD_RECOVERY') {
-          isPasswordRecoveryMode = true;
-          console.log('[AuthContext] PASSWORD_RECOVERY detected - entering recovery mode');
-          
-          // FORCE sign out any existing session
-         /* try {
-            await supabase.auth.signOut({ scope: 'local' });
-          } catch (error) {
-            console.log('[AuthContext] Error signing out during recovery:', error);
-          }
-          
-          // Don't set any user/session data
-          setUser(null);
-          setSession(null);
-          setRole(null);
-          setIsLoading(false);
-          setIsSessionReady(true);
-          setIsHydrated(true);*/
-          return; // STOP processing
-        }
+  setIsPasswordRecoveryMode(true);
+  console.log('[AuthContext] PASSWORD_RECOVERY detected - entering recovery mode');
+  return; // jangan signOut / reset user di sini
+}
+
 
         // CRITICAL: Block ALL events if we're in password recovery mode
-        if (isPasswordRecoveryMode || checkPasswordRecoveryMode()) {
-          console.log('[AuthContext] BLOCKING auth event during password recovery mode:', event);
-          
-          // During password recovery, allow ALL session-related events to pass through
-          // This ensures the session remains active for password updates
-          if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') {
-            console.log('[AuthContext] Allowing', event, 'during password recovery for session establishment');
-            // Process the event normally but don't update UI state
-            if (session) {
-              console.log('[AuthContext] Session active during password recovery:', session.user?.id);
-            }
-            return; // Allow the session but don't update UI state
-          }
-          
-          // Don't force sign out during password recovery
-          if (event === 'SIGNED_OUT') {
-            console.log('[AuthContext] PREVENTING SIGNED_OUT during password recovery');
-            return; // Completely ignore sign out events
-          }
-          
-          return; // STOP all other processing
-        }
+if (isPasswordRecoveryMode || checkPasswordRecoveryMode()) {
+  console.log('[AuthContext] BLOCKING auth event during password recovery mode:', event);
+
+  if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') {
+    console.log('[AuthContext] Allowing', event, 'during password recovery for session establishment');
+    return; // jangan update UI state
+  }
+
+  if (event === 'SIGNED_OUT') {
+    console.log('[AuthContext] PREVENTING SIGNED_OUT during password recovery');
+    return;
+  }
+
+  return;
+}
+
 
         // Skip during initialization for non-critical events
         if (isInitializingRef.current && event !== 'SIGNED_IN' && event !== 'SIGNED_OUT') {
@@ -870,6 +856,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     isCheckingSession,
     signOut,
     forceRefreshSession,
+    exitRecoveryMode,
   };
 
   return (
