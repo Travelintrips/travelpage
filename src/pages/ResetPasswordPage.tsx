@@ -56,132 +56,64 @@ const ResetPasswordPage: React.FC = () => {
   });
 
   useEffect(() => {
-    const hash = window.location.hash;
-    
-    if (hash) {
-      const params = new URLSearchParams(hash.replace('#', ''));
-      const accessToken = params.get('access_token');
-      const refreshToken = params.get('refresh_token');
-      const type = params.get('type');
+  const url = new URL(window.location.href);
+  const code = url.searchParams.get("code");
+  const type = url.searchParams.get("type");
 
-      // CRITICAL: Validasi bahwa ini adalah recovery session
-      if (accessToken && refreshToken && type === 'recovery') {
-        console.log('[ResetPassword] Valid recovery session detected');
-        
-        // CRITICAL: Set the session immediately with the recovery tokens
-        const setRecoverySession = async () => {
-          try {
-            console.log('[ResetPassword] Setting recovery session...');
-            
-            const { data, error } = await supabase.auth.setSession({
-              access_token: accessToken,
-              refresh_token: refreshToken
-            });
-            
-            if (error) {
-              console.error('[ResetPassword] Error setting session:', error);
-              setError("Invalid or expired reset link.");
-            } else {
-              console.log('[ResetPassword] Recovery session established successfully');
-              setError(null); // Clear any previous errors
-            }
-          } catch (error) {
-            console.error('[ResetPassword] Error setting recovery session:', error);
-            setError("Invalid or expired reset link.");
-          }
-        };
-        
-        setRecoverySession();
+  if (code && type === "recovery") {
+    console.log("[ResetPassword] Recovery code detected");
+
+    supabase.auth.exchangeCodeForSession(code).then(({ data, error }) => {
+      if (error) {
+        console.error("[ResetPassword] Error exchanging code:", error);
+        setError("Invalid or expired reset link.");
       } else {
-        // If no proper recovery tokens, show error but still allow form submission
-        console.log('[ResetPassword] No recovery tokens found');
-        setError("Warning: Please ensure you accessed this page from a valid reset link.");
+        console.log("[ResetPassword] Recovery session established:", data.session?.user?.id);
       }
-    } else {
-      // If no hash at all, show error but still allow form submission
-      console.log('[ResetPassword] No hash found');
-      setError("Warning: Please ensure you accessed this page from a valid reset link.");
-    }
-  }, []);
+    });
+  } else {
+    setError("Warning: Please ensure you accessed this page from a valid reset link.");
+  }
+}, []);
+
 
   const handleSubmit = async (data: ResetPasswordFormValues) => {
-    setIsSubmitting(true);
-    setMessage(null);
-    setError(null);
+  setIsSubmitting(true);
+  setMessage(null);
+  setError(null);
 
-    try {
-      console.log('[ResetPassword] Attempting to update password...');
-      
-      // Get the recovery tokens from URL hash directly
-      const hash = window.location.hash;
-      if (hash) {
-        const params = new URLSearchParams(hash.replace('#', ''));
-        const accessToken = params.get('access_token');
-        const refreshToken = params.get('refresh_token');
-        const type = params.get('type');
+  try {
+    console.log('[ResetPassword] Attempting to update password...');
 
-        if (accessToken && refreshToken && type === 'recovery') {
-          console.log('[ResetPassword] Using recovery tokens directly for password update');
-          
-          // Set session again just before password update to ensure it's active
-          const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken
-          });
-          
-          if (sessionError) {
-            console.error('[ResetPassword] Error setting session for update:', sessionError);
-            setError("Session expired. Please request a new password reset link.");
-            return;
-          }
-          
-          console.log('[ResetPassword] Session set successfully:', sessionData.session?.user?.id);
-          
-          // Wait longer to ensure session is fully established
-          await new Promise(resolve => setTimeout(resolve, 1500));
-          
-          // Verify session is still active
-          const { data: verifySession, error: verifyError } = await supabase.auth.getSession();
-          console.log('[ResetPassword] Session verification:', { verifySession, verifyError });
-          
-          if (verifyError || !verifySession.session) {
-            console.error('[ResetPassword] Session verification failed');
-            setError("Session could not be established. Please try again.");
-            return;
-          }
-        }
-      }
-      
-      console.log('[ResetPassword] Updating password...');
-      
-      // Try to update password
-      const { error } = await supabase.auth.updateUser({
-        password: data.password,
-      });
+    // Tidak perlu ambil hash atau setSession lagi di sini
+    const { error } = await supabase.auth.updateUser({
+      password: data.password,
+    });
 
-      if (error) {
-        console.error('[ResetPassword] Password update error:', error);
-        setError(error.message);
-        return;
-      }
-
-      console.log('[ResetPassword] Password updated successfully');
-      setMessage("Password has been successfully updated!");
-
-      // Sign out and redirect after success
-      setTimeout(async () => {
-        console.log('[ResetPassword] Signing out and redirecting...');
-        await supabase.auth.signOut();
-        navigate("/");
-      }, 2000);
-      
-    } catch (err) {
-      console.error("Reset password error:", err);
-      setError("An unexpected error occurred. Please try again.");
-    } finally {
-      setIsSubmitting(false);
+    if (error) {
+      console.error('[ResetPassword] Password update error:', error);
+      setError(error.message);
+      return;
     }
-  };
+
+    console.log('[ResetPassword] Password updated successfully');
+    setMessage("Password has been successfully updated!");
+
+    // Sign out dan redirect setelah sukses
+    setTimeout(async () => {
+      console.log('[ResetPassword] Signing out and redirecting...');
+      await supabase.auth.signOut();
+      navigate("/");
+    }, 2000);
+
+  } catch (err) {
+    console.error("Reset password error:", err);
+    setError("An unexpected error occurred. Please try again.");
+  } finally {
+    setIsSubmitting(false);
+  }
+};
+
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
