@@ -4286,76 +4286,23 @@ export type Database = {
           },
         ]
       }
-      purchase_request: {
-        Row: {
-          created_at: string | null
-          date: string
-          harga_satuan: number
-          id: string
-          jumlah: number
-          nama: string
-          nama_barang: string
-          ongkos_kirim: number | null
-          rejected_at: string | null
-          rejected_by: string | null
-          rejection_reason: string | null
-          request_code: string
-          status: string | null
-          total_harga: number
-          updated_at: string | null
-          verified_at: string | null
-          verified_by: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          date: string
-          harga_satuan: number
-          id?: string
-          jumlah: number
-          nama: string
-          nama_barang: string
-          ongkos_kirim?: number | null
-          rejected_at?: string | null
-          rejected_by?: string | null
-          rejection_reason?: string | null
-          request_code: string
-          status?: string | null
-          total_harga: number
-          updated_at?: string | null
-          verified_at?: string | null
-          verified_by?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          date?: string
-          harga_satuan?: number
-          id?: string
-          jumlah?: number
-          nama?: string
-          nama_barang?: string
-          ongkos_kirim?: number | null
-          rejected_at?: string | null
-          rejected_by?: string | null
-          rejection_reason?: string | null
-          request_code?: string
-          status?: string | null
-          total_harga?: number
-          updated_at?: string | null
-          verified_at?: string | null
-          verified_by?: string | null
-        }
-        Relationships: []
-      }
       purchase_requests: {
         Row: {
+          attachment_url: string | null
+          completed_at: string | null
+          completed_by: string | null
+          completion_notes: string | null
+          completion_photo_url: string | null
           created_at: string | null
           email: string | null
           id: string
           item_name: string
           name: string
           qty: number
+          received_date: string | null
           rejected_at: string | null
           rejected_by: string | null
+          rejection_reason: string | null
           request_date: string
           requester_id: string
           shipping_cost: number
@@ -4367,14 +4314,21 @@ export type Database = {
           verified_by: string | null
         }
         Insert: {
+          attachment_url?: string | null
+          completed_at?: string | null
+          completed_by?: string | null
+          completion_notes?: string | null
+          completion_photo_url?: string | null
           created_at?: string | null
           email?: string | null
           id?: string
           item_name: string
           name: string
           qty?: number
+          received_date?: string | null
           rejected_at?: string | null
           rejected_by?: string | null
+          rejection_reason?: string | null
           request_date: string
           requester_id: string
           shipping_cost?: number
@@ -4386,14 +4340,21 @@ export type Database = {
           verified_by?: string | null
         }
         Update: {
+          attachment_url?: string | null
+          completed_at?: string | null
+          completed_by?: string | null
+          completion_notes?: string | null
+          completion_photo_url?: string | null
           created_at?: string | null
           email?: string | null
           id?: string
           item_name?: string
           name?: string
           qty?: number
+          received_date?: string | null
           rejected_at?: string | null
           rejected_by?: string | null
+          rejection_reason?: string | null
           request_date?: string
           requester_id?: string
           shipping_cost?: number

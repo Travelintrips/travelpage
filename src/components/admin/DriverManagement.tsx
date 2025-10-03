@@ -660,6 +660,7 @@ const DriverManagement = () => {
           kk_url: cleanedData.kk_url,
           stnk_expiry: cleanedData.stnk_expiry,
           family_phone_number: cleanedData.family_phone_number,
+          role_id: formData.role_id,
         })
         .eq("id", selectedDriver.id);
 
@@ -1266,6 +1267,10 @@ const DriverManagement = () => {
                   <div>
                     <Label className="text-sm font-medium text-muted-foreground">Name</Label>
                     <p className="text-sm font-medium">{selectedDriver.name}</p>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium text-muted-foreground">Driver Type</Label>
+                    <p className="text-sm font-medium">{selectedDriver.role_name}</p>
                   </div>
                   <div>
                     <Label className="text-sm font-medium text-muted-foreground">Account Status</Label>

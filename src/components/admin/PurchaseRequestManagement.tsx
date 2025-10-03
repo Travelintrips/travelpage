@@ -69,6 +69,8 @@ import {
   Package,
   ChevronDown,
   ChevronRight,
+  Camera,
+  Upload,
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -82,7 +84,7 @@ interface PurchaseRequest {
   unit_price: number;
   shipping_cost: number;
   total_amount: number;
-  status: "PENDING" | "APPROVED" | "REJECTED";
+  status: "PENDING" | "APPROVED" | "COMPLETED" | "REJECTED";
   request_code?: string;
   approved_by?: string;
   approved_at?: string;
@@ -94,6 +96,11 @@ interface PurchaseRequest {
   verified_by?: string;
   rejected_by?: string;
   rejected_at?: string;
+  completed_at?: string;
+  completed_by?: string;
+  received_date?: string;
+  completion_notes?: string;
+  completion_photo_url?: string;
 }
 
 interface KPIData {
@@ -120,8 +127,15 @@ const PurchaseRequestManagement = () => {
   const [activeTab, setActiveTab] = useState("pending");
   const [showNewRequestDialog, setShowNewRequestDialog] = useState(false);
   const [showRejectDialog, setShowRejectDialog] = useState(false);
+  const [showCompletedDialog, setShowCompletedDialog] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<PurchaseRequest | null>(null);
   const [rejectionReason, setRejectionReason] = useState("");
+  const [completionPhoto, setCompletionPhoto] = useState<File | null>(null);
+  const [completionPhotoPreview, setCompletionPhotoPreview] = useState<string>("");
+  const [completionData, setCompletionData] = useState({
+    receivedDate: new Date(),
+    notes: "",
+  });
 
   // Form states
   const [formData, setFormData] = useState({
@@ -180,6 +194,7 @@ const PurchaseRequestManagement = () => {
       requestsData?.forEach(request => {
         if (request.verified_by) userIds.add(request.verified_by);
         if (request.rejected_by) userIds.add(request.rejected_by);
+        if (request.completed_by) userIds.add(request.completed_by);
       });
 
       // Fetch user names
@@ -211,6 +226,7 @@ const PurchaseRequestManagement = () => {
         status: request.status || (request.verified_at ? "APPROVED" : "PENDING"),
         verified_by: request.verified_by ? usersMap[request.verified_by] : undefined,
         rejected_by: request.rejected_by ? usersMap[request.rejected_by] : undefined,
+        completed_by: request.completed_by ? usersMap[request.completed_by] : undefined,
       })) || [];
 
       setRequests(mappedRequests);
@@ -257,7 +273,7 @@ const PurchaseRequestManagement = () => {
     if (activeTab === "pending") {
       filtered = filtered.filter((req) => req.status === "PENDING");
     } else {
-      filtered = filtered.filter((req) => req.status === "APPROVED" || req.status === "REJECTED");
+      filtered = filtered.filter((req) => req.status === "APPROVED" || req.status === "REJECTED" || req.status === "COMPLETED");
     }
 
     setFilteredRequests(filtered);
@@ -370,6 +386,104 @@ const PurchaseRequestManagement = () => {
     }
   };
 
+  const handleCompleted = async () => {
+    if (!selectedRequest || !user) return;
+
+    try {
+      let photoUrl = null;
+
+      // Upload photo if provided
+      if (completionPhoto) {
+        const fileExt = completionPhoto.name.split('.').pop();
+        const fileName = `${selectedRequest.id}_${Date.now()}.${fileExt}`;
+        const filePath = `purchase-completions/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('purchase-requests')
+          .upload(filePath, completionPhoto);
+
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('purchase-requests')
+          .getPublicUrl(filePath);
+
+        photoUrl = publicUrl;
+      }
+
+      // Update request status to COMPLETED
+      const { error } = await supabase
+        .from("purchase_requests")
+        .update({
+          status: "COMPLETED",
+          completed_at: new Date().toISOString(),
+          completed_by: user.id,
+          received_date: completionData.receivedDate.toISOString(),
+          completion_notes: completionData.notes.trim() || null,
+          completion_photo_url: photoUrl,
+        })
+        .eq("id", selectedRequest.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Purchase request marked as completed",
+      });
+      
+      // Reset form
+      setShowCompletedDialog(false);
+      setSelectedRequest(null);
+      setCompletionPhoto(null);
+      setCompletionPhotoPreview("");
+      setCompletionData({
+        receivedDate: new Date(),
+        notes: "",
+      });
+      
+      await fetchRequests();
+    } catch (error) {
+      console.error("Error completing request:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to mark purchase request as completed",
+      });
+    }
+  };
+
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setCompletionPhoto(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setCompletionPhotoPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleCameraCapture = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      // You can implement a camera capture UI here
+      // For now, we'll just use the file input
+      toast({
+        title: "Info",
+        description: "Please use the upload button to select a photo from your camera",
+      });
+      stream.getTracks().forEach(track => track.stop());
+    } catch (error) {
+      console.error("Error accessing camera:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Could not access camera. Please use the upload button instead.",
+      });
+    }
+  };
+
   const resetForm = () => {
     setFormData({
       date: new Date(),
@@ -387,6 +501,8 @@ const PurchaseRequestManagement = () => {
         return <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">Pending</Badge>;
       case "APPROVED":
         return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Approved</Badge>;
+      case "COMPLETED":
+        return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">Completed</Badge>;
       case "REJECTED":
         return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">Rejected</Badge>;
       default:
@@ -589,6 +705,20 @@ const PurchaseRequestManagement = () => {
                               </Button>
                             </div>
                           )}
+                          {request.status === "APPROVED" && activeTab === "history" && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-blue-600 hover:bg-blue-50"
+                              onClick={() => {
+                                setSelectedRequest(request);
+                                setShowCompletedDialog(true);
+                              }}
+                            >
+                              <Package className="h-4 w-4 mr-1" />
+                              Completed
+                            </Button>
+                          )}
                         </TableCell>
                       </TableRow>
                       
@@ -599,6 +729,19 @@ const PurchaseRequestManagement = () => {
                           <TableCell colSpan={6}>
                             <div className="py-4 space-y-4">
                               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                              <div>
+  <Label className="text-sm font-medium text-muted-foreground">Foto Barang</Label>
+  {request.attachment_url ? (
+    <img
+      src={request.attachment_url}
+      alt="Foto Barang"
+      className="mt-2 w-40 h-40 object-cover rounded-lg border"
+    />
+  ) : (
+    <p className="text-sm text-muted-foreground">Belum ada foto</p>
+  )}
+</div>
+
                                 <div>
                                   <Label className="text-sm font-medium text-muted-foreground">Quantity</Label>
                                   <p className="text-sm font-medium">{request.quantity}</p>
@@ -629,6 +772,55 @@ const PurchaseRequestManagement = () => {
                                       }
                                     </p>
                                   </div>
+                                </div>
+                              )}
+                              
+                              {request.status === "COMPLETED" && (
+                                <div className="space-y-4 pt-2 border-t">
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                      <Label className="text-sm font-medium text-blue-600">Completed by</Label>
+                                      <p className="text-sm font-medium">{request.completed_by || "System Admin"}</p>
+                                    </div>
+                                    <div>
+                                      <Label className="text-sm font-medium text-blue-600">Completed at</Label>
+                                      <p className="text-sm font-medium">
+                                        {request.completed_at 
+                                          ? format(new Date(request.completed_at), "dd/MM/yyyy HH:mm")
+                                          : "-"
+                                        }
+                                      </p>
+                                    </div>
+                                    <div>
+                                      <Label className="text-sm font-medium text-blue-600">Received Date</Label>
+                                      <p className="text-sm font-medium">
+                                        {request.received_date 
+                                          ? format(new Date(request.received_date), "dd/MM/yyyy HH:mm")
+                                          : "-"
+                                        }
+                                      </p>
+                                    </div>
+                                  </div>
+                                  
+                                  {request.completion_photo_url && (
+                                    <div>
+                                      <Label className="text-sm font-medium text-blue-600">Foto Penerimaan</Label>
+                                      <img
+                                        src={request.completion_photo_url}
+                                        alt="Foto Penerimaan"
+                                        className="mt-2 w-full max-w-md h-auto rounded-lg border"
+                                      />
+                                    </div>
+                                  )}
+                                  
+                                  {request.completion_notes && (
+                                    <div>
+                                      <Label className="text-sm font-medium text-blue-600">Keterangan Penerimaan</Label>
+                                      <p className="text-sm bg-blue-50 p-2 rounded border border-blue-200">
+                                        {request.completion_notes}
+                                      </p>
+                                    </div>
+                                  )}
                                 </div>
                               )}
                               
@@ -840,6 +1032,156 @@ const PurchaseRequestManagement = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Completed Dialog */}
+      <Dialog open={showCompletedDialog} onOpenChange={setShowCompletedDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Mark as Completed</DialogTitle>
+            <DialogDescription>
+              Upload proof of receipt and completion details
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {/* Photo Upload */}
+            <div>
+              <Label>Upload Foto</Label>
+              <div className="mt-2 space-y-2">
+                {completionPhotoPreview && (
+                  <div className="relative w-full h-48 border rounded-lg overflow-hidden">
+                    <img
+                      src={completionPhotoPreview}
+                      alt="Preview"
+                      className="w-full h-full object-cover"
+                    />
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      className="absolute top-2 right-2"
+                      onClick={() => {
+                        setCompletionPhoto(null);
+                        setCompletionPhotoPreview("");
+                      }}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+                
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => document.getElementById('photo-upload')?.click()}
+                  >
+                    <Upload className="h-4 w-4 mr-2" />
+                    Upload dari Folder
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => document.getElementById('camera-capture')?.click()}
+                  >
+                    <Camera className="h-4 w-4 mr-2" />
+                    Ambil Foto
+                  </Button>
+                </div>
+                
+                <input
+                  id="photo-upload"
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handlePhotoChange}
+                />
+                <input
+                  id="camera-capture"
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                  onChange={handlePhotoChange}
+                />
+              </div>
+            </div>
+
+            {/* Received Date */}
+            <div>
+              <Label>Tanggal Menerima</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !completionData.receivedDate && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {completionData.receivedDate 
+                      ? format(completionData.receivedDate, "dd/MM/yyyy HH:mm")
+                      : "Pilih tanggal"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0">
+                  <Calendar
+                    mode="single"
+                    selected={completionData.receivedDate}
+                    onSelect={(date) => 
+                      setCompletionData({ 
+                        ...completionData, 
+                        receivedDate: date || new Date() 
+                      })
+                    }
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            {/* Notes */}
+            <div>
+              <Label htmlFor="completion_notes">Keterangan</Label>
+              <Textarea
+                id="completion_notes"
+                placeholder="Masukkan keterangan penerimaan barang..."
+                value={completionData.notes}
+                onChange={(e) => 
+                  setCompletionData({ 
+                    ...completionData, 
+                    notes: e.target.value 
+                  })
+                }
+                rows={3}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowCompletedDialog(false);
+                setSelectedRequest(null);
+                setCompletionPhoto(null);
+                setCompletionPhotoPreview("");
+                setCompletionData({
+                  receivedDate: new Date(),
+                  notes: "",
+                });
+              }}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleCompleted}>
+              Mark as Completed
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
