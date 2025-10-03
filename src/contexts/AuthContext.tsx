@@ -33,6 +33,7 @@ interface AuthContextType {
   isCheckingSession: boolean;
   signOut: () => Promise<void>;
   forceRefreshSession: () => Promise<void>;
+  exitRecoveryMode: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -428,8 +429,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // FIXED: Enhanced auth state change listener with aggressive PASSWORD_RECOVERY blocking
   useEffect(() => {
-    // let isPasswordRecoveryMode = false;
-    
     // Check if we're in password recovery mode
     const checkPasswordRecoveryMode = () => {
       const hash = window.location.hash;
@@ -516,7 +515,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.log('[AuthContext] Processing SIGNED_OUT event');
           
           // Reset password recovery mode when signing out
-          isPasswordRecoveryMode = false;
+          setIsPasswordRecoveryMode(false);
           
           setUser(null);
           setSession(null);
