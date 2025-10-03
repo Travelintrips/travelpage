@@ -138,6 +138,11 @@ export default function ResetPasswordPage() {
       setMessage("Password has been successfully updated!");
 
       exitRecoveryMode?.();
+      
+
+      // 🔄 refresh session agar AuthContext dapat user baru
+const { data } = await supabase.auth.getSession();
+console.log("[ResetPassword] Fresh session after recovery:", data.session?.user?.id);
 
       // optional: sign out lalu redirect ke login
       setTimeout(async () => {

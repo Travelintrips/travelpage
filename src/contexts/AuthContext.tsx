@@ -454,9 +454,10 @@ if (isPasswordRecoveryMode || checkPasswordRecoveryMode()) {
 
   if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') {
     console.log('[AuthContext] Allowing', event, 'to keep session alive during recovery');
-    // ✅ simpan session ke state (supaya supabase.auth.updateUser() bisa jalan)
     if (session) {
+      // simpan session supaya updateUser bisa jalan
       setSession(session);
+      // ❌ jangan setUser di sini → UI jangan berubah dulu
     }
     return;
   }
@@ -468,6 +469,7 @@ if (isPasswordRecoveryMode || checkPasswordRecoveryMode()) {
 
   return;
 }
+
 
 
         // Skip during initialization for non-critical events
