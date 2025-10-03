@@ -450,11 +450,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 }
 
 if (isPasswordRecoveryMode || checkPasswordRecoveryMode()) {
-  console.log('[AuthContext] BLOCKING auth event during password recovery mode:', event);
+  console.log('[AuthContext] [RECOVERY MODE] Event:', event);
 
   if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') {
-    console.log('[AuthContext] Allowing', event, 'during password recovery for session establishment');
-    return; 
+    console.log('[AuthContext] Allowing', event, 'to keep session alive during recovery');
+    // ✅ simpan session ke state (supaya supabase.auth.updateUser() bisa jalan)
+    if (session) {
+      setSession(session);
+    }
+    return;
   }
 
   if (event === 'SIGNED_OUT') {
@@ -464,6 +468,7 @@ if (isPasswordRecoveryMode || checkPasswordRecoveryMode()) {
 
   return;
 }
+
 
         // Skip during initialization for non-critical events
         if (isInitializingRef.current && event !== 'SIGNED_IN' && event !== 'SIGNED_OUT') {
