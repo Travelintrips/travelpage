@@ -123,7 +123,7 @@ export default function ResetPasswordPage() {
     try {
       console.log("[ResetPassword] Attempting to update password...");
 
-      // Langsung update password (session sudah di-set di useEffect)
+      // Update password (session already set in useEffect)
       const { error } = await supabase.auth.updateUser({
         password: values.password,
       });
@@ -137,18 +137,22 @@ export default function ResetPasswordPage() {
       console.log("[ResetPassword] Password updated successfully");
       setMessage("Password has been successfully updated!");
 
+      // CRITICAL: Exit recovery mode BEFORE signing out
+      console.log("[ResetPassword] Exiting recovery mode...");
       exitRecoveryMode?.();
       
+      // Clear recovery mode from sessionStorage
+      sessionStorage.removeItem("passwordRecoveryMode");
+      
+      // Wait a bit to ensure recovery mode is cleared
+      await new Promise(resolve => setTimeout(resolve, 500));
 
-      // 🔄 refresh session agar AuthContext dapat user baru
-const { data } = await supabase.auth.getSession();
-console.log("[ResetPassword] Fresh session after recovery:", data.session?.user?.id);
-
-      // optional: sign out lalu redirect ke login
+      // Sign out and redirect
       setTimeout(async () => {
+        console.log("[ResetPassword] Signing out and redirecting...");
         await supabase.auth.signOut();
         navigate("/");
-      }, 2000);
+      }, 1500);
     } catch (err) {
       console.error("Reset password error:", err);
       setError("An unexpected error occurred. Please try again.");

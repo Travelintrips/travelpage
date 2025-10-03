@@ -55,10 +55,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isCheckingSession, setIsCheckingSession] = useState(false);
   const [isPasswordRecoveryMode, setIsPasswordRecoveryMode] = useState(false);
 
-  const exitRecoveryMode = () => {
+  const exitRecoveryMode = useCallback(() => {
     setIsPasswordRecoveryMode(false);
     console.log("[AuthContext] Exiting password recovery mode");
-  };
+    
+    // Clear recovery flag from sessionStorage
+    sessionStorage.removeItem("passwordRecoveryMode");
+  }, []);
   
   // FIXED: Use useRef instead of boolean
   const initializationRef = useRef(false);
@@ -425,7 +428,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // FIXED: Enhanced auth state change listener with aggressive PASSWORD_RECOVERY blocking
   useEffect(() => {
-   // let isPasswordRecoveryMode = false;
+    // let isPasswordRecoveryMode = false;
     
     // Check if we're in password recovery mode
     const checkPasswordRecoveryMode = () => {
@@ -444,33 +447,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         // CRITICAL: Set password recovery mode flag
         if (event === 'PASSWORD_RECOVERY') {
-  setIsPasswordRecoveryMode(true);
-  console.log('[AuthContext] PASSWORD_RECOVERY detected - entering recovery mode');
-  return; 
-}
+          setIsPasswordRecoveryMode(true);
+          sessionStorage.setItem("passwordRecoveryMode", "true");
+          console.log('[AuthContext] PASSWORD_RECOVERY detected - entering recovery mode');
+          return; 
+        }
 
-if (isPasswordRecoveryMode || checkPasswordRecoveryMode()) {
-  console.log('[AuthContext] [RECOVERY MODE] Event:', event);
+        // Check if we're in password recovery mode
+        const isInRecoveryMode = isPasswordRecoveryMode || sessionStorage.getItem("passwordRecoveryMode") === "true" || checkPasswordRecoveryMode();
 
-  if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') {
-    console.log('[AuthContext] Allowing', event, 'to keep session alive during recovery');
-    if (session) {
-      // simpan session supaya updateUser bisa jalan
-      setSession(session);
-      // ❌ jangan setUser di sini → UI jangan berubah dulu
-    }
-    return;
-  }
+        if (isInRecoveryMode) {
+          console.log('[AuthContext] [RECOVERY MODE] Event:', event);
 
-  if (event === 'SIGNED_OUT') {
-    console.log('[AuthContext] PREVENTING SIGNED_OUT during password recovery');
-    return;
-  }
+          if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') {
+            console.log('[AuthContext] Allowing', event, 'to keep session alive during recovery');
+            if (session) {
+              // Save session so updateUser can work
+              setSession(session);
+              // ❌ Don't setUser here → UI should not change yet
+            }
+            return;
+          }
 
-  return;
-}
+          if (event === 'SIGNED_OUT') {
+            console.log('[AuthContext] PREVENTING SIGNED_OUT during password recovery');
+            return;
+          }
 
-
+          return;
+        }
 
         // Skip during initialization for non-critical events
         if (isInitializingRef.current && event !== 'SIGNED_IN' && event !== 'SIGNED_OUT') {
