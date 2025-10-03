@@ -425,7 +425,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // FIXED: Enhanced auth state change listener with aggressive PASSWORD_RECOVERY blocking
   useEffect(() => {
-    let isPasswordRecoveryMode = false;
+   // let isPasswordRecoveryMode = false;
     
     // Check if we're in password recovery mode
     const checkPasswordRecoveryMode = () => {
@@ -446,17 +446,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (event === 'PASSWORD_RECOVERY') {
   setIsPasswordRecoveryMode(true);
   console.log('[AuthContext] PASSWORD_RECOVERY detected - entering recovery mode');
-  return; // jangan signOut / reset user di sini
+  return; 
 }
 
-
-        // CRITICAL: Block ALL events if we're in password recovery mode
 if (isPasswordRecoveryMode || checkPasswordRecoveryMode()) {
   console.log('[AuthContext] BLOCKING auth event during password recovery mode:', event);
 
   if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') {
     console.log('[AuthContext] Allowing', event, 'during password recovery for session establishment');
-    return; // jangan update UI state
+    return; 
   }
 
   if (event === 'SIGNED_OUT') {
@@ -466,7 +464,6 @@ if (isPasswordRecoveryMode || checkPasswordRecoveryMode()) {
 
   return;
 }
-
 
         // Skip during initialization for non-critical events
         if (isInitializingRef.current && event !== 'SIGNED_IN' && event !== 'SIGNED_OUT') {
