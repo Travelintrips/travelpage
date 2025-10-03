@@ -57,24 +57,55 @@ const ResetPasswordPage: React.FC = () => {
 
   useEffect(() => {
   const url = new URL(window.location.href);
+
+  // Cek query param (Supabase v2)
   const code = url.searchParams.get("code");
   const type = url.searchParams.get("type");
 
   if (code && type === "recovery") {
-    console.log("[ResetPassword] Recovery code detected");
-
+    console.log("[ResetPassword] Recovery code detected via query params");
     supabase.auth.exchangeCodeForSession(code).then(({ data, error }) => {
       if (error) {
         console.error("[ResetPassword] Error exchanging code:", error);
         setError("Invalid or expired reset link.");
       } else {
         console.log("[ResetPassword] Recovery session established:", data.session?.user?.id);
+        setError(null);
       }
     });
-  } else {
-    setError("Warning: Please ensure you accessed this page from a valid reset link.");
+    return;
   }
+
+  // Cek hash (Supabase v1)
+  const hash = window.location.hash;
+  if (hash) {
+    const params = new URLSearchParams(hash.replace("#", ""));
+    const accessToken = params.get("access_token");
+    const refreshToken = params.get("refresh_token");
+    const hashType = params.get("type");
+
+    if (accessToken && refreshToken && hashType === "recovery") {
+      console.log("[ResetPassword] Recovery tokens detected via hash");
+      supabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken,
+      }).then(({ data, error }) => {
+        if (error) {
+          console.error("[ResetPassword] Error setting recovery session:", error);
+          setError("Invalid or expired reset link.");
+        } else {
+          console.log("[ResetPassword] Recovery session established:", data.session?.user?.id);
+          setError(null);
+        }
+      });
+      return;
+    }
+  }
+
+  // Kalau tidak cocok dua-duanya
+  setError("Warning: Please ensure you accessed this page from a valid reset link.");
 }, []);
+
 
 
   const handleSubmit = async (data: ResetPasswordFormValues) => {
