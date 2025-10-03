@@ -442,7 +442,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.log('[AuthContext] PASSWORD_RECOVERY detected - entering recovery mode');
           
           // FORCE sign out any existing session
-          try {
+         /* try {
             await supabase.auth.signOut({ scope: 'local' });
           } catch (error) {
             console.log('[AuthContext] Error signing out during recovery:', error);
@@ -454,7 +454,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setRole(null);
           setIsLoading(false);
           setIsSessionReady(true);
-          setIsHydrated(true);
+          setIsHydrated(true);*/
           return; // STOP processing
         }
 
