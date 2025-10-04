@@ -376,56 +376,42 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({
   }, [initialRole]);
 
   const handleRegisterSubmit = async (data: RegisterFormValues) => {
-    setRegisterError(null);
-    setIsSubmitting(true);
+  setRegisterError(null);
+  setIsSubmitting(true);
 
-    try {
-      // Set default role to "Customer" if no role is specified
-      if (!data.role || data.role === "") {
-        data.role = "Customer";
-      }
+  try {
+    // Default role = Customer
+    let roleId = 10; 
+    let roleName = "Customer";
 
-      // For Customer role, use a simple fallback approach
-      let roleId = null;
+    const { data: authData, error: authError } = await supabase.auth.signUp({
+      email: data.email,
+      password: data.password,
+      options: {
+        data: {
+          role: roleName,
+          role_id: roleId,
+          first_name: data.firstName,
+          last_name: data.lastName,
+          full_name: data.name,
+          phone_number: data.phone,
+        },
+      },
+    });
 
-      if (data.role === "Customer") {
-        // Use correct role_id for Customer
-        roleId = 10; // Customer role_id is always 10
-        console.log("Using correct Customer role_id:", roleId);
-      } else {
-        // For other roles, try to get role_id from roles table
-        try {
-          const { data: roleData, error: roleError } = await supabase
-            .from("roles")
-            .select("role_id")
-            .eq("role_name", data.role)
-            .maybeSingle();
-
-          if (roleError) {
-            console.warn("Error fetching role:", roleError);
-            // Continue without role_id for non-Customer roles
-          } else if (roleData) {
-            roleId = roleData.role_id;
-            console.log("Role ID found:", roleId, "for role:", data.role);
-          }
-        } catch (error) {
-          console.warn("Exception while fetching role:", error);
-          // Continue without role_id
-        }
-      }
 
       // Check if selfie is required and not provided
-      if (selfieRequired && !selfieImage && !existingImages.selfie) {
+   /*   if (selfieRequired && !selfieImage && !existingImages.selfie) {
         setRegisterError("Silakan ambil foto selfie terlebih dahulu");
         setIsSubmitting(false);
         return;
-      }
+      }*/
 
       // Add selfie image to form data
-      data.selfieImage = selfieImage || existingImages.selfie;
+   //   data.selfieImage = selfieImage || existingImages.selfie;
 
       // Validate document uploads based on role
-      if (data.role === "Driver Mitra" || data.role === "Driver Perusahaan") {
+  /*    if (data.role === "Driver Mitra" || data.role === "Driver Perusahaan") {
         if (!data.ktpImage && !existingImages.ktp) {
           setRegisterError("Please upload your KTP (ID card)");
           setIsSubmitting(false);
@@ -481,10 +467,10 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({
           setIsSubmitting(false);
           return;
         }
-      }
+      }*/
 
       // For Customer role, handle registration directly
-      if (data.role === "Customer") {
+  /*    if (data.role === "Customer") {
         console.log("Registering customer with role_id:", roleId);
 
         // Sign up the user - ALWAYS set role as Customer for new registrations
@@ -504,107 +490,60 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({
     }
   },
           },
-        );
+        );*/
 
         if (authError) {
-          console.error("Auth signup error:", authError);
-          setRegisterError(authError.message);
-          setIsSubmitting(false);
-          return;
-        }
-
-        if (!authData.user) {
-          setRegisterError("Failed to create user account");
-          setIsSubmitting(false);
-          return;
-        }
-
-        console.log("User created:", authData.user.id);
-
-        // Insert user into users table with role_id AND role
-        const userInsertData: any = {
-          id: authData.user.id,
-          email: authData.user.email,
-          full_name: data.name,
-          phone_number: data.phone,
-          selfie_url: data.selfieImage || null,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          role_id: roleId,
-          role: "Customer", // FIXED: Set role column to "Customer" when role_id is 10
-        };
-
-        // Add role_id if we have a valid one
-        if (roleId !== null && roleId !== undefined) {
-          userInsertData.role_id = roleId;
-          userInsertData.role = "Customer"; // FIXED: Always set role to "Customer" for Customer registrations
-        }
-
-       const { error: userError } = await supabase
-          .from("users")
-          .upsert(userInsertData, {
-            onConflict: "id",
-          });
-
-        if (userError) {
-          console.error("Error inserting user:", userError);
-          setRegisterError("Failed to create user profile");
-          setIsSubmitting(false);
-          return;
-        }
-
-        console.log("User inserted into users table with role_id:", roleId, "and role: Customer");
-
-        // Insert customer record with user_id and role_id
-        const customerInsertData: any = {
-          id: authData.user.id,
-          user_id: authData.user.id,
-          full_name: data.name,
-          email: authData.user.email,
-          phone_number: data.phone,
-          created_at: new Date().toISOString(),
-          role_id: roleId,
-          role: "Customer", // FIXED: Also set role in customers table
-        };
-
-        // Add role_id if we have a valid one
-        if (roleId !== null && roleId !== undefined) {
-          customerInsertData.role_id = roleId;
-          customerInsertData.role = "Customer"; // FIXED: Ensure role is set in customers table too
-        }
-
-        const { error: customerError } = await supabase
-          .from("customers")
-          .insert(customerInsertData);
-
-        if (customerError) {
-          console.error("Error inserting customer:", customerError);
-          setRegisterError("Failed to create customer profile");
-          setIsSubmitting(false);
-          return;
-        }
-
-        console.log(
-          "Customer inserted with user_id and role_id:",
-          authData.user.id,
-          roleId,
-        );
-
-        // Registration successful
-        console.log("Customer registration completed successfully");
-        setIsSubmitting(false);
-        return;
-      }
-
-      // For non-customer roles, call the onRegister callback with the form data
-      onRegister(data);
-    } catch (error) {
-      setRegisterError("An unexpected error occurred");
-      console.error("Registration error:", error);
-    } finally {
+      console.error("Auth signup error:", authError);
+      setRegisterError(authError.message);
       setIsSubmitting(false);
+      return;
     }
-  };
+
+    if (!authData.user) {
+      setRegisterError("Failed to create user account");
+      setIsSubmitting(false);
+      return;
+    }
+
+    console.log("User created:", authData.user.id);
+
+    // 🚫 HAPUS bagian upsert ke public.users
+    // Trigger handle_new_user() sudah otomatis isi tabel users
+
+    // ✅ Insert ke tabel customers
+    const customerInsertData: any = {
+      id: authData.user.id,
+      user_id: authData.user.id,
+      full_name: data.name,
+      email: authData.user.email,
+      phone_number: data.phone,
+      created_at: new Date().toISOString(),
+      role_id: roleId,
+      role: roleName,
+    };
+
+    const { error: customerError } = await supabase
+      .from("customers")
+      .insert(customerInsertData);
+
+    if (customerError) {
+      console.error("Error inserting customer:", customerError);
+      setRegisterError("Failed to create customer profile");
+      setIsSubmitting(false);
+      return;
+    }
+
+    console.log("Customer inserted with role_id:", roleId);
+
+    setIsSubmitting(false);
+    setRegisterError(null);
+  } catch (error) {
+    setRegisterError("An unexpected error occurred");
+    console.error("Registration error:", error);
+  } finally {
+    setIsSubmitting(false);
+  }
+};
 
   return (
     <Form {...registerForm}>
@@ -617,7 +556,7 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({
           name="name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Full Name</FormLabel>
+              <FormLabel>Full Name1</FormLabel>
               <FormControl>
                 <div className="relative">
                   <User className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
