@@ -114,7 +114,7 @@ export default function ResetPasswordPage() {
     }
 
     // Jika tidak ada token sama sekali
-    setError("Warning: Please ensure you accessed this page from a valid reset link.");
+    setError("Warning: Please ensure you accessed this page from a valid reset link.Or this link has expired,please request new update password");
   }, []);
 
   // ------------------ Handle form submit -------------------

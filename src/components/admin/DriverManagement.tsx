@@ -63,9 +63,16 @@ import {
   ChevronRight,
   Eye,
   EyeOff,
+  History,
+  Receipt,
+  Calendar,
+  DollarSign,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSearchParams } from "react-router-dom";
+import { useToast } from "@/components/ui/use-toast";
+import { toast } from "react-hot-toast";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface Driver {
   id: string;
@@ -95,17 +102,24 @@ interface DriverStats {
 }
 
 const DriverManagement = () => {
-  const [drivers, setDrivers] = useState<Driver[]>([]);
+  const [drivers, setDrivers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [showDialog, setShowDialog] = useState(false);
+  const [editingDriver, setEditingDriver] = useState<any>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { user } = useAuth();
+  const { toast } = useToast();
+
+  // Get current filter from URL
+  const currentFilter = searchParams.get('filter') || 'all';
   
-  // FIXED: Better loading state initialization
-  const [loading, setLoading] = useState(false);
-  
-  // Pagination state
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
-  const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null);
-  const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
-  
+  // Add auth state variables
+  const isAuthenticated = !!user;
+  const isSessionReady = true; // Simplified for now
+  const authLoading = false; // Simplified for now
+  const userRole = user?.user_metadata?.role || "Admin";
+
   const [driverStats, setDriverStats] = useState<DriverStats>({
     total_drivers: 0,
     active_drivers: 0,
@@ -115,13 +129,11 @@ const DriverManagement = () => {
   });
   const [statsLoading, setStatsLoading] = useState(false);
   
-  const { userRole, isAuthenticated, isSessionReady, isLoading: authLoading } = useAuth();
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null);
+  const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
   
-  // Add URL search params for filtering
-  const [searchParams, setSearchParams] = useSearchParams();
-  const currentFilter = searchParams.get('filter') || 'all';
-  
-  const [searchTerm, setSearchTerm] = useState("");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(() => {
     const saved = localStorage.getItem('driverManagement_isEditDialogOpen');
@@ -190,6 +202,7 @@ const DriverManagement = () => {
             setDrivers(parsedDrivers);
             setDriverStats(parsedStats);
             setStatsLoading(false);
+            setLoading(false);
             console.log('[DriverManagement] Loaded cached data, NO LOADING SCREEN');
             
             // Background refresh to get latest data
@@ -728,6 +741,115 @@ const DriverManagement = () => {
     }
   };
 
+  const [showHistoryDialog, setShowHistoryDialog] = useState(false);
+  const [selectedDriverHistory, setSelectedDriverHistory] = useState<any>(null);
+  const [driverBookings, setDriverBookings] = useState<any[]>([]);
+  const [driverPayments, setDriverPayments] = useState<any[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+
+  const fetchDriverHistory = async (driverId: string | null) => {
+  if (!driverId) {
+    console.warn("⚠️ fetchDriverHistory dipanggil tanpa driverId valid");
+    return;
+  }
+
+  setLoadingHistory(true);
+  try {
+    const { data: bookings, error: bookingsError } = await supabase
+      .from("bookings")
+      .select(`
+        *,
+        vehicles!bookings_vehicle_id_fkey (
+          model,
+          license_plate,
+          type,
+          category,
+          color
+        ),
+        drivers!bookings_driver_id_fkey (
+          full_name,
+          phone_number
+        )
+      `)
+      .eq("driver_id", driverId) // hanya dijalankan kalau driverId valid
+      .order("created_at", { ascending: false });
+
+    if (bookingsError) throw bookingsError;
+
+    const bookingIds = bookings?.map((b) => b.id).filter(Boolean); // pastikan bukan null
+    if (!bookingIds.length) {
+      setDriverBookings([]);
+      setDriverPayments([]);
+      setLoadingHistory(false);
+      return;
+    }
+
+    const { data: payments, error: paymentsError } = await supabase
+      .from("payments")
+      .select("*")
+      .in("booking_id", bookingIds)
+      .order("created_at", { ascending: false });
+
+    if (paymentsError) throw paymentsError;
+
+    setDriverBookings(bookings);
+    setDriverPayments(payments || []);
+  } catch (error) {
+    console.error("❌ Error fetching driver history:", error);
+    toast({
+      variant: "destructive",
+      title: "Error",
+      description: "Failed to fetch driver history",
+    });
+  } finally {
+    setLoadingHistory(false);
+  }
+};
+
+
+  const handleViewHistory = async (driver: any) => {
+  if (!driver?.id) {
+    console.warn("⚠️ Driver tanpa id tidak bisa fetch history", driver);
+    return;
+  }
+
+  setSelectedDriverHistory(driver);
+  setShowHistoryDialog(true);
+  await fetchDriverHistory(driver.id); // 👈 pakai driver.id
+};
+
+
+  const getStatusBadge = (status: string) => {
+    const statusMap = {
+      confirmed: { label: "Confirmed", color: "bg-blue-100 text-blue-800" },
+      onride: { label: "On Ride", color: "bg-green-100 text-green-800" },
+      completed: { label: "Completed", color: "bg-gray-100 text-gray-800" },
+      cancelled: { label: "Cancelled", color: "bg-red-100 text-red-800" },
+    };
+    const statusInfo = statusMap[status?.toLowerCase()] || { label: status, color: "bg-gray-100 text-gray-800" };
+    return (
+      <Badge className={statusInfo.color}>
+        {statusInfo.label}
+      </Badge>
+    );
+  };
+
+  const getPaymentStatusBadge = (status: string) => {
+    const statusMap = {
+      paid: { label: "Paid", color: "bg-green-100 text-green-800" },
+      completed: { label: "Completed", color: "bg-green-100 text-green-800" },
+      unpaid: { label: "Unpaid", color: "bg-red-100 text-red-800" },
+      partial: { label: "Partial", color: "bg-yellow-100 text-yellow-800" },
+      pending: { label: "Pending", color: "bg-yellow-100 text-yellow-800" },
+    };
+    const statusInfo = statusMap[status?.toLowerCase()] || { label: status, color: "bg-gray-100 text-gray-800" };
+    return (
+      <Badge className={statusInfo.color}>
+        {statusInfo.label}
+      </Badge>
+    );
+  };
+
   useEffect(() => {
   const fetchDriverStats = async () => {
     setStatsLoading(true);
@@ -1129,6 +1251,14 @@ const DriverManagement = () => {
                             <Button
                               variant="outline"
                               size="icon"
+                              onClick={() => handleViewHistory(driver)}
+                              title="View History"
+                            >
+                              <History className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="icon"
                               onClick={() => openDetailDialog(driver)}
                               title="View Details"
                             >
@@ -1427,6 +1557,219 @@ const DriverManagement = () => {
                 Edit Driver
               </Button>
             )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Driver History Dialog */}
+      <Dialog open={showHistoryDialog} onOpenChange={setShowHistoryDialog}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Driver History - {selectedDriverHistory?.full_name}</DialogTitle>
+            <DialogDescription>
+              View booking and payment history for this driver
+            </DialogDescription>
+          </DialogHeader>
+
+          {loadingHistory ? (
+            <div className="flex justify-center items-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+          ) : (
+            <Tabs defaultValue="bookings" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="bookings">
+                  <Calendar className="h-4 w-4 mr-2" />
+                  Bookings ({driverBookings.length})
+                </TabsTrigger>
+                <TabsTrigger value="payments">
+                  <Receipt className="h-4 w-4 mr-2" />
+                  Payments ({driverPayments.length})
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="bookings" className="space-y-4">
+                {driverBookings.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No bookings found for this driver
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {driverBookings.map((booking) => (
+                      <Card key={booking.id}>
+                        <CardContent className="pt-6">
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <Label className="text-sm font-medium text-muted-foreground">
+                                Booking Code
+                              </Label>
+                              <p className="text-sm font-semibold">{booking.code_booking || booking.id}</p>
+                            </div>
+                            <div>
+                              <Label className="text-sm font-medium text-muted-foreground">
+                                Status
+                              </Label>
+                              <div className="mt-1">
+                                {getStatusBadge(booking.status)}
+                              </div>
+                            </div>
+                            <div>
+                              <Label className="text-sm font-medium text-muted-foreground">
+                                Vehicle
+                              </Label>
+                              <p className="text-sm">
+                                {booking.vehicles?.model || "N/A"} - {booking.vehicles?.license_plate || "N/A"}
+                              </p>
+                            </div>
+                            <div>
+                              <Label className="text-sm font-medium text-muted-foreground">
+                                Customer
+                              </Label>
+                              <p className="text-sm">{booking.customers?.full_name || "N/A"}</p>
+                              <p className="text-xs text-muted-foreground">{booking.customers?.phone_number || ""}</p>
+                            </div>
+                            <div>
+                              <Label className="text-sm font-medium text-muted-foreground">
+                                Start Date
+                              </Label>
+                              <p className="text-sm">
+                                {booking.start_date 
+                                  ? new Date(booking.start_date).toLocaleDateString("id-ID", {
+                                      day: "2-digit",
+                                      month: "short",
+                                      year: "numeric",
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                    })
+                                  : "N/A"}
+                              </p>
+                            </div>
+                            <div>
+                              <Label className="text-sm font-medium text-muted-foreground">
+                                End Date
+                              </Label>
+                              <p className="text-sm">
+                                {booking.end_date 
+                                  ? new Date(booking.end_date).toLocaleDateString("id-ID", {
+                                      day: "2-digit",
+                                      month: "short",
+                                      year: "numeric",
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                    })
+                                  : "N/A"}
+                              </p>
+                            </div>
+                            <div>
+                              <Label className="text-sm font-medium text-muted-foreground">
+                                Total Amount
+                              </Label>
+                              <p className="text-sm font-semibold text-green-600">
+                                {new Intl.NumberFormat("id-ID", {
+                                  style: "currency",
+                                  currency: "IDR",
+                                  minimumFractionDigits: 0,
+                                }).format(booking.total_amount || 0)}
+                              </p>
+                            </div>
+                            <div>
+                              <Label className="text-sm font-medium text-muted-foreground">
+                                Payment Status
+                              </Label>
+                              <div className="mt-1">
+                                {getPaymentStatusBadge(booking.payment_status || "unpaid")}
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </TabsContent>
+
+              <TabsContent value="payments" className="space-y-4">
+                {driverPayments.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No payments found for this driver
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {driverPayments.map((payment) => {
+                      const relatedBooking = driverBookings.find(b => b.id === payment.booking_id);
+                      return (
+                        <Card key={payment.id}>
+                          <CardContent className="pt-6">
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <Label className="text-sm font-medium text-muted-foreground">
+                                  Payment ID
+                                </Label>
+                                <p className="text-sm font-semibold">{payment.id}</p>
+                              </div>
+                              <div>
+                                <Label className="text-sm font-medium text-muted-foreground">
+                                  Status
+                                </Label>
+                                <div className="mt-1">
+                                  {getPaymentStatusBadge(payment.status)}
+                                </div>
+                              </div>
+                              <div>
+                                <Label className="text-sm font-medium text-muted-foreground">
+                                  Booking Code
+                                </Label>
+                                <p className="text-sm">{relatedBooking?.code_booking || payment.booking_id}</p>
+                              </div>
+                              <div>
+                                <Label className="text-sm font-medium text-muted-foreground">
+                                  Payment Method
+                                </Label>
+                                <p className="text-sm">{payment.payment_method || "N/A"}</p>
+                              </div>
+                              <div>
+                                <Label className="text-sm font-medium text-muted-foreground">
+                                  Amount
+                                </Label>
+                                <p className="text-sm font-semibold text-green-600">
+                                  {new Intl.NumberFormat("id-ID", {
+                                    style: "currency",
+                                    currency: "IDR",
+                                    minimumFractionDigits: 0,
+                                  }).format(payment.total_amount || 0)}
+                                </p>
+                              </div>
+                              <div>
+                                <Label className="text-sm font-medium text-muted-foreground">
+                                  Payment Date
+                                </Label>
+                                <p className="text-sm">
+                                  {payment.payment_date 
+                                    ? new Date(payment.payment_date).toLocaleDateString("id-ID", {
+                                        day: "2-digit",
+                                        month: "short",
+                                        year: "numeric",
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                      })
+                                    : "N/A"}
+                                </p>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                )}
+              </TabsContent>
+            </Tabs>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowHistoryDialog(false)}>
+              Close
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
