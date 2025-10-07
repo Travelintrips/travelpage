@@ -195,8 +195,7 @@ const TopUpDriver = ({
   try {
     console.log("[TopUpDriver] Fetching pending requests...");
 
-    // Step 1: Ambil semua pending requests
-    let query = supabase
+    const { data: requests, error: requestsError } = await supabase
       .from("topup_requests")
       .select(`
         id,
@@ -216,103 +215,63 @@ const TopUpDriver = ({
       .eq("status", "pending")
       .order("created_at", { ascending: false });
 
-    const { data: requests, error: requestsError } = await query;
-
-    if (requestsError) {
-      console.error("Error fetching pending requests:", requestsError);
-      throw requestsError;
-    }
-
+    if (requestsError) throw requestsError;
     console.log("[TopUpDriver] Raw pending data:", requests);
 
-    // Step 2: Ambil user data dari users table
-    const userIds = requests?.map((r: any) => r.user_id).filter(Boolean) || [];
+    // Ambil semua user terkait
+    const userIds = requests?.map((r) => r.user_id).filter(Boolean) || [];
     let usersMap: Record<string, any> = {};
+    let driversMap: Record<string, any> = {};
 
     if (userIds.length > 0) {
-      const { data: users, error: usersError } = await supabase
-        .from("users")
-        .select("id, full_name, email, phone_number, role")
-        .in("id", userIds);
+      const [{ data: users }, { data: drivers }] = await Promise.all([
+        supabase.from("users").select("id, full_name, email, phone_number, role").in("id", userIds),
+        supabase.from("drivers").select("user_id, full_name, email, phone_number").in("user_id", userIds),
+      ]);
 
-      if (usersError) {
-        console.error("Error fetching users:", usersError);
-        throw usersError;
-      }
-
-      console.log("[TopUpDriver] Users data:", users);
-
-      usersMap = (users || []).reduce((acc: any, user: any) => {
+      usersMap = (users || []).reduce((acc, user) => {
         acc[user.id] = user;
+        return acc;
+      }, {});
+
+      driversMap = (drivers || []).reduce((acc, driver) => {
+        acc[driver.user_id] = driver;
         return acc;
       }, {});
     }
 
-    // Step 3: Juga ambil data dari drivers table untuk mendapatkan nama driver
-    let driversMap: Record<string, any> = {};
-    if (userIds.length > 0) {
-      const { data: driversData, error: driversError } = await supabase
-        .from("drivers")
-        .select("id, full_name, email, phone_number")
-        .in("id", userIds);
-
-      if (driversError) {
-        console.error("Error fetching drivers data:", driversError);
-        // Don't throw error, just continue without drivers data
-      } else {
-        console.log("[TopUpDriver] Drivers data:", driversData);
-        driversMap = (driversData || []).reduce((acc: any, driver: any) => {
-          acc[driver.id] = driver;
-          return acc;
-        }, {});
-      }
-    }
-
-    // Step 4: Filter berdasarkan role
     const filteredRequests =
       requests
-        ?.filter((request: any) => {
-          const user = usersMap[request.user_id];
+        ?.filter((req: any) => {
+          const user = usersMap[req.user_id];
+          const driver = driversMap[req.user_id];
+          const role = (req.request_by_role || user?.role || "").toLowerCase();
 
+          // Jika ada filterByRole dari UI
           if (filterByRole) {
-            console.log(
-              `[TopUpDriver] Filtering by role: ${filterByRole}, request_by_role: ${request.request_by_role}, user_role: ${user?.role}`
+            return (
+              role.includes(filterByRole.toLowerCase()) ||
+              (user?.role || "").toLowerCase().includes(filterByRole.toLowerCase())
             );
-            if (filterByRole === "Agent") {
-              return (
-                request.request_by_role === "Agent" || user?.role === "Agent"
-              );
-            }
-            return request.request_by_role === filterByRole;
           }
 
-          // Default: semua jenis driver
-          const role = request.request_by_role || user?.role;
-          return (
-            role === "driver" ||
-            role === "Driver Perusahaan" ||
-            role === "Driver Mitra"
-          );
+          // ✅ Jika kolom request_by_role kosong tapi user_id valid — tetap tampil
+          if (!role && (user || driver)) return true;
+
+          // Default filter semua driver-related role
+          return /(driver|perusahaan|mitra)/i.test(role);
         })
-        .map((request: any) => {
-          const user = usersMap[request.user_id] || {};
-          const driver = driversMap[request.user_id] || {};
-          
-          // Prioritas nama: drivers table > users table > default
+        .map((req: any) => {
+          const user = usersMap[req.user_id] || {};
+          const driver = driversMap[req.user_id] || {};
+
+          // ✅ Prioritas nama: driver.full_name → user.full_name → "Unknown Driver"
           const driverName = driver.full_name || user.full_name || "Unknown Driver";
-          const driverEmail = driver.email || user.email || "Unknown";
+          const driverEmail = driver.email || user.email || "-";
           const driverPhone = driver.phone_number || user.phone_number || "-";
-          
-          console.log(`[TopUpDriver] Mapping request ${request.id}:`, {
-            user_id: request.user_id,
-            driver_name: driverName,
-            driver_email: driverEmail,
-            from_drivers_table: !!driver.full_name,
-            from_users_table: !!user.full_name
-          });
-          
+
           return {
-            ...request,
+            ...req,
             driver_name: driverName,
             driver_email: driverEmail,
             driver_phone: driverPhone,
@@ -322,7 +281,7 @@ const TopUpDriver = ({
     console.log("[TopUpDriver] Filtered requests with names:", filteredRequests);
     setPendingRequests(filteredRequests);
   } catch (error) {
-    console.error("Error fetching pending requests:", error);
+    console.error("❌ Error fetching pending requests:", error);
     toast({
       title: "Error",
       description: "Failed to fetch pending requests",
@@ -332,11 +291,12 @@ const TopUpDriver = ({
 };
 
 
+
   const fetchHistoryRequests = async () => {
   try {
     console.log("[TopUpDriver] Fetching history requests...");
 
-    // Step 1: Ambil history requests dari view
+    // 1️⃣ Ambil data dari view
     let query = supabase
       .from("v_topup_requests")
       .select(`
@@ -366,134 +326,104 @@ const TopUpDriver = ({
       .in("status", ["verified", "rejected"])
       .order("created_at", { ascending: false });
 
-    if (filterByRole) {
-      query = query.eq("request_by_role", filterByRole);
-    }
-
     const { data: requests, error } = await query;
+    if (error) throw error;
 
-    if (error) {
-      console.error("Error fetching history requests:", error);
-      throw error;
-    }
+    console.log("[TopUpDriver] Raw history data:", requests);
 
-    console.log("[TopUpDriver] Raw history data (from view):", requests);
-
-    // Step 2: Ambil data dari drivers table untuk melengkapi nama driver
-    const userIds = requests?.map((r: any) => r.user_id).filter(Boolean) || [];
+    // 2️⃣ Ambil user & driver data
+    const userIds = requests?.map((r) => r.user_id).filter(Boolean) || [];
     let driversMap: Record<string, any> = {};
+    let usersMap: Record<string, any> = {};
 
     if (userIds.length > 0) {
-      const { data: driversData, error: driversError } = await supabase
-        .from("drivers")
-        .select("id, full_name, email, phone_number")
-        .in("id", userIds);
+      const [{ data: drivers }, { data: users }] = await Promise.all([
+        supabase.from("drivers").select("user_id, full_name, email, phone_number").in("user_id", userIds),
+        supabase.from("users").select("id, full_name, email, phone_number, role").in("id", userIds),
+      ]);
 
-      if (driversError) {
-        console.error("Error fetching drivers data for history:", driversError);
-        // Don't throw error, just continue without drivers data
-      } else {
-        console.log("[TopUpDriver] Drivers data for history:", driversData);
-        driversMap = (driversData || []).reduce((acc: any, driver: any) => {
-          acc[driver.id] = driver;
-          return acc;
-        }, {});
-      }
+      driversMap = (drivers || []).reduce((acc, d) => {
+        acc[d.user_id] = d;
+        return acc;
+      }, {});
+      usersMap = (users || []).reduce((acc, u) => {
+        acc[u.id] = u;
+        return acc;
+      }, {});
     }
 
-    // Step 3: Ambil admin names dari users table berdasarkan admin_id
-    const adminIds = requests?.map((r: any) => r.admin_id).filter(Boolean) || [];
-    let adminNamesMap: Record<string, any> = {};
-
+    // 3️⃣ Ambil admin info
+    const adminIds = requests?.map((r) => r.admin_id).filter(Boolean) || [];
+    let adminMap: Record<string, any> = {};
     if (adminIds.length > 0) {
-      const { data: admins, error: adminsError } = await supabase
+      const { data: admins } = await supabase
         .from("users")
         .select("id, full_name, email")
         .in("id", adminIds);
-
-      if (adminsError) {
-        console.error("Error fetching admin names:", adminsError);
-        // Don't throw error, just continue without admin names
-      } else {
-        adminNamesMap = (admins || []).reduce((acc: any, admin: any) => {
-          acc[admin.id] = admin;
-          return acc;
-        }, {});
-      }
+      adminMap = (admins || []).reduce((acc, a) => {
+        acc[a.id] = a;
+        return acc;
+      }, {});
     }
 
-    // Step 4: Ambil phone numbers dari users table
-    const usersPhoneMap: Record<string, string> = {};
-    if (userIds.length > 0) {
-      const { data: users, error: usersError } = await supabase
-        .from("users")
-        .select("id, phone_number")
-        .in("id", userIds);
-
-      if (usersError) {
-        console.error("Error fetching user phone numbers:", usersError);
-        // Don't throw error, just continue without phone numbers
-      } else {
-        users?.forEach((user: any) => {
-          usersPhoneMap[user.id] = user.phone_number || "-";
-        });
-      }
-    }
-
-    // Step 5: Filter + map dengan admin names dan phone numbers
+    // 4️⃣ Filter fleksibel (jika request_by_role kosong tetap tampil)
     const filteredHistory =
       requests
-        ?.filter((request: any) => {
+        ?.filter((req) => {
+          const user = usersMap[req.user_id];
+          const driver = driversMap[req.user_id];
+          const role = (req.request_by_role || user?.role || "").toLowerCase();
+
           if (filterByRole) {
-            console.log(
-              `[TopUpDriver] History filtering by role: ${filterByRole}, request_by_role: ${request.request_by_role}`
+            return (
+              role.includes(filterByRole.toLowerCase()) ||
+              (user?.role || "").toLowerCase().includes(filterByRole.toLowerCase())
             );
-            if (filterByRole === "Agent") {
-              return (
-                request.request_by_role === "Agent"
-              );
-            }
-            return request.request_by_role === filterByRole;
           }
 
-          // Default behavior: filter drivers
-          return (
-            request.request_by_role === "driver" ||
-            request.request_by_role === "Driver Perusahaan" ||
-            request.request_by_role === "Driver Mitra"
-          );
+          // ✅ tampilkan meskipun request_by_role kosong
+          if (!role && (user || driver)) return true;
+
+          return /(driver|mitra|perusahaan)/i.test(role);
         })
-        .map((request: any) => {
-          const adminInfo = adminNamesMap[request.admin_id];
-          const driver = driversMap[request.user_id] || {};
-          
-          // Prioritas nama: drivers table > view data > default
-          const driverName = driver.full_name || request.user_full_name || "Unknown Driver";
-          const driverEmail = driver.email || request.user_email || "Unknown";
-          const driverPhone = driver.phone_number || usersPhoneMap[request.user_id] || "-";
-          
-          console.log(`[TopUpDriver] Mapping history request ${request.id}:`, {
-            user_id: request.user_id,
-            driver_name: driverName,
-            driver_email: driverEmail,
-            from_drivers_table: !!driver.full_name,
-            from_view: !!request.user_full_name
-          });
-          
+        .map((req) => {
+          const driver = driversMap[req.user_id] || {};
+          const user = usersMap[req.user_id] || {};
+          const admin = adminMap[req.admin_id] || {};
+
+          // ✅ Fallback prioritas nama
+          const driverName =
+            driver.full_name || user.full_name || req.user_full_name || "Unknown Driver";
+          const driverEmail =
+            driver.email || user.email || req.user_email || "Unknown";
+          const driverPhone =
+            driver.phone_number || user.phone_number || "-";
+
+          const adminName = admin.full_name || req.admin_full_name || "System Admin";
+          const adminEmail = admin.email || req.admin_email || "-";
+
           return {
-            ...request,
+            ...req,
             driver_name: driverName,
             driver_email: driverEmail,
             driver_phone: driverPhone,
-            admin_name: adminInfo?.full_name || request.admin_name || "System Admin", // Prioritas: dari users table, lalu dari kolom admin_name
-            admin_email: adminInfo?.email || "Unknown",
+            admin_name: adminName,
+            admin_email: adminEmail,
           };
-        });
+        }) || [];
 
-    console.log("[TopUpDriver] Filtered history with driver names:", filteredHistory);
+    console.table(
+      filteredHistory.map((r) => ({
+        id: r.id,
+        driver_name: r.driver_name,
+        role: r.request_by_role,
+        source: r.request_by_role ? "role" : "fallback (user_id)",
+      }))
+    );
+
     setHistoryRequests(filteredHistory);
   } catch (error) {
-    console.error("Error fetching history requests:", error);
+    console.error("❌ Error fetching history requests:", error);
     toast({
       title: "Error",
       description: "Failed to fetch history requests",
@@ -501,8 +431,6 @@ const TopUpDriver = ({
     });
   }
 };
-
-
 
   const fetchAdminTopupHistory = async () => {
     try {
@@ -1300,7 +1228,7 @@ const TopUpDriver = ({
                         <TableHead>Driver Name</TableHead>
                         <TableHead>Nominal Topup</TableHead>
                         <TableHead>Method</TableHead>
-                        <TableHead>Bukti Transfer1</TableHead>
+                        <TableHead>Bukti Transfer</TableHead>
                         <TableHead>Request Date</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead className="text-center">Aksi</TableHead>
@@ -1928,7 +1856,7 @@ const TopUpDriver = ({
                 <div>
                   <Label className="text-sm font-medium">Method</Label>
                   <p className="text-sm text-gray-600">
-                    {selectedRequest.method || "-"}
+                    {selectedRequest.payment_method || "-"}
                   </p>
                 </div>
                 <div>

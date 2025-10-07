@@ -69,7 +69,7 @@ import {
   DollarSign,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, Link } from "react-router-dom";
 import { useToast } from "@/components/ui/use-toast";
 import { toast } from "react-hot-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -1162,7 +1162,12 @@ const DriverManagement = () => {
                     currentDrivers.map((driver) => (
                       <TableRow key={driver.id}>
                         <TableCell className="font-medium">
-                          {driver.name}
+                          <Link 
+                            to={`/admin/drivers/${driver.id}`}
+                            className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+                          >
+                            {driver.name}
+                          </Link>
                         </TableCell>
                         <TableCell>
                           <div className="flex space-x-2">

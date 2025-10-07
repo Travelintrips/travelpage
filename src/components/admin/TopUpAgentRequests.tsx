@@ -214,7 +214,7 @@ const TopUpAgentRequests = () => {
         user_email: r.user_email ?? "",
         verified_by_name: r.verifier_full_name ?? "",
         status: r.status ?? "",
-        method: r.method ?? "",
+        payment_method: r.payment_method ?? "",
         bank_name: r.bank_name ?? "",
         reference_no: r.reference_no ?? "",
         sender_name: r.sender_name ?? "",
@@ -301,7 +301,7 @@ const TopUpAgentRequests = () => {
             id,
             user_id,
             amount,
-            method,
+            payment_method,
             bank_name,
             destination_account,
             proof_url,
@@ -338,7 +338,7 @@ const TopUpAgentRequests = () => {
           reference_no: request.reference_no || `TOP-${request.id}`,
           user_id: request.user_id,
           amount: request.amount || 0,
-          method: request.method || "bank_transfer",
+          payment_method: request.payment_method || "bank_transfer",
           bank_name: request.bank_name || "BCA",
           sender_name: request.sender_name || request.user_full_name || "Unknown Sender",
           sender_account: request.sender_account || "-",
@@ -774,7 +774,7 @@ const TopUpAgentRequests = () => {
                         </TableCell>
                         <TableCell className="p-2">
                           <div className="flex flex-col space-y-1">
-                            <span className="text-xs">{request.method}</span>
+                            <span className="text-xs">{request.payment_method}</span>
                             {request.bank_name && (
                               <span
                                 className="text-xs text-gray-500 truncate max-w-[100px]"
@@ -1198,13 +1198,13 @@ const TopUpAgentRequests = () => {
                 <div>
                   <Label className="text-sm font-medium">Agent</Label>
                   <p className="text-sm text-gray-600">
-                    {selectedRequest.agent_name}
+                    {selectedRequest.name}
                   </p>
                 </div>
                 <div>
                   <Label className="text-sm font-medium">Payment Method</Label>
                   <p className="text-sm text-gray-600">
-                    {selectedRequest.method}
+                    {selectedRequest.payment_method}
                   </p>
                 </div>
                 <div>
