@@ -120,11 +120,11 @@ interface TopUpDriverProps {
   description?: string;
 }
 
-const TopUpDriver = ({ 
-  filterByRole = null, 
-  title = "Top Up Driver", 
-  description = "Manage driver top-up requests and view transaction history" 
-}: TopUpDriverProps) => {
+export default function TopUpDriver({ 
+  filterByRole = null,
+  title = "Top-Up Driver Management",
+  description = "Manage driver top-up requests and view transaction history"
+}: TopUpDriverProps = {}) {
   const [pendingRequests, setPendingRequests] = useState<DriverTopUpRequest[]>([]);
   const [historyRequests, setHistoryRequests] = useState<DriverTopUpRequest[]>([]);
   const [adminTopupHistory, setAdminTopupHistory] = useState<HistoriTransaksi[]>([]);
@@ -259,7 +259,7 @@ const TopUpDriver = ({
           if (!role && (user || driver)) return true;
 
           // Default filter semua driver-related role
-          return /(driver|perusahaan|mitra)/i.test(role);
+          return /(driver|perusahaan|mitra|admin)/i.test(role);
         })
         .map((req: any) => {
           const user = usersMap[req.user_id] || {};
@@ -296,7 +296,7 @@ const TopUpDriver = ({
   try {
     console.log("[TopUpDriver] Fetching history requests...");
 
-    // 1️⃣ Ambil data dari view
+    // 1️�� Ambil data dari view
     let query = supabase
       .from("v_topup_requests")
       .select(`
@@ -384,7 +384,7 @@ const TopUpDriver = ({
           // ✅ tampilkan meskipun request_by_role kosong
           if (!role && (user || driver)) return true;
 
-          return /(driver|mitra|perusahaan)/i.test(role);
+          return /(driver|mitra|perusahaan|admin)/i.test(role);
         })
         .map((req) => {
           const driver = driversMap[req.user_id] || {};
@@ -462,31 +462,50 @@ const TopUpDriver = ({
       // Get user data for driver names
       const userIds = historiData?.map((h: any) => h.user_id).filter(Boolean) || [];
       let usersMap: Record<string, any> = {};
+      let driversMap: Record<string, any> = {};
 
       if (userIds.length > 0) {
-        const { data: users, error: usersError } = await supabase
-          .from("users")
-          .select("id, full_name, email, phone_number")
-          .in("id", userIds);
+        const [{ data: users }, { data: drivers }] = await Promise.all([
+          supabase.from("users").select("id, full_name, email, phone_number").in("id", userIds),
+          supabase.from("drivers").select("user_id, full_name, email, phone_number").in("user_id", userIds),
+        ]);
 
-        if (usersError) {
-          console.error("Error fetching users for admin topup history:", usersError);
-        } else {
-          usersMap = (users || []).reduce((acc: any, user: any) => {
-            acc[user.id] = user;
-            return acc;
-          }, {});
-        }
+        usersMap = (users || []).reduce((acc: any, user: any) => {
+          acc[user.id] = user;
+          return acc;
+        }, {});
+
+        driversMap = (drivers || []).reduce((acc: any, driver: any) => {
+          acc[driver.user_id] = driver;
+          return acc;
+        }, {});
       }
+
+      console.log("[TopUpDriver] Users map:", usersMap);
+      console.log("[TopUpDriver] Drivers map:", driversMap);
 
       // Map the data with user information
       const mappedHistory = (historiData || []).map((item: any) => {
+        const driver = driversMap[item.user_id] || {};
         const user = usersMap[item.user_id] || {};
+        
+        // ✅ Prioritas: driver.full_name → user.full_name → "Unknown Driver"
+        const driverName = driver.full_name || user.full_name || "Unknown Driver";
+        const driverEmail = driver.email || user.email || "Unknown";
+        const driverPhone = driver.phone_number || user.phone_number || "-";
+
+        console.log(`[TopUpDriver] Mapping user_id ${item.user_id}:`, {
+          driver_name: driverName,
+          driver_email: driverEmail,
+          from_driver: !!driver.full_name,
+          from_user: !!user.full_name
+        });
+
         return {
           ...item,
-          driver_name: user.full_name || "Unknown Driver",
-          driver_email: user.email || "Unknown",
-          driver_phone: user.phone_number || "-",
+          driver_name: driverName,
+          driver_email: driverEmail,
+          driver_phone: driverPhone,
         };
       });
 
@@ -756,6 +775,12 @@ const TopUpDriver = ({
     const newSaldo = currentSaldo + amount;
     const adminName = adminData?.full_name || "Admin";
 
+    console.log("[TopUpDriver] Saldo calculation:", {
+      currentSaldo,
+      amount,
+      newSaldo
+    });
+
     // 3. Insert into topup_requests table with booking code
     const { error: insertTopupError } = await supabase
       .from("topup_requests")
@@ -777,13 +802,14 @@ const TopUpDriver = ({
       throw insertTopupError;
     }
 
-    // 4. Insert into histori_transaksi table
+    // 4. ✅ Insert into histori_transaksi table WITH saldo_awal
     const { error: insertError } = await supabase
       .from("histori_transaksi")
       .insert({
         user_id: selectedDriverId,
         code_booking: bookingCode,
         nominal: amount,
+        saldo_awal: currentSaldo,  // ✅ Tambahkan saldo_awal
         saldo_akhir: newSaldo,
         keterangan: `Topup Manual Driver by Admin (${bookingCode})`,
         jenis_transaksi: 'Topup Manual Driver',
@@ -1541,6 +1567,7 @@ const TopUpDriver = ({
                       <TableRow>
                         <TableHead>Topup Code</TableHead>
                         <TableHead>Driver Name</TableHead>
+                        <TableHead>Driver Email</TableHead>
                         <TableHead>Nominal</TableHead>
                         <TableHead>Method</TableHead>
                         <TableHead>Status</TableHead>
@@ -1553,7 +1580,7 @@ const TopUpDriver = ({
                     <TableBody>
                       {paginatedAdminTopupHistory.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={9} className="text-center py-8">
+                          <TableCell colSpan={10} className="text-center py-8">
                             {loading
                               ? "Loading..."
                               : searchTerm || startDate
@@ -1568,14 +1595,14 @@ const TopUpDriver = ({
                               {item.code_booking}
                             </TableCell>
                             <TableCell>
-                              <div className="flex flex-col">
-                                <span className="font-medium">
-                                  {item.driver_name}
-                                </span>
-                                <span className="text-sm text-gray-500">
-                                  {item.driver_email}
-                                </span>
-                              </div>
+                              <span className="font-medium">
+                                {item.driver_name || "Unknown Driver"}
+                              </span>
+                            </TableCell>
+                            <TableCell>
+                              <span className="text-sm text-gray-500">
+                                {item.driver_email || "Unknown"}
+                              </span>
                             </TableCell>
                             <TableCell>
                               <span className="font-medium text-green-600">
@@ -1632,13 +1659,13 @@ const TopUpDriver = ({
                                     user_id: item.user_id || "",
                                     reference_no: item.code_booking,
                                     amount: item.nominal,
-                                    method: "Manual Admin Topup",
+                                    payment_method: "Manual Admin Topup",
                                     bank_name: null,
                                     status: "verified",
                                     created_at: item.trans_date || new Date().toISOString(),
                                     verified_at: item.trans_date,
                                     verified_by: null,
-                                    note: item.keterangan,
+                                    note: item.jenis_transaksi,
                                     driver_name: item.driver_name,
                                     driver_email: item.driver_email,
                                     driver_phone: item.driver_phone,
@@ -1787,7 +1814,7 @@ const TopUpDriver = ({
                     <div>
                       <Label className="text-sm font-medium">Verified By</Label>
                       <p className="text-sm text-gray-600">
-                        {selectedRequest.admin_full_name || "Unknown"}
+                        {selectedRequest.admin_name || "Unknown"}
                       </p>
                     </div>
                   </div>
@@ -2142,6 +2169,4 @@ const TopUpDriver = ({
       </Dialog>
     </div>
   );
-};
-
-export default TopUpDriver;
+}

@@ -71,6 +71,7 @@ import {
   ChevronRight,
   Camera,
   Upload,
+  RotateCcw,
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -123,6 +124,8 @@ const PurchaseRequestManagement = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [requesterNameFilter, setRequesterNameFilter] = useState("all");
+  const [requesterNames, setRequesterNames] = useState<string[]>([]);
   const [dateFilter, setDateFilter] = useState<Date | undefined>(undefined);
   const [activeTab, setActiveTab] = useState("pending");
   const [showNewRequestDialog, setShowNewRequestDialog] = useState(false);
@@ -181,11 +184,25 @@ const PurchaseRequestManagement = () => {
     try {
       setLoading(true);
       
-      // First get the purchase requests
-      const { data: requestsData, error: requestsError } = await supabase
+      // Build query with dynamic filters
+      let query = supabase
         .from("purchase_requests")
-        .select("*")
-        .order("request_date", { ascending: false });
+        .select("*");
+
+      // Apply requester name filter
+      if (requesterNameFilter && requesterNameFilter !== "all") {
+        query = query.eq("name", requesterNameFilter);
+      }
+
+      // Apply status filter
+      if (statusFilter && statusFilter !== "all") {
+        query = query.eq("status", statusFilter);
+      }
+
+      // Order by created_at desc
+      query = query.order("created_at", { ascending: false });
+
+      const { data: requestsData, error: requestsError } = await query;
 
       if (requestsError) throw requestsError;
 
@@ -240,6 +257,25 @@ const PurchaseRequestManagement = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchRequesterNames = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("purchase_requests")
+        .select("name")
+        .not("name", "is", null)
+        .neq("name", "")
+        .order("name");
+
+      if (error) throw error;
+
+      // Get unique names
+      const uniqueNames = Array.from(new Set(data?.map(item => item.name).filter(Boolean))) as string[];
+      setRequesterNames(uniqueNames);
+    } catch (error) {
+      console.error("Error fetching requester names:", error);
     }
   };
 
@@ -495,6 +531,13 @@ const PurchaseRequestManagement = () => {
     });
   };
 
+  const handleResetFilters = () => {
+    setSearchTerm("");
+    setRequesterNameFilter("all");
+    setStatusFilter("all");
+    fetchRequests();
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "PENDING":
@@ -511,8 +554,12 @@ const PurchaseRequestManagement = () => {
   };
 
   useEffect(() => {
-    fetchRequests();
+    fetchRequesterNames();
   }, []);
+
+  useEffect(() => {
+    fetchRequests();
+  }, [requesterNameFilter, statusFilter]);
 
   useEffect(() => {
     applyFilters();
@@ -607,11 +654,48 @@ const PurchaseRequestManagement = () => {
               </div>
             </div>
 
+            <Select value={requesterNameFilter} onValueChange={setRequesterNameFilter}>
+              <SelectTrigger className="w-[200px]">
+                <SelectValue placeholder="All requesters" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All requesters</SelectItem>
+                {requesterNames.map((name) => (
+                  <SelectItem key={name} value={name}>
+                    {name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="All status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All status</SelectItem>
+                <SelectItem value="PENDING">PENDING</SelectItem>
+                <SelectItem value="APPROVED">APPROVED</SelectItem>
+                <SelectItem value="COMPLETED">COMPLETED</SelectItem>
+                <SelectItem value="REJECTED">REJECTED</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={handleResetFilters}
+              title="Reset Filters"
+            >
+              <RotateCcw className="h-4 w-4" />
+            </Button>
+
             <Button
               variant="outline"
               size="icon"
               onClick={fetchRequests}
               disabled={loading}
+              title="Refresh"
             >
               <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             </Button>
