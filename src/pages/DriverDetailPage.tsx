@@ -413,6 +413,30 @@ export default function DriverDetailPage() {
     }
   };
 
+  const getTransaksiStatusBadge = (status: string | null) => {
+    if (!status) return '-';
+    
+    switch (status.toLowerCase()) {
+      case "completed":
+        return <Badge className="bg-green-500 text-white">completed</Badge>;
+      case "verified":
+        return <Badge className="bg-blue-500 text-white">verified</Badge>;
+      case "pending":
+        return <Badge className="bg-yellow-500 text-white">pending</Badge>;
+      case "cancelled":
+      case "rejected":
+        return <Badge className="bg-red-500 text-white">{status}</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
+    }
+  };
+
+  // Helper function to check if transaction is "Sewa Kendaraan Driver"
+  const isSewaKendaraanDriver = (jenis: string | null) => {
+    if (!jenis) return false;
+    return jenis.toLowerCase().includes("sewa kendaraan driver");
+  };
+
   if (isLoading) {
     return (
       <div className="flex justify-center items-center h-64 bg-white">
@@ -621,40 +645,41 @@ export default function DriverDetailPage() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    paginatedTransaksi.map((transaksi) => (
-                      <TableRow key={transaksi.id}>
-                        <TableCell className="font-medium">
-                          {formatDateTime(transaksi.trans_date)}
-                        </TableCell>
-                        <TableCell>{transaksi.code_booking}</TableCell>
-                        <TableCell>
-                          {getTransactionTypeBadge(transaksi.jenis_transaksi)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {formatCurrency(transaksi.saldo_awal || 0)}
-                        </TableCell>
-                        <TableCell className={`text-right font-semibold ${
-                          transaksi.nominal < 0 ? 'text-red-600' : 'text-green-600'
-                        }`}>
-                          {transaksi.nominal < 0 ? '-' : '+'}{formatCurrency(Math.abs(transaksi.nominal))}
-                        </TableCell>
-                        <TableCell className={`text-right font-semibold ${
-                          transaksi.saldo_akhir < 0 ? 'text-red-600' : 'text-green-600'
-                        }`}>
-                          {formatCurrency(transaksi.saldo_akhir)}
-                        </TableCell>
-                        <TableCell className="max-w-xs truncate">
-                          {transaksi.keterangan || '-'}
-                        </TableCell>
-                        <TableCell>
-                          {transaksi.status ? (
-                            <Badge variant={transaksi.status.toLowerCase() === 'success' ? 'default' : 'outline'}>
-                              {transaksi.status}
-                            </Badge>
-                          ) : '-'}
-                        </TableCell>
-                      </TableRow>
-                    ))
+                    paginatedTransaksi.map((transaksi) => {
+                      const isSewaDriver = isSewaKendaraanDriver(transaksi.jenis_transaksi);
+                      const nominalValue = isSewaDriver ? -Math.abs(transaksi.nominal) : transaksi.nominal;
+                      
+                      return (
+                        <TableRow key={transaksi.id}>
+                          <TableCell className="font-medium">
+                            {formatDateTime(transaksi.trans_date)}
+                          </TableCell>
+                          <TableCell>{transaksi.code_booking}</TableCell>
+                          <TableCell>
+                            {getTransactionTypeBadge(transaksi.jenis_transaksi)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {formatCurrency(transaksi.saldo_awal || 0)}
+                          </TableCell>
+                          <TableCell className={`text-right font-semibold ${
+                            nominalValue < 0 ? 'text-red-600' : 'text-green-600'
+                          }`}>
+                            {nominalValue < 0 ? '-' : '+'}{formatCurrency(Math.abs(nominalValue))}
+                          </TableCell>
+                          <TableCell className={`text-right font-semibold ${
+                            transaksi.saldo_akhir < 0 ? 'text-red-600' : 'text-green-600'
+                          }`}>
+                            {formatCurrency(transaksi.saldo_akhir)}
+                          </TableCell>
+                          <TableCell className="max-w-xs truncate">
+                            {transaksi.keterangan || '-'}
+                          </TableCell>
+                          <TableCell>
+                            {getTransaksiStatusBadge(transaksi.status)}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
                   )}
                 </TableBody>
               </Table>
