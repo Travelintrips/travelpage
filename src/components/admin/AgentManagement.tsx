@@ -55,6 +55,7 @@ import {
 } from "@/components/ui/select";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
 import {
   Calendar,
   Search,
@@ -99,6 +100,8 @@ interface Agent {
 }
 
 const AgentManagement = () => {
+  const { userName, userRole } = useAuth();
+  const navigate = useNavigate();
   const [agents, setAgents] = useState<Agent[]>([]);
   const [filteredAgents, setFilteredAgents] = useState<Agent[]>([]);
   const [paginatedAgents, setPaginatedAgents] = useState<Agent[]>([]);
@@ -151,7 +154,7 @@ const AgentManagement = () => {
   const [logsLoading, setLogsLoading] = useState(false);
   const [transactionHistory, setTransactionHistory] = useState<any[]>([]);
   const [transactionLoading, setTransactionLoading] = useState(false);
-  const { isAdmin, userRole, userId } = useAuth();
+  const { isAdmin, userId } = useAuth();
 
   // Check if user is Super Admin
   const isSuperAdmin = userRole === "Super Admin";
@@ -1391,7 +1394,12 @@ const handleConfirmSuspend = async () => {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <div className="font-medium">{agent.full_name}</div>
+                          <button
+                            onClick={() => navigate(`/admin/agent-details/${agent.id}`)}
+                            className="font-medium text-blue-600 hover:text-blue-800 hover:underline text-left"
+                          >
+                            {agent.full_name}
+                          </button>
                         </TableCell>
                         <TableCell>
                           {userRole && ["Super Admin", "Admin", "Staff Admin"].includes(userRole) ? (

@@ -223,12 +223,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const initializeAuth = async () => {
       if (isInitializingRef.current) {
-        console.log('[AuthContext] Already initialized or initializing, skipping');
+      //  console.log('[AuthContext] Already initialized or initializing, skipping');
         return;
       }
 
       isInitializingRef.current = true;
-      console.log('[AuthContext] Starting auth initialization...');
+     // console.log('[AuthContext] Starting auth initialization...');
 
       try {
         // CRITICAL: Check if this is a PASSWORD_RECOVERY session first
@@ -301,7 +301,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         // CRITICAL: Always validate with Supabase first
-        console.log('[AuthContext] Validating session with Supabase...');
+       // console.log('[AuthContext] Validating session with Supabase...');
         const { data: { session }, error } = await supabase.auth.getSession();
 
         if (error) {
@@ -325,7 +325,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         // Check if session is valid and not expired
         if (session?.user && session.expires_at && session.expires_at > Date.now() / 1000) {
-          console.log('[AuthContext] Valid session found:', session.user.id);
+        //  console.log('[AuthContext] Valid session found:', session.user.id);
           
           // Clear any remaining logout flags since we have a valid session
           sessionStorage.removeItem("signOutInProgress");
@@ -371,13 +371,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             phone: userPhone
           }));
 
-          console.log("[AuthContext] User authenticated:", {
+          /*console.log("[AuthContext] User authenticated:", {
             userId: sessionUser.id,
             userRole: userRole,
             userPhone: userPhone
-          });
+          });*/
         } else {
-          console.log('[AuthContext] No valid session found, clearing all auth data');
+        //  console.log('[AuthContext] No valid session found, clearing all auth data');
           
           // Clear any stale localStorage data if no valid session
           localStorage.removeItem("auth_user");
@@ -420,7 +420,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setIsHydrated(true);
       } finally {
         isInitializingRef.current = false;
-        console.log('[AuthContext] Session initialization completed.');
+      //  console.log('[AuthContext] Session initialization completed.');
       }
     };
 
@@ -442,7 +442,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('[AuthContext] Auth state change:', event, session?.user?.id);
+       // console.log('[AuthContext] Auth state change:', event, session?.user?.id);
 
         // CRITICAL: Set password recovery mode flag
         if (event === 'PASSWORD_RECOVERY') {
@@ -478,7 +478,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         // Skip during initialization for non-critical events
         if (isInitializingRef.current && event !== 'SIGNED_IN' && event !== 'SIGNED_OUT') {
-          console.log('[AuthContext] Skipping auth state change during initialization:', event);
+         // console.log('[AuthContext] Skipping auth state change during initialization:', event);
           return;
         }
 
@@ -487,7 +487,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           // Check if this is the same user as currently logged in
           const currentUserId = localStorage.getItem("auth_user") ? JSON.parse(localStorage.getItem("auth_user") || "{}").id : null;
           if (currentUserId === session.user.id) {
-            console.log('🔄 [AuthContext] Duplicate SIGNED_IN ignored for user:', session.user.id);
+          /*  console.log('🔄 [AuthContext] Duplicate SIGNED_IN ignored for user:', session.user.id);*/
             return;
           }
           
@@ -640,7 +640,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     );
 
     return () => {
-      console.log('[AuthContext] Cleaning up auth state listener');
+     // console.log('[AuthContext] Cleaning up auth state listener');
       subscription.unsubscribe();
     };
   }, []); // Remove user dependency to prevent infinite loops
@@ -649,7 +649,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (!document.hidden && isSessionReady && !isInitializingRef.current) {
-        console.log('[AuthContext] Tab became visible, checking session state...');
+       // console.log('[AuthContext] Tab became visible, checking session state...');
         
         // Check ALL logout flags first
         const signOutInProgress = sessionStorage.getItem("signOutInProgress");
@@ -675,7 +675,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // CRITICAL: Always validate session with Supabase on tab focus
         const validateSession = async () => {
           try {
-            console.log('[AuthContext] Validating Supabase session...');
+           // console.log('[AuthContext] Validating Supabase session...');
             const { data: { session }, error } = await supabase.auth.getSession();
             
             if (error) {
@@ -689,7 +689,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
             
             if (session?.user && session.expires_at && session.expires_at > Date.now() / 1000) {
-              console.log('[AuthContext] Valid Supabase session found');
+             // console.log('[AuthContext] Valid Supabase session found');
               
               // Check if we need to restore user state
               const currentUserId = localStorage.getItem("auth_user") ? JSON.parse(localStorage.getItem("auth_user") || "{}").id : null;

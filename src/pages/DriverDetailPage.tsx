@@ -502,7 +502,7 @@ export default function DriverDetailPage() {
           <Tabs defaultValue="booking" className="w-full">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="booking">Booking History</TabsTrigger>
-              <TabsTrigger value="transaksi">Histori Transaksi</TabsTrigger>
+              <TabsTrigger value="transaksi">Transaction History</TabsTrigger>
             </TabsList>
 
             {/* Tab Booking History */}
@@ -616,6 +616,7 @@ export default function DriverDetailPage() {
                   <SelectContent>
                     <SelectItem value="all">All Status</SelectItem>
                     <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="verified">Verified</SelectItem>
                     <SelectItem value="pending">Pending</SelectItem>
                     <SelectItem value="cancelled">Cancelled</SelectItem>
                     <SelectItem value="rejected">Rejected</SelectItem>
@@ -629,7 +630,7 @@ export default function DriverDetailPage() {
                   <TableRow>
                     <TableHead>Tanggal</TableHead>
                     <TableHead>Kode Booking</TableHead>
-                    <TableHead>Jenis</TableHead>
+                    <TableHead>Jenis Transaksi</TableHead>
                     <TableHead>Saldo Awal</TableHead>
                     <TableHead>Nominal</TableHead>
                     <TableHead>Saldo Akhir</TableHead>
@@ -651,10 +652,17 @@ export default function DriverDetailPage() {
                       
                       return (
                         <TableRow key={transaksi.id}>
-                          <TableCell className="font-medium">
+                          <TableCell className="font-semibold text-xs text-gray-700">
                             {formatDateTime(transaksi.trans_date)}
                           </TableCell>
-                          <TableCell>{transaksi.code_booking}</TableCell>
+                          <TableCell>
+  <div className="inline-block rounded-md bg-green-50 px-2 py-1">
+    <span className="font-semibold text-sm text-green-800">
+      {getTransactionTypeBadge(transaksi.code_booking)}
+    </span>
+  </div>
+</TableCell>
+
                           <TableCell>
                             {getTransactionTypeBadge(transaksi.jenis_transaksi)}
                           </TableCell>
@@ -674,7 +682,7 @@ export default function DriverDetailPage() {
                           <TableCell className="max-w-xs truncate">
                             {transaksi.keterangan || '-'}
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="capitalize">
                             {getTransaksiStatusBadge(transaksi.status)}
                           </TableCell>
                         </TableRow>

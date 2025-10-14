@@ -181,12 +181,12 @@ const DriverManagement = () => {
   useEffect(() => {
     // Prevent multiple initializations
     if (isInitialized.current) {
-      console.log('[DriverManagement] Already initialized, skipping...');
+    //  console.log('[DriverManagement] Already initialized, skipping...');
       return;
     }
 
     if (isAuthenticated && isSessionReady && !authLoading) {
-      console.log('[DriverManagement] Auth ready, initializing component...');
+    //  console.log('[DriverManagement] Auth ready, initializing component...');
       isInitialized.current = true;
       
       // Check for cached data first
@@ -203,7 +203,7 @@ const DriverManagement = () => {
             setDriverStats(parsedStats);
             setStatsLoading(false);
             setLoading(false);
-            console.log('[DriverManagement] Loaded cached data, NO LOADING SCREEN');
+           // console.log('[DriverManagement] Loaded cached data, NO LOADING SCREEN');
             
             // Background refresh to get latest data
             setTimeout(() => {
@@ -213,12 +213,12 @@ const DriverManagement = () => {
             return;
           }
         } catch (error) {
-          console.warn('[DriverManagement] Failed to parse cached data:', error);
+        //  console.warn('[DriverManagement] Failed to parse cached data:', error);
         }
       }
 
       // Fetch data if no cache or cache is empty
-      console.log('[DriverManagement] No cached data, fetching fresh data...');
+    //  console.log('[DriverManagement] No cached data, fetching fresh data...');
       fetchDrivers();
       fetchDriverStats();
     }
@@ -231,11 +231,11 @@ const DriverManagement = () => {
         const now = Date.now();
         // Only refetch if more than 30 seconds have passed since last fetch
         if (now - lastFetchTime.current > 30000 && !fetchInProgress.current) {
-          console.log('[DriverManagement] Tab became visible, doing background refresh...');
+        //  console.log('[DriverManagement] Tab became visible, doing background refresh...');
           fetchDrivers(true); // Background refresh without loading spinner
           fetchDriverStats(true);
         } else {
-          console.log('[DriverManagement] Skipping refresh - too recent or already fetching');
+        //  console.log('[DriverManagement] Skipping refresh - too recent or already fetching');
         }
       }
     };
@@ -270,13 +270,13 @@ const DriverManagement = () => {
   const fetchDriverStats = async (isBackgroundRefresh = false) => {
     // Prevent duplicate fetches
     if (fetchInProgress.current) {
-      console.log('[DriverManagement] Stats fetch already in progress, skipping...');
+    //  console.log('[DriverManagement] Stats fetch already in progress, skipping...');
       return;
     }
 
     // Don't fetch if not authenticated
     if (!isAuthenticated || !isSessionReady || authLoading) {
-      console.log('[DriverManagement] Skipping stats fetch - auth not ready');
+     // console.log('[DriverManagement] Skipping stats fetch - auth not ready');
       return;
     }
 
@@ -286,16 +286,16 @@ const DriverManagement = () => {
     try {
       // Only show loading spinner for initial load
       if (!isBackgroundRefresh && driverStats.total_drivers === 0) {
-        console.log('[DriverManagement] Showing loading spinner for stats initial load');
+      //.log('[DriverManagement] Showing loading spinner for stats initial load');
         setStatsLoading(true);
       } else {
-        console.log('[DriverManagement] Background stats refresh, no loading spinner');
+      //  console.log('[DriverManagement] Background stats refresh, no loading spinner');
       }
 
       const { data, error } = await supabase.rpc('get_driver_kpis');
       
       if (error) {
-        console.error("Error fetching driver stats:", error);
+      //  console.error("Error fetching driver stats:", error);
         throw error;
       }
 
@@ -307,23 +307,23 @@ const DriverManagement = () => {
         minus_balance_driver_count: 0,
       };
 
-      console.log("Driver stats:", newStats);
+     // console.log("Driver stats:", newStats);
       setDriverStats(newStats);
       
       // ✅ Cache the stats data untuk mencegah loading screen di navigasi berikutnya
       try {
         sessionStorage.setItem('driverManagement_cachedStats', JSON.stringify(newStats));
-        console.log('[DriverManagement] Stats data cached successfully');
+      //  console.log('[DriverManagement] Stats data cached successfully');
       } catch (cacheError) {
-        console.warn('[DriverManagement] Failed to cache stats data:', cacheError);
+      //  console.warn('[DriverManagement] Failed to cache stats data:', cacheError);
       }
       
-      console.log('[DriverManagement] Driver stats fetch completed successfully');
+     // console.log('[DriverManagement] Driver stats fetch completed successfully');
     } catch (error) {
-      console.error("Error fetching driver stats:", error);
+    //  console.error("Error fetching driver stats:", error);
       
       // Don't reset data on error, just log the error
-      console.warn("[DriverManagement] Keeping existing stats data due to fetch error");
+     // console.warn("[DriverManagement] Keeping existing stats data due to fetch error");
     } finally {
       // CRITICAL: Always reset loading states
       setStatsLoading(false);
@@ -335,7 +335,7 @@ const DriverManagement = () => {
   const fetchDrivers = async (isBackgroundRefresh = false) => {
     // Prevent duplicate fetches
     if (fetchInProgress.current) {
-      console.log('[DriverManagement] Drivers fetch already in progress, skipping...');
+    //  console.log('[DriverManagement] Drivers fetch already in progress, skipping...');
       return;
     }
 
@@ -352,13 +352,13 @@ const DriverManagement = () => {
     try {
       // Only show loading spinner for initial load when no data exists
       if (!isBackgroundRefresh && drivers.length === 0) {
-        console.log('[DriverManagement] Showing loading spinner for initial load');
+       // console.log('[DriverManagement] Showing loading spinner for initial load');
         setLoading(true);
       } else {
-        console.log('[DriverManagement] Background refresh, no loading spinner');
+      //  console.log('[DriverManagement] Background refresh, no loading spinner');
       }
 
-      console.log("Fetching drivers...");
+     // console.log("Fetching drivers...");
 
       const { data, error } = await supabase
   .from("drivers")
@@ -366,28 +366,28 @@ const DriverManagement = () => {
   .order("full_name", { ascending: true });
 
       if (error) {
-        console.error("Error fetching drivers:", error);
+      //  console.error("Error fetching drivers:", error);
         throw error;
       }
 
-      console.log("Fetched drivers:", data);
+     // console.log("Fetched drivers:", data);
       const driversData = data || [];
       setDrivers(driversData);
       
       // ✅ Cache the drivers data untuk mencegah loading screen di navigasi berikutnya
       try {
         sessionStorage.setItem('driverManagement_cachedDrivers', JSON.stringify(driversData));
-        console.log('[DriverManagement] Drivers data cached successfully');
+      //  console.log('[DriverManagement] Drivers data cached successfully');
       } catch (cacheError) {
-        console.warn('[DriverManagement] Failed to cache drivers data:', cacheError);
+       // console.warn('[DriverManagement] Failed to cache drivers data:', cacheError);
       }
       
-      console.log('[DriverManagement] Drivers data fetch completed successfully');
+     // console.log('[DriverManagement] Drivers data fetch completed successfully');
     } catch (error) {
-      console.error("Error fetching drivers:", error);
+     // console.error("Error fetching drivers:", error);
       
       // Don't reset data to empty on error, just log the error
-      console.warn("[DriverManagement] Keeping existing data due to fetch error");
+     // console.warn("[DriverManagement] Keeping existing data due to fetch error");
     } finally {
       // CRITICAL: Always reset loading states
       setLoading(false);
@@ -890,6 +890,22 @@ const DriverManagement = () => {
   fetchDriverStats();
 }, []);
 
+const formatDateTime = (dateString?: string | null) => {
+  if (!dateString) return "-";
+  const date = new Date(dateString);
+
+  // Format tanggal & waktu tanpa kata "pukul"
+  return `${date.toLocaleDateString("id-ID", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  })} ${date.toLocaleTimeString("id-ID", {
+    hour: "2-digit",
+    minute: "2-digit",
+  })} WIB`;
+};
+
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -1144,7 +1160,7 @@ const DriverManagement = () => {
                     <TableHead>Account Status</TableHead>
                     <TableHead>Driver Status</TableHead>
                     <TableHead>Is Online</TableHead>
-                    <TableHead>Saldo1</TableHead>
+                    <TableHead>Saldo</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -1425,6 +1441,13 @@ const DriverManagement = () => {
                       {formatRupiah(selectedDriver.saldo || 0)}
                     </p>
                   </div>
+                  <div>
+  <Label className="text-sm font-medium text-muted-foreground">Account Created</Label>
+  <p className="text-sm font-medium">
+    {formatDateTime(selectedDriver.created_at)}
+  </p>
+</div>
+
                 </div>
               </div>
 

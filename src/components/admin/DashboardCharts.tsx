@@ -112,7 +112,7 @@ const DashboardCharts: React.FC<DashboardChartsProps> = ({
                 Percentage of vehicles by their current status
               </CardDescription>
             </CardHeader>
-            <CardContent className="h-80">
+            <CardContent className="h-80 pb-6 py-2">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie

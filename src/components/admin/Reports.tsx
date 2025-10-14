@@ -76,8 +76,15 @@ const Reports = () => {
   const [gl, setGl] = useState({
     startDate: '',
     endDate: '',
-    q: ''
+    q: '',
+    nameFilter: '',
+    serviceTypeFilter: ''
   });
+
+  // State for GL dropdown options
+  const [glNameOptions, setGlNameOptions] = useState<Array<{label: string, value: string}>>([]);
+  const [glServiceTypeOptions, setGlServiceTypeOptions] = useState<Array<{label: string, value: string}>>([]);
+  const [loadingGlOptions, setLoadingGlOptions] = useState(false);
 
   const [namaOptions, setNamaOptions] = useState<Array<{label: string, value: string}>>([]);
   const [loadingNamaOptions, setLoadingNamaOptions] = useState(false);
@@ -398,16 +405,65 @@ const Reports = () => {
     }
   };
 
+  // Fetch GL Name and Service Type options
+  const fetchGlFilterOptions = async () => {
+    try {
+      setLoadingGlOptions(true);
+      
+      // Fetch distinct names
+      const { data: nameData, error: nameError } = await supabase
+        .from('vw_general_ledger')
+        .select('name')
+        .not('name', 'is', null)
+        .neq('name', '')
+        .order('name');
+
+      if (nameError) throw nameError;
+
+      const distinctNames = [...new Set(nameData?.map(item => item.name))].filter(Boolean);
+      const nameOptions = [
+        { label: 'All Names', value: 'all' },
+        ...distinctNames.map(name => ({ label: name, value: name }))
+      ];
+      setGlNameOptions(nameOptions);
+
+      // Fetch distinct service types
+      const { data: serviceData, error: serviceError } = await supabase
+        .from('vw_general_ledger')
+        .select('service_type')
+        .not('service_type', 'is', null)
+        .neq('service_type', '')
+        .order('service_type');
+
+      if (serviceError) throw serviceError;
+
+      const distinctServiceTypes = [...new Set(serviceData?.map(item => item.service_type))].filter(Boolean);
+      const serviceOptions = [
+        { label: 'All Service Types', value: 'all' },
+        ...distinctServiceTypes.map(type => ({ label: type, value: type }))
+      ];
+      setGlServiceTypeOptions(serviceOptions);
+
+      console.log('[Reports] GL filter options loaded:', nameOptions.length, serviceOptions.length);
+    } catch (error) {
+      console.error('Error fetching GL filter options:', error);
+      setGlNameOptions([{ label: 'All Names', value: 'all' }]);
+      setGlServiceTypeOptions([{ label: 'All Service Types', value: 'all' }]);
+    } finally {
+      setLoadingGlOptions(false);
+    }
+  };
+
   // Fetch General Ledger data with filters using specific query format
   const fetchGeneralLedger = async () => {
     try {
       setLoadingGL(true);
       console.log('[Reports] Fetching general ledger with filters:', gl);
       
-      // Build query with specific WHERE conditions - select only needed columns
+      // Build query with specific WHERE conditions - select needed columns including name and service_type
       let query = supabase
         .from('vw_general_ledger')
-        .select('date, description, debit, credit');
+        .select('date, name, service_type, description, debit, credit');
 
       // Apply date filters if provided
       if (gl.startDate) {
@@ -417,11 +473,21 @@ const Reports = () => {
         query = query.lte('date', gl.endDate);
       }
 
+      // Apply name filter
+      if (gl.nameFilter && gl.nameFilter !== 'all') {
+        query = query.eq('name', gl.nameFilter);
+      }
+
+      // Apply service type filter
+      if (gl.serviceTypeFilter && gl.serviceTypeFilter !== 'all') {
+        query = query.eq('service_type', gl.serviceTypeFilter);
+      }
+
       // Apply global search filter ONLY if search query is not empty
       if (gl.q && gl.q.trim() !== '') {
         const searchTerm = gl.q.trim();
-        // Search only in description column
-        query = query.ilike('description', `%${searchTerm}%`);
+        // Search in description, name, and service_type columns
+        query = query.or(`description.ilike.%${searchTerm}%,name.ilike.%${searchTerm}%,service_type.ilike.%${searchTerm}%`);
       }
       // If search is empty, no additional filter is applied - all data will be shown
 
@@ -560,12 +626,13 @@ const Reports = () => {
     if (showGL) {
       fetchGeneralLedger();
     }
-  }, [showGL, gl.startDate, gl.endDate, gl.q]);
+  }, [showGL, gl.startDate, gl.endDate, gl.q, gl.nameFilter, gl.serviceTypeFilter]);
 
   // Auto-fetch General Ledger on component mount
   useEffect(() => {
     fetchGeneralLedger();
     fetchChartOfAccounts();
+    fetchGlFilterOptions();
   }, []);
 
   const handleKPIClick = (kpiType: string) => {
@@ -824,7 +891,7 @@ const Reports = () => {
                     </div>
 
                     {/* GL Filters */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                       <div>
                         <Label htmlFor="gl-start-date">Start Date</Label>
                         <Input
@@ -846,11 +913,47 @@ const Reports = () => {
                         />
                       </div>
                       <div>
+                        <Label htmlFor="gl-name-filter">Name</Label>
+                        <Select
+                          value={gl.nameFilter || 'all'}
+                          onValueChange={(value) => setGl(prev => ({ ...prev, nameFilter: value === 'all' ? '' : value }))}
+                        >
+                          <SelectTrigger id="gl-name-filter" className="mt-1">
+                            <SelectValue placeholder={loadingGlOptions ? "Loading..." : "All Names"} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {glNameOptions.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label htmlFor="gl-service-type-filter">Service Type</Label>
+                        <Select
+                          value={gl.serviceTypeFilter || 'all'}
+                          onValueChange={(value) => setGl(prev => ({ ...prev, serviceTypeFilter: value === 'all' ? '' : value }))}
+                        >
+                          <SelectTrigger id="gl-service-type-filter" className="mt-1">
+                            <SelectValue placeholder={loadingGlOptions ? "Loading..." : "All Service Types"} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {glServiceTypeOptions.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
                         <Label htmlFor="gl-search">Search</Label>
                         <Input
                           id="gl-search"
                           type="text"
-                          placeholder="Search description, date, amount..."
+                          placeholder="Search name, service type, description..."
                           value={gl.q}
                           onChange={(e) => setGl(prev => ({ ...prev, q: e.target.value }))}
                           className="mt-1"
@@ -895,16 +998,18 @@ const Reports = () => {
                       <table className="w-full text-sm">
                         <thead className="bg-gray-50 border-b">
                           <tr>
-                            <th className="px-4 py-3 text-left font-medium text-gray-900">Account Name</th>
-                            <th className="px-4 py-3 text-right font-medium text-gray-900">Total Debit</th>
-                            <th className="px-4 py-3 text-right font-medium text-gray-900">Total Credit</th>
-                            <th className="px-4 py-3 text-right font-medium text-gray-900">Balance</th>
+                            <th className="px-4 py-3 text-left font-medium text-gray-900">Date</th>
+                            <th className="px-4 py-3 text-left font-medium text-gray-900">Name</th>
+                            <th className="px-4 py-3 text-left font-medium text-gray-900">Service Type</th>
+                            <th className="px-4 py-3 text-left font-medium text-gray-900">Description</th>
+                            <th className="px-4 py-3 text-right font-medium text-gray-900">Debit</th>
+                            <th className="px-4 py-3 text-right font-medium text-gray-900">Credit</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200">
                           {loadingGL ? (
                             <tr>
-                              <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
+                              <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
                                 <div className="flex items-center justify-center">
                                   <RefreshCw className="h-5 w-5 animate-spin mr-2" />
                                   Loading general ledger...
@@ -913,27 +1018,35 @@ const Reports = () => {
                             </tr>
                           ) : dsGL.length === 0 ? (
                             <tr>
-                              <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
-                                {!filters.startDate || !filters.endDate 
+                              <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                                {!gl.startDate || !gl.endDate 
                                   ? "Please select both start and end dates to view general ledger data"
-                                  : "No general ledger entries found for the selected date range"
+                                  : "No general ledger entries found for the selected criteria"
                                 }
                               </td>
                             </tr>
                           ) : (
                             dsGL.map((entry, index) => (
                               <tr key={index} className="hover:bg-gray-50">
+                                <td className="px-4 py-3 text-gray-900">
+                                  {new Date(entry.date).toLocaleDateString('id-ID')}
+                                </td>
                                 <td className="px-4 py-3 font-medium text-gray-900">
-                                  {entry.account_name}
+                                  {entry.name || '-'}
                                 </td>
-                                <td className="px-4 py-3 text-right font-medium text-gray-900">
-                                  {formatCurrency(entry.total_debit || 0)}
+                                <td className="px-4 py-3">
+                                  <Badge variant="outline" className="text-xs">
+                                    {entry.service_type || '-'}
+                                  </Badge>
                                 </td>
-                                <td className="px-4 py-3 text-right font-medium text-blue-600">
-                                  {formatCurrency(entry.total_credit || 0)}
+                                <td className="px-4 py-3 text-gray-900">
+                                  {entry.description || '-'}
                                 </td>
                                 <td className="px-4 py-3 text-right font-medium text-green-600">
-                                  {formatCurrency(entry.balance || 0)}
+                                  {formatCurrency(entry.debit || 0)}
+                                </td>
+                                <td className="px-4 py-3 text-right font-medium text-blue-600">
+                                  {formatCurrency(entry.credit || 0)}
                                 </td>
                               </tr>
                             ))
@@ -1209,6 +1322,31 @@ const Reports = () => {
                       </div>
                     </div>
 
+                    {/* Totals Container - Only visible when Nama is selected */}
+                    {filters.nama && filters.nama !== 'all' && (
+                      <div className="bg-gradient-to-r from-blue-50 to-green-50 p-6 rounded-lg border border-blue-200 mb-6">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-4">Totals for {filters.nama}</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div className="bg-white p-4 rounded-lg shadow-sm border border-green-200">
+                            <div className="text-sm text-gray-600 mb-1">Total Debit</div>
+                            <div className="text-2xl font-bold text-green-600">
+                              {formatCurrency(
+                                (journalEntries || []).reduce((a, r) => a + Number(r.total_debit || r.debit || 0), 0)
+                              )}
+                            </div>
+                          </div>
+                          <div className="bg-white p-4 rounded-lg shadow-sm border border-blue-200">
+                            <div className="text-sm text-gray-600 mb-1">Total Credit</div>
+                            <div className="text-2xl font-bold text-blue-600">
+                              {formatCurrency(
+                                (journalEntries || []).reduce((a, r) => a + Number(r.total_credit || r.credit || 0), 0)
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     <div className="flex justify-between items-center">
                       <div className="text-sm text-gray-600">
                         Showing {journalEntries.length} of {journalEntries.length} entries
@@ -1387,6 +1525,27 @@ const Reports = () => {
                               ))
                             )}
                           </tbody>
+                          {/* Footer Row with Totals */}
+                          {!loading && !loadingJournal && journalEntries.length > 0 && (
+                            <tfoot className="bg-gray-100 border-t-2 border-gray-300">
+                              <tr>
+                                <td colSpan={4} className="px-4 py-3 text-right font-bold text-gray-900">
+                                  TOTAL:
+                                </td>
+                                <td className="px-4 py-3 text-right font-bold text-green-700 text-base">
+                                  {formatCurrency(
+                                    (journalEntries || []).reduce((a, r) => a + Number(r.total_debit || 0), 0)
+                                  )}
+                                </td>
+                                <td className="px-4 py-3 text-right font-bold text-blue-700 text-base">
+                                  {formatCurrency(
+                                    (journalEntries || []).reduce((a, r) => a + Number(r.total_credit || 0), 0)
+                                  )}
+                                </td>
+                                <td colSpan={5}></td>
+                              </tr>
+                            </tfoot>
+                          )}
                         </table>
                       </div>
                     </div>
@@ -1504,7 +1663,7 @@ const Reports = () => {
 
                     <CardContent className="space-y-6">
                       {/* General Ledger Filters */}
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg">
+                      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 p-4 bg-gray-50 rounded-lg">
                         <div>
                           <Label htmlFor="gl-start-date">Start Date</Label>
                           <Input
@@ -1526,13 +1685,49 @@ const Reports = () => {
                           />
                         </div>
                         <div>
+                          <Label htmlFor="gl-name-filter">Name</Label>
+                          <Select
+                            value={gl.nameFilter || 'all'}
+                            onValueChange={(value) => setGl(prev => ({ ...prev, nameFilter: value === 'all' ? '' : value }))}
+                          >
+                            <SelectTrigger id="gl-name-filter" className="mt-1">
+                              <SelectValue placeholder={loadingGlOptions ? "Loading..." : "All Names"} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {glNameOptions.map((option) => (
+                                <SelectItem key={option.value} value={option.value}>
+                                  {option.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <Label htmlFor="gl-service-type-filter">Service Type</Label>
+                          <Select
+                            value={gl.serviceTypeFilter || 'all'}
+                            onValueChange={(value) => setGl(prev => ({ ...prev, serviceTypeFilter: value === 'all' ? '' : value }))}
+                          >
+                            <SelectTrigger id="gl-service-type-filter" className="mt-1">
+                              <SelectValue placeholder={loadingGlOptions ? "Loading..." : "All Service Types"} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {glServiceTypeOptions.map((option) => (
+                                <SelectItem key={option.value} value={option.value}>
+                                  {option.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
                           <Label htmlFor="gl-search">Search</Label>
                           <div className="relative mt-1">
                             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                             <Input
                               id="gl-search"
                               type="text"
-                              placeholder="Search date, description, debit, credit..."
+                              placeholder="Search description..."
                               value={gl.q}
                               onChange={(e) => setGl(prev => ({ ...prev, q: e.target.value }))}
                               className="pl-10"
@@ -1554,6 +1749,8 @@ const Reports = () => {
                             <thead className="bg-gray-50 border-b">
                               <tr>
                                 <th className="px-4 py-3 text-left font-medium text-gray-900">Date</th>
+                                <th className="px-4 py-3 text-left font-medium text-gray-900">Name</th>
+                                <th className="px-4 py-3 text-left font-medium text-gray-900">Service Type</th>
                                 <th className="px-4 py-3 text-left font-medium text-gray-900">Description</th>
                                 <th className="px-4 py-3 text-right font-medium text-gray-900">Debit</th>
                                 <th className="px-4 py-3 text-right font-medium text-gray-900">Credit</th>
@@ -1562,7 +1759,7 @@ const Reports = () => {
                             <tbody className="divide-y divide-gray-200">
                               {loadingGL ? (
                                 <tr>
-                                  <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
+                                  <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
                                     <div className="flex items-center justify-center">
                                       <RefreshCw className="h-5 w-5 animate-spin mr-2" />
                                       Loading general ledger...
@@ -1571,7 +1768,7 @@ const Reports = () => {
                                 </tr>
                               ) : dsGL.length === 0 ? (
                                 <tr>
-                                  <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
+                                  <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
                                     {!gl.startDate || !gl.endDate 
                                       ? "Please select both start and end dates to view general ledger data"
                                       : "No general ledger entries found for the selected criteria"
@@ -1584,8 +1781,16 @@ const Reports = () => {
                                     <td className="px-4 py-3 text-gray-900">
                                       {new Date(entry.date).toLocaleDateString('id-ID')}
                                     </td>
+                                    <td className="px-4 py-3 font-medium text-gray-900">
+                                      {entry.name || '-'}
+                                    </td>
+                                    <td className="px-4 py-3">
+                                      <Badge variant="outline" className="text-xs">
+                                        {entry.service_type || '-'}
+                                      </Badge>
+                                    </td>
                                     <td className="px-4 py-3 text-gray-900">
-                                      {entry.description}
+                                      {entry.description || '-'}
                                     </td>
                                     <td className="px-4 py-3 text-right font-medium text-green-600">
                                       {formatCurrency(entry.debit || 0)}

@@ -421,7 +421,7 @@ const AdminLayout = () => {
                                 className={`flex items-center p-2 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/top-up-agent") ? "bg-white/20 font-medium text-white" : "text-white/70"}`}
                               >
                                 <Wallet className="h-4 w-4 text-white" />
-                                <span className="ml-3">Top Up Agent</span>
+                                <span className="ml-3">Topup Manual Agent</span>
                               </Link>
                             )}
                             <Link
@@ -477,7 +477,18 @@ const AdminLayout = () => {
                       )}
                     </div>
 
-                    {/* 5. Purchase Requests - Hide for Staff Traffic */}
+                    {/* 5. Stocks - Hide for Staff Traffic */}
+                    {userRole !== "Staff Traffic" && userRole !== "Staff" && (
+                      <Link
+                        to="/admin/stocks"
+                        className={`flex items-center p-3 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/stocks") ? "bg-white/20 font-medium text-white" : "text-white/80"} ${!sidebarOpen && "justify-center"}`}
+                      >
+                        <Package className="h-5 w-5 text-white" />
+                        {sidebarOpen && <span className="ml-3">Stocks</span>}
+                      </Link>
+                    )}
+
+                    {/* 6. Purchase Requests - Hide for Staff Traffic */}
                     {userRole !== "Staff Traffic" && userRole !== "Staff" && (
                       <Link
                         to="/admin/purchase-requests"
@@ -488,7 +499,7 @@ const AdminLayout = () => {
                       </Link>
                     )}
 
-                    {/* 6. Payments - Hide for Staff Traffic */}
+                    {/* 7. Payments - Hide for Staff Traffic */}
                     {userRole !== "Staff Traffic" && userRole !== "Staff" && (
                       <Link
                         to="/admin/payments"
@@ -550,7 +561,7 @@ const AdminLayout = () => {
 
 
 
-                    {/* 7. Cars & Driver Menu - Show for Staff Traffic */}
+                    {/* 8. Cars & Driver Menu - Show for Staff Traffic */}
                     <div>
                       <button
                         onClick={() => setCarsDriverOpen(!carsDriverOpen)}

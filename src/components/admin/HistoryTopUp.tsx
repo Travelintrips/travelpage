@@ -874,7 +874,7 @@ const HistoryTopUp = () => {
                   <TableRow>
                     <TableHead>Code</TableHead>
                     <TableHead>Agent</TableHead>
-                    <TableHead>Status1</TableHead>
+                    <TableHead>Status</TableHead>
                     <TableHead>Amount</TableHead>
                     <TableHead>Method</TableHead>
                     <TableHead>Note</TableHead>

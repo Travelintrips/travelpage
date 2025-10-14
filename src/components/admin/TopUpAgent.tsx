@@ -443,7 +443,7 @@ const TopUpAgent = () => {
   return (
     <div className="space-y-6 bg-white">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">Top Up Agent</h1>
+        <h1 className="text-3xl font-bold">Topup Agent</h1>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
             <Button className="bg-gradient-to-r from-primary-tosca to-primary-dark hover:from-primary-dark hover:to-primary-tosca text-white">

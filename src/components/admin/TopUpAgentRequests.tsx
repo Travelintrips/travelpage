@@ -374,39 +374,48 @@ const TopUpAgentRequests = () => {
   };
 
   const handleVerify = async () => {
-    if (!selectedRequest) return;
+  if (!selectedRequest) return;
 
-    try {
-      setSubmitting(true);
-      const { error } = await supabase.rpc("verify_topup", {
-        p_request_id: selectedRequest.id,
-        p_note: verificationNote || null,
-      });
-      if (error) throw error;
+  try {
+    setSubmitting(true);
 
-      toast({
-        title: "Success",
-        description: "Top-up request verified successfully",
-      });
+    // 🧠 GUARD: semua proses verifikasi top-up ditangani oleh SQL verify_topup()
+    // ⚠️ Jangan panggil insertTransactionWithCorrectBalance() di sini, karena itu akan menyebabkan saldo double
+    console.log(
+      `✅ Verifying top-up #${selectedRequest.id} (handled entirely by SQL verify_topup)`
+    );
 
-      setIsVerifyModalOpen(false);
-      setVerificationNote("");
-      setSelectedRequest(null);
-      fetchRequests();
-      if (activeTab === "history") {
-        fetchHistoryRequests();
-      }
-    } catch (error: any) {
-      console.error("Error verifying request:", error);
-      toast({
-        title: "Error",
-        description: error.message || "Failed to verify request",
-        variant: "destructive",
-      });
-    } finally {
-      setSubmitting(false);
-    }
-  };
+    const { error } = await supabase.rpc("verify_topup", {
+      p_request_id: selectedRequest.id,
+      p_note: verificationNote || null,
+    });
+
+    if (error) throw error;
+
+    toast({
+      title: "✅ Success",
+      description: "Top-up request verified successfully",
+    });
+
+    // Refresh tampilan
+    setIsVerifyModalOpen(false);
+    setVerificationNote("");
+    setSelectedRequest(null);
+    fetchRequests();
+    if (activeTab === "history") fetchHistoryRequests();
+
+  } catch (error: any) {
+    console.error("❌ Error verifying request:", error);
+    toast({
+      title: "Error",
+      description: error.message || "Failed to verify request",
+      variant: "destructive",
+    });
+  } finally {
+    setSubmitting(false);
+  }
+};
+
 
   const handleReject = async () => {
     if (!selectedRequest || !userId || !verificationNote.trim()) {
@@ -718,9 +727,9 @@ const TopUpAgentRequests = () => {
                     <TableHead className="min-w-[120px] text-xs font-medium">
                       Created At
                     </TableHead>
-                    <TableHead className="min-w-[140px] text-xs font-medium">
-                      Verified By/At
-                    </TableHead>
+                 {/*  <TableHead className="min-w-[140px] text-xs font-medium">
+                      Verified By/At1
+                    </TableHead>*/}
                     <TableHead className="min-w-[100px] text-xs font-medium">
                       Note
                     </TableHead>
@@ -840,7 +849,7 @@ const TopUpAgentRequests = () => {
                             )}
                           </div>
                         </TableCell>
-                        <TableCell className="p-2">
+                     {/*   <TableCell className="p-2">
                           {request.verified_at ? (
                             <div className="flex flex-col space-y-1">
                               <span
@@ -862,7 +871,7 @@ const TopUpAgentRequests = () => {
                           ) : (
                             <span className="text-gray-400 text-xs">-</span>
                           )}
-                        </TableCell>
+                        </TableCell>*/}
                         <TableCell className="p-2">
                           <div
                             className="text-xs truncate max-w-[80px]"

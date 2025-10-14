@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
 
 interface Payment {
   name: string | null;
@@ -43,6 +43,8 @@ export default function Payments() {
     name: "All",
     q: ""
   });
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
 
   const formatCurrency = (amount: number | null) => {
     if (!amount) return "Rp 0";
@@ -140,6 +142,21 @@ export default function Payments() {
     fetchPayments();
   };
 
+  // Calculate pagination
+  const totalPages = Math.ceil(payments.length / rowsPerPage);
+  const startIndex = (currentPage - 1) * rowsPerPage;
+  const endIndex = startIndex + rowsPerPage;
+  const paginatedPayments = payments.slice(startIndex, endIndex);
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  const handleRowsPerPageChange = (value: string) => {
+    setRowsPerPage(Number(value));
+    setCurrentPage(1); // Reset to first page when changing rows per page
+  };
+
   useEffect(() => {
     fetchDistinctNames();
     fetchPayments();
@@ -148,6 +165,19 @@ export default function Payments() {
   useEffect(() => {
     fetchPayments();
   }, [filters]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filters, rowsPerPage]);
+
+  function formatMethod(text?: string) {
+    if (!text) return "N/A";
+    return text
+      .replaceAll("_", " ")
+      .toLowerCase()
+      .replace(/\b\w/g, (char) => char.toUpperCase());
+  }
 
   return (
     <div className="space-y-6 bg-white min-h-screen">
@@ -236,58 +266,130 @@ export default function Payments() {
               Loading payments...
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Code Booking</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead>Payment Method</TableHead>
-                  <TableHead>Bank Name</TableHead>
-                  <TableHead>Account Holder</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {payments.length === 0 ? (
+            <>
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8">
-                      No payment records found
-                    </TableCell>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Code Booking</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead>Amount</TableHead>
+                    <TableHead>Payment Method</TableHead>
+                    <TableHead>Bank Name</TableHead>
+                    <TableHead>Account Holder</TableHead>
                   </TableRow>
-                ) : (
-                  payments.map((payment, index) => (
-                    <TableRow key={index}>
-                      <TableCell className="font-medium text-gray-600">
-                        {payment.date ? new Date(payment.date).toLocaleDateString('id-ID') : "N/A"}
-                      </TableCell>
-                      <TableCell className="font-medium">
-                        {payment.name || "N/A"}
-                      </TableCell>
-                      <TableCell className="font-mono text-sm">
-                        {payment.code_booking || "N/A"}
-                      </TableCell>
-                      <TableCell className="max-w-xs truncate">
-                        {payment.description || "N/A"}
-                      </TableCell>
-                      <TableCell className="font-medium text-green-600">
-                        {formatCurrency(payment.amount)}
-                      </TableCell>
-                      <TableCell className="capitalize">
-                        {payment.payment_method || "N/A"}
-                      </TableCell>
-                      <TableCell>
-                        {payment.bank_name || "N/A"}
-                      </TableCell>
-                      <TableCell>
-                        {payment.account_holder_received || "N/A"}
+                </TableHeader>
+                <TableBody>
+                  {paginatedPayments.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center py-8">
+                        No payment records found
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+                  ) : (
+                    paginatedPayments.map((payment, index) => (
+                      <TableRow key={index}>
+                        <TableCell className="font-medium text-gray-600">
+                          {payment.date ? new Date(payment.date).toLocaleDateString('id-ID') : "N/A"}
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          {payment.name || "N/A"}
+                        </TableCell>
+                        <TableCell className="font-mono text-sm">
+                          {payment.code_booking || "N/A"}
+                        </TableCell>
+                        <TableCell className="max-w-xs truncate">
+                          {payment.description || "N/A"}
+                        </TableCell>
+                        <TableCell className="font-medium text-green-600">
+                          {formatCurrency(payment.amount)}
+                        </TableCell>
+                        <TableCell className="capitalize">
+                          {formatMethod(payment.payment_method)}
+                        </TableCell>
+                        <TableCell>
+                          {payment.bank_name || "N/A"}
+                        </TableCell>
+                        <TableCell>
+                          {payment.account_holder_received || "N/A"}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+
+              {/* Pagination Controls */}
+              <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="rowsPerPage" className="text-sm">
+                    Rows per page:
+                  </Label>
+                  <Select value={rowsPerPage.toString()} onValueChange={handleRowsPerPageChange}>
+                    <SelectTrigger className="w-[80px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="10">10</SelectItem>
+                      <SelectItem value="20">20</SelectItem>
+                      <SelectItem value="30">30</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <span className="text-sm text-muted-foreground ml-4">
+                    Showing {startIndex + 1} to {Math.min(endIndex, payments.length)} of {payments.length} entries
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handlePageChange(currentPage - 1)}
+                    disabled={currentPage === 1}
+                  >
+                    <ChevronLeft className="h-4 w-4 mr-1" />
+                    Previous
+                  </Button>
+                  
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
+                      // Show first page, last page, current page, and pages around current
+                      if (
+                        page === 1 ||
+                        page === totalPages ||
+                        (page >= currentPage - 1 && page <= currentPage + 1)
+                      ) {
+                        return (
+                          <Button
+                            key={page}
+                            variant={currentPage === page ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => handlePageChange(page)}
+                            className="w-9"
+                          >
+                            {page}
+                          </Button>
+                        );
+                      } else if (page === currentPage - 2 || page === currentPage + 2) {
+                        return <span key={page} className="px-1">...</span>;
+                      }
+                      return null;
+                    })}
+                  </div>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handlePageChange(currentPage + 1)}
+                    disabled={currentPage === totalPages}
+                  >
+                    Next
+                    <ChevronRight className="h-4 w-4 ml-1" />
+                  </Button>
+                </div>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>

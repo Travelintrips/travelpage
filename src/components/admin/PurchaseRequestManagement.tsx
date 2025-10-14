@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   Card,
   CardContent,
@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { BrowserMultiFormatReader } from "@zxing/browser";
 import {
   Select,
   SelectContent,
@@ -76,15 +77,22 @@ import {
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
+
+
+
 interface PurchaseRequest {
   id: string;
   request_date: string;
   requester_name: string;
+  requester_id?: string;
   item_name: string;
   quantity: number;
   unit_price: number;
+  tax?: number;
   shipping_cost: number;
   total_amount: number;
+  attachment_url?: string;
+  barcode: string;
   status: "PENDING" | "APPROVED" | "COMPLETED" | "REJECTED";
   request_code?: string;
   approved_by?: string;
@@ -109,6 +117,57 @@ interface KPIData {
   pendingAmount: number;
   approvedCount: number;
   approvedAmount: number;
+}
+
+export function CameraBarcodeScanner({
+  onDetected,
+  active = true,
+}: {
+  onDetected: (code: string) => void;
+  active?: boolean;
+}) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [status, setStatus] = useState("Arahkan kamera ke barcode...");
+  const [lastCode, setLastCode] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!active) return; // hanya aktif jika modal terbuka
+
+    const reader = new BrowserMultiFormatReader();
+    let controls: { stop: () => void } | null = null;
+
+    reader
+      .decodeFromVideoDevice(null, videoRef.current!, (result, err) => {
+        if (result) {
+          const code = result.getText();
+          if (code !== lastCode) {
+            setLastCode(code);
+            setStatus(`✅ Barcode terdeteksi: ${code}`);
+            onDetected(code);
+          }
+        }
+      })
+      .then((ctrl) => {
+        controls = ctrl;
+      })
+      .catch((err) => console.error("Camera error:", err));
+
+    // ✅ cleanup aman — tanpa reader.reset()
+    return () => {
+      if (controls && typeof controls.stop === "function") {
+        controls.stop();
+        console.log("📷 Kamera dimatikan dengan aman");
+      }
+    };
+  }, [active]); // kamera hidup/mati tergantung state modal
+
+  return (
+    <div className="border rounded-lg bg-gray-50 mt-3 p-2 space-y-2">
+      <video ref={videoRef} className="w-full rounded-md" muted playsInline />
+      <p className="text-sm text-gray-600">{status}</p>
+      {lastCode && <p className="text-green-700 text-sm font-mono">{lastCode}</p>}
+    </div>
+  );
 }
 
 const PurchaseRequestManagement = () => {
@@ -139,13 +198,18 @@ const PurchaseRequestManagement = () => {
     receivedDate: new Date(),
     notes: "",
   });
+  const [isScanning, setIsScanning] = useState(false);
+  
 
   // Form states
   const [formData, setFormData] = useState({
     date: new Date(),
     item: "",
+    photo: null as File | null,
+    photoPreview: "",
     quantity: 1,
     unit_price: 0,
+    tax: 0,
     shipping_cost: 0,
     notes: "",
   });
@@ -238,6 +302,7 @@ const PurchaseRequestManagement = () => {
         item_name: request.item_name,
         quantity: request.qty || request.quantity,
         unit_price: request.unit_price,
+        tax: request.tax,
         shipping_cost: request.shipping_cost,
         total_amount: request.total_amount,
         status: request.status || (request.verified_at ? "APPROVED" : "PENDING"),
@@ -320,28 +385,56 @@ const PurchaseRequestManagement = () => {
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Please fill in all required fields",
+        description: "Please fill in all required fields (Item Name, Quantity, Unit Price)",
       });
       return;
     }
 
     try {
-      const requestCode = `PR-${Date.now()}`;
-      const { error } = await supabase.from("purchase_request").insert({
-        request_code: requestCode,
-        date: format(formData.date, "yyyy-MM-dd"),
-        nama: user.user_metadata?.full_name || user.email || "Unknown",
-        nama_barang: formData.item.trim(),
-        jumlah: formData.quantity,
-        harga_satuan: formData.unit_price,
-        ongkos_kirim: formData.shipping_cost,
-        total_harga: formData.quantity * formData.unit_price + formData.shipping_cost,
+      let photoUrl = null;
+
+      // Upload photo if provided
+      if (formData.photo) {
+        const fileExt = formData.photo.name.split('.').pop();
+        const fileName = `${user.id}_${Date.now()}.${fileExt}`;
+        const filePath = `purchase-requests/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('purchase-requests')
+          .upload(filePath, formData.photo);
+
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('purchase-requests')
+          .getPublicUrl(filePath);
+
+        photoUrl = publicUrl;
+      }
+
+      const totalAmount = (Number(formData.quantity) * Number(formData.unit_price)) + Number(formData.tax) + Number(formData.shipping_cost);
+
+      const { error } = await supabase.from("purchase_requests").insert({
+        request_date: format(formData.date, "yyyy-MM-dd"),
+        requester_id: user.id,
+        requester_name: user.user_metadata?.full_name || user.email || "Unknown",
+        item_name: formData.item.trim(),
+        qty: formData.quantity,
+        unit_price: formData.unit_price,
+        tax: formData.tax,
+        shipping_cost: formData.shipping_cost,
+        total_amount: totalAmount,
+        attachment_url: photoUrl,
+        notes: formData.notes.trim() || null,
+        barcode: formData.barcode || null,
+        status: "PENDING",
+        created_at: new Date().toISOString(),
       });
 
       if (error) throw error;
 
       toast({
-        title: "Success",
+        title: "Request created",
         description: "Purchase request created successfully",
       });
 
@@ -520,12 +613,27 @@ const PurchaseRequestManagement = () => {
     }
   };
 
+  const handleFormPhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setFormData(prev => ({ ...prev, photo: file }));
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFormData(prev => ({ ...prev, photoPreview: reader.result as string }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const resetForm = () => {
     setFormData({
       date: new Date(),
       item: "",
+      photo: null,
+      photoPreview: "",
       quantity: 1,
       unit_price: 0,
+      tax: 0,
       shipping_cost: 0,
       notes: "",
     });
@@ -565,7 +673,9 @@ const PurchaseRequestManagement = () => {
     applyFilters();
   }, [requests, searchTerm, activeTab]);
 
-  const totalAmount = formData.quantity * formData.unit_price + formData.shipping_cost;
+  const totalAmount = (Number(formData.quantity) * Number(formData.unit_price)) + Number(formData.tax) + Number(formData.shipping_cost);
+
+  
 
   return (
     <div className="space-y-6 p-6">
@@ -957,7 +1067,7 @@ const PurchaseRequestManagement = () => {
 
       {/* New Request Dialog */}
       <Dialog open={showNewRequestDialog} onOpenChange={setShowNewRequestDialog}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>New Purchase Request</DialogTitle>
             <DialogDescription>
@@ -967,7 +1077,7 @@ const PurchaseRequestManagement = () => {
 
           <div className="space-y-4">
             <div>
-              <Label htmlFor="date">Date</Label>
+              <Label htmlFor="date">Date *</Label>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
@@ -1012,6 +1122,111 @@ const PurchaseRequestManagement = () => {
               />
             </div>
 
+            {/* 📸 Photo Upload + Barcode Scanner Section */}
+<div>
+  <Label>Photo</Label>
+
+  <div className="mt-2 space-y-2">
+    {/* 🖼️ Preview Foto */}
+    {formData.photoPreview && (
+      <div className="relative w-full h-48 border rounded-lg overflow-hidden">
+        <img
+          src={formData.photoPreview}
+          alt="Preview"
+          className="w-full h-full object-cover"
+        />
+        <Button
+          size="sm"
+          variant="destructive"
+          className="absolute top-2 right-2"
+          onClick={() =>
+            setFormData((prev) => ({ ...prev, photo: null, photoPreview: "" }))
+          }
+        >
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+    )}
+
+    {/* 🧭 Tombol Upload / Take Photo */}
+    <div className="flex gap-2">
+      <Button
+        type="button"
+        variant="outline"
+        className="flex-1"
+        onClick={() => document.getElementById("form-photo-upload")?.click()}
+      >
+        <Upload className="h-4 w-4 mr-2" />
+        Upload Photo
+      </Button>
+      <Button
+        type="button"
+        variant="outline"
+        className="flex-1"
+        onClick={() => document.getElementById("form-camera-capture")?.click()}
+      >
+        <Camera className="h-4 w-4 mr-2" />
+        Take Photo
+      </Button>
+    </div>
+
+    {/* 📁 Hidden Input */}
+    <input
+      id="form-photo-upload"
+      type="file"
+      accept="image/*"
+      className="hidden"
+      onChange={handleFormPhotoChange}
+    />
+    <input
+      id="form-camera-capture"
+      type="file"
+      accept="image/*"
+      capture="environment"
+      className="hidden"
+      onChange={handleFormPhotoChange}
+    />
+  </div>
+
+  {/* 📷 Scanner Barcode */}
+  {showNewRequestDialog && (
+  <div className="mt-4 border-t pt-4">
+    <Label className="text-sm font-medium">Scan Barcode (Opsional)</Label>
+
+    {!isScanning ? (
+      <Button
+        variant="outline"
+        className="mt-2"
+        onClick={() => setIsScanning(true)} // nyalakan kamera manual
+      >
+        <Camera className="w-4 h-4 mr-2" />
+        Mulai Scan Barcode
+      </Button>
+    ) : (
+      <>
+        <CameraBarcodeScanner
+          active={isScanning}
+          onDetected={(code) => {
+            handleBarcodeDetected(code);
+            setIsScanning(false); // matikan kamera setelah berhasil
+          }}
+        />
+        <Button
+          variant="destructive"
+          className="mt-2"
+          onClick={() => setIsScanning(false)} // stop manual
+        >
+          Stop Kamera
+        </Button>
+      </>
+    )}
+  </div>
+)}
+
+</div>
+
+            
+
             <div>
               <Label htmlFor="quantity">Quantity *</Label>
               <Input
@@ -1030,6 +1245,16 @@ const PurchaseRequestManagement = () => {
                 placeholder="0"
                 value={formData.unit_price ? formatNumber(formData.unit_price.toString()) : ""}
                 onChange={(e) => setFormData({ ...formData, unit_price: parseFormattedNumber(e.target.value) })}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="tax">Tax (Rp)</Label>
+              <Input
+                id="tax"
+                placeholder="0"
+                value={formData.tax ? formatNumber(formData.tax.toString()) : ""}
+                onChange={(e) => setFormData({ ...formData, tax: parseFormattedNumber(e.target.value) })}
               />
             </div>
 

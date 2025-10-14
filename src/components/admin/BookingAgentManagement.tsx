@@ -39,6 +39,8 @@ import {
   Clock,
   X,
   CheckCircle,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import {
   Dialog,
@@ -100,6 +102,7 @@ const BookingAgentManagement = () => {
   const [handlingBookings, setHandlingBookings] = useState<HandlingBooking[]>([]);
   const [loading, setLoading] = useState(false);
   const [isFetching, setIsFetching] = useState(false);
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   
   // Add refs to prevent duplicate fetches and track initialization
   const fetchInProgress = useRef(false);
@@ -536,6 +539,18 @@ const BookingAgentManagement = () => {
     }
   };
 
+  const toggleRowExpansion = (bookingId: string) => {
+    setExpandedRows((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(bookingId)) {
+        newSet.delete(bookingId);
+      } else {
+        newSet.add(bookingId);
+      }
+      return newSet;
+    });
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64 bg-white">
@@ -700,186 +715,289 @@ const BookingAgentManagement = () => {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-[50px]"></TableHead>
                   <TableHead>Booking ID</TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Flight Number</TableHead>
-                  <TableHead>Travel Type</TableHead>
-                  <TableHead>Date & Time</TableHead>
-                  <TableHead>Passengers</TableHead>
-                  <TableHead>Payment Method</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead>Agent Name</TableHead>
                   <TableHead>Total Amount</TableHead>
+                  <TableHead>Status</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredBookings.map((booking) => (
-                  <TableRow key={booking.id}>
-                    <TableCell>
-                      <div className="font-mono text-sm">
-                        {booking.code_booking || booking.id.slice(0, 8)}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div>
-                        <div className="font-medium">
-                          {booking.customer_name}
+                  <React.Fragment key={booking.id}>
+                    {/* Master Row */}
+                    <TableRow className="cursor-pointer hover:bg-gray-50">
+                      <TableCell onClick={() => toggleRowExpansion(booking.id)}>
+                        {expandedRows.has(booking.id) ? (
+                          <ChevronDown className="h-5 w-5 text-gray-600" />
+                        ) : (
+                          <ChevronRight className="h-5 w-5 text-gray-600" />
+                        )}
+                      </TableCell>
+                      <TableCell onClick={() => toggleRowExpansion(booking.id)}>
+                        <div className="font-mono text-sm">
+                          {booking.code_booking || booking.id.slice(0, 8)}
                         </div>
-                        <div className="text-sm text-muted-foreground">
-                          {booking.customer_email}
+                      </TableCell>
+                      <TableCell onClick={() => toggleRowExpansion(booking.id)}>
+                        <div>
+                          <div className="font-medium">
+                            {booking.customer_name}
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            {booking.customer_email}
+                          </div>
                         </div>
-                        <div className="text-sm text-muted-foreground">
-                          {booking.customer_phone}
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{booking.category}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="font-medium flex items-center gap-1">
-                        <Plane className="h-4 w-4" />
-                        {booking.flight_number}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="secondary">{booking.travel_type}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div>
-                        <div className="font-medium">
-                          {formatDate(booking.pickup_date)}
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          {booking.pickup_time}
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center">
-                        <User className="h-4 w-4 mr-1" />
-                        {booking.passengers || "N/A"}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div>
-                        <div className="font-medium">
-                          {formatPaymentMethod(
-                            booking.payment_method,
-                            booking.bank_name,
+                      </TableCell>
+                      <TableCell onClick={() => toggleRowExpansion(booking.id)}>
+                        <span className="font-medium text-green-600">
+                          {formatCurrency(booking.total_price)}
+                        </span>
+                      </TableCell>
+                      <TableCell onClick={() => toggleRowExpansion(booking.id)}>
+                        <Badge
+                          variant={getStatusBadgeVariant(booking.status)}
+                          className={
+                            booking.status === "completed"
+                              ? "bg-blue-500 text-white hover:bg-blue-600"
+                              : booking.status === "pending"
+                                ? "bg-yellow-500 text-white hover:bg-yellow-600"
+                                : ""
+                          }
+                        >
+                          {(booking.status || "pending")
+                            .replace("_", " ")
+                            .toUpperCase()}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="outline" size="sm">
+                                <Edit className="h-4 w-4 mr-1" />
+                                Edit
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent>
+                              <DropdownMenuItem
+                                onClick={() =>
+                                  updateBookingStatus(
+                                    booking.id,
+                                    "confirmed",
+                                    userRole || "Admin",
+                                    userName || "Unknown User",
+                                  )
+                                }
+                              >
+                                <Check className="h-4 w-4 mr-2" />
+                                Confirm
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() =>
+                                  updateBookingStatus(
+                                    booking.id,
+                                    "pending",
+                                    userRole || "Admin",
+                                    userName || "Unknown User",
+                                  )
+                                }
+                              >
+                                <Clock className="h-4 w-4 mr-2" />
+                                Pending
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() =>
+                                  updateBookingStatus(
+                                    booking.id,
+                                    "completed",
+                                    userRole || "Admin",
+                                    userName || "Unknown User",
+                                  )
+                                }
+                              >
+                                <CheckCircle className="h-4 w-4 mr-2" />
+                                Complete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                          {userRole === "Super Admin" && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => deleteBooking(booking.id)}
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           )}
                         </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={getStatusBadgeVariant(booking.status)}
-                        className={
-                          booking.status === "completed"
-                            ? "bg-blue-500 text-white hover:bg-blue-600"
-                            : booking.status === "pending"
-                              ? "bg-yellow-500 text-white hover:bg-yellow-600"
-                              : ""
-                        }
-                      >
-                        {(booking.status || "pending")
-                          .replace("_", " ")
-                          .toUpperCase()}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="font-medium">
-                      {formatCurrency(booking.total_price)}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setSelectedBooking(booking);
-                            setIsDetailsModalOpen(true);
-                          }}
-                          className="mr-2"
-                        >
-                          <Calendar className="h-4 w-4 mr-1" />
-                          View Details
-                        </Button>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="outline" size="sm">
-                              <Edit className="h-4 w-4 mr-1" />
-                              Edit
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent>
-                            <DropdownMenuItem
-                              onClick={() =>
-                                updateBookingStatus(
-                                  booking.id,
-                                  "confirmed",
-                                  userRole || "Admin",
-                                  userName || "Unknown User",
-                                )
-                              }
-                            >
-                              <Check className="h-4 w-4 mr-2" />
-                              Confirm
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() =>
-                                updateBookingStatus(
-                                  booking.id,
-                                  "pending",
-                                  userRole || "Admin",
-                                  userName || "Unknown User",
-                                )
-                              }
-                            >
-                              <Clock className="h-4 w-4 mr-2" />
-                              Pending
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() =>
-                                updateBookingStatus(
-                                  booking.id,
-                                  "completed",
-                                  userRole || "Admin",
-                                  userName || "Unknown User",
-                                )
-                              }
-                            >
-                              <CheckCircle className="h-4 w-4 mr-2" />
-                              Complete
-                            </DropdownMenuItem>
-                           {/*  <DropdownMenuItem
-                              onClick={() =>
-                                updateBookingStatus(
-                                  booking.id,
-                                  "cancelled",
-                                  userRole || "Admin",
-                                  userName || "Unknown User",
-                                )
-                              }
-                            >
-                             <X className="h-4 w-4 mr-2" />
-                              Cancel
-                            </DropdownMenuItem> */}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                        {userRole === "Super Admin" && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => deleteBooking(booking.id)}
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
+                      </TableCell>
+                    </TableRow>
+
+                    {/* Detail Row */}
+                    {expandedRows.has(booking.id) && (
+                      <TableRow>
+                        <TableCell colSpan={6} className="bg-gray-50 p-6">
+                          <div className="space-y-6">
+                            {/* Booking Details Grid */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                              <div>
+                                <Label className="text-sm font-medium text-gray-600">
+                                  Category
+                                </Label>
+                                <p className="text-sm mt-1">
+                                  <Badge variant="outline">{booking.category}</Badge>
+                                </p>
+                              </div>
+                              <div>
+                                <Label className="text-sm font-medium text-gray-600">
+                                  Travel Type
+                                </Label>
+                                <p className="text-sm mt-1">
+                                  <Badge variant="secondary">{booking.travel_type}</Badge>
+                                </p>
+                              </div>
+                              <div>
+                                <Label className="text-sm font-medium text-gray-600">
+                                  Flight Number
+                                </Label>
+                                <p className="text-sm mt-1 flex items-center gap-1">
+                                  <Plane className="h-4 w-4" />
+                                  {booking.flight_number}
+                                </p>
+                              </div>
+                              <div>
+                                <Label className="text-sm font-medium text-gray-600">
+                                  Pickup Date
+                                </Label>
+                                <p className="text-sm mt-1">
+                                  {formatDate(booking.pickup_date)}
+                                </p>
+                              </div>
+                              <div>
+                                <Label className="text-sm font-medium text-gray-600">
+                                  Pickup Time
+                                </Label>
+                                <p className="text-sm mt-1">{booking.pickup_time}</p>
+                              </div>
+                              <div>
+                                <Label className="text-sm font-medium text-gray-600">
+                                  Passengers
+                                </Label>
+                                <p className="text-sm mt-1 flex items-center gap-1">
+                                  <User className="h-4 w-4" />
+                                  {booking.passengers || "N/A"}
+                                </p>
+                              </div>
+                              <div>
+                                <Label className="text-sm font-medium text-gray-600">
+                                  Payment Method
+                                </Label>
+                                <p className="text-sm mt-1">
+                                  {formatPaymentMethod(
+                                    booking.payment_method,
+                                    booking.bank_name,
+                                  )}
+                                </p>
+                              </div>
+                              <div>
+                                <Label className="text-sm font-medium text-gray-600">
+                                  Created Date
+                                </Label>
+                                <p className="text-sm mt-1">
+                                  {formatDate(booking.created_at)}
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Location Details */}
+                            <div className="border-t pt-4">
+                              <h4 className="font-semibold mb-3 flex items-center gap-2">
+                                <MapPin className="h-4 w-4" />
+                                Location Details
+                              </h4>
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                  <Label className="text-sm font-medium text-gray-600">
+                                    Pickup Area
+                                  </Label>
+                                  <p className="text-sm mt-1">{booking.pickup_area}</p>
+                                </div>
+                                <div>
+                                  <Label className="text-sm font-medium text-gray-600">
+                                    Passenger Area
+                                  </Label>
+                                  <p className="text-sm mt-1">{booking.passenger_area}</p>
+                                </div>
+                                <div>
+                                  <Label className="text-sm font-medium text-gray-600">
+                                    Dropoff Area
+                                  </Label>
+                                  <p className="text-sm mt-1">
+                                    {booking.dropoff_area || "N/A"}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Status History */}
+                            <div className="border-t pt-4">
+                              <h4 className="font-semibold mb-3 flex items-center gap-2">
+                                <CheckCircle className="h-4 w-4" />
+                                Status History
+                              </h4>
+                              <div className="space-y-2">
+                                <div className="flex items-center justify-between text-sm p-2 bg-white rounded border">
+                                  <span>
+                                    <strong>Last Updated:</strong>{" "}
+                                    {booking.updated_at
+                                      ? formatDate(booking.updated_at)
+                                      : formatDate(booking.created_at)}
+                                  </span>
+                                </div>
+                                <div className="flex items-center justify-between text-sm p-2 bg-white rounded border">
+                                  <span>
+                                    <strong>Created by Agent:</strong>{" "}
+                                    {booking.customer_name}
+                                  </span>
+                                  <span className="text-gray-500">
+                                    {formatDate(booking.created_at)}
+                                  </span>
+                                </div>
+                                {booking.status === "completed" && (
+                                  <div className="flex items-center justify-between text-sm p-2 bg-green-50 rounded border border-green-200">
+                                    <span>
+  <strong>Completed by Admin:</strong>{" "}
+  {booking.updated_by_name || "Admin"}
+</span>
+                                    <span className="text-gray-500">
+                                      {booking.updated_at
+                                        ? formatDate(booking.updated_at)
+                                        : "Just now"}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Additional Notes */}
+                            {booking.additional_notes && (
+                              <div className="border-t pt-4">
+                                <Label className="text-sm font-medium text-gray-600">
+                                  Additional Notes
+                                </Label>
+                                <p className="text-sm bg-white p-3 rounded-md mt-1 border">
+                                  {booking.additional_notes}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </React.Fragment>
                 ))}
               </TableBody>
             </Table>

@@ -76,6 +76,8 @@ import IasBookingGroup from "./components/admin/IasBookingGroup";
 import Reports from "./components/admin/Reports";
 import BookingAndProfileUserPage from "./pages/Booking&ProfileUserPage";
 import PurchaseRequestManagement from "./components/admin/PurchaseRequestManagement";
+import AgentDetailsPage from "./pages/AgentDetailsPage";
+import StocksManagement from "./components/admin/StocksManagement";
 
 declare global {
   interface Window {
@@ -542,6 +544,7 @@ function AppContent() {
             <Route path="concierge-group" element={<IasBookingGroup />} />
             <Route path="drivers" element={<DriverManagement />} />
             <Route path="cars" element={<CarsManagement />} />
+            <Route path="stocks" element={<StocksManagement />} />
             <Route path="purchase-requests" element={<PurchaseRequestManagement />} />
             <Route path="payments" element={<Payments />} />
             <Route path="bookings" element={<BookingManagement />} />
@@ -556,6 +559,7 @@ function AppContent() {
             <Route path="api-settings" element={<ApiSettings />} />
             <Route path="dispatcher" element={<DispatcherPage />} />
             <Route path="data-agent" element={<AgentManagement />} />
+            <Route path="agent-details/:agentId" element={<AgentDetailsPage />} />
             <Route path="booking-agent" element={<BookingAgentManagement />} />
             <Route path="top-up-agent" element={<TopUpAgent />} />
             <Route path="history-top-up" element={<HistoryTopUp />} />
