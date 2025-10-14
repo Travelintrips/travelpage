@@ -912,20 +912,53 @@ const CarsManagement = () => {
   const handleToggleActive = async (car: CarData) => {
     try {
       const newStatus = !car.is_active;
-      const { error } = await supabase
+      
+      // Prepare update payload
+      const updatePayload: { available?: boolean; is_active?: boolean; status?: string } = {
+        available: newStatus,  // Update 'available' field (used in vehicles table)
+        is_active: newStatus,  // Also update 'is_active' for consistency
+      };
+      
+      // If suspending (newStatus = false), set status to "suspended"
+      // If activating (newStatus = true), set status to "available"
+      if (!newStatus) {
+        updatePayload.status = "suspended";
+      } else {
+        updatePayload.status = "available";
+      }
+      
+      console.log('Updating vehicle:', car.id, 'with payload:', updatePayload);
+      
+      const { data, error } = await supabase
         .from("vehicles")
-        .update({ is_active: newStatus })
-        .eq("id", car.id);
+        .update(updatePayload)
+        .eq("id", car.id)
+        .select();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error updating vehicle:', error);
+        throw error;
+      }
+
+      console.log('Vehicle updated successfully:', data);
 
       // Update local state
       const updatedCars = cars.map((c) =>
-        c.id === car.id ? { ...c, is_active: newStatus } : c,
+        c.id === car.id 
+          ? { 
+              ...c, 
+              is_active: newStatus,
+              status: updatePayload.status 
+            } 
+          : c
       );
       setCars(updatedCars);
+      
+      // Refresh KPI data to reflect changes
+      fetchKpiData(true);
     } catch (error) {
       console.error("Error toggling car active status:", error);
+      alert(`Failed to update car status: ${error.message}`);
     }
   };
 
