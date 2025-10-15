@@ -75,6 +75,7 @@ interface NewStockForm {
   ppn_jual: number;
   purchase_price: number;
   selling_price: number;
+  barcode?: string;
 }
 
 export function CameraBarcodeScanner({
@@ -139,7 +140,7 @@ const StocksManagement = () => {
   // Modal state
   const [isNewStockModalOpen, setIsNewStockModalOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
-  const [requesterName, setRequesterName] = useState("");
+  const [userName, setUserName] = useState("");
   const [isScanning, setIsScanning] = useState(false);
 
   // New stock form
@@ -154,6 +155,7 @@ const StocksManagement = () => {
     ppn_jual: 0,
     purchase_price: 0,
     selling_price: 0,
+    barcode: "",
   });
 
   // Name options for dropdown
@@ -178,27 +180,22 @@ const StocksManagement = () => {
     fetchCategoryOptions();
     fetchWarehouseOptions();
     fetchPpnOptions();
-    fetchRequesterName();
+    fetchUserName();
   }, []);
 
   useEffect(() => {
     fetchStocks();
   }, [currentPage, filters]);
 
-  const fetchRequesterName = async () => {
+  const fetchUserName = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const { data: userData } = await supabase
-          .from("users")
-          .select("full_name")
-          .eq("id", user.id)
-          .single();
-        
-        setRequesterName(userData?.full_name || user.email || "Unknown");
+        const fullName = user.user_metadata?.full_name || user.email || "Unknown";
+        setUserName(fullName);
       }
     } catch (error) {
-      console.error("Error fetching requester name:", error);
+      console.error("Error fetching user name:", error);
     }
   };
 
@@ -391,26 +388,27 @@ const StocksManagement = () => {
         ? newStock.selling_price + (newStock.selling_price * newStock.ppn_jual / 100)
         : newStock.selling_price;
 
-      const payload = {
+      const newStockData = {
         date: newStock.date,
         requester_id: user.id,
-        category: newStock.category,
+        name: userName,
+        category: newStock.category ? [newStock.category] : null,
         warehouse_location: newStock.warehouse_location,
         item_name: newStock.item_name,
-        quantity: newStock.quantity,
+        quantity: Number(newStock.quantity),
         ppn_type: newStock.ppn_type,
         ppn_beli: newStock.ppn_type === "PPN" ? newStock.ppn_beli : null,
         ppn_jual: newStock.ppn_type === "PPN" ? newStock.ppn_jual : null,
         purchase_price: newStock.purchase_price,
         selling_price: newStock.selling_price,
-        purchase_price_after_ppn: purchasePriceAfterPpn,
-        barcode: newRequestData.barcode || null,
-        selling_price_after_ppn: sellingPriceAfterPpn,
+        harga_beli_setelah_ppn: purchasePriceAfterPpn,
+        barcode: newStock.barcode?.trim() || null,
+        harga_jual_setelah_ppn: sellingPriceAfterPpn,
       };
 
       const { error } = await supabase
         .from("stock")
-        .insert([payload]);
+        .insert([newStockData]);
 
       if (error) throw error;
 
@@ -431,6 +429,7 @@ const StocksManagement = () => {
         ppn_jual: 0,
         purchase_price: 0,
         selling_price: 0,
+        barcode: "",
       });
       setIsNewStockModalOpen(false);
       
@@ -929,10 +928,11 @@ const StocksManagement = () => {
                 />
               </div>
               <div>
-                <Label htmlFor="requester">Requester</Label>
+                <Label htmlFor="name">Name</Label>
                 <Input
-                  id="requester"
-                  value={requesterName}
+                  id="name"
+                  name="name"
+                  value={userName}
                   readOnly
                   className="mt-1 bg-gray-50"
                 />
@@ -942,13 +942,36 @@ const StocksManagement = () => {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="category">Category</Label>
-                <Input
-                  id="category"
+                <Select
                   value={newStock.category}
-                  onChange={(e) => setNewStock({ ...newStock, category: e.target.value })}
-                  placeholder="Enter category"
-                  className="mt-1"
-                />
+                  onValueChange={(value) => setNewStock({ ...newStock, category: value })}
+                >
+                  <SelectTrigger id="category" className="mt-1">
+                    <SelectValue placeholder="Pilih kategori" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Raw Materials">Raw Materials</SelectItem>
+                    <SelectItem value="Work-In-Process (WIP)">Work-In-Process (WIP)</SelectItem>
+                    <SelectItem value="Finished Goods">Finished Goods</SelectItem>
+                    <SelectItem value="Resale/Merchandise">Resale/Merchandise</SelectItem>
+                    <SelectItem value="Kits/Bundles">Kits/Bundles</SelectItem>
+                    <SelectItem value="Spare Parts">Spare Parts</SelectItem>
+                    <SelectItem value="MRO">MRO</SelectItem>
+                    <SelectItem value="Consumables">Consumables</SelectItem>
+                    <SelectItem value="Packaging">Packaging</SelectItem>
+                    <SelectItem value="Food">Food</SelectItem>
+                    <SelectItem value="Beverages">Beverages</SelectItem>
+                    <SelectItem value="Rentable Units">Rentable Units</SelectItem>
+                    <SelectItem value="Demo/Loaner Units">Demo/Loaner Units</SelectItem>
+                    <SelectItem value="Returns">Returns</SelectItem>
+                    <SelectItem value="Defective/Damaged">Defective/Damaged</SelectItem>
+                    <SelectItem value="Obsolete/Expired">Obsolete/Expired</SelectItem>
+                    <SelectItem value="Goods In Transit">Goods In Transit</SelectItem>
+                    <SelectItem value="Consignment">Consignment</SelectItem>
+                    <SelectItem value="Third-Party Owned">Third-Party Owned</SelectItem>
+                    <SelectItem value="Samples/Marketing">Samples/Marketing</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <Label htmlFor="warehouse">Warehouse Location</Label>
@@ -996,10 +1019,9 @@ const StocksManagement = () => {
     <>
       <CameraBarcodeScanner
         active={isScanning}
-        onDetected={(code) => {
-          console.log("✅ Barcode terdeteksi:", code);
-          // misal auto fill data barang
-          setFormData((prev) => ({ ...prev, barcode: code }));
+        onDetected={(detectedBarcode) => {
+          console.log("✅ Barcode terdeteksi:", detectedBarcode);
+          setNewStock((prev) => ({ ...prev, barcode: detectedBarcode }));
           setIsScanning(false);
         }}
       />
@@ -1012,6 +1034,12 @@ const StocksManagement = () => {
       </Button>
     </>
   )}
+  
+  {newStock.barcode && (
+    <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded">
+      <p className="text-sm text-green-700">Barcode: <span className="font-mono font-bold">{newStock.barcode}</span></p>
+    </div>
+  )}
 </div>
 
 
@@ -1019,8 +1047,9 @@ const StocksManagement = () => {
               <Label htmlFor="quantity">Quantity</Label>
               <Input
                 id="quantity"
+                name="quantity"
                 type="number"
-                value={newStock.quantity}
+                value={newStock.quantity || ""}
                 onChange={(e) => setNewStock({ ...newStock, quantity: parseInt(e.target.value) || 0 })}
                 placeholder="Enter quantity"
                 className="mt-1"

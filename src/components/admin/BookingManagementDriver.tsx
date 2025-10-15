@@ -42,6 +42,7 @@ import { format } from "date-fns";
 import { useLocation, useNavigate, Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 
+
 interface Booking {
   id: string;
   code_booking?: string;
@@ -88,10 +89,12 @@ interface Payment {
   };
 }
 
+
 export default function BookingManagementDriver() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [filteredBookings, setFilteredBookings] = useState<Booking[]>([]);
   const [searchTerm, setSearchTerm] = useState<string>("");
+  const [overDayFilter, setOverDayFilter] = useState<string>("all");
   const [isLoading, setIsLoading] = useState(true);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
@@ -107,7 +110,7 @@ export default function BookingManagementDriver() {
   const [paymentAmount, setPaymentAmount] = useState<number>(0);
   const [paymentMethod, setPaymentMethod] = useState<string>("Cash");
   const [cancelReason, setCancelReason] = useState<string>("");
-  const [isCancelling, setIsCancelling] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);  
   
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
@@ -370,23 +373,59 @@ export default function BookingManagementDriver() {
   };
 
   useEffect(() => {
-    if (searchTerm.trim() === "") {
+    if (searchTerm.trim() === "" && overDayFilter === "all") {
       setFilteredBookings(bookings);
       return;
     }
 
-    const lowercasedSearch = searchTerm.toLowerCase();
-    const filtered = bookings.filter(
-      (booking) =>
-        booking.driver?.name?.toLowerCase().includes(lowercasedSearch) ||
-        booking.code_booking?.toLowerCase().includes(lowercasedSearch) ||
-        booking.id.toString().includes(lowercasedSearch) ||
-        booking.status?.toLowerCase().includes(lowercasedSearch) ||
-        booking.payment_status?.toLowerCase().includes(lowercasedSearch),
-    );
+    let filtered = bookings;
+
+    // Apply search filter
+    if (searchTerm.trim() !== "") {
+      const lowercasedSearch = searchTerm.toLowerCase();
+      filtered = filtered.filter(
+        (booking) =>
+          booking.driver?.name?.toLowerCase().includes(lowercasedSearch) ||
+          booking.code_booking?.toLowerCase().includes(lowercasedSearch) ||
+          booking.id.toString().includes(lowercasedSearch) ||
+          booking.status?.toLowerCase().includes(lowercasedSearch) ||
+          booking.payment_status?.toLowerCase().includes(lowercasedSearch),
+      );
+    }
+
+    // Apply over day filter
+    if (overDayFilter !== "all") {
+      filtered = filtered.filter((booking) => {
+        const endDate = new Date(booking.end_date);
+        const returnDate = booking.actual_return_date 
+          ? new Date(booking.actual_return_date)
+          : new Date();
+        
+        endDate.setHours(0, 0, 0, 0);
+        returnDate.setHours(0, 0, 0, 0);
+        
+        const diffDays = Math.floor(
+          (returnDate.getTime() - endDate.getTime()) / (1000 * 60 * 60 * 24)
+        );
+        const overDays = Math.max(0, diffDays);
+
+        switch (overDayFilter) {
+          case "none":
+            return overDays === 0;
+          case "1-3":
+            return overDays >= 1 && overDays <= 3;
+          case "4-7":
+            return overDays >= 4 && overDays <= 7;
+          case "7+":
+            return overDays > 7;
+          default:
+            return true;
+        }
+      });
+    }
 
     setFilteredBookings(filtered);
-  }, [searchTerm, bookings]);
+  }, [searchTerm, overDayFilter, bookings]);
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(e.target.value);
@@ -398,29 +437,73 @@ export default function BookingManagementDriver() {
   };
 
   const handleFinishBooking = async (booking: Booking) => {
-    try {
-      const { error } = await supabase
-        .from("bookings")
-        .update({ status: "completed" })
-        .eq("id", booking.id);
+  try {
+    // 1️⃣ Update booking → completed + actual_return_date
+    const { error: bookingError } = await supabase
+      .from("bookings")
+      .update({
+        status: "completed",
+        actual_return_date: new Date().toISOString().split("T")[0], // isi tanggal hari ini
+      })
+      .eq("id", booking.id);
 
-      if (error) throw error;
+    if (bookingError) throw bookingError;
 
-      toast({
-        title: "Booking finished",
-        description: "Booking status has been updated to completed",
-      });
+    // 2️⃣ Ambil data kendaraan untuk menghitung denda (jika telat)
+    const { data: vehicleData, error: vehicleFetchError } = await supabase
+      .from("vehicles")
+      .select("price")
+      .eq("id", booking.vehicle_id)
+      .single();
 
-      fetchBookings();
-    } catch (error) {
-      console.error("Error finishing booking:", error);
-      toast({
-        variant: "destructive",
-        title: "Error finishing booking",
-        description: error.message,
-      });
-    }
-  };
+    if (vehicleFetchError) throw vehicleFetchError;
+
+    const today = new Date();
+    const endDate = new Date(booking.end_date);
+    const lateDays = Math.max(
+      0,
+      Math.ceil((today.getTime() - endDate.getTime()) / (1000 * 60 * 60 * 24))
+    );
+    const lateFee = lateDays * (vehicleData?.price || 0);
+
+    // 3️⃣ Update late_days & late_fee di booking
+    await supabase
+      .from("bookings")
+      .update({
+        late_days: lateDays,
+        late_fee: lateFee,
+      })
+      .eq("id", booking.id);
+
+    // 4️⃣ Ubah status kendaraan jadi available
+    const { error: vehicleUpdateError } = await supabase
+      .from("vehicles")
+      .update({ status: "available" })
+      .eq("id", booking.vehicle_id);
+
+    if (vehicleUpdateError) throw vehicleUpdateError;
+
+    // 5️⃣ Notifikasi sukses
+    toast({
+      title: "✅ Booking selesai",
+      description: `Kendaraan sudah dikembalikan${
+        lateDays > 0
+          ? ` (${lateDays} hari telat, denda Rp ${lateFee.toLocaleString("id-ID")})`
+          : ""
+      }`,
+    });
+
+    fetchBookings(); // refresh data di tabel
+
+  } catch (error: any) {
+    console.error("Error finishing booking:", error);
+    toast({
+      variant: "destructive",
+      title: "Gagal menyelesaikan booking",
+      description: error.message || "Terjadi kesalahan saat menyelesaikan booking",
+    });
+  }
+};
 
   const handleConfirmBooking = async (booking: Booking) => {
     setCurrentBooking(booking);
@@ -540,6 +623,7 @@ export default function BookingManagementDriver() {
     setIsCancelling(false);
   }
 };
+
 
 
   return (
@@ -798,6 +882,22 @@ export default function BookingManagementDriver() {
                   className="pl-10"
                 />
               </div>
+
+              {/* Over Day Filter */}
+              <div className="flex items-center gap-2">
+                <Label className="text-sm whitespace-nowrap">Over Day:</Label>
+                <select
+                  value={overDayFilter}
+                  onChange={(e) => setOverDayFilter(e.target.value)}
+                  className="border rounded px-3 py-2 text-sm min-w-[140px]"
+                >
+                  <option value="all">All</option>
+                  <option value="none">No Over Day</option>
+                  <option value="1-3">1-3 Days</option>
+                  <option value="4-7">4-7 Days</option>
+                  <option value="7+">7+ Days</option>
+                </select>
+              </div>
               
               {/* Rows per page selector */}
               <div className="flex items-center gap-2">
@@ -879,6 +979,19 @@ export default function BookingManagementDriver() {
                         <TableCell>
                           {getStatusBadge(booking.status)}
                         </TableCell>
+                        <TableCell>
+                        <td>
+                        {booking.status === "late" && (
+                      <div className="text-xs text-red-600 mt-1">
+                        ⚠️ Telat {booking.late_days} hari (
+                        Rp {booking.late_fee?.toLocaleString("id-ID")})
+                      </div>
+                    )}
+                  </td>
+                  <td className="p-2">
+                    {booking.start_date} → {booking.end_date}
+                  </td>
+                        </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
                          {/*   <Button
@@ -915,17 +1028,22 @@ export default function BookingManagementDriver() {
                               </Button>
                             )}
 
-                            {booking.status === "confirmed" && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="flex items-center gap-1 bg-green-100 hover:bg-green-200 text-green-800 border-green-300"
-                                onClick={() => handleFinishBooking(booking)}
-                              >
-                                <CheckCircle className="h-4 w-4" />
-                                Finish
-                              </Button>
-                            )}
+                            {["confirmed", "late"].includes(booking.status) && (
+  <Button
+    variant="outline"
+    size="sm"
+    className={`flex items-center gap-1 ${
+      booking.status === "late"
+        ? "bg-yellow-100 hover:bg-yellow-200 text-yellow-800 border-yellow-300"
+        : "bg-green-100 hover:bg-green-200 text-green-800 border-green-300"
+    }`}
+    onClick={() => handleFinishBooking(booking)}
+  >
+    <CheckCircle className="h-4 w-4" />
+    Finish
+  </Button>
+)}
+
 
                             {booking.status === "onride" && (
                               <Button
@@ -939,17 +1057,22 @@ export default function BookingManagementDriver() {
                               </Button>
                             )}
 
-                            {booking.status !== "cancelled" && booking.status !== "completed" && canCancelBooking() && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="flex items-center gap-1 bg-red-100 hover:bg-red-200 text-red-800 border-red-300"
-                                onClick={() => handleOpenCancelForm(booking)}
-                              >
-                                <XCircle className="h-4 w-4" />
-                                Cancel
-                              </Button>
-                            )}
+                            {booking.status !== "cancelled" &&
+  booking.status !== "completed" &&
+  canCancelBooking() &&
+  userRole === "Super Admin" && ( // 👈 hanya Super Admin bisa lihat
+    <Button
+      variant="outline"
+      size="sm"
+      className="flex items-center gap-1 bg-red-100 hover:bg-red-200 text-red-800 border-red-300"
+      onClick={() => handleOpenCancelForm(booking)}
+    >
+      <XCircle className="h-4 w-4" />
+      Cancel
+    </Button>
+  )}
+
+
                           </div>
                         </TableCell>
                       </TableRow>
@@ -997,6 +1120,42 @@ export default function BookingManagementDriver() {
                                       <span className="text-gray-600">Amount:</span>
                                       <span className="font-medium text-green-600">{formatCurrency(booking.total_amount)}</span>
                                     </div>
+                                    {(() => {
+  const endDate = new Date(booking.end_date);
+  const returnDate = booking.actual_return_date 
+    ? new Date(booking.actual_return_date)
+    : new Date();
+
+  // Normalisasi jam ke 00:00:00
+  endDate.setHours(0, 0, 0, 0);
+  returnDate.setHours(0, 0, 0, 0);
+
+  // Hitung selisih hari
+  const diffDays = Math.floor(
+    (returnDate.getTime() - endDate.getTime()) / (1000 * 60 * 60 * 24)
+  );
+
+  const overDays = Math.max(0, diffDays);
+
+  return (
+    <>
+      <div className="flex justify-between">
+        <span className="text-gray-600">Over day:</span>
+        <span className={`font-medium ${overDays > 0 ? 'text-red-600' : 'text-gray-900'}`}>
+          {overDays} hari
+        </span>
+      </div>
+
+      {booking.actual_return_date && (
+        <div className="flex justify-between">
+          <span className="text-gray-600">Return date:</span>
+          <span className="font-medium">{formatDateDDMMYYYY(booking.actual_return_date)}</span>
+        </div>
+      )}
+    </>
+  );
+})()}
+
                                     {booking.pickup_time && (
                                       <div className="flex justify-between">
                                         <span className="text-gray-600">Pickup Time:</span>

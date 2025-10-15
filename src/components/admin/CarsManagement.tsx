@@ -1964,13 +1964,19 @@ const CarsManagement = () => {
               <Label htmlFor="status" className="text-right">
                 Status
               </Label>
-              <Input
-                id="status"
-                name="status"
-                value={formData.status}
-                onChange={handleInputChange}
-                className="col-span-3"
-              />
+              <Select 
+                value={formData.status} 
+                onValueChange={(value) => setFormData({ ...formData, status: value })}
+              >
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="available">Available</SelectItem>
+                  <SelectItem value="suspended">Suspended</SelectItem>
+                  <SelectItem value="maintenance">Maintenance</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="daily_rate" className="text-right">
@@ -2207,13 +2213,19 @@ const CarsManagement = () => {
               <Label htmlFor="edit-status" className="text-right">
                 Status
               </Label>
-              <Input
-                id="edit-status"
-                name="status"
-                value={formData.status}
-                onChange={handleInputChange}
-                className="col-span-3"
-              />
+              <Select 
+                value={formData.status} 
+                onValueChange={(value) => setFormData({ ...formData, status: value })}
+              >
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="available">Available</SelectItem>
+                  <SelectItem value="suspended">Suspended</SelectItem>
+                  <SelectItem value="maintenance">Maintenance</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="edit-daily_rate" className="text-right">

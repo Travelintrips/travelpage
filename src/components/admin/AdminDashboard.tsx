@@ -770,7 +770,7 @@ export default function AdminDashboard() {
           
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             <StatCard
-                title="Airport Transfer"
+                title="Airport Transfer1"
                 value={dashboardStats.totalairportTransfer}
                 description="Airport Transfer"
                 icon={<User className="h-6 w-6" />}

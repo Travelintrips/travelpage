@@ -32,6 +32,7 @@ interface BookingHistory {
   code_booking?: string;
   start_date: string;
   end_date: string;
+  actual_return_date?: string | null;
   total_amount: number;
   status: string;
   vehicle?: {
@@ -114,6 +115,7 @@ export default function DriverDetailPage() {
           code_booking,
           start_date,
           end_date,
+          actual_return_date,
           total_amount,
           status,
           vehicle:vehicles!bookings_vehicle_id_fkey (
@@ -500,9 +502,10 @@ export default function DriverDetailPage() {
       <Card>
         <CardContent className="pt-6">
           <Tabs defaultValue="booking" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
+            <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="booking">Booking History</TabsTrigger>
               <TabsTrigger value="transaksi">Transaction History</TabsTrigger>
+              <TabsTrigger value="overday">Over Day</TabsTrigger>
             </TabsList>
 
             {/* Tab Booking History */}
@@ -702,6 +705,169 @@ export default function DriverDetailPage() {
                   setTransaksiPage(1);
                 }}
               />
+            </TabsContent>
+
+            {/* Tab Over Day */}
+            <TabsContent value="overday">
+              <div className="space-y-4">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                  <h3 className="font-semibold text-blue-900 mb-2">Informasi Over Day</h3>
+                  <p className="text-sm text-blue-700">
+                    Halaman ini menampilkan daftar booking yang mengalami keterlambatan pengembalian (over day). 
+                    Over day dihitung dari selisih antara tanggal pengembalian aktual dengan tanggal akhir booking.
+                  </p>
+                </div>
+
+                <Table>
+                  <TableCaption>Daftar booking dengan keterlambatan pengembalian</TableCaption>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Kode Booking</TableHead>
+                      <TableHead>Kendaraan</TableHead>
+                      <TableHead>Tanggal Mulai</TableHead>
+                      <TableHead>Tanggal Akhir</TableHead>
+                      <TableHead>Tanggal Kembali</TableHead>
+                      <TableHead className="text-center">Over Day</TableHead>
+                      <TableHead>Total Amount</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {(() => {
+                      // Filter booking yang memiliki over day
+                      const overdayBookings = bookingHistory
+                        .map((booking) => {
+                          const endDate = new Date(booking.end_date);
+                          const returnDate = booking.actual_return_date 
+                            ? new Date(booking.actual_return_date) 
+                            : new Date();
+                          const overDays = Math.max(0, Math.ceil((returnDate.getTime() - endDate.getTime()) / (1000 * 60 * 60 * 24)));
+                          
+                          return {
+                            ...booking,
+                            overDays,
+                            returnDate: booking.actual_return_date || null
+                          };
+                        })
+                        .filter(booking => booking.overDays > 0)
+                        .sort((a, b) => b.overDays - a.overDays); // Sort by over days descending
+
+                      if (overdayBookings.length === 0) {
+                        return (
+                          <TableRow>
+                            <TableCell colSpan={8} className="text-center py-8">
+                              <div className="flex flex-col items-center gap-2">
+                                <div className="text-green-600 text-4xl">✓</div>
+                                <p className="text-gray-600 font-medium">Tidak ada booking dengan keterlambatan</p>
+                                <p className="text-sm text-gray-500">Semua booking dikembalikan tepat waktu</p>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      }
+
+                      return overdayBookings.map((booking) => (
+                        <TableRow key={booking.id} className="hover:bg-red-50">
+                          <TableCell className="font-medium">
+                            {booking.code_booking || booking.id}
+                          </TableCell>
+                          <TableCell>
+                            {booking.vehicle
+                              ? `${booking.vehicle.make} ${booking.vehicle.model} (${booking.vehicle.license_plate})`
+                              : "N/A"}
+                          </TableCell>
+                          <TableCell>{formatDate(booking.start_date)}</TableCell>
+                          <TableCell>{formatDate(booking.end_date)}</TableCell>
+                          <TableCell>
+                            {booking.returnDate ? (
+                              <span className="font-medium text-red-600">
+                                {formatDate(booking.returnDate)}
+                              </span>
+                            ) : (
+                              <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-300">
+                                Belum Dikembalikan
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Badge className="bg-red-500 text-white font-bold px-3 py-1">
+                              {booking.overDays} Hari
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="font-semibold">
+                            {formatCurrency(booking.total_amount)}
+                          </TableCell>
+                          <TableCell>{getStatusBadge(booking.status)}</TableCell>
+                        </TableRow>
+                      ));
+                    })()}
+                  </TableBody>
+                </Table>
+
+                {/* Summary Statistics */}
+                {(() => {
+                  const overdayBookings = bookingHistory
+                    .map((booking) => {
+                      const endDate = new Date(booking.end_date);
+                      const returnDate = booking.actual_return_date 
+                        ? new Date(booking.actual_return_date) 
+                        : new Date();
+                      const overDays = Math.max(0, Math.ceil((returnDate.getTime() - endDate.getTime()) / (1000 * 60 * 60 * 24)));
+                      
+                      return {
+                        ...booking,
+                        overDays
+                      };
+                    })
+                    .filter(booking => booking.overDays > 0);
+
+                  if (overdayBookings.length === 0) return null;
+
+                  const totalOverDays = overdayBookings.reduce((sum, b) => sum + b.overDays, 0);
+                  const avgOverDays = (totalOverDays / overdayBookings.length).toFixed(1);
+                  const maxOverDays = Math.max(...overdayBookings.map(b => b.overDays));
+
+                  return (
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6">
+                      <Card className="bg-red-50 border-red-200">
+                        <CardContent className="pt-6">
+                          <div className="text-center">
+                            <p className="text-sm text-red-600 font-medium mb-1">Total Booking Over Day</p>
+                            <p className="text-3xl font-bold text-red-700">{overdayBookings.length}</p>
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      <Card className="bg-orange-50 border-orange-200">
+                        <CardContent className="pt-6">
+                          <div className="text-center">
+                            <p className="text-sm text-orange-600 font-medium mb-1">Total Hari Terlambat</p>
+                            <p className="text-3xl font-bold text-orange-700">{totalOverDays}</p>
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      <Card className="bg-yellow-50 border-yellow-200">
+                        <CardContent className="pt-6">
+                          <div className="text-center">
+                            <p className="text-sm text-yellow-600 font-medium mb-1">Rata-rata Over Day</p>
+                            <p className="text-3xl font-bold text-yellow-700">{avgOverDays}</p>
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      <Card className="bg-purple-50 border-purple-200">
+                        <CardContent className="pt-6">
+                          <div className="text-center">
+                            <p className="text-sm text-purple-600 font-medium mb-1">Maksimal Over Day</p>
+                            <p className="text-3xl font-bold text-purple-700">{maxOverDays}</p>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  );
+                })()}
+              </div>
             </TabsContent>
           </Tabs>
         </CardContent>
