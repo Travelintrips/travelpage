@@ -95,6 +95,8 @@ const ROLES = {
   DRIVER_MITRA: "Driver Mitra",
   DRIVER_PERUSAHAAN: "Driver Perusahaan",
   STAFF_IAS: "Staff Ias",
+  STAFF_ADMIN_SPORT_CENTER: "Staff Admin Sport Center",
+  STAFF_ADMIN_POOL: "Staff Admin Pool",
 };
 
 function AppContent() {
@@ -373,13 +375,17 @@ function AppContent() {
         ROLES.STAFF_IAS,
         ROLES.STAFF_TRIPS,
         ROLES.STAFF_TRAFFIC,
+        ROLES.STAFF_ADMIN_SPORT_CENTER,
         "Staff Admin",
         "Super Admin",
         "Staff Trips",
         "Staff Traffic",
         "Staff",
         "Staff Ias",
-        "Admin"
+        "Admin",
+        "Staff Admin Sport Center",
+        "Staff Admin Pool"
+        
       ];
 
       let resolvedUserRole = userRole;
@@ -530,8 +536,11 @@ function AppContent() {
                   ROLES.STAFF_IAS,
                   ROLES.STAFF_TRIPS,
                   ROLES.STAFF_TRAFFIC,
+                  ROLES.STAFF_ADMIN_SPORT_CENTER,
                   "Staff Admin",
                   "Super Admin",
+                  "Staff Admin Sport Center",
+                  "Staff Admin Pool"
                 ]}
               >
                 <AdminLayout />

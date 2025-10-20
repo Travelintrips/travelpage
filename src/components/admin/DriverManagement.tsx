@@ -759,6 +759,7 @@ const DriverManagement = () => {
       .from("bookings")
       .select(`
         *,
+        
         vehicles!bookings_vehicle_id_fkey (
           model,
           license_plate,
@@ -822,6 +823,7 @@ const DriverManagement = () => {
   const getStatusBadge = (status: string) => {
     const statusMap = {
       confirmed: { label: "Confirmed", color: "bg-blue-100 text-blue-800" },
+      late: { label: "Late", color: "bg-red-100 text-red-800" },
       onride: { label: "On Ride", color: "bg-green-100 text-green-800" },
       completed: { label: "Completed", color: "bg-gray-100 text-gray-800" },
       cancelled: { label: "Cancelled", color: "bg-red-100 text-red-800" },
@@ -855,25 +857,37 @@ const DriverManagement = () => {
     setStatsLoading(true);
 
     try {
-      const { data, error } = await supabase
+      // Ambil data semua driver
+      const { data: drivers, error: driverError } = await supabase
         .from("drivers")
         .select("id, account_status, is_online, saldo");
 
-      if (error) throw error;
+      if (driverError) throw driverError;
 
-      const totalDrivers = data?.length ?? 0;
-      const activeDrivers = data?.filter(d => d.account_status === "active").length ?? 0;
-      const onlineDrivers = data?.filter(d => d.is_online === true).length ?? 0;
+      // Ambil data booking yang status-nya 'late'
+      const { data: lateBookings, error: bookingError } = await supabase
+        .from("bookings")
+        .select("driver_id")
+        .eq("status", "late");
 
-      // ✅ hitung saldo minus
-      const minusBalances = data?.filter(d => (d.saldo ?? 0) < 0) ?? [];
-      const minusSaldoTotal = minusBalances.reduce(
-        (acc, curr) => acc + (curr.saldo ?? 0),
-        0
-      );
+      if (bookingError) throw bookingError;
+
+      // Hitung driver yang punya booking 'late' unik
+      const lateDriverIds = [...new Set(lateBookings.map(b => b.driver_id))];
+
+      // Statistik dasar
+      const totalDrivers = drivers?.length ?? 0;
+      const activeDrivers = drivers?.filter(d => d.account_status === "active").length ?? 0;
+      const onlineDrivers = drivers?.filter(d => d.is_online === true).length ?? 0;
+
+      // Saldo minus
+      const minusBalances = drivers?.filter(d => (d.saldo ?? 0) < 0) ?? [];
+      const minusSaldoTotal = minusBalances.reduce((acc, curr) => acc + (curr.saldo ?? 0), 0);
       const minusBalanceDriverCount = minusBalances.length;
 
+      // Set ke state
       setDriverStats({
+        total_drivers_late: lateDriverIds.length,
         total_drivers: totalDrivers,
         active_drivers: activeDrivers,
         online_drivers: onlineDrivers,
@@ -889,6 +903,7 @@ const DriverManagement = () => {
 
   fetchDriverStats();
 }, []);
+
 
 const formatDateTime = (dateString?: string | null) => {
   if (!dateString) return "-";
@@ -914,6 +929,35 @@ const formatDateTime = (dateString?: string | null) => {
 
       {/* FIXED: Driver Statistics Cards - All Clickable with Visual Feedback */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+      <Card 
+          className={`bg-gradient-to-br from-red-500 to-red-600 text-white cursor-pointer transition-all hover:scale-105 hover:shadow-lg ${
+            currentFilter === 'all' ? 'ring-4 ring-white ring-opacity-50 shadow-xl' : ''
+          }`}
+          onClick={() => handleKPICardClick('all')}
+        >
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Drivers Late</CardTitle>
+            <Users className="h-4 w-4" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+            {statsLoading ? (
+            <Loader2 className="h-6 w-6 animate-spin" />
+            ) : (
+            driverStats.total_drivers_late
+             )}
+            </div>
+
+            <p className="text-xs text-slate-100">
+  {driverStats.total_drivers_late > 0
+    ? "Drivers currently late"
+    : "No late drivers 🚗"}
+</p>
+
+          </CardContent>
+        </Card>
+
+
         <Card 
           className={`bg-gradient-to-br from-slate-500 to-slate-600 text-white cursor-pointer transition-all hover:scale-105 hover:shadow-lg ${
             currentFilter === 'all' ? 'ring-4 ring-white ring-opacity-50 shadow-xl' : ''
@@ -926,12 +970,12 @@ const formatDateTime = (dateString?: string | null) => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-  {statsLoading ? (
-    <Loader2 className="h-6 w-6 animate-spin" />
-  ) : (
-    driverStats.total_drivers
-  )}
-</div>
+            {statsLoading ? (
+            <Loader2 className="h-6 w-6 animate-spin" />
+            ) : (
+            driverStats.total_drivers
+             )}
+            </div>
 
             <p className="text-xs text-slate-100">
               All registered drivers

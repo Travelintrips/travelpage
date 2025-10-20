@@ -988,9 +988,9 @@ export default function BookingManagementDriver() {
                       </div>
                     )}
                   </td>
-                  <td className="p-2">
+                 {/* <td className="p-2">
                     {booking.start_date} → {booking.end_date}
-                  </td>
+                  </td>*/}
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
@@ -1028,7 +1028,12 @@ export default function BookingManagementDriver() {
                               </Button>
                             )}
 
-                            {["confirmed", "late"].includes(booking.status) && (
+                        {(
+  // 1️⃣ Jika booking confirmed atau late → tombol muncul untuk semua user
+  ["confirmed", "late"].includes(booking.status) ||
+  // 2️⃣ Jika booking ongoing → tombol hanya muncul untuk Super Admin
+  (booking.status === "ongoing" && userRole === "Super Admin")
+) && (
   <Button
     variant="outline"
     size="sm"
@@ -1043,6 +1048,7 @@ export default function BookingManagementDriver() {
     Finish
   </Button>
 )}
+
 
 
                             {booking.status === "onride" && (

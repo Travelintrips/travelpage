@@ -33,6 +33,8 @@ import {
   Eye,
   X as CloseIcon,
   FileText as Paper,
+  PackageSearch,
+  ClipboardList,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -74,6 +76,7 @@ const AdminLayout = () => {
   const [handlingServiceOpen, setHandlingServiceOpen] = React.useState(false);
   const [paymentMethodsOpen, setPaymentMethodsOpen] = React.useState(false);
   const [agentManagementOpen, setAgentManagementOpen] = React.useState(false);
+  const [purchaseAndRequestOpen, setPurchaseAndRequestOpen] = React.useState(false);
   const [notifications, setNotifications] = React.useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = React.useState(0);
   const [notificationsLoading, setNotificationsLoading] = React.useState(false);
@@ -328,7 +331,7 @@ const AdminLayout = () => {
                     {/* Concierge Group - New Menu */}
                     {(userRole === "Super Admin" || 
                       userRole === "Admin" || 
-                      userRole === "Staff Admin" || 
+                     // userRole === "Staff Admin" || 
                       userRole === "Staff") && (
                       <Link
                         to="/admin/concierge-group"
@@ -477,27 +480,83 @@ const AdminLayout = () => {
                       )}
                     </div>
 
-                    {/* 5. Stocks - Hide for Staff Traffic */}
-                    {userRole !== "Staff Traffic" && userRole !== "Staff" && (
-                      <Link
-                        to="/admin/stocks"
-                        className={`flex items-center p-3 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/stocks") ? "bg-white/20 font-medium text-white" : "text-white/80"} ${!sidebarOpen && "justify-center"}`}
-                      >
-                        <Package className="h-5 w-5 text-white" />
-                        {sidebarOpen && <span className="ml-3">Stocks</span>}
-                      </Link>
-                    )}
+                    {userRole !== "Staff Traffic" &&
+  userRole !== "Staff" &&
+  userRole !== "Staff Trips" && (
+    <div>
+      <button
+        onClick={() => setPurchaseAndRequestOpen(!purchaseAndRequestOpen)}
+        className={`w-full flex items-center p-3 rounded-lg hover:bg-white/20 transition-colors duration-200 ${
+          location.pathname.includes("/admin/stocks") ||
+          location.pathname.includes("/admin/purchase-requests") ||
+          location.pathname.includes("/admin/reports")
+            ? "bg-white/20 font-medium text-white"
+            : "text-white/80"
+        } ${!sidebarOpen && "justify-center"}`}
+      >
+        <PackageSearch className="h-5 w-5 text-white" />
+        {sidebarOpen && (
+          <>
+            <span className="ml-3 flex-1 text-left">Purchase & Stocks</span>
+            {purchaseAndRequestOpen ? (
+              <ChevronDown className="h-4 w-4 text-white" />
+            ) : (
+              <ChevronRight className="h-4 w-4 text-white" />
+            )}
+          </>
+        )}
+      </button>
 
-                    {/* 6. Purchase Requests - Hide for Staff Traffic */}
-                    {userRole !== "Staff Traffic" && userRole !== "Staff" && (
-                      <Link
-                        to="/admin/purchase-requests"
-                        className={`flex items-center p-3 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/purchase-requests") ? "bg-white/20 font-medium text-white" : "text-white/80"} ${!sidebarOpen && "justify-center"}`}
-                      >
-                        <Package className="h-5 w-5 text-white" />
-                        {sidebarOpen && <span className="ml-3">Purchase Requests</span>}
-                      </Link>
-                    )}
+      {/* Sub-menu items */}
+      {sidebarOpen && purchaseAndRequestOpen && (
+        <div className="ml-6 mt-2 space-y-1">
+          {/* Stocks — hanya untuk selain Staff Admin */}
+          {userRole !== "Staff Admin" && (
+            <Link
+              to="/admin/stocks"
+              className={`flex items-center p-3 rounded-lg hover:bg-white/20 transition-colors duration-200 ${
+                location.pathname.includes("/admin/stocks")
+                  ? "bg-white/20 font-medium text-white"
+                  : "text-white/70"
+              } ${!sidebarOpen && "justify-center"}`}
+            >
+              <Package className="h-4 w-4 text-white" />
+              {sidebarOpen && <span className="ml-3">Stocks</span>}
+            </Link>
+          )}
+
+          {/* Purchase Requests — semua role boleh */}
+          <Link
+            to="/admin/purchase-requests"
+            className={`flex items-center p-3 rounded-lg hover:bg-white/20 transition-colors duration-200 ${
+              location.pathname.includes("/admin/purchase-requests")
+                ? "bg-white/20 font-medium text-white"
+                : "text-white/70"
+            } ${!sidebarOpen && "justify-center"}`}
+          >
+            <ClipboardList className="h-4 w-4 text-white" />
+            {sidebarOpen && <span className="ml-3">Purchase Requests</span>}
+          </Link>
+
+          {/* Reports — hanya untuk selain Staff Admin */}
+          {userRole !== "Staff Admin" && (
+            <Link
+              to="/admin/reports"
+              className={`flex items-center p-3 rounded-lg hover:bg-white/20 transition-colors duration-200 ${
+                location.pathname.includes("/admin/reports")
+                  ? "bg-white/20 font-medium text-white"
+                  : "text-white/70"
+              } ${!sidebarOpen && "justify-center"}`}
+            >
+              <Paper className="h-4 w-4 text-white" />
+              {sidebarOpen && <span className="ml-3">Reports</span>}
+            </Link>
+          )}
+        </div>
+      )}
+    </div>
+  )}
+
 
                     {/* 7. Payments - Hide for Staff Traffic */}
                     {userRole !== "Staff Traffic" && userRole !== "Staff" && (
@@ -511,7 +570,7 @@ const AdminLayout = () => {
                     )}
 
                     {/* Payment Methods Menu - Hide for Staff Traffic */}
-                    {userRole !== "Staff Trips" && userRole !== "Staff Traffic" && userRole !== "Staff" && (
+                    {userRole !== "Staff Trips" && userRole !== "Staff Traffic" && userRole !== "Staff" && userRole !== "Staff Admin" && (
                       <div>
                         <button
                           onClick={() => setPaymentMethodsOpen(!paymentMethodsOpen)}
@@ -768,17 +827,6 @@ const AdminLayout = () => {
                       </div>
                     )}
                   </div>
-                )}
-
-                {/* Reports Menu - Add between Handling Service and API Settings */}
-                {userRole !== "Staff Traffic" && (
-                  <Link
-                    to="/admin/reports"
-                    className={`flex items-center p-3 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/reports") ? "bg-white/20 font-medium text-white" : "text-white/80"} ${!sidebarOpen && "justify-center"}`}
-                  >
-                    <Paper className="h-5 w-5 text-white" />
-                    {sidebarOpen && <span className="ml-3">Reports</span>}
-                  </Link>
                 )}
 
                 {/* Only show API Settings for non-Staff Trips and non-Staff Traffic users */}

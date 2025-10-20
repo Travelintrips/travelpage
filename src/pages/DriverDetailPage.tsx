@@ -546,7 +546,7 @@ export default function DriverDetailPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Kode Booking</TableHead>
-                    <TableHead>Tanggal</TableHead>
+                    <TableHead>Tanggal Booking</TableHead>
                     <TableHead>Kendaraan</TableHead>
                     <TableHead>Amount</TableHead>
                     <TableHead>Status</TableHead>

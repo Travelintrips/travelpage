@@ -62,6 +62,10 @@ interface StockData {
   ppn_type?: string;
   purchase_price_after_ppn?: number;
   selling_price_after_ppn?: number;
+  unit?: string;
+  barcode?: string;
+  min_stock?: number;
+  supplier_name?: string;
 }
 
 interface NewStockForm {
@@ -163,6 +167,8 @@ const StocksManagement = () => {
   const [categoryOptions, setCategoryOptions] = useState<{ label: string; value: string }[]>([]);
   const [warehouseOptions, setWarehouseOptions] = useState<{ label: string; value: string }[]>([]);
   const [ppnOptions, setPpnOptions] = useState<{ label: string; value: string }[]>([]);
+  const [userRole, setUserRole] = useState("");
+
 
   // Filters
   const [filters, setFilters] = useState({
@@ -175,29 +181,20 @@ const StocksManagement = () => {
     ppnFilter: "",
   });
 
-  useEffect(() => {
-    fetchNameOptions();
-    fetchCategoryOptions();
-    fetchWarehouseOptions();
-    fetchPpnOptions();
-    fetchUserName();
-  }, []);
-
-  useEffect(() => {
-    fetchStocks();
-  }, [currentPage, filters]);
-
   const fetchUserName = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const fullName = user.user_metadata?.full_name || user.email || "Unknown";
-        setUserName(fullName);
-      }
-    } catch (error) {
-      console.error("Error fetching user name:", error);
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const fullName = user.user_metadata?.full_name || user.email || "Unknown";
+      const role = user.user_metadata?.role || "Guest";
+      setUserName(fullName);
+      setUserRole(role);
     }
-  };
+  } catch (error) {
+    console.error("Error fetching user info:", error);
+  }
+};
+
 
   const fetchNameOptions = async () => {
     try {
@@ -218,6 +215,48 @@ const StocksManagement = () => {
     }
   };
 
+  useEffect(() => {
+    // Initialize: Sync schema from vw_stock and fetch initial data
+    const initializeStocksPage = async () => {
+      try {
+        // First, sync schema by running SELECT * FROM vw_stock
+        // This ensures we capture the latest schema structure including new columns
+        const { data: schemaCheck, error: schemaError } = await supabase
+          .from("vw_stock")
+          .select("*")
+          .limit(1);
+
+        if (schemaError) {
+          console.error("Schema sync error:", schemaError);
+        } else {
+          console.log("✅ Schema synced from vw_stock with columns:", schemaCheck?.[0] ? Object.keys(schemaCheck[0]) : []);
+        }
+
+        await fetchUserName(); // Pastikan role siap dulu
+
+await Promise.all([
+  fetchNameOptions(),
+  fetchCategoryOptions(),
+  fetchPpnOptions(),
+]);
+
+// Jalankan warehouse setelah role siap
+await fetchWarehouseOptions();
+
+      } catch (error) {
+        console.error("Error initializing stocks page:", error);
+      }
+    };
+
+    initializeStocksPage();
+  }, []);
+
+  useEffect(() => {
+    fetchStocks();
+  }, [currentPage, filters]);
+
+  
+
   const fetchCategoryOptions = async () => {
     try {
       const { data, error } = await supabase
@@ -237,22 +276,81 @@ const StocksManagement = () => {
   };
 
   const fetchWarehouseOptions = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("vw_stock")
-        .select("warehouse_location")
-        .order("warehouse_location");
-
-      if (error) throw error;
-
-      const distinctWarehouses = Array.from(new Set(data?.map(item => item.warehouse_location).filter(Boolean)));
-      const options = distinctWarehouses.map(warehouse => ({ label: warehouse, value: warehouse }));
-      
-      setWarehouseOptions(options);
-    } catch (error) {
-      console.error("Error fetching warehouse options:", error);
+  try {
+    // 🧠 Pastikan userRole sudah siap
+    if (!userRole) {
+      console.log("⏳ Menunggu userRole sebelum ambil warehouse...");
+      return;
     }
-  };
+
+    // 🏗️ Ambil semua warehouse dari vw_stock
+    const { data, error } = await supabase
+      .from("vw_stock")
+      .select("warehouse_location")
+      .order("warehouse_location");
+
+    if (error) throw error;
+
+    // 🧩 Ambil hanya nama unik
+    let uniqueWarehouses = Array.from(
+      new Set(data.map((d) => d.warehouse_location).filter(Boolean))
+    );
+
+    console.log("🔍 Semua warehouse ditemukan:", uniqueWarehouses);
+    console.log("👤 Role user:", userRole);
+
+    // 🧱 Filter berdasarkan role
+    if (userRole === "Staff Admin Sport Center") {
+      uniqueWarehouses = uniqueWarehouses.filter((w) => w === "Sport Center");
+    } else if (userRole === "Staff Admin Pool") {
+      uniqueWarehouses = uniqueWarehouses.filter((w) => w === "Pool");
+    }
+
+    // 🚀 Ubah ke format dropdown
+    const options = uniqueWarehouses.map((w) => ({
+      label: w,
+      value: w,
+    }));
+
+    setWarehouseOptions(options);
+
+    // 🧩 Auto-set default filter sesuai role
+    if (userRole === "Staff Admin Sport Center") {
+      setFilters((prev) => ({ ...prev, warehouseFilter: "Sport Center" }));
+    } else if (userRole === "Staff Admin Pool") {
+      setFilters((prev) => ({ ...prev, warehouseFilter: "Pool" }));
+    }
+
+    console.log("✅ Warehouse options set:", options);
+  } catch (error) {
+    console.error("❌ Error fetching warehouse options:", error);
+  }
+};
+
+// Jalankan ulang fetch setiap kali role berubah
+useEffect(() => {
+  if (userRole) {
+    fetchWarehouseOptions();
+  }
+}, [userRole]);
+
+// Auto-isi warehouse_location saat tambah stok (newStock)
+useEffect(() => {
+  if (userRole === "Staff Admin Sport Center") {
+    setNewStock((prev) => ({
+      ...prev,
+      warehouse_location: "Sport Center",
+    }));
+  } else if (userRole === "Staff Admin Pool") {
+    setNewStock((prev) => ({
+      ...prev,
+      warehouse_location: "Pool",
+    }));
+  }
+}, [userRole]);
+
+
+
 
   const fetchPpnOptions = async () => {
     try {
@@ -433,11 +531,14 @@ const StocksManagement = () => {
       });
       setIsNewStockModalOpen(false);
       
-      // Refresh data
-      fetchStocks();
-      fetchCategoryOptions();
-      fetchWarehouseOptions();
-      fetchPpnOptions();
+      // Refresh data - refetch all data sources
+      await Promise.all([
+        fetchStocks(),
+        fetchNameOptions(),
+        fetchCategoryOptions(),
+        fetchWarehouseOptions(),
+        fetchPpnOptions()
+      ]);
     } catch (error) {
       console.error("Error creating new stock:", error);
       toast({
@@ -514,6 +615,10 @@ const StocksManagement = () => {
         "Category",
         "Warehouse Location",
         "Quantity",
+        "Unit",
+        "Barcode",
+        "Min Stock",
+        "Supplier Name",
         "Purchase Price",
         "Selling Price",
         "PPN Type",
@@ -535,6 +640,10 @@ const StocksManagement = () => {
             `"${row.category || ""}"`,
             `"${row.warehouse_location || ""}"`,
             row.quantity || 0,
+            `"${row.unit || ""}"`,
+            `"${row.barcode || ""}"`,
+            row.min_stock || 0,
+            `"${row.supplier_name || ""}"`,
             row.purchase_price || 0,
             row.selling_price || 0,
             `"${row.ppn_type || ""}"`,
@@ -695,26 +804,35 @@ const StocksManagement = () => {
               </Select>
             </div>
             <div>
-              <Label htmlFor="warehouse-filter">Warehouse Location</Label>
-              <Select
-                value={filters.warehouseFilter || "all"}
-                onValueChange={(value) =>
-                  setFilters((prev) => ({ ...prev, warehouseFilter: value === "all" ? "" : value }))
-                }
-              >
-                <SelectTrigger id="warehouse-filter" className="mt-1">
-                  <SelectValue placeholder="All warehouses" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All warehouses</SelectItem>
-                  {warehouseOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+  <Label htmlFor="warehouse-filter">Warehouse Location1</Label>
+  <Select
+    value={filters.warehouseFilter || "all"}
+    onValueChange={(value) =>
+      setFilters((prev) => ({
+        ...prev,
+        warehouseFilter: value === "all" ? "" : value,
+      }))
+    }
+    disabled={userRole === "Staff Admin Sport Center" || userRole === "Staff Admin Pool"} // ❗ disable untuk staff
+  >
+    <SelectTrigger id="warehouse-filter" className="mt-1">
+      <SelectValue placeholder="All warehouses" />
+    </SelectTrigger>
+    <SelectContent>
+      {/* Jika admin bisa lihat semua */}
+      {userRole !== "Staff Admin Sport Center" && userRole !== "Staff Admin Pool" && (
+        <SelectItem value="all">All warehouses</SelectItem>
+      )}
+
+      {warehouseOptions.map((option) => (
+        <SelectItem key={option.value} value={option.value}>
+          {option.label}
+        </SelectItem>
+      ))}
+    </SelectContent>
+  </Select>
+</div>
+
             <div>
               <Label htmlFor="ppn-filter">PPN Type</Label>
               <Select
@@ -798,8 +916,12 @@ const StocksManagement = () => {
                     <TableHead>Name</TableHead>
                     <TableHead>Item Name</TableHead>
                     <TableHead>Category</TableHead>
-                    <TableHead>Warehouse Location</TableHead>
+                    <TableHead>Warehouse Location2</TableHead>
                     <TableHead className="text-right">Quantity</TableHead>
+                    <TableHead>Unit</TableHead>
+                    <TableHead>Barcode</TableHead>
+                    <TableHead className="text-right">Min Stock</TableHead>
+                    <TableHead>Supplier Name</TableHead>
                     <TableHead className="text-right">Purchase Price</TableHead>
                     <TableHead className="text-right">Selling Price</TableHead>
                     <TableHead>PPN Type</TableHead>
@@ -814,7 +936,7 @@ const StocksManagement = () => {
                 <TableBody>
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={15} className="text-center py-8">
+                      <TableCell colSpan={19} className="text-center py-8">
                         <div className="flex items-center justify-center">
                           <RefreshCw className="h-5 w-5 animate-spin mr-2" />
                           Loading stocks...
@@ -823,7 +945,7 @@ const StocksManagement = () => {
                     </TableRow>
                   ) : stocks.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={15} className="text-center py-8">
+                      <TableCell colSpan={19} className="text-center py-8">
                         <Package className="h-12 w-12 text-gray-300 mx-auto mb-2" />
                         <p className="text-gray-500">No stock data found</p>
                       </TableCell>
@@ -841,6 +963,12 @@ const StocksManagement = () => {
                         <TableCell className="text-right">
                           {stock.quantity || 0}
                         </TableCell>
+                        <TableCell>{stock.unit || "-"}</TableCell>
+                        <TableCell className="font-mono text-sm">{stock.barcode || "-"}</TableCell>
+                        <TableCell className="text-right">
+                          {stock.min_stock || 0}
+                        </TableCell>
+                        <TableCell>{stock.supplier_name || "-"}</TableCell>
                         <TableCell className="text-right">
                           {formatCurrency(stock.purchase_price || 0)}
                         </TableCell>
@@ -950,45 +1078,51 @@ const StocksManagement = () => {
                     <SelectValue placeholder="Pilih kategori" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Raw Materials">Raw Materials</SelectItem>
-                    <SelectItem value="Work-In-Process (WIP)">Work-In-Process (WIP)</SelectItem>
-                    <SelectItem value="Finished Goods">Finished Goods</SelectItem>
-                    <SelectItem value="Resale/Merchandise">Resale/Merchandise</SelectItem>
-                    <SelectItem value="Kits/Bundles">Kits/Bundles</SelectItem>
-                    <SelectItem value="Spare Parts">Spare Parts</SelectItem>
-                    <SelectItem value="MRO">MRO</SelectItem>
-                    <SelectItem value="Consumables">Consumables</SelectItem>
-                    <SelectItem value="Packaging">Packaging</SelectItem>
-                    <SelectItem value="Food">Food</SelectItem>
-                    <SelectItem value="Beverages">Beverages</SelectItem>
-                    <SelectItem value="Rentable Units">Rentable Units</SelectItem>
-                    <SelectItem value="Demo/Loaner Units">Demo/Loaner Units</SelectItem>
-                    <SelectItem value="Returns">Returns</SelectItem>
-                    <SelectItem value="Defective/Damaged">Defective/Damaged</SelectItem>
-                    <SelectItem value="Obsolete/Expired">Obsolete/Expired</SelectItem>
-                    <SelectItem value="Goods In Transit">Goods In Transit</SelectItem>
-                    <SelectItem value="Consignment">Consignment</SelectItem>
-                    <SelectItem value="Third-Party Owned">Third-Party Owned</SelectItem>
-                    <SelectItem value="Samples/Marketing">Samples/Marketing</SelectItem>
+                    <SelectItem value="Bahan Baku">Bahan Baku</SelectItem>
+                    <SelectItem value="Barang Dalam Proses (WIP)">Barang Dalam Proses (WIP)</SelectItem>
+                    <SelectItem value="Barang Jadi">Barang Jadi</SelectItem>
+                    <SelectItem value="Barang Dagangan">Barang Dagangan</SelectItem>
+                    <SelectItem value="Paket/Bundle">Paket/Bundle</SelectItem>
+                    <SelectItem value="Suku Cadang">Suku Cadang</SelectItem>
+                    <SelectItem value="MRO (Perlengkapan Operasional)">MRO (Perlengkapan Operasional)</SelectItem>
+                    <SelectItem value="Barang Habis Pakai">Barang Habis Pakai</SelectItem>
+                    <SelectItem value="Kemasan">Kemasan</SelectItem>
+                    <SelectItem value="Makanan">Makanan</SelectItem>
+                    <SelectItem value="Minuman">Minuman</SelectItem>
+                    <SelectItem value="Unit Disewakan">Unit Disewakan</SelectItem>
+                    <SelectItem value="Unit Demo/Pinjaman">Unit Demo/Pinjaman</SelectItem>
+                    <SelectItem value="Retur">Retur</SelectItem>
+                    <SelectItem value="Cacat/Rusak">Cacat/Rusak</SelectItem>
+                    <SelectItem value="Kedaluwarsa/Usang">Kedaluwarsa/Usang</SelectItem>
+                    <SelectItem value="Barang Dalam Perjalanan">Barang Dalam Perjalanan</SelectItem>
+                    <SelectItem value="Titipan (Konsinyasi)">Titipan (Konsinyasi)</SelectItem>
+                    <SelectItem value="Milik Pihak Ketiga">Milik Pihak Ketiga</SelectItem>
+                    <SelectItem value="Sampel/Marketing">Sampel/Marketing</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <Label htmlFor="warehouse">Warehouse Location</Label>
-                <Select
-                  value={newStock.warehouse_location}
-                  onValueChange={(value) => setNewStock({ ...newStock, warehouse_location: value })}
-                >
-                  <SelectTrigger id="warehouse" className="mt-1">
-                    <SelectValue placeholder="Select warehouse" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Kebon Jeruk">Kebon Jeruk</SelectItem>
-                    <SelectItem value="Sport Center">Sport Center</SelectItem>
-                    <SelectItem value="Pool">Pool</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+  <Label htmlFor="warehouse">Warehouse Location</Label>
+  <Select
+    value={newStock.warehouse_location}
+    onValueChange={(value) =>
+      setNewStock({ ...newStock, warehouse_location: value })
+    }
+    disabled={userRole === "Staff Admin Sport Center" || userRole === "Staff Admin Pool"} // ❗ Staff tidak bisa ubah
+  >
+    <SelectTrigger id="warehouse" className="mt-1">
+      <SelectValue placeholder="Select warehouse" />
+    </SelectTrigger>
+    <SelectContent>
+      {warehouseOptions.map((option) => (
+        <SelectItem key={option.value} value={option.value}>
+          {option.label}
+        </SelectItem>
+      ))}
+    </SelectContent>
+  </Select>
+</div>
+
             </div>
 
             <div>
@@ -1003,45 +1137,46 @@ const StocksManagement = () => {
             </div>
 
             {/* 📷 Scanner Barcode */}
-  <div className="mt-4">
-  <Label className="text-sm font-medium">Scan Barcode (Opsional)</Label>
+            <div className="mt-4">
+              <Label className="text-sm font-medium">Scan Barcode (Opsional)</Label>
 
-  {!isScanning ? (
-    <Button
-      variant="outline"
-      className="mt-2"
-      onClick={() => setIsScanning(true)}
-    >
-      <Camera className="w-4 h-4 mr-2" />
-      Mulai Scan Barcode
-    </Button>
-  ) : (
-    <>
-      <CameraBarcodeScanner
-        active={isScanning}
-        onDetected={(detectedBarcode) => {
-          console.log("✅ Barcode terdeteksi:", detectedBarcode);
-          setNewStock((prev) => ({ ...prev, barcode: detectedBarcode }));
-          setIsScanning(false);
-        }}
-      />
-      <Button
-        variant="destructive"
-        className="mt-2"
-        onClick={() => setIsScanning(false)}
-      >
-        Stop Kamera
-      </Button>
-    </>
-  )}
-  
-  {newStock.barcode && (
-    <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded">
-      <p className="text-sm text-green-700">Barcode: <span className="font-mono font-bold">{newStock.barcode}</span></p>
-    </div>
-  )}
-</div>
-
+              {!isScanning ? (
+                <Button
+                  variant="outline"
+                  className="mt-2"
+                  onClick={() => setIsScanning(true)}
+                >
+                  <Camera className="w-4 h-4 mr-2" />
+                  Mulai Scan Barcode
+                </Button>
+              ) : (
+                <>
+                  <CameraBarcodeScanner
+                    active={isScanning}
+                    onDetected={(detectedBarcode) => {
+                      console.log("✅ Barcode terdeteksi:", detectedBarcode);
+                      setNewStock((prev) => ({ ...prev, barcode: detectedBarcode }));
+                      setIsScanning(false);
+                    }}
+                  />
+                  <Button
+                    variant="destructive"
+                    className="mt-2"
+                    onClick={() => setIsScanning(false)}
+                  >
+                    Stop Kamera
+                  </Button>
+                </>
+              )}
+              {newStock.barcode && (
+                <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded">
+                  <p className="text-sm text-green-700">
+                    Barcode:{" "}
+                    <span className="font-mono font-bold">{newStock.barcode}</span>
+                  </p>
+                </div>
+              )}
+            </div>
 
             <div>
               <Label htmlFor="quantity">Quantity</Label>
@@ -1050,7 +1185,9 @@ const StocksManagement = () => {
                 name="quantity"
                 type="number"
                 value={newStock.quantity || ""}
-                onChange={(e) => setNewStock({ ...newStock, quantity: parseInt(e.target.value) || 0 })}
+                onChange={(e) =>
+                  setNewStock({ ...newStock, quantity: parseInt(e.target.value) || 0 })
+                }
                 placeholder="Enter quantity"
                 className="mt-1"
               />
@@ -1080,7 +1217,9 @@ const StocksManagement = () => {
                     id="ppn_beli"
                     type="number"
                     value={newStock.ppn_beli}
-                    onChange={(e) => setNewStock({ ...newStock, ppn_beli: parseFloat(e.target.value) || 0 })}
+                    onChange={(e) =>
+                      setNewStock({ ...newStock, ppn_beli: parseFloat(e.target.value) || 0 })
+                    }
                     placeholder="Enter PPN Beli"
                     className="mt-1"
                   />
@@ -1091,7 +1230,9 @@ const StocksManagement = () => {
                     id="ppn_jual"
                     type="number"
                     value={newStock.ppn_jual}
-                    onChange={(e) => setNewStock({ ...newStock, ppn_jual: parseFloat(e.target.value) || 0 })}
+                    onChange={(e) =>
+                      setNewStock({ ...newStock, ppn_jual: parseFloat(e.target.value) || 0 })
+                    }
                     placeholder="Enter PPN Jual"
                     className="mt-1"
                   />
@@ -1106,7 +1247,9 @@ const StocksManagement = () => {
                   id="purchase_price"
                   type="number"
                   value={newStock.purchase_price}
-                  onChange={(e) => setNewStock({ ...newStock, purchase_price: parseFloat(e.target.value) || 0 })}
+                  onChange={(e) =>
+                    setNewStock({ ...newStock, purchase_price: parseFloat(e.target.value) || 0 })
+                  }
                   placeholder="Enter purchase price"
                   className="mt-1"
                 />
@@ -1117,7 +1260,9 @@ const StocksManagement = () => {
                   id="selling_price"
                   type="number"
                   value={newStock.selling_price}
-                  onChange={(e) => setNewStock({ ...newStock, selling_price: parseFloat(e.target.value) || 0 })}
+                  onChange={(e) =>
+                    setNewStock({ ...newStock, selling_price: parseFloat(e.target.value) || 0 })
+                  }
                   placeholder="Enter selling price"
                   className="mt-1"
                 />
@@ -1160,7 +1305,9 @@ const StocksManagement = () => {
             </Button>
             <Button
               onClick={handleCreateNewStock}
-              disabled={isCreating || !newStock.category || !newStock.warehouse_location || !newStock.item_name}
+              disabled={
+                isCreating || !newStock.category || !newStock.warehouse_location || !newStock.item_name
+              }
             >
               {isCreating ? "Creating..." : "Create New Stock"}
             </Button>
