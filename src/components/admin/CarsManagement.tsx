@@ -2229,7 +2229,7 @@ const CarsManagement = () => {
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="edit-daily_rate" className="text-right">
-                Daily Rate
+                Price
               </Label>
               <Input
                 id="edit-daily_rate"

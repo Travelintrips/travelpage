@@ -1029,10 +1029,9 @@ export default function BookingManagementDriver() {
                             )}
 
                         {(
-  // 1️⃣ Jika booking confirmed atau late → tombol muncul untuk semua user
-  ["confirmed", "late"].includes(booking.status) ||
-  // 2️⃣ Jika booking ongoing → tombol hanya muncul untuk Super Admin
-  (booking.status === "ongoing" && userRole === "Super Admin")
+  ["ongoing", "late"].includes(booking.status) &&
+  !booking.actual_return_date &&
+  ["Super Admin", "Admin", "Dispatcher"].includes(userRole)
 ) && (
   <Button
     variant="outline"
@@ -1048,6 +1047,7 @@ export default function BookingManagementDriver() {
     Finish
   </Button>
 )}
+
 
 
 
