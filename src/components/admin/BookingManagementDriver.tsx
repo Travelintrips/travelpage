@@ -1041,17 +1041,25 @@ export default function BookingManagementDriver() {
                               Details
                             </Button>*/}
 
-                            {booking.payment_status !== "paid" && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="flex items-center gap-1 bg-green-100 hover:bg-green-200 text-green-800 border-green-300"
-                                onClick={() => handleOpenPaymentDialog(booking)}
-                              >
-                                <CreditCard className="h-4 w-4" />
-                                Payment
-                              </Button>
-                            )}
+                            {(
+  // Jika belum dibayar dan booking bukan cancelled → semua role bisa lihat
+  (booking.payment_status !== "paid" && booking.status !== "cancelled") ||
+
+  // Jika booking cancelled → hanya Super Admin & Admin yang bisa lihat
+  (booking.status === "cancelled" && ["Super Admin"].includes(userRole))
+) && (
+  <Button
+    variant="outline"
+    size="sm"
+    className="flex items-center gap-1 bg-green-100 hover:bg-green-200 text-green-800 border-green-300"
+    onClick={() => handleOpenPaymentDialog(booking)}
+  >
+    <CreditCard className="h-4 w-4" />
+    Payment
+  </Button>
+)}
+
+
 
                             {booking.status === "pending" && (
                               <Button
