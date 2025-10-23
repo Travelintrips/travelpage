@@ -929,14 +929,12 @@ const formatDateTime = (dateString?: string | null) => {
 
       {/* FIXED: Driver Statistics Cards - All Clickable with Visual Feedback */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-      <Card 
-          className={`bg-gradient-to-br from-red-500 to-red-600 text-white cursor-pointer transition-all hover:scale-105 hover:shadow-lg ${
-            currentFilter === 'all' ? 'ring-4 ring-white ring-opacity-50 shadow-xl' : ''
-          }`}
-          onClick={() => handleKPICardClick('all')}
+      <Link to="/admin/driver-overdue">
+        <Card 
+          className="bg-gradient-to-br from-red-500 to-red-600 text-white cursor-pointer transition-all hover:scale-105 hover:shadow-lg"
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Drivers Late</CardTitle>
+            <CardTitle className="text-sm font-medium">Drivers Overdue</CardTitle>
             <Users className="h-4 w-4" />
           </CardHeader>
           <CardContent>
@@ -944,19 +942,19 @@ const formatDateTime = (dateString?: string | null) => {
             {statsLoading ? (
             <Loader2 className="h-6 w-6 animate-spin" />
             ) : (
-            driverStats.total_drivers_late
+            driverStats.total_drivers_late || 0
              )}
             </div>
 
             <p className="text-xs text-slate-100">
-  {driverStats.total_drivers_late > 0
-    ? "Drivers currently late"
-    : "No late drivers 🚗"}
-</p>
+              {(driverStats.total_drivers_late || 0) > 0
+                ? "Drivers currently late"
+                : "No late drivers 🚗"}
+            </p>
 
           </CardContent>
         </Card>
-
+      </Link>
 
         <Card 
           className={`bg-gradient-to-br from-slate-500 to-slate-600 text-white cursor-pointer transition-all hover:scale-105 hover:shadow-lg ${

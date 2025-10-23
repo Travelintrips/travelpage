@@ -682,7 +682,7 @@ export default function DriverDetailPage() {
                           }`}>
                             {formatCurrency(transaksi.saldo_akhir)}
                           </TableCell>
-                          <TableCell className="max-w-xs truncate">
+                          <TableCell className="text-right font-semibold">
                             {transaksi.keterangan || '-'}
                           </TableCell>
                           <TableCell className="capitalize">

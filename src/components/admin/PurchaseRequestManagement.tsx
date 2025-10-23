@@ -79,7 +79,6 @@ import { cn } from "@/lib/utils";
 
 
 
-
 interface PurchaseRequest {
   id: string;
   request_date: string;
@@ -110,6 +109,15 @@ interface PurchaseRequest {
   received_date?: string;
   completion_notes?: string;
   completion_photo_url?: string;
+}
+
+interface Supplier {
+  id: string;
+  supplier_name: string;
+  contact_person?: string;
+  phone_number?: string;
+  email?: string;
+  address?: string;
 }
 
 interface KPIData {
@@ -174,6 +182,8 @@ const PurchaseRequestManagement = () => {
   const [requests, setRequests] = useState<PurchaseRequest[]>([]);
   const [filteredRequests, setFilteredRequests] = useState<PurchaseRequest[]>([]);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const [kpiData, setKpiData] = useState<KPIData>({
     pendingCount: 0,
     pendingAmount: 0,
@@ -212,6 +222,13 @@ const PurchaseRequestManagement = () => {
     tax: 0,
     shipping_cost: 0,
     notes: "",
+    barcode: "",
+    supplier_id: "",
+    supplier_name: "",
+    contact_person: "",
+    phone_number: "",
+    email: "",
+    address: "",
   });
 
   const { user } = useAuth();
@@ -344,6 +361,57 @@ const PurchaseRequestManagement = () => {
     }
   };
 
+  const fetchSuppliers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("suppliers")
+        .select("*")
+        .order("supplier_name");
+
+      if (error) throw error;
+
+      setSuppliers(data || []);
+    } catch (error) {
+      console.error("Error fetching suppliers:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to fetch suppliers",
+      });
+    }
+  };
+
+  const handleSupplierChange = (supplierId: string) => {
+    if (!supplierId || supplierId === "none") {
+      // Clear supplier fields
+      setSelectedSupplier(null);
+      setFormData(prev => ({
+        ...prev,
+        supplier_id: "",
+        supplier_name: "",
+        contact_person: "",
+        phone_number: "",
+        email: "",
+        address: "",
+      }));
+      return;
+    }
+
+    const supplier = suppliers.find(s => s.id === supplierId);
+    if (supplier) {
+      setSelectedSupplier(supplier);
+      setFormData(prev => ({
+        ...prev,
+        supplier_id: supplier.id,
+        supplier_name: supplier.supplier_name || "",
+        contact_person: supplier.contact_person || "",
+        phone_number: supplier.phone_number || "",
+        email: supplier.email || "",
+        address: supplier.address || "",
+      }));
+    }
+  };
+
   const calculateKPIs = (data: PurchaseRequest[]) => {
     const pending = data.filter((req) => req.status === "PENDING");
     const approved = data.filter((req) => req.status === "APPROVED");
@@ -417,7 +485,8 @@ const PurchaseRequestManagement = () => {
       const { error } = await supabase.from("purchase_requests").insert({
         request_date: format(formData.date, "yyyy-MM-dd"),
         requester_id: user.id,
-        requester_name: user.user_metadata?.full_name || user.email || "Unknown",
+        name: user.user_metadata?.full_name || user.email || "Unknown",
+        email: user.email || "",
         item_name: formData.item.trim(),
         qty: formData.quantity,
         unit_price: formData.unit_price,
@@ -636,6 +705,22 @@ const PurchaseRequestManagement = () => {
       tax: 0,
       shipping_cost: 0,
       notes: "",
+      barcode: "",
+      supplier_id: "",
+      supplier_name: "",
+      contact_person: "",
+      phone_number: "",
+      email: "",
+      address: "",
+    });
+    setSelectedSupplier(null);
+  };
+
+  const handleBarcodeDetected = (code: string) => {
+    setFormData(prev => ({ ...prev, barcode: code }));
+    toast({
+      title: "Barcode Detected",
+      description: `Barcode: ${code}`,
     });
   };
 
@@ -663,6 +748,7 @@ const PurchaseRequestManagement = () => {
 
   useEffect(() => {
     fetchRequesterNames();
+    fetchSuppliers();
   }, []);
 
   useEffect(() => {
@@ -1111,6 +1197,82 @@ const PurchaseRequestManagement = () => {
                 className="bg-muted"
               />
             </div>
+
+            <div>
+              <Label htmlFor="supplier">Supplier</Label>
+              <Select
+                value={formData.supplier_id}
+                onValueChange={handleSupplierChange}
+              >
+                <SelectTrigger id="supplier">
+                  <SelectValue placeholder="Pilih supplier" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">-- Tidak ada supplier --</SelectItem>
+                  {suppliers.map((supplier) => (
+                    <SelectItem key={supplier.id} value={supplier.id}>
+                      {supplier.supplier_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Supplier Details - Read Only */}
+            {selectedSupplier && (
+              <>
+                <div>
+                  <Label htmlFor="supplier_name">Supplier Name</Label>
+                  <Input
+                    id="supplier_name"
+                    value={formData.supplier_name}
+                    disabled
+                    className="bg-muted"
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="contact_person">Contact Person</Label>
+                  <Input
+                    id="contact_person"
+                    value={formData.contact_person}
+                    disabled
+                    className="bg-muted"
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="phone">Phone</Label>
+                  <Input
+                    id="phone"
+                    value={formData.phone_number}
+                    disabled
+                    className="bg-muted"
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="email">Email</Label>
+                  <Input
+                    id="email"
+                    value={formData.email}
+                    disabled
+                    className="bg-muted"
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="address">Address</Label>
+                  <Textarea
+                    id="address"
+                    value={formData.address}
+                    disabled
+                    className="bg-muted"
+                    rows={2}
+                  />
+                </div>
+              </>
+            )}
 
             <div>
               <Label htmlFor="item">Item Name *</Label>

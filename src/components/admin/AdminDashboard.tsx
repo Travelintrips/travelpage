@@ -56,6 +56,7 @@ import StatCard from "./StatCard";
 import DashboardCharts from "./DashboardCharts";
 import VehicleInventory from "./VehicleInventory";
 import PurchaseRequestManagement from "./PurchaseRequestManagement";
+import HistoriTransaksi from "./HistoriTransaksi";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface DashboardStats {
@@ -67,6 +68,7 @@ interface DashboardStats {
   onRideVehicles: number;
   maintenanceVehicles: number;
   availableVehicles: number;
+  driversOverdue: number;
   totalPayments: {
     count: number;
     amount: number;
@@ -120,6 +122,7 @@ export default function AdminDashboard() {
     onRideVehicles: 0,
     maintenanceVehicles: 0,
     availableVehicles: 0,
+    driversOverdue: 0,
     totalPayments: {
       count: 0,
       amount: 0,
@@ -451,6 +454,23 @@ export default function AdminDashboard() {
         0,
       );
 
+      // Calculate drivers overdue
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const driversOverdueCount = bookings?.filter((booking) => {
+        const endDate = new Date(booking.end_date);
+        endDate.setHours(0, 0, 0, 0);
+        
+        if (booking.actual_return_date) {
+          const returnDate = new Date(booking.actual_return_date);
+          returnDate.setHours(0, 0, 0, 0);
+          return returnDate > endDate;
+        } else {
+          return today > endDate;
+        }
+      }).length || 0;
+
       // Calculate monthly payments total
       const monthlyPaidPayments = 
         monthlyPayments?.filter(
@@ -630,6 +650,7 @@ export default function AdminDashboard() {
         onRideVehicles,
         maintenanceVehicles,
         availableVehicles: availableVehiclesCount,
+        driversOverdue: driversOverdueCount,
         totalPayments: {
           count: paidPayments.length,
           amount: totalPaidAmount,
@@ -800,6 +821,16 @@ export default function AdminDashboard() {
                 bgColor="linear-gradient(135deg, #22C1C3 0%, #FDBB2D 100%)"
               />
               <StatCard
+                title="Drivers Overdue"
+                value={dashboardStats.driversOverdue}
+                description="Drivers currently late"
+                icon={<AlertTriangle className="h-6 w-6" />}
+                trend="neutral"
+                trendValue=""
+                to="/admin/driver-overdue"
+                bgColor="linear-gradient(135deg, #ef4444 0%, #dc2626 100%)"
+              />
+              <StatCard
                 title="Total Vehicles"
                 value={dashboardStats.totalVehicles}
                 description="Total vehicles in fleet"
@@ -809,6 +840,7 @@ export default function AdminDashboard() {
                 to="/admin/cars"
                 bgColor="linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%)"
               />
+
               <StatCard
                 title="Available Vehicles"
                 value={dashboardStats.availableVehicles}

@@ -438,12 +438,27 @@ export default function BookingManagementDriver() {
 
   const handleFinishBooking = async (booking: Booking) => {
   try {
+    // 0️⃣ Ambil data admin login (Supabase Auth)
+    const { data: { user } } = await supabase.auth.getUser();
+    const adminId = user?.id || null;
+    const adminName = user?.user_metadata?.name || user?.email || "Unknown Admin";
+
+    // 🛑 Cegah pemrosesan booking backdate
+    if (booking.is_backdated) {
+      toast({
+        variant: "default",
+        title: "ℹ️ Booking backdate",
+        description: "Booking ini adalah backdate, tidak ada potongan saldo.",
+      });
+      // Tapi tetap boleh menandai sebagai completed
+    }
+
     // 1️⃣ Update booking → completed + actual_return_date
     const { error: bookingError } = await supabase
       .from("bookings")
       .update({
         status: "completed",
-        actual_return_date: new Date().toISOString().split("T")[0], // isi tanggal hari ini
+        actual_return_date: new Date().toISOString().split("T")[0], // tanggal hari ini
       })
       .eq("id", booking.id);
 
@@ -458,6 +473,7 @@ export default function BookingManagementDriver() {
 
     if (vehicleFetchError) throw vehicleFetchError;
 
+    // 3️⃣ Hitung keterlambatan
     const today = new Date();
     const endDate = new Date(booking.end_date);
     const lateDays = Math.max(
@@ -466,7 +482,7 @@ export default function BookingManagementDriver() {
     );
     const lateFee = lateDays * (vehicleData?.price || 0);
 
-    // 3️⃣ Update late_days & late_fee di booking
+    // 4️⃣ Update late_days & late_fee di booking
     await supabase
       .from("bookings")
       .update({
@@ -475,7 +491,7 @@ export default function BookingManagementDriver() {
       })
       .eq("id", booking.id);
 
-    // 4️⃣ Ubah status kendaraan jadi available
+    // 5️⃣ Ubah status kendaraan jadi available
     const { error: vehicleUpdateError } = await supabase
       .from("vehicles")
       .update({ status: "available" })
@@ -483,20 +499,40 @@ export default function BookingManagementDriver() {
 
     if (vehicleUpdateError) throw vehicleUpdateError;
 
-    // 5️⃣ Notifikasi sukses
+    // 6️⃣ Jalankan potongan saldo (hanya jika bukan backdate)
+    if (!booking.is_backdated) {
+      const { error: rpcError } = await supabase.rpc("process_payment_late_fee", {
+        p_driver_id: booking.driver_id,
+        p_booking_id: booking.id,
+        p_admin_id: adminId,
+        p_admin_name: adminName,
+      });
+
+      if (rpcError) {
+        console.warn("⚠️ RPC process_payment_late_fee warning:", rpcError.message);
+        // tidak fatal, lanjutkan saja
+      }
+    }
+
+    // 7️⃣ Tampilkan notifikasi sukses
     toast({
       title: "✅ Booking selesai",
       description: `Kendaraan sudah dikembalikan${
         lateDays > 0
           ? ` (${lateDays} hari telat, denda Rp ${lateFee.toLocaleString("id-ID")})`
           : ""
+      }${
+        booking.is_backdated
+          ? " (Booking backdate — tidak ada potongan saldo)"
+          : ""
       }`,
     });
 
-    fetchBookings(); // refresh data di tabel
+    // 8️⃣ Refresh data tabel
+    fetchBookings();
 
   } catch (error: any) {
-    console.error("Error finishing booking:", error);
+    console.error("❌ Error finishing booking:", error);
     toast({
       variant: "destructive",
       title: "Gagal menyelesaikan booking",
@@ -504,6 +540,7 @@ export default function BookingManagementDriver() {
     });
   }
 };
+
 
   const handleConfirmBooking = async (booking: Booking) => {
     setCurrentBooking(booking);
@@ -1029,9 +1066,9 @@ export default function BookingManagementDriver() {
                             )}
 
                         {(
-  ["ongoing", "late"].includes(booking.status) &&
+  ["ongoing", "late", "confirmed" ].includes(booking.status) &&
   !booking.actual_return_date &&
-  ["Super Admin", "Admin", "Dispatcher"].includes(userRole)
+  ["Super Admin", "Admin"].includes(userRole)
 ) && (
   <Button
     variant="outline"
@@ -1186,26 +1223,38 @@ export default function BookingManagementDriver() {
                                       <span className="font-medium">{booking.notes_admin || 'N/A'}</span>
                                     </div>
                                   </div>
+                                  <div className="space-y-1 text-sm">
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-600">Driver Notes:</span>
+                                      <span className="font-medium">{booking.notes_driver || 'N/A'}</span>
+                                    </div>
+                                  </div>
                                 </div>
 
                                 {/* Cancellation Information */}
                                 {booking.status === 'cancelled' && (
-                                  <div className="bg-red-50 p-3 rounded border border-red-200">
-                                    <h5 className="font-medium text-red-700 mb-2">Cancellation Information</h5>
-                                    <div className="space-y-1 text-sm">
-                                      <div className="flex justify-between">
-                                        <span className="text-red-600">Cancelled By:</span>
-                                        <span className="font-medium text-red-800">{booking.refunded_by || 'System'}</span>
-                                      </div>
-                                      {booking.refund_reason && (
-                                        <div className="mt-2">
-                                          <span className="text-red-600">Reason:</span>
-                                          <p className="text-red-800 mt-1 text-xs">{booking.refund_reason}</p>
-                                        </div>
-                                      )}
-                                    </div>
-                                  </div>
-                                )}
+  <div className="bg-red-50 p-3 rounded border border-red-200">
+    <h5 className="font-medium text-red-700 mb-2">Cancellation Information</h5>
+    <div className="space-y-1 text-sm">
+      <div className="flex justify-between">
+        <span className="text-red-600">Cancelled By:</span>
+        {/* ✅ Gunakan cancel_by_driver_name, fallback ke "System" */}
+        <span className="font-medium text-red-800">
+          {booking.cancel_by_driver_name || 'System'}
+        </span>
+      </div>
+
+      {/* ✅ Tetap tampilkan alasan refund jika ada */}
+      {booking.refund_reason && (
+        <div className="mt-2">
+          <span className="text-red-600">Reason:</span>
+          <p className="text-red-800 mt-1 text-xs">{booking.refund_reason}</p>
+        </div>
+      )}
+    </div>
+  </div>
+)}
+
                               </div>
                             </div>
                           </TableCell>

@@ -1666,8 +1666,9 @@ const CarsManagement = () => {
                         <TableRow>
                           <TableHead>Car</TableHead>
                           <TableHead>Make</TableHead>
+                          <TableHead>Model</TableHead>
                           <TableHead>Year</TableHead>
-                          <TableHead>License Plate</TableHead>
+                          <TableHead>License Plate1</TableHead>
                           <TableHead>Vehicle Type</TableHead>
                           <TableHead>Status</TableHead>
                           <TableHead>STNK Expiry</TableHead>
@@ -1699,6 +1700,9 @@ const CarsManagement = () => {
                             </TableCell>
                             <TableCell>
                               <div className="font-medium">{car.make}</div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="font-medium">{car.model}</div>
                             </TableCell>
                             <TableCell>{car.year}</TableCell>
                             <TableCell>{car.license_plate}</TableCell>

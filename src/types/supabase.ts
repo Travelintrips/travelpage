@@ -784,6 +784,7 @@ export type Database = {
       }
       bookings: {
         Row: {
+          actual_return_date: string | null
           amount: number | null
           bank_account: string | null
           booking_date: string | null
@@ -806,6 +807,8 @@ export type Database = {
           id: string
           is_backdated: boolean | null
           journal_entry_id: string | null
+          late_days: number | null
+          late_fee: number | null
           license_plate: string | null
           make: string | null
           model: string | null
@@ -827,6 +830,7 @@ export type Database = {
           refunded_by: string | null
           remaining_payment: number | null
           remaining_payments: number | null
+          reminder_sent: boolean | null
           rental_days: number
           return_time: string | null
           role_id: number | null
@@ -845,6 +849,7 @@ export type Database = {
           with_driver: boolean | null
         }
         Insert: {
+          actual_return_date?: string | null
           amount?: number | null
           bank_account?: string | null
           booking_date?: string | null
@@ -867,6 +872,8 @@ export type Database = {
           id?: string
           is_backdated?: boolean | null
           journal_entry_id?: string | null
+          late_days?: number | null
+          late_fee?: number | null
           license_plate?: string | null
           make?: string | null
           model?: string | null
@@ -888,6 +895,7 @@ export type Database = {
           refunded_by?: string | null
           remaining_payment?: number | null
           remaining_payments?: number | null
+          reminder_sent?: boolean | null
           rental_days?: number
           return_time?: string | null
           role_id?: number | null
@@ -906,6 +914,7 @@ export type Database = {
           with_driver?: boolean | null
         }
         Update: {
+          actual_return_date?: string | null
           amount?: number | null
           bank_account?: string | null
           booking_date?: string | null
@@ -928,6 +937,8 @@ export type Database = {
           id?: string
           is_backdated?: boolean | null
           journal_entry_id?: string | null
+          late_days?: number | null
+          late_fee?: number | null
           license_plate?: string | null
           make?: string | null
           model?: string | null
@@ -949,6 +960,7 @@ export type Database = {
           refunded_by?: string | null
           remaining_payment?: number | null
           remaining_payments?: number | null
+          reminder_sent?: boolean | null
           rental_days?: number
           return_time?: string | null
           role_id?: number | null
@@ -1179,6 +1191,221 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      cargo_destinations: {
+        Row: {
+          city: string | null
+          code: string | null
+          created_at: string | null
+          id: string
+          province: string | null
+          type: string | null
+        }
+        Insert: {
+          city?: string | null
+          code?: string | null
+          created_at?: string | null
+          id?: string
+          province?: string | null
+          type?: string | null
+        }
+        Update: {
+          city?: string | null
+          code?: string | null
+          created_at?: string | null
+          id?: string
+          province?: string | null
+          type?: string | null
+        }
+        Relationships: []
+      }
+      cargo_intracity_rates: {
+        Row: {
+          base_price: number
+          city: string
+          id: string
+          max_distance: number | null
+          max_weight: number | null
+          min_distance: number | null
+          min_weight: number | null
+          rate_per_km: number
+          updated_at: string | null
+          vehicle_type: string | null
+        }
+        Insert: {
+          base_price: number
+          city?: string
+          id?: string
+          max_distance?: number | null
+          max_weight?: number | null
+          min_distance?: number | null
+          min_weight?: number | null
+          rate_per_km: number
+          updated_at?: string | null
+          vehicle_type?: string | null
+        }
+        Update: {
+          base_price?: number
+          city?: string
+          id?: string
+          max_distance?: number | null
+          max_weight?: number | null
+          min_distance?: number | null
+          min_weight?: number | null
+          rate_per_km?: number
+          updated_at?: string | null
+          vehicle_type?: string | null
+        }
+        Relationships: []
+      }
+      cargo_orders: {
+        Row: {
+          created_at: string | null
+          created_by: string
+          currency: string | null
+          customer_id: string | null
+          dest_address: string | null
+          dest_code: string | null
+          driver_id: string | null
+          dropoff_city: string | null
+          dropoff_province: string | null
+          eta: string | null
+          id: string
+          item_description: string | null
+          order_reference: string | null
+          origin_address: string | null
+          origin_code: string | null
+          payment_status: string | null
+          pickup_city: string | null
+          pickup_province: string | null
+          price: number | null
+          service_type: string | null
+          status: string | null
+          updated_at: string | null
+          volume_m3: number | null
+          weight_kg: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by: string
+          currency?: string | null
+          customer_id?: string | null
+          dest_address?: string | null
+          dest_code?: string | null
+          driver_id?: string | null
+          dropoff_city?: string | null
+          dropoff_province?: string | null
+          eta?: string | null
+          id?: string
+          item_description?: string | null
+          order_reference?: string | null
+          origin_address?: string | null
+          origin_code?: string | null
+          payment_status?: string | null
+          pickup_city?: string | null
+          pickup_province?: string | null
+          price?: number | null
+          service_type?: string | null
+          status?: string | null
+          updated_at?: string | null
+          volume_m3?: number | null
+          weight_kg?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string
+          currency?: string | null
+          customer_id?: string | null
+          dest_address?: string | null
+          dest_code?: string | null
+          driver_id?: string | null
+          dropoff_city?: string | null
+          dropoff_province?: string | null
+          eta?: string | null
+          id?: string
+          item_description?: string | null
+          order_reference?: string | null
+          origin_address?: string | null
+          origin_code?: string | null
+          payment_status?: string | null
+          pickup_city?: string | null
+          pickup_province?: string | null
+          price?: number | null
+          service_type?: string | null
+          status?: string | null
+          updated_at?: string | null
+          volume_m3?: number | null
+          weight_kg?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cargo_orders_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "agent_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cargo_orders_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cargo_orders_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "v_user_role_consistency"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cargo_orders_driver_id_fkey"
+            columns: ["driver_id"]
+            isOneToOne: false
+            referencedRelation: "drivers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cargo_rates: {
+        Row: {
+          base_price: number
+          dest_code: string
+          extra_delivery_fee: number | null
+          extra_pickup_fee: number | null
+          id: string
+          origin_code: string
+          price_per_kg: number | null
+          price_per_m3: number | null
+          service_type: string
+          updated_at: string | null
+        }
+        Insert: {
+          base_price: number
+          dest_code: string
+          extra_delivery_fee?: number | null
+          extra_pickup_fee?: number | null
+          id?: string
+          origin_code: string
+          price_per_kg?: number | null
+          price_per_m3?: number | null
+          service_type: string
+          updated_at?: string | null
+        }
+        Update: {
+          base_price?: number
+          dest_code?: string
+          extra_delivery_fee?: number | null
+          extra_pickup_fee?: number | null
+          id?: string
+          origin_code?: string
+          price_per_kg?: number | null
+          price_per_m3?: number | null
+          service_type?: string
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       chart_of_accounts: {
         Row: {
@@ -2338,6 +2565,27 @@ export type Database = {
         }
         Relationships: []
       }
+      function_logs: {
+        Row: {
+          function_name: string | null
+          id: number
+          log_time: string | null
+          message: string | null
+        }
+        Insert: {
+          function_name?: string | null
+          id?: number
+          log_time?: string | null
+          message?: string | null
+        }
+        Update: {
+          function_name?: string | null
+          id?: number
+          log_time?: string | null
+          message?: string | null
+        }
+        Relationships: []
+      }
       general_ledger: {
         Row: {
           account_code: string | null
@@ -2356,11 +2604,13 @@ export type Database = {
           journal_entry_id: string | null
           journal_entry_item_id: string | null
           manual_entry: boolean | null
+          name: string | null
           normal_balance: string | null
           payment_id: string | null
           period_month: string | null
           reference_number: string | null
           running_balance: number
+          service_type: string | null
           total_credit: number | null
           total_debit: number | null
           transaction_date: string | null
@@ -2383,11 +2633,13 @@ export type Database = {
           journal_entry_id?: string | null
           journal_entry_item_id?: string | null
           manual_entry?: boolean | null
+          name?: string | null
           normal_balance?: string | null
           payment_id?: string | null
           period_month?: string | null
           reference_number?: string | null
           running_balance?: number
+          service_type?: string | null
           total_credit?: number | null
           total_debit?: number | null
           transaction_date?: string | null
@@ -2410,11 +2662,13 @@ export type Database = {
           journal_entry_id?: string | null
           journal_entry_item_id?: string | null
           manual_entry?: boolean | null
+          name?: string | null
           normal_balance?: string | null
           payment_id?: string | null
           period_month?: string | null
           reference_number?: string | null
           running_balance?: number
+          service_type?: string | null
           total_credit?: number | null
           total_debit?: number | null
           transaction_date?: string | null
@@ -2842,6 +3096,27 @@ export type Database = {
         }
         Relationships: []
       }
+      http_logs: {
+        Row: {
+          id: number
+          log_time: string | null
+          request_target: string | null
+          response: Json | null
+        }
+        Insert: {
+          id?: number
+          log_time?: string | null
+          request_target?: string | null
+          response?: Json | null
+        }
+        Update: {
+          id?: number
+          log_time?: string | null
+          request_target?: string | null
+          response?: Json | null
+        }
+        Relationships: []
+      }
       inspection_checklist_values: {
         Row: {
           checklist_item_id: string | null
@@ -3209,6 +3484,50 @@ export type Database = {
           year?: number | null
         }
         Relationships: []
+      }
+      items_purchase: {
+        Row: {
+          created_at: string | null
+          id: string
+          item_name: string
+          name: string
+          photo_url: string | null
+          purchase_request_id: string | null
+          qty: number
+          total_cost: number
+          unit_cost: number
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          item_name: string
+          name: string
+          photo_url?: string | null
+          purchase_request_id?: string | null
+          qty?: number
+          total_cost?: number
+          unit_cost?: number
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          item_name?: string
+          name?: string
+          photo_url?: string | null
+          purchase_request_id?: string | null
+          qty?: number
+          total_cost?: number
+          unit_cost?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "items_purchase_purchase_request_id_fkey"
+            columns: ["purchase_request_id"]
+            isOneToOne: true
+            referencedRelation: "purchase_requests"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       journal_entries: {
         Row: {
@@ -4289,6 +4608,7 @@ export type Database = {
       purchase_requests: {
         Row: {
           attachment_url: string | null
+          barcode: string | null
           completed_at: string | null
           completed_by: string | null
           completion_notes: string | null
@@ -4298,6 +4618,7 @@ export type Database = {
           id: string
           item_name: string
           name: string
+          notes: string | null
           qty: number
           received_date: string | null
           rejected_at: string | null
@@ -4307,6 +4628,7 @@ export type Database = {
           requester_id: string
           shipping_cost: number
           status: string | null
+          tax: number | null
           total_amount: number
           unit_price: number
           updated_at: string | null
@@ -4315,6 +4637,7 @@ export type Database = {
         }
         Insert: {
           attachment_url?: string | null
+          barcode?: string | null
           completed_at?: string | null
           completed_by?: string | null
           completion_notes?: string | null
@@ -4324,6 +4647,7 @@ export type Database = {
           id?: string
           item_name: string
           name: string
+          notes?: string | null
           qty?: number
           received_date?: string | null
           rejected_at?: string | null
@@ -4333,6 +4657,7 @@ export type Database = {
           requester_id: string
           shipping_cost?: number
           status?: string | null
+          tax?: number | null
           total_amount?: number
           unit_price?: number
           updated_at?: string | null
@@ -4341,6 +4666,7 @@ export type Database = {
         }
         Update: {
           attachment_url?: string | null
+          barcode?: string | null
           completed_at?: string | null
           completed_by?: string | null
           completion_notes?: string | null
@@ -4350,6 +4676,7 @@ export type Database = {
           id?: string
           item_name?: string
           name?: string
+          notes?: string | null
           qty?: number
           received_date?: string | null
           rejected_at?: string | null
@@ -4359,6 +4686,7 @@ export type Database = {
           requester_id?: string
           shipping_cost?: number
           status?: string | null
+          tax?: number | null
           total_amount?: number
           unit_price?: number
           updated_at?: string | null
@@ -4771,6 +5099,117 @@ export type Database = {
           },
         ]
       }
+      stock: {
+        Row: {
+          barcode: string | null
+          brand: string[] | null
+          category: string[] | null
+          closing_stock: number | null
+          created_at: string | null
+          created_by: string | null
+          date: string | null
+          harga_beli_setelah_ppn: number | null
+          harga_jual_setelah_ppn: number | null
+          id: string
+          item_code: string | null
+          item_name: string
+          location: string | null
+          min_stock: number | null
+          model: string | null
+          name: string
+          opening_stock: number | null
+          part_number: string | null
+          plate_number: string | null
+          ppn_beli: number | null
+          ppn_jual: number | null
+          ppn_type: string
+          purchase_price: number
+          quantity: number
+          requester_id: string | null
+          selling_price: number | null
+          stock_code: string | null
+          stock_in: number | null
+          stock_out: number | null
+          supplier_name: string | null
+          unit: string | null
+          updated_at: string | null
+          vehicle_type: string | null
+          warehouse_location: string
+        }
+        Insert: {
+          barcode?: string | null
+          brand?: string[] | null
+          category?: string[] | null
+          closing_stock?: number | null
+          created_at?: string | null
+          created_by?: string | null
+          date?: string | null
+          harga_beli_setelah_ppn?: number | null
+          harga_jual_setelah_ppn?: number | null
+          id?: string
+          item_code?: string | null
+          item_name: string
+          location?: string | null
+          min_stock?: number | null
+          model?: string | null
+          name: string
+          opening_stock?: number | null
+          part_number?: string | null
+          plate_number?: string | null
+          ppn_beli?: number | null
+          ppn_jual?: number | null
+          ppn_type?: string
+          purchase_price?: number
+          quantity: number
+          requester_id?: string | null
+          selling_price?: number | null
+          stock_code?: string | null
+          stock_in?: number | null
+          stock_out?: number | null
+          supplier_name?: string | null
+          unit?: string | null
+          updated_at?: string | null
+          vehicle_type?: string | null
+          warehouse_location?: string
+        }
+        Update: {
+          barcode?: string | null
+          brand?: string[] | null
+          category?: string[] | null
+          closing_stock?: number | null
+          created_at?: string | null
+          created_by?: string | null
+          date?: string | null
+          harga_beli_setelah_ppn?: number | null
+          harga_jual_setelah_ppn?: number | null
+          id?: string
+          item_code?: string | null
+          item_name?: string
+          location?: string | null
+          min_stock?: number | null
+          model?: string | null
+          name?: string
+          opening_stock?: number | null
+          part_number?: string | null
+          plate_number?: string | null
+          ppn_beli?: number | null
+          ppn_jual?: number | null
+          ppn_type?: string
+          purchase_price?: number
+          quantity?: number
+          requester_id?: string | null
+          selling_price?: number | null
+          stock_code?: string | null
+          stock_in?: number | null
+          stock_out?: number | null
+          supplier_name?: string | null
+          unit?: string | null
+          updated_at?: string | null
+          vehicle_type?: string | null
+          warehouse_location?: string
+        }
+        Relationships: []
+      }
       sub_accounts: {
         Row: {
           created_at: string | null
@@ -4789,6 +5228,90 @@ export type Database = {
           email?: string | null
           id?: string
           name?: string | null
+        }
+        Relationships: []
+      }
+      suppliers: {
+        Row: {
+          address: string | null
+          attachment_url: string | null
+          bank_account_holder: string | null
+          bank_account_number: string | null
+          bank_name: string | null
+          category: string | null
+          city: string | null
+          contact_person: string | null
+          country: string | null
+          created_at: string | null
+          created_by: string | null
+          currency: string | null
+          email: string | null
+          id: string
+          notes: string | null
+          payment_terms: string | null
+          phone_number: string | null
+          rating: number | null
+          status: string | null
+          supplier_code: string | null
+          supplier_name: string
+          supplier_type: string | null
+          tax_id: string | null
+          updated_at: string | null
+          website: string | null
+        }
+        Insert: {
+          address?: string | null
+          attachment_url?: string | null
+          bank_account_holder?: string | null
+          bank_account_number?: string | null
+          bank_name?: string | null
+          category?: string | null
+          city?: string | null
+          contact_person?: string | null
+          country?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          currency?: string | null
+          email?: string | null
+          id?: string
+          notes?: string | null
+          payment_terms?: string | null
+          phone_number?: string | null
+          rating?: number | null
+          status?: string | null
+          supplier_code?: string | null
+          supplier_name: string
+          supplier_type?: string | null
+          tax_id?: string | null
+          updated_at?: string | null
+          website?: string | null
+        }
+        Update: {
+          address?: string | null
+          attachment_url?: string | null
+          bank_account_holder?: string | null
+          bank_account_number?: string | null
+          bank_name?: string | null
+          category?: string | null
+          city?: string | null
+          contact_person?: string | null
+          country?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          currency?: string | null
+          email?: string | null
+          id?: string
+          notes?: string | null
+          payment_terms?: string | null
+          phone_number?: string | null
+          rating?: number | null
+          status?: string | null
+          supplier_code?: string | null
+          supplier_name?: string
+          supplier_type?: string | null
+          tax_id?: string | null
+          updated_at?: string | null
+          website?: string | null
         }
         Relationships: []
       }
@@ -5908,6 +6431,66 @@ export type Database = {
           date: string | null
           debit: number | null
           description: string | null
+          name: string | null
+          service_type: string | null
+        }
+        Insert: {
+          credit?: number | null
+          date?: string | null
+          debit?: number | null
+          description?: string | null
+          name?: string | null
+          service_type?: string | null
+        }
+        Update: {
+          credit?: number | null
+          date?: string | null
+          debit?: number | null
+          description?: string | null
+          name?: string | null
+          service_type?: string | null
+        }
+        Relationships: []
+      }
+      vw_histori_transaksi: {
+        Row: {
+          account_holder_received: string | null
+          bank_name: string | null
+          code_booking: string | null
+          date: string | null
+          jenis_transaksi: string | null
+          name: string | null
+          nominal: number | null
+          payment_method: string | null
+          saldo_akhir: number | null
+          saldo_awal: number | null
+          status: string | null
+        }
+        Insert: {
+          account_holder_received?: string | null
+          bank_name?: string | null
+          code_booking?: string | null
+          date?: never
+          jenis_transaksi?: string | null
+          name?: string | null
+          nominal?: number | null
+          payment_method?: string | null
+          saldo_akhir?: number | null
+          saldo_awal?: number | null
+          status?: string | null
+        }
+        Update: {
+          account_holder_received?: string | null
+          bank_name?: string | null
+          code_booking?: string | null
+          date?: never
+          jenis_transaksi?: string | null
+          name?: string | null
+          nominal?: number | null
+          payment_method?: string | null
+          saldo_akhir?: number | null
+          saldo_awal?: number | null
+          status?: string | null
         }
         Relationships: []
       }
@@ -5967,16 +6550,91 @@ export type Database = {
         }
         Relationships: []
       }
+      vw_stock: {
+        Row: {
+          barcode: string | null
+          category: string[] | null
+          closing_stock: number | null
+          date: string | null
+          item_name: string | null
+          min_stock: number | null
+          name: string | null
+          opening_stock: number | null
+          ppn_type: string | null
+          purchase_price: number | null
+          purchase_price_after_ppn: number | null
+          quantity: number | null
+          selling_price: number | null
+          selling_price_after_ppn: number | null
+          stock_in: number | null
+          stock_out: number | null
+          supplier_name: string | null
+          unit: string | null
+          warehouse_location: string | null
+        }
+        Insert: {
+          barcode?: string | null
+          category?: string[] | null
+          closing_stock?: number | null
+          date?: never
+          item_name?: string | null
+          min_stock?: number | null
+          name?: string | null
+          opening_stock?: number | null
+          ppn_type?: string | null
+          purchase_price?: number | null
+          purchase_price_after_ppn?: number | null
+          quantity?: number | null
+          selling_price?: number | null
+          selling_price_after_ppn?: number | null
+          stock_in?: number | null
+          stock_out?: number | null
+          supplier_name?: string | null
+          unit?: string | null
+          warehouse_location?: string | null
+        }
+        Update: {
+          barcode?: string | null
+          category?: string[] | null
+          closing_stock?: number | null
+          date?: never
+          item_name?: string | null
+          min_stock?: number | null
+          name?: string | null
+          opening_stock?: number | null
+          ppn_type?: string | null
+          purchase_price?: number | null
+          purchase_price_after_ppn?: number | null
+          quantity?: number | null
+          selling_price?: number | null
+          selling_price_after_ppn?: number | null
+          stock_in?: number | null
+          stock_out?: number | null
+          supplier_name?: string | null
+          unit?: string | null
+          warehouse_location?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       approve_purchase_request: {
         Args: { approver_id: string; request_id: string }
         Returns: Json
       }
-      auto_post_jurnal_from_mutasi: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
+      auto_post_jurnal_from_mutasi: { Args: never; Returns: undefined }
+      calc_intracity_price:
+        | {
+            Args: { p_city: string; p_distance_km: number; p_weight: number }
+            Returns: {
+              applied_distance: number
+              base_price: number
+              rate_per_km: number
+              total_price: number
+              vehicle_type: string
+            }[]
+          }
+        | { Args: { p_city: string; p_distance_km: number }; Returns: number }
       calculate_rental_days: {
         Args: { end_date: string; start_date: string }
         Returns: number
@@ -5990,14 +6648,8 @@ export type Database = {
         }
         Returns: undefined
       }
-      close_period: {
-        Args: { p_period: string }
-        Returns: undefined
-      }
-      contoh_fungsi: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
+      close_period: { Args: { p_period: string }; Returns: undefined }
+      contoh_fungsi: { Args: never; Returns: undefined }
       create_general_ledger_entry: {
         Args: {
           p_account_id: string
@@ -6007,6 +6659,16 @@ export type Database = {
         }
         Returns: undefined
       }
+      determine_service_type: {
+        Args: {
+          p_distance: number
+          p_dropoff_city: string
+          p_dropoff_province: string
+          p_pickup_city: string
+          p_pickup_province: string
+        }
+        Returns: string
+      }
       find_uuid_in_tables: {
         Args: { search_value: string }
         Returns: {
@@ -6015,6 +6677,7 @@ export type Database = {
           found_table: string
         }[]
       }
+      gen_stock_code: { Args: never; Returns: string }
       generate_balance_sheet: {
         Args: { p_period: string }
         Returns: {
@@ -6028,27 +6691,37 @@ export type Database = {
         Args: { p_period: string }
         Returns: undefined
       }
-      generate_profit_loss: {
-        Args:
-          | {
+      generate_profit_loss:
+        | {
+            Args: {
               p_end_date: string
               p_generated_by?: string
               p_start_date: string
             }
-          | { p_period: string }
-        Returns: {
-          net_profit: number
-          total_expense: number
-          total_income: number
-        }[]
-      }
+            Returns: undefined
+          }
+        | {
+            Args: { p_period: string }
+            Returns: {
+              net_profit: number
+              total_expense: number
+              total_income: number
+            }[]
+          }
+      generate_supplier_code: { Args: never; Returns: string }
       get_account_id_from_service: {
         Args: { service: string }
         Returns: string
       }
-      get_driver_kpis: {
-        Args: Record<PropertyKey, never>
-        Returns: Json
+      get_driver_kpis: { Args: never; Returns: Json }
+      get_drivers_not_rebooked: {
+        Args: never
+        Returns: {
+          driver_id: string
+          driver_name: string
+          last_end_date: string
+          late_days: number
+        }[]
       }
       get_general_ledger_by_date_range: {
         Args: { end_date_str: string; start_date_str: string }
@@ -6059,8 +6732,54 @@ export type Database = {
           description: string
         }[]
       }
+      get_histori_transaksi:
+        | {
+            Args: {
+              end_date?: string
+              page_offset?: number
+              page_size?: number
+              search_term?: string
+              selected_name?: string
+              start_date?: string
+            }
+            Returns: {
+              account_holder_received: string
+              bank_name: string
+              code_booking: string
+              date: string
+              jenis_transaksi: string
+              name: string
+              nominal: number
+              payment_method: string
+              saldo_akhir: number
+              saldo_awal: number
+              status: string
+            }[]
+          }
+        | {
+            Args: {
+              end_date?: string
+              page_offset?: number
+              page_size?: number
+              search_term?: string
+              start_date?: string
+            }
+            Returns: {
+              account_holder_received: string
+              bank_name: string
+              code_booking: string
+              date: string
+              jenis_transaksi: string
+              name: string
+              nominal: number
+              payment_method: string
+              saldo_akhir: number
+              saldo_awal: number
+              status: string
+            }[]
+          }
       get_service_types: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           label: string
           value: string
@@ -6075,7 +6794,7 @@ export type Database = {
         }[]
       }
       get_tables: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           table_name: string
         }[]
@@ -6128,38 +6847,10 @@ export type Database = {
           total_debit: number
         }[]
       }
-      gtrgm_compress: {
-        Args: { "": unknown }
-        Returns: unknown
-      }
-      gtrgm_decompress: {
-        Args: { "": unknown }
-        Returns: unknown
-      }
-      gtrgm_in: {
-        Args: { "": unknown }
-        Returns: unknown
-      }
-      gtrgm_options: {
-        Args: { "": unknown }
-        Returns: undefined
-      }
-      gtrgm_out: {
-        Args: { "": unknown }
-        Returns: unknown
-      }
-      is_admin: {
-        Args: Record<PropertyKey, never>
-        Returns: boolean
-      }
-      my_function: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
-      norm_lt: {
-        Args: { src: string }
-        Returns: string
-      }
+      is_admin: { Args: never; Returns: boolean }
+      mark_overdue_bookings: { Args: never; Returns: undefined }
+      my_function: { Args: never; Returns: undefined }
+      norm_lt: { Args: { src: string }; Returns: string }
       notify_fanout: {
         Args: {
           body: string
@@ -6212,6 +6903,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      notify_upcoming_late_bookings: { Args: never; Returns: undefined }
       pay_booking_and_set_driver_standby: {
         Args: {
           booking_id: string
@@ -6229,10 +6921,16 @@ export type Database = {
         Args: { p_journal_entry_id: string }
         Returns: undefined
       }
-      recalculate_all_balances: {
-        Args: Record<PropertyKey, never>
+      process_payment_late_fee: {
+        Args: {
+          p_admin_id?: string
+          p_admin_name?: string
+          p_booking_id: string
+          p_driver_id: string
+        }
         Returns: undefined
       }
+      recalculate_all_balances: { Args: never; Returns: undefined }
       refresh_trial_balance: {
         Args: { p_end: string; p_start: string }
         Returns: undefined
@@ -6242,27 +6940,15 @@ export type Database = {
         Returns: Json
       }
       reject_topup: {
-        Args:
-          | { p_admin: string; p_reason: string; p_request_id: string }
-          | { p_reason: string; p_request_id: string }
+        Args: { p_admin?: string; p_reason?: string; p_request_id: string }
         Returns: undefined
       }
       resolve_ref_user_id: {
         Args: { _ref_id: string; _ref_table: string }
         Returns: string
       }
-      set_limit: {
-        Args: { "": number }
-        Returns: number
-      }
-      show_limit: {
-        Args: Record<PropertyKey, never>
-        Returns: number
-      }
-      show_trgm: {
-        Args: { "": string }
-        Returns: string[]
-      }
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
       sync_trial_balance_with_gl: {
         Args: { p_period_end: string; p_period_start: string }
         Returns: {
@@ -6271,10 +6957,7 @@ export type Database = {
           total_debit: number
         }[]
       }
-      test_user_insert: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
+      test_user_insert: { Args: never; Returns: undefined }
       update_account_balance: {
         Args: {
           p_account_id: string
@@ -6283,17 +6966,102 @@ export type Database = {
         }
         Returns: boolean
       }
-      update_all_account_totals: {
-        Args: Record<PropertyKey, never>
-        Returns: boolean
-      }
-      update_coa_balance: {
-        Args: Record<PropertyKey, never>
+      update_all_account_totals: { Args: never; Returns: boolean }
+      update_coa_balance: { Args: never; Returns: undefined }
+      upsert_ledger_summaries:
+        | {
+            Args: { payload: Json }
+            Returns: {
+              error: true
+            } & "Could not choose the best candidate function between: public.upsert_ledger_summaries(payload => text), public.upsert_ledger_summaries(payload => jsonb). Try renaming the parameters or the function itself in the database so function overloading can be resolved"
+          }
+        | {
+            Args: { payload: string }
+            Returns: {
+              error: true
+            } & "Could not choose the best candidate function between: public.upsert_ledger_summaries(payload => text), public.upsert_ledger_summaries(payload => jsonb). Try renaming the parameters or the function itself in the database so function overloading can be resolved"
+          }
+      upsert_stock: {
+        Args: {
+          p_brand: string[]
+          p_category: string[]
+          p_created_by: string
+          p_harga_beli_setelah_ppn: number
+          p_harga_jual_setelah_ppn: number
+          p_item_name: string
+          p_location: string
+          p_model: string
+          p_name: string
+          p_part_number: string
+          p_plate_number: string
+          p_ppn_beli: number
+          p_ppn_jual: number
+          p_ppn_type: string
+          p_purchase_price: number
+          p_quantity: number
+          p_selling_price: number
+          p_supplier_name: string
+          p_unit: string
+          p_vehicle_type: string
+          p_warehouse_location: string
+        }
         Returns: undefined
       }
-      upsert_ledger_summaries: {
-        Args: { payload: Json } | { payload: string }
-        Returns: undefined
+      upsert_stock_by_code_or_barcode: {
+        Args: {
+          p_barcode: string
+          p_category: string
+          p_name: string
+          p_ppn: string
+          p_purchase: number
+          p_quantity: number
+          p_selling: number
+          p_stock_code: string
+          p_unit: string
+          p_wh_id: string
+        }
+        Returns: {
+          barcode: string | null
+          brand: string[] | null
+          category: string[] | null
+          closing_stock: number | null
+          created_at: string | null
+          created_by: string | null
+          date: string | null
+          harga_beli_setelah_ppn: number | null
+          harga_jual_setelah_ppn: number | null
+          id: string
+          item_code: string | null
+          item_name: string
+          location: string | null
+          min_stock: number | null
+          model: string | null
+          name: string
+          opening_stock: number | null
+          part_number: string | null
+          plate_number: string | null
+          ppn_beli: number | null
+          ppn_jual: number | null
+          ppn_type: string
+          purchase_price: number
+          quantity: number
+          requester_id: string | null
+          selling_price: number | null
+          stock_code: string | null
+          stock_in: number | null
+          stock_out: number | null
+          supplier_name: string | null
+          unit: string | null
+          updated_at: string | null
+          vehicle_type: string | null
+          warehouse_location: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "stock"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       upsert_trial_balance_for_period: {
         Args: { p_period: string }
@@ -6307,12 +7075,12 @@ export type Database = {
         Args: { payload: string }
         Returns: undefined
       }
-      upsert_trial_balances: {
-        Args:
-          | { account_id: string; amount: number; period: string }
-          | { payload: string }
-        Returns: undefined
-      }
+      upsert_trial_balances:
+        | { Args: { payload: string }; Returns: undefined }
+        | {
+            Args: { account_id: string; amount: number; period: string }
+            Returns: undefined
+          }
       verify_topup: {
         Args: { p_note?: string; p_request_id: string }
         Returns: undefined

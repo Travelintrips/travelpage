@@ -76,6 +76,8 @@ import IasBookingGroup from "./components/admin/IasBookingGroup";
 import Reports from "./components/admin/Reports";
 import BookingAndProfileUserPage from "./pages/Booking&ProfileUserPage";
 import PurchaseRequestManagement from "./components/admin/PurchaseRequestManagement";
+import HistoriTransaksi from "./components/admin/HistoriTransaksi";
+import DriverOverduePage from "./pages/DriverOverduePage";
 import AgentDetailsPage from "./pages/AgentDetailsPage";
 import StocksManagement from "./components/admin/StocksManagement";
 
@@ -555,6 +557,7 @@ function AppContent() {
             <Route path="cars" element={<CarsManagement />} />
             <Route path="stocks" element={<StocksManagement />} />
             <Route path="purchase-requests" element={<PurchaseRequestManagement />} />
+            <Route path="histori-transaksi" element={<HistoriTransaksi />} />
             <Route path="payments" element={<Payments />} />
             <Route path="bookings" element={<BookingManagement />} />
             <Route path="bookings/customer" element={<BookingManagementCustomer />} />
@@ -582,6 +585,7 @@ function AppContent() {
             <Route path="chart" element={<ChartManagement />} />
             <Route path="handling-booking" element={<HandlingBookingManagement />} />
             <Route path="handling-services" element={<HandlingServicesManagement />} />
+            <Route path="driver-overdue" element={<DriverOverduePage />} />
             <Route path="reports" element={<Reports />} />
             <Route path="damage-payment/:bookingId" element={<DamagePaymentForm />} />
             <Route path="drivers/:id" element={<DriverDetailPage />} />

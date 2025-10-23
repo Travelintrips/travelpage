@@ -35,6 +35,8 @@ import {
   FileText as Paper,
   PackageSearch,
   ClipboardList,
+  History,
+  ShoppingCart,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -368,6 +370,17 @@ const AdminLayout = () => {
                       </Link>
                     )}
 
+                    {/* History Menu - */}
+                    {userRole !== "Staff Trips" && userRole !== "Staff Traffic" && (
+                      <Link
+                        to="/admin/histori-transaksi"
+                        className={`flex items-center p-3 rounded-lg hover:bg-white/20 transition-colors duration-200 ${location.pathname.includes("/admin/histori-transaksi") ? "bg-white/20 font-medium text-white" : "text-white/80"} ${!sidebarOpen && "justify-center"}`}
+                      >
+                        <Users className="h-5 w-5 text-white" />
+                        {sidebarOpen && <span className="ml-3">Histori Transaksi</span>}
+                      </Link>
+                    )}
+
                     {/* Agent Management Menu - Hide for Staff Traffic */}
                     {userRole !== "Staff Traffic" && (
                       <div>
@@ -528,14 +541,14 @@ const AdminLayout = () => {
           {/* Purchase Requests — semua role boleh */}
           <Link
             to="/admin/purchase-requests"
-            className={`flex items-center p-3 rounded-lg hover:bg-white/20 transition-colors duration-200 ${
-              location.pathname.includes("/admin/purchase-requests")
-                ? "bg-white/20 font-medium text-white"
-                : "text-white/70"
-            } ${!sidebarOpen && "justify-center"}`}
+            className={`flex items-center gap-3 rounded-lg px-3 py-2 transition-all hover:bg-accent ${
+              location.pathname === "/admin/purchase-requests"
+                ? "bg-accent text-accent-foreground"
+                : "text-muted-foreground"
+            }`}
           >
-            <ClipboardList className="h-4 w-4 text-white" />
-            {sidebarOpen && <span className="ml-3">Purchase Requests</span>}
+            <ShoppingCart className="h-4 w-4" />
+            Purchase Requests
           </Link>
 
           {/* Reports — hanya untuk selain Staff Admin */}
