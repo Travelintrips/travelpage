@@ -1041,13 +1041,12 @@ export default function BookingManagementDriver() {
                               Details
                             </Button>*/}
 
-                            {(
-  // Case 1️⃣: Belum dibayar dan bukan cancelled → semua role bisa lihat
+                           {(
+  // Jika belum dibayar dan booking bukan cancelled → semua role bisa lihat
   (booking.payment_status !== "paid" && booking.status !== "cancelled") ||
 
-  // Case 2️⃣: Booking cancelled → hanya Admin, Super Admin, Staff Admin
-  (booking.status === "cancelled" &&
-    ["admin", "super admin"].includes(userRole?.toLowerCase()))
+  // Jika booking cancelled → hanya Super Admin & Admin yang bisa lihat
+  (booking.status === "cancelled" && ["Super Admin", "Admin"].includes(userRole))
 ) && (
   <Button
     variant="outline"
@@ -1059,7 +1058,6 @@ export default function BookingManagementDriver() {
     Payment
   </Button>
 )}
-
 
 
 
@@ -1078,7 +1076,7 @@ export default function BookingManagementDriver() {
                         {(
   ["ongoing", "late", "confirmed" ].includes(booking.status) &&
   !booking.actual_return_date &&
-  ["Super Admin", "Admin"].includes(userRole)
+  ["Super Admin", "Admin", "Staff Admin"].includes(userRole)
 ) && (
   <Button
     variant="outline"
