@@ -454,15 +454,22 @@ export default function BookingManagementDriver() {
     }
 
     // 1️⃣ Update booking → completed + actual_return_date
-    const { error: bookingError } = await supabase
-      .from("bookings")
-      .update({
-        status: "completed",
-        actual_return_date: new Date().toISOString().split("T")[0], // tanggal hari ini
-      })
-      .eq("id", booking.id);
+const actualReturnDate =
+  booking.status === "confirmed" && booking.finish_enabled
+    ? booking.end_date // jika finish di hari end_date (upcoming case)
+    : new Date().toISOString().split("T")[0]; // default: hari ini (ongoing/late/backdate)
 
-    if (bookingError) throw bookingError;
+const { error: bookingError } = await supabase
+  .from("bookings")
+  .update({
+    status: "completed",
+    actual_return_date: actualReturnDate,
+    finish_enabled: false, // reset agar tidak bisa di-finish ulang
+  })
+  .eq("id", booking.id);
+
+if (bookingError) throw bookingError;
+
 
     // 2️⃣ Ambil data kendaraan untuk menghitung denda (jika telat)
     const { data: vehicleData, error: vehicleFetchError } = await supabase
@@ -1014,8 +1021,18 @@ export default function BookingManagementDriver() {
                           {getPaymentStatusBadge(booking.payment_status)}
                         </TableCell>
                         <TableCell>
-                          {getStatusBadge(booking.status)}
-                        </TableCell>
+  {getStatusBadge(
+    booking.status === "confirmed"
+      ? new Date(booking.start_date) > new Date()
+        ? "upcoming" // belum mulai
+        : new Date(booking.end_date) < new Date()
+        ? "late" // sudah lewat tapi belum diselesaikan
+        : "ongoing" // sedang berlangsung
+      : booking.status
+  )}
+</TableCell>
+
+
                         <TableCell>
                         <td>
                         {booking.status === "late" && (
@@ -1073,9 +1090,22 @@ export default function BookingManagementDriver() {
                               </Button>
                             )}
 
-                        {(
-  ["ongoing", "late", "confirmed" ].includes(booking.status) &&
+                       {(
+  // Pastikan belum ada tanggal pengembalian (belum selesai)
   !booking.actual_return_date &&
+
+  // 🔹 Super Admin boleh kapan pun
+  (
+    userRole === "Super Admin" ||
+
+    // 🔹 Role lain: hanya kalau ongoing, late, atau confirmed + finish_enabled
+    (
+      ["ongoing", "late"].includes(booking.status) ||
+      (booking.status === "confirmed" && booking.finish_enabled)
+    )
+  ) &&
+
+  // 🔹 Hanya role tertentu yang boleh lihat tombol
   ["Super Admin", "Admin", "Staff Admin"].includes(userRole)
 ) && (
   <Button
@@ -1094,9 +1124,7 @@ export default function BookingManagementDriver() {
 )}
 
 
-
-
-                            {booking.status === "onride" && (
+                         {booking.status === "onride" && (
                               <Button
                                 variant="outline"
                                 size="sm"
@@ -1152,6 +1180,10 @@ export default function BookingManagementDriver() {
                                       <span className="text-gray-600">Plat Kendaraan:</span>
                                       <span className="font-medium">{booking.vehicle?.license_plate || 'N/A'}</span>
                                     </div>
+                                 {/*   <div className="flex justify-between">
+                                      <span className="text-gray-600">Price /day:</span>
+                                      <span className="font-medium">{booking.vehicle?.price || 'N/A'}</span>
+                                    </div>*/}
                                   </div>
                                 </div>
 
