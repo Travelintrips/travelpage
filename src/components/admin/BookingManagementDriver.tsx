@@ -556,43 +556,49 @@ if (bookingError) throw bookingError;
   };
 
   const handleSubmitConfirmation = async () => {
-    if (!currentBooking) return;
+  if (!currentBooking) return;
 
-    try {
-      console.log('Confirming booking:', currentBooking.id, 'Current status:', currentBooking.status);
-      
-      const { error } = await supabase
-        .from("bookings")
-        .update({ 
-          status: "confirmed",
-          notes_admin: adminNotes.trim() || null
-        })
-        .eq("id", currentBooking.id);
+  try {
+    const today = new Date();
+    const startDate = new Date(currentBooking.start_date);
+    const endDate = new Date(currentBooking.end_date);
 
-      if (error) {
-        console.error('Supabase error:', error);
-        throw error;
-      }
-
-      toast({
-        title: "Booking confirmed",
-        description: "Booking status has been updated to confirmed with admin notes",
-      });
-
-      // Close the notes form and refresh bookings
-      setShowNotesForm(false);
-      setAdminNotes("");
-      setCurrentBooking(null);
-      await fetchBookings();
-    } catch (error) {
-      console.error("Error confirming booking:", error);
-      toast({
-        variant: "destructive",
-        title: "Error confirming booking",
-        description: error.message || "Failed to confirm booking",
-      });
+    // Tentukan status awal yang dikirim ke server
+    let newStatus = "confirmed";
+    if (startDate <= today && endDate >= today) {
+      newStatus = "confirmed"; // tetap kirim "confirmed" biar trigger yang ubah jadi ongoing
     }
-  };
+
+    const { error } = await supabase
+      .from("bookings")
+      .update({
+        status: newStatus,
+        notes_admin: adminNotes.trim() || null,
+        updated_at: new Date().toISOString() // ✅ pastikan trigger jalan
+      })
+      .eq("id", currentBooking.id);
+
+    if (error) throw error;
+
+    toast({
+      title: "✅ Booking Confirmed",
+      description: "Booking berhasil dikonfirmasi, status akan menyesuaikan otomatis.",
+    });
+
+    setShowNotesForm(false);
+    setAdminNotes("");
+    setCurrentBooking(null);
+    await fetchBookings();
+  } catch (error: any) {
+    console.error("Error confirming booking:", error);
+    toast({
+      variant: "destructive",
+      title: "Error confirming booking",
+      description: error.message || "Failed to confirm booking",
+    });
+  }
+};
+
 
   const handleCloseNotesForm = () => {
     setShowNotesForm(false);
@@ -1091,22 +1097,24 @@ if (bookingError) throw bookingError;
                             )}
 
                        {(
-  // Pastikan belum ada tanggal pengembalian (belum selesai)
-  !booking.actual_return_date &&
-
-  // 🔹 Super Admin boleh kapan pun
-  (
-    userRole === "Super Admin" ||
-
-    // 🔹 Role lain: hanya kalau ongoing, late, atau confirmed + finish_enabled
+  !booking.actual_return_date && (
     (
-      ["ongoing", "late"].includes(booking.status) ||
-      (booking.status === "confirmed" && booking.finish_enabled)
-    )
-  ) &&
+      // 🔹 Super Admin bisa kapan pun
+      userRole === "Super Admin" ||
 
-  // 🔹 Hanya role tertentu yang boleh lihat tombol
-  ["Super Admin", "Admin", "Staff Admin"].includes(userRole)
+      // 🔹 Admin boleh kalau ongoing, late, atau confirmed + finish_enabled
+      (userRole === "Admin" && (
+        ["ongoing", "late"].includes(booking.status) ||
+        (booking.status === "confirmed" && booking.finish_enabled)
+      )) ||
+
+      // 🔹 Staff Admin hanya boleh jika late atau confirmed + finish_enabled
+      (userRole === "Staff Admin" && (
+        booking.status === "late" ||
+        (booking.status === "confirmed" && booking.finish_enabled)
+      ))
+    )
+  )
 ) && (
   <Button
     variant="outline"
@@ -1122,6 +1130,7 @@ if (bookingError) throw bookingError;
     Finish
   </Button>
 )}
+
 
 
                          {booking.status === "onride" && (
