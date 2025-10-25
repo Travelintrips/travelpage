@@ -1097,23 +1097,18 @@ if (bookingError) throw bookingError;
                             )}
 
                        {(
-  !booking.actual_return_date && (
-    (
-      // 🔹 Super Admin bisa kapan pun
-      userRole === "Super Admin" ||
-
-      // 🔹 Admin boleh kalau ongoing, late, atau confirmed + finish_enabled
-      (userRole === "Admin" && (
-        ["ongoing", "late"].includes(booking.status) ||
-        (booking.status === "confirmed" && booking.finish_enabled)
-      )) ||
-
-      // 🔹 Staff Admin hanya boleh jika late atau confirmed + finish_enabled
-      (userRole === "Staff Admin" && (
-        booking.status === "late" ||
-        (booking.status === "confirmed" && booking.finish_enabled)
-      ))
-    )
+  !booking.actual_return_date &&
+  (
+    userRole === "Super Admin" ||
+    (userRole === "Admin" && (
+      ["ongoing", "late"].includes(booking.status) ||
+      (booking.status === "confirmed" && booking.finish_enabled)
+    )) ||
+    (userRole === "Staff Admin" && (
+      booking.status === "late" ||
+      (booking.status === "confirmed" && booking.finish_enabled) ||
+      (booking.status === "ongoing" && booking.finish_enabled) // ✅ Tambahan ini
+    ))
   )
 ) && (
   <Button
@@ -1130,6 +1125,7 @@ if (bookingError) throw bookingError;
     Finish
   </Button>
 )}
+
 
 
 
@@ -1189,10 +1185,10 @@ if (bookingError) throw bookingError;
                                       <span className="text-gray-600">Plat Kendaraan:</span>
                                       <span className="font-medium">{booking.vehicle?.license_plate || 'N/A'}</span>
                                     </div>
-                                 {/*   <div className="flex justify-between">
+                                    <div className="flex justify-between">
                                       <span className="text-gray-600">Price /day:</span>
-                                      <span className="font-medium">{booking.vehicle?.price || 'N/A'}</span>
-                                    </div>*/}
+                                      <span className="font-medium">{booking.price || 'N/A'}</span>
+                                    </div>
                                   </div>
                                 </div>
 
