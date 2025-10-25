@@ -119,6 +119,7 @@ interface Supplier {
   email?: string;
   address?: string;
   tax_id? : string;
+  is_pkp?: boolean;
 }
 
 interface KPIData {
@@ -411,6 +412,7 @@ const PurchaseRequestManagement = () => {
         email: supplier.email || "",
         address: supplier.address || "",
         tax_id :supplier.tax_id || "",
+        is_pkp: supplier.is_pkp ?? null,
       }));
     }
   };
@@ -1274,6 +1276,23 @@ const PurchaseRequestManagement = () => {
                     rows={2}
                   />
                 </div>
+                <div>
+  <Label htmlFor="is_pkp">PKP</Label>
+  <Textarea
+    id="is_pkp"
+    value={
+      formData.is_pkp === true
+        ? "PKP"
+        : formData.is_pkp === false
+        ? "Non PKP"
+        : ""
+    }
+    disabled
+    className="bg-muted"
+    rows={2}
+  />
+</div>
+
                 <div>
                   <Label htmlFor="address">Tax ID/No</Label>
                   <Textarea

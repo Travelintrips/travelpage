@@ -1096,39 +1096,74 @@ if (bookingError) throw bookingError;
                               </Button>
                             )}
 
-                       {(
-  !booking.actual_return_date &&
-  (
-    userRole === "Super Admin" ||
-    (userRole === "Admin" && (
-      ["ongoing", "late"].includes(booking.status) ||
-      (booking.status === "confirmed" && booking.finish_enabled)
-    )) ||
-    (userRole === "Staff Admin" && (
-  booking.status === "late" ||
-  (booking.status === "confirmed" && booking.finish_enabled) ||
-  (booking.status === "ongoing" && (
-    booking.finish_enabled ||
-    new Date(booking.end_date).toDateString() === new Date().toDateString() // ✅ hari ini end_date
-  ))
-))
+                       {(() => {
+  // 🕒 Gunakan tanggal lokal (Asia/Jakarta)
+  const now = new Date();
+  const today = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate()
+  ); // normalize ke jam 00:00 lokal
+  const endDate = new Date(booking.end_date);
+  const normalizedEndDate = new Date(
+    endDate.getFullYear(),
+    endDate.getMonth(),
+    endDate.getDate()
+  );
+  const normalizedRole = userRole?.toLowerCase();
 
-  )
-) && (
-  <Button
-    variant="outline"
-    size="sm"
-    className={`flex items-center gap-1 ${
-      booking.status === "late"
-        ? "bg-yellow-100 hover:bg-yellow-200 text-yellow-800 border-yellow-300"
-        : "bg-green-100 hover:bg-green-200 text-green-800 border-green-300"
-    }`}
-    onClick={() => handleFinishBooking(booking)}
-  >
-    <CheckCircle className="h-4 w-4" />
-    Finish
-  </Button>
-)}
+  // ✅ Hari ini sama atau lewat dari end_date
+  const isEndOrAfter = normalizedEndDate <= today;
+
+  // 🔍 Debug log untuk pengecekan
+  console.log(
+    "ROLE:", normalizedRole,
+    "| STATUS:", booking.status,
+    "| finish_enabled:", booking.finish_enabled,
+    "| actual_return_date:", booking.actual_return_date,
+    "| end_date:", booking.end_date,
+    "| isEndOrAfter:", isEndOrAfter
+  );
+
+  // 🧠 Logika hak akses Finish
+  const canFinish =
+    !booking.actual_return_date &&
+    (
+      // 🔹 Super Admin bisa kapan pun
+      normalizedRole === "super admin" ||
+
+      // 🔹 Admin: ongoing, late, atau confirmed + finish_enabled
+      (normalizedRole === "admin" && (
+        ["ongoing", "late"].includes(booking.status) ||
+        (booking.status === "confirmed" && booking.finish_enabled)
+      )) ||
+
+      // 🔹 Staff Admin / Traffic: boleh kalau end_date hari ini atau lewat
+      (["staff admin", "staff traffic"].includes(normalizedRole) && (
+        booking.status === "late" ||
+        (["confirmed", "ongoing"].includes(booking.status) &&
+          (booking.finish_enabled || isEndOrAfter))
+      ))
+    );
+
+  // 🎨 Render tombol Finish jika boleh
+  return canFinish ? (
+    <Button
+      variant="outline"
+      size="sm"
+      className={`flex items-center gap-1 ${
+        booking.status === "late"
+          ? "bg-yellow-100 hover:bg-yellow-200 text-yellow-800 border-yellow-300"
+          : "bg-green-100 hover:bg-green-200 text-green-800 border-green-300"
+      }`}
+      onClick={() => handleFinishBooking(booking)}
+    >
+      <CheckCircle className="h-4 w-4" />
+      Finish
+    </Button>
+  ) : null;
+})()}
+
 
 
 
@@ -1276,6 +1311,12 @@ if (bookingError) throw bookingError;
                                     <div className="flex justify-between">
                                       <span className="text-gray-600">Driver Notes:</span>
                                       <span className="font-medium">{booking.notes_driver || 'N/A'}</span>
+                                    </div>
+                                  </div>
+                                  <div className="space-y-1 text-sm">
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-600">Keterangan:</span>
+                                      <span className="font-medium">{booking.keterangan || 'N/A'}</span>
                                     </div>
                                   </div>
                                 </div>
