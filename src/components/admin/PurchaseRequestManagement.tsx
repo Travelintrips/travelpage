@@ -118,6 +118,7 @@ interface Supplier {
   phone_number?: string;
   email?: string;
   address?: string;
+  tax_id? : string;
 }
 
 interface KPIData {
@@ -393,6 +394,7 @@ const PurchaseRequestManagement = () => {
         phone_number: "",
         email: "",
         address: "",
+        tax_id: "",
       }));
       return;
     }
@@ -408,6 +410,7 @@ const PurchaseRequestManagement = () => {
         phone_number: supplier.phone_number || "",
         email: supplier.email || "",
         address: supplier.address || "",
+        tax_id :supplier.tax_id || "",
       }));
     }
   };
@@ -1266,6 +1269,16 @@ const PurchaseRequestManagement = () => {
                   <Textarea
                     id="address"
                     value={formData.address}
+                    disabled
+                    className="bg-muted"
+                    rows={2}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="address">Tax ID/No</Label>
+                  <Textarea
+                    id="tax_id"
+                    value={formData.tax_id}
                     disabled
                     className="bg-muted"
                     rows={2}

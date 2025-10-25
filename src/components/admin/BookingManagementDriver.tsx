@@ -1105,10 +1105,14 @@ if (bookingError) throw bookingError;
       (booking.status === "confirmed" && booking.finish_enabled)
     )) ||
     (userRole === "Staff Admin" && (
-      booking.status === "late" ||
-      (booking.status === "confirmed" && booking.finish_enabled) ||
-      (booking.status === "ongoing" && booking.finish_enabled) // ✅ Tambahan ini
-    ))
+  booking.status === "late" ||
+  (booking.status === "confirmed" && booking.finish_enabled) ||
+  (booking.status === "ongoing" && (
+    booking.finish_enabled ||
+    new Date(booking.end_date).toDateString() === new Date().toDateString() // ✅ hari ini end_date
+  ))
+))
+
   )
 ) && (
   <Button
