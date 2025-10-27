@@ -522,18 +522,26 @@ if (bookingError) throw bookingError;
     }
 
     // 7️⃣ Tampilkan notifikasi sukses
-    toast({
-      title: "✅ Booking selesai",
-      description: `Kendaraan sudah dikembalikan${
-        lateDays > 0
-          ? ` (${lateDays} hari telat, denda Rp ${lateFee.toLocaleString("id-ID")})`
-          : ""
-      }${
-        booking.is_backdated
-          ? " (Booking backdate — tidak ada potongan saldo)"
-          : ""
-      }`,
-    });
+let toastDescription = "";
+
+if (booking.is_backdated) {
+  // Case 1️⃣ — Booking dibuat mundur (tidak ada potongan saldo)
+  toastDescription = "Booking backdate telah diselesaikan tanpa potongan saldo.";
+} else if (lateDays > 0) {
+  // Case 2️⃣ — Booking real, telat mengembalikan kendaraan
+  toastDescription = `Kendaraan sudah dikembalikan (${lateDays} hari telat, denda Rp ${lateFee.toLocaleString(
+    "id-ID"
+  )}).`;
+} else {
+  // Case 3️⃣ — Booking normal, tepat waktu
+  toastDescription = "Kendaraan sudah dikembalikan tepat waktu.";
+}
+
+toast({
+  title: "✅ Booking selesai",
+  description: toastDescription,
+});
+
 
     // 8️⃣ Refresh data tabel
     fetchBookings();
@@ -1099,54 +1107,44 @@ if (bookingError) throw bookingError;
                        {(() => {
   // 🕒 Gunakan tanggal lokal (Asia/Jakarta)
   const now = new Date();
-  const today = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate()
-  ); // normalize ke jam 00:00 lokal
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const endDate = new Date(booking.end_date);
-  const normalizedEndDate = new Date(
-    endDate.getFullYear(),
-    endDate.getMonth(),
-    endDate.getDate()
-  );
+  const normalizedEndDate = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
   const normalizedRole = userRole?.toLowerCase();
 
-  // ✅ Hari ini sama atau lewat dari end_date
   const isEndOrAfter = normalizedEndDate <= today;
 
-  // 🔍 Debug log untuk pengecekan
+  // 🔍 Debug log
   console.log(
     "ROLE:", normalizedRole,
     "| STATUS:", booking.status,
     "| finish_enabled:", booking.finish_enabled,
     "| actual_return_date:", booking.actual_return_date,
-    "| end_date:", booking.end_date,
     "| isEndOrAfter:", isEndOrAfter
   );
 
-  // 🧠 Logika hak akses Finish
+  // 🧠 Hak akses tombol Finish
   const canFinish =
-    !booking.actual_return_date &&
-    (
+    !booking.actual_return_date && (
       // 🔹 Super Admin bisa kapan pun
       normalizedRole === "super admin" ||
 
-      // 🔹 Admin: ongoing, late, atau confirmed + finish_enabled
+      // 🔹 Admin bisa kalau status-nya ongoing / late / confirmed / end_date lewat
       (normalizedRole === "admin" && (
-        ["ongoing", "late"].includes(booking.status) ||
-        (booking.status === "confirmed" && booking.finish_enabled)
+        ["confirmed", "ongoing", "late"].includes(booking.status) ||
+        booking.finish_enabled ||
+        isEndOrAfter
       )) ||
 
-      // 🔹 Staff Admin / Traffic: boleh kalau end_date hari ini atau lewat
+      // 🔹 Staff Admin atau Staff Traffic
       (["staff admin", "staff traffic"].includes(normalizedRole) && (
-        booking.status === "late" ||
-        (["confirmed", "ongoing"].includes(booking.status) &&
-          (booking.finish_enabled || isEndOrAfter))
+        ["confirmed", "ongoing", "late"].includes(booking.status) ||
+        booking.finish_enabled ||
+        isEndOrAfter
       ))
     );
 
-  // 🎨 Render tombol Finish jika boleh
+  // 🎨 Render tombol Finish
   return canFinish ? (
     <Button
       variant="outline"
@@ -1163,10 +1161,6 @@ if (bookingError) throw bookingError;
     </Button>
   ) : null;
 })()}
-
-
-
-
 
                          {booking.status === "onride" && (
                               <Button
