@@ -256,32 +256,25 @@ export default function AdminDashboard() {
 
       console.log('[AdminDashboard] Starting dashboard data fetch...');
 
-      // FIXED: Add retry logic for network failures
-      const fetchWithRetry = async (query, maxRetries = 3) => {
-        for (let attempt = 1; attempt <= maxRetries; attempt++) {
-          try {
-            const result = await query();
-            return result;
-          } catch (error) {
-            console.warn(`[AdminDashboard] Fetch attempt ${attempt} failed:`, error);
-            
-            if (attempt === maxRetries) {
-              throw error;
-            }
-            
-            // Wait before retry (exponential backoff)
-            const delay = Math.min(1000 * Math.pow(attempt - 1, 2), 5000);
-            await new Promise(resolve => setTimeout(resolve, delay));
-          }
+      // FIXED: Simplified fetch without retry for now to avoid infinite loops
+      const fetchData = async (query) => {
+        try {
+          return await query();
+        } catch (error) {
+          console.error('[AdminDashboard] Fetch error:', error);
+          throw error;
         }
       };
 
-      // Fetch vehicles data with retry
-      const { data: vehicles, error: vehiclesError } = await fetchWithRetry(() => 
+      // Fetch vehicles data
+      const { data: vehicles, error: vehiclesError } = await fetchData(() => 
         supabase.from("vehicles").select("*")
       );
 
-      if (vehiclesError) throw vehiclesError;
+      if (vehiclesError) {
+        console.error('[AdminDashboard] Vehicles fetch error:', vehiclesError);
+        throw vehiclesError;
+      }
 
       console.log("Vehicles data:", vehicles); // Debug log to check vehicles data
 
@@ -302,7 +295,7 @@ export default function AdminDashboard() {
       }
 
       const results = await Promise.all(
-        fetchPromises.map(query => fetchWithRetry(query))
+        fetchPromises.map(query => fetchData(query))
       );
       
       let bookingsResult, customersResult, handlingBookingsResult, baggageBookingsResult,airportTransferResult, staffResult, usersResult;
@@ -359,14 +352,17 @@ export default function AdminDashboard() {
       console.log("Staff data:", staff); // Debug log
       console.log("Users data:", users); // Debug log
 
-      // Fetch payments data with retry
-      const { data: payments, error: paymentsError } = await fetchWithRetry(() =>
+      // Fetch payments data
+      const { data: payments, error: paymentsError } = await fetchData(() =>
         supabase.from("payments").select("*")
       );
 
-      if (paymentsError) throw paymentsError;
+      if (paymentsError) {
+        console.error('[AdminDashboard] Payments fetch error:', paymentsError);
+        throw paymentsError;
+      }
 
-      // Get current month payments with retry
+      // Get current month payments
       const now = new Date();
       const startOfMonth = new Date(
         now.getFullYear(),
@@ -379,7 +375,7 @@ export default function AdminDashboard() {
         0,
       ).toISOString();
 
-      const { data: monthlyPayments, error: monthlyPaymentsError } = await fetchWithRetry(() =>
+      const { data: monthlyPayments, error: monthlyPaymentsError } = await fetchData(() =>
         supabase
           .from("payments")
           .select("*")
@@ -387,7 +383,10 @@ export default function AdminDashboard() {
           .lte("created_at", endOfMonth)
       );
 
-      if (monthlyPaymentsError) throw monthlyPaymentsError;
+      if (monthlyPaymentsError) {
+        console.error('[AdminDashboard] Monthly payments fetch error:', monthlyPaymentsError);
+        throw monthlyPaymentsError;
+      }
       const totalhandlingBooking = handlingBookings?.length || 0;
       const totalbaggageBooking = baggageBookings?.length || 0;
       const totalairportTransfer = airportTransfer?.length || 0;

@@ -279,9 +279,9 @@ export default function StaffManagement() {
       let allowedRoleIds: number[] = [];
 
       if (userRole === "Super Admin") {
-        allowedRoleNames = ["Staff", "Staff Trips", "Staff Admin", "Staff Traffic"];
+        allowedRoleNames = ["Staff", "Staff Trips", "Staff Admin", "Staff Traffic", "Staff Admin Sport Center"];
       } else {
-        allowedRoleNames = ["Staff", "Staff Trips", "Staff Admin", "Staff Traffic"];
+        allowedRoleNames = ["Staff", "Staff Trips", "Staff Admin", "Staff Traffic", "Staff Admin Sport Center"];
       }
 
       // Filter out excluded roles
@@ -1094,6 +1094,7 @@ export default function StaffManagement() {
                     "staff trips",
                     "staff admin",
                     "staff traffic",
+                    "staff admin sport center",
                   ];
 
                   const roleName = role.role_name.toLowerCase().trim();
@@ -1459,6 +1460,7 @@ export default function StaffManagement() {
                             "Staff Trips",
                             "Staff Admin",
                             "Staff Traffic",
+                            "Staff Admin Sport Center",
                           ].includes(role.role_name) && !excludedRoles.includes(role.role_name);
                         } else {
                           return [
@@ -1466,6 +1468,7 @@ export default function StaffManagement() {
                             "Staff Trips",
                             "Staff Admin",
                             "Staff Traffic",
+                            "Staff Admin Sport Center",
                           ].includes(role.role_name) && !excludedRoles.includes(role.role_name);
                         }
                       })

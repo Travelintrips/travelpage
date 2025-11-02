@@ -34,10 +34,12 @@ import {
   X,
   CheckCircle,
   XCircle,
+  Upload,
 } from "lucide-react";
 import PostRentalInspectionForm from "@/components/booking/PostRentalInspectionForm";
 import PickupCustomer from "@/components/booking/PickupCustomer";
 import PreRentalInspectionForm from "@/components/booking/PreRentalInspectionForm";
+import BookingFormDriver from "@/components/booking/BookingFormDriver";
 import { format } from "date-fns";
 import { useLocation, useNavigate, Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -110,7 +112,11 @@ export default function BookingManagementDriver() {
   const [paymentAmount, setPaymentAmount] = useState<number>(0);
   const [paymentMethod, setPaymentMethod] = useState<string>("Cash");
   const [cancelReason, setCancelReason] = useState<string>("");
-  const [isCancelling, setIsCancelling] = useState(false);  
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [showBookingForm, setShowBookingForm] = useState(false);
+  const [isPaymentProofOpen, setIsPaymentProofOpen] = useState(false);
+  const [paymentProofFile, setPaymentProofFile] = useState<File | null>(null);
+  const [isUploadingProof, setIsUploadingProof] = useState(false);
   
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
@@ -307,6 +313,74 @@ export default function BookingManagementDriver() {
     setIsPickupProcessOpen(true);
   };
 
+  const handleMarkAsPaid = (booking: Booking) => {
+    setCurrentBooking(booking);
+    setPaymentProofFile(null);
+    setIsPaymentProofOpen(true);
+  };
+
+  const handleUploadPaymentProof = async () => {
+    if (!currentBooking || !paymentProofFile) {
+      toast({
+        variant: "destructive",
+        title: "File Required",
+        description: "Please select a payment proof file to upload.",
+      });
+      return;
+    }
+
+    try {
+      setIsUploadingProof(true);
+
+      // Upload file to Supabase Storage
+      const fileExt = paymentProofFile.name.split('.').pop();
+      const fileName = `${currentBooking.id}_${Date.now()}.${fileExt}`;
+      const filePath = `payment-proofs/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('payment-proofs')
+        .upload(filePath, paymentProofFile);
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('payment-proofs')
+        .getPublicUrl(filePath);
+
+      // Update booking payment status
+      const { error: updateError } = await supabase
+        .from('bookings')
+        .update({
+          payment_status: 'paid',
+          payment_proof_url: publicUrl,
+          payment_proof_uploaded_at: new Date().toISOString(),
+        })
+        .eq('id', currentBooking.id);
+
+      if (updateError) throw updateError;
+
+      toast({
+        title: "✅ Payment Marked as Paid",
+        description: "Payment proof has been uploaded successfully.",
+      });
+
+      setIsPaymentProofOpen(false);
+      setPaymentProofFile(null);
+      setCurrentBooking(null);
+      fetchBookings();
+    } catch (error: any) {
+      console.error("Error uploading payment proof:", error);
+      toast({
+        variant: "destructive",
+        title: "Upload Failed",
+        description: error.message || "Failed to upload payment proof",
+      });
+    } finally {
+      setIsUploadingProof(false);
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status.toLowerCase()) {
       case "confirmed":
@@ -318,6 +392,8 @@ export default function BookingManagementDriver() {
         return <Badge className="bg-red-500">Cancelled</Badge>;
       case "completed":
         return <Badge className="bg-blue-500">Completed</Badge>;
+      case "ongoing":
+        return <Badge className="bg-purple-500">Ongoing</Badge>;
       case "onride":
         return <Badge className="bg-purple-500">Onride</Badge>;
       default:
@@ -370,6 +446,14 @@ export default function BookingManagementDriver() {
     hour = hour % 12;
     hour = hour ? hour : 12;
     return `${hour}:${minute} ${ampm}`;
+  };
+
+  const calculateRentalDays = (startDate: string, endDate: string) => {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const diffTime = Math.abs(end.getTime() - start.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays;
   };
 
   useEffect(() => {
@@ -616,7 +700,11 @@ toast({
 
   const canCancelBooking = () => {
     const allowedRoles = ['Super Admin', 'Admin', 'Staff Admin', 'Staff Traffic'];
-    return allowedRoles.includes(userRole);
+    
+    if (!allowedRoles.includes(userRole)) {
+      toast.error("You don't have permission to create bookings.");
+      return;
+    }
   };
 
   const handleOpenCancelForm = (booking: Booking) => {
@@ -685,723 +773,433 @@ toast({
 
 
   return (
-    <div className="bg-white min-h-screen">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-           {/* <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => navigate("/admin")}
-              className="text-white hover:bg-white/20"
-            >
-              ← Back
-            </Button>*/}
-            <div>
-              <h1 className="text-2xl font-bold">Driver Bookings</h1>
-              <p className="text-blue-100">Manage driver bookings and assignments</p>
-            </div>
+    <div className="bg-white min-h-screen p-6">
+      {/* Header Section */}
+      <div className="mb-6">
+        <div className="flex justify-between items-center mb-4">
+          <h1 className="text-2xl font-bold">Driver Booking Management</h1>
+          <Button onClick={() => setShowBookingForm(true)}>
+            + New Booking
+          </Button>
+        </div>
+
+        {/* Search and Filter */}
+        <div className="flex gap-4 mb-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+            <Input
+              type="text"
+              placeholder="Search by driver name, booking code, status..."
+              value={searchTerm}
+              onChange={handleSearchChange}
+              className="pl-10 pr-10"
+            />
+            {searchTerm && (
+              <button
+                onClick={clearSearch}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
           </div>
+          <select
+            value={overDayFilter}
+            onChange={(e) => setOverDayFilter(e.target.value)}
+            className="border rounded-md px-4 py-2"
+          >
+            <option value="all">All Over Days</option>
+            <option value="none">No Over Days</option>
+            <option value="1-3">1-3 Days</option>
+            <option value="4-7">4-7 Days</option>
+            <option value="7+">7+ Days</option>
+          </select>
         </div>
       </div>
 
-      {/* Notes Admin Form Layout */}
-      {showNotesForm && currentBooking && (
-        <div className="bg-blue-50 border-l-4 border-blue-500 p-6 m-6">
-          <div className="flex items-start justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <CheckCircle className="h-6 w-6 text-blue-600" />
-              <h2 className="text-xl font-semibold text-blue-800">Confirm Booking - Admin Notes</h2>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleCloseNotesForm}
-              className="text-blue-600 hover:bg-blue-100"
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Booking Details */}
-            <div className="bg-white p-4 rounded-lg border">
-              <h3 className="font-medium text-gray-900 mb-3">Booking Details</h3>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Booking Code:</span>
-                  <span className="font-medium">{currentBooking.code_booking}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Driver:</span>
-                  <span className="font-medium">{currentBooking.driver?.name || 'Unknown'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Vehicle:</span>
-                  <span className="font-medium">{currentBooking.vehicle?.license_plate || 'N/A'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Amount:</span>
-                  <span className="font-medium text-green-600">{formatCurrency(currentBooking.total_amount)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Current Status:</span>
-                  <Badge variant="outline">{currentBooking.status}</Badge>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Dates:</span>
-                  <span className="font-medium">
-                    {format(new Date(currentBooking.start_date), "dd/MM/yyyy")} - 
-                    {format(new Date(currentBooking.end_date), "dd/MM/yyyy")}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Admin Notes Form */}
-            <div className="bg-white p-4 rounded-lg border">
-              <h3 className="font-medium text-gray-900 mb-3">Admin Notes</h3>
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="adminNotes" className="text-sm font-medium text-gray-700">
-                    Notes (Optional)
-                  </Label>
-                  <Textarea
-                    id="adminNotes"
-                    placeholder="Add any admin notes for this booking confirmation..."
-                    value={adminNotes}
-                    onChange={(e) => setAdminNotes(e.target.value)}
-                    rows={4}
-                    className="mt-1 resize-none"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    These notes will be saved with the booking and can be viewed later.
-                  </p>
-                </div>
-
-                <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
-                  <div className="flex items-start gap-2">
-                    <CheckCircle className="h-4 w-4 text-blue-600 mt-0.5" />
-                    <div className="text-sm">
-                      <p className="font-medium text-blue-800">Confirmation Action</p>
-                      <p className="text-blue-700">
-                        This will change the booking status from "Pending" to "Confirmed" and save any admin notes.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex gap-3 pt-2">
-                  <Button
-                    variant="outline"
-                    onClick={handleCloseNotesForm}
-                    className="flex-1"
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    onClick={handleSubmitConfirmation}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700"
-                  >
-                    Confirm Booking
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
+      {/* Table Section */}
+      {isLoading ? (
+        <div className="flex justify-center items-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
         </div>
-      )}
-
-      {/* Cancel Form Layout */}
-      {showCancelForm && currentBooking && (
-        <div className="bg-red-50 border-l-4 border-red-500 p-6 m-6">
-          <div className="flex items-start justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <XCircle className="h-6 w-6 text-red-600" />
-              <h2 className="text-xl font-semibold text-red-800">Cancel Booking</h2>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleCloseCancelForm}
-              className="text-red-600 hover:bg-red-100"
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Booking Details */}
-            <div className="bg-white p-4 rounded-lg border">
-              <h3 className="font-medium text-gray-900 mb-3">Booking Details</h3>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Booking Code:</span>
-                  <span className="font-medium">{currentBooking.code_booking}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Driver:</span>
-                  <span className="font-medium">{currentBooking.driver?.name || 'Unknown'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Vehicle:</span>
-                  <span className="font-medium">{currentBooking.vehicle?.license_plate || 'N/A'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Amount:</span>
-                  <span className="font-medium text-green-600">{formatCurrency(currentBooking.total_amount)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Status:</span>
-                  <Badge variant="outline">{currentBooking.status}</Badge>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Dates:</span>
-                  <span className="font-medium">
-                    {format(new Date(currentBooking.start_date), "dd/MM/yyyy")} - 
-                    {format(new Date(currentBooking.end_date), "dd/MM/yyyy")}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Cancellation Form */}
-            <div className="bg-white p-4 rounded-lg border">
-              <h3 className="font-medium text-gray-900 mb-3">Cancellation Details</h3>
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="cancelReason" className="text-sm font-medium text-gray-700">
-                    Reason for Cancellation *
-                  </Label>
-                  <Textarea
-                    id="cancelReason"
-                    placeholder="Please provide a detailed reason for cancelling this booking..."
-                    value={cancelReason}
-                    onChange={(e) => setCancelReason(e.target.value)}
-                    rows={4}
-                    className="mt-1 resize-none"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    This reason will be recorded in the booking history and transaction records.
-                  </p>
-                </div>
-
-                <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-200">
-                  <div className="flex items-start gap-2">
-                    <Flag className="h-4 w-4 text-yellow-600 mt-0.5" />
-                    <div className="text-sm">
-                      <p className="font-medium text-yellow-800">Important Notice</p>
-                      <p className="text-yellow-700">
-                        Cancelling this booking will automatically refund the customer and update the booking status. 
-                        This action cannot be undone.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex gap-3 pt-2">
-                  <Button
-                    variant="outline"
-                    onClick={handleCloseCancelForm}
-                    disabled={isCancelling}
-                    className="flex-1"
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    onClick={handleCancelBooking}
-                    disabled={isCancelling || !cancelReason.trim()}
-                    className="flex-1"
-                  >
-                    {isCancelling ? "Processing..." : "Confirm Cancellation"}
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Main Content - Expandable Table */}
-      {!showCancelForm && !showNotesForm && (
-        <div className="p-6">
-          {/* Search and Controls */}
-          <div className="mb-6 space-y-4">
-            <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
-              <div className="relative flex-1 max-w-md">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                <Input
-                  type="text"
-                  placeholder="Search bookings..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-
-              {/* Over Day Filter */}
-              <div className="flex items-center gap-2">
-                <Label className="text-sm whitespace-nowrap">Over Day:</Label>
-                <select
-                  value={overDayFilter}
-                  onChange={(e) => setOverDayFilter(e.target.value)}
-                  className="border rounded px-3 py-2 text-sm min-w-[140px]"
-                >
-                  <option value="all">All</option>
-                  <option value="none">No Over Day</option>
-                  <option value="1-3">1-3 Days</option>
-                  <option value="4-7">4-7 Days</option>
-                  <option value="7+">7+ Days</option>
-                </select>
-              </div>
-              
-              {/* Rows per page selector */}
-              <div className="flex items-center gap-2">
-                <Label className="text-sm">Show:</Label>
-                <select
-                  value={rowsPerPage}
-                  onChange={(e) => handleRowsPerPageChange(Number(e.target.value))}
-                  className="border rounded px-2 py-1 text-sm"
-                >
-                  <option value={10}>10</option>
-                  <option value={20}>20</option>
-                  <option value={30}>30</option>
-                  <option value={50}>50</option>
-                </select>
-                <span className="text-sm text-gray-600">entries</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Expandable Table */}
-          {isLoading ? (
-            <div className="flex justify-center items-center h-64">
-              <p>Loading driver bookings...</p>
-            </div>
-          ) : (
-            <div className="border rounded-lg overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-gray-50">
-                    <TableHead className="w-12"></TableHead>
-                    <TableHead>Kode Booking</TableHead>
-                    <TableHead>Driver Name</TableHead>
-                    <TableHead>Driver Status</TableHead>
-                    <TableHead>Payment</TableHead>
-                    <TableHead>Booking Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {currentBookings.map((booking) => (
-                    <React.Fragment key={booking.id}>
-                      {/* Master Row */}
-                      <TableRow className="hover:bg-gray-50">
-                        <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => toggleRowExpansion(booking.id)}
-                            className="p-1 h-6 w-6"
-                          >
-                            {expandedRows.has(booking.id) ? (
-                              <span className="text-gray-600">−</span>
-                            ) : (
-                              <span className="text-gray-600">+</span>
-                            )}
-                          </Button>
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          {booking.code_booking || 'N/A'}
-                        </TableCell>
-                        <TableCell>
-                          {booking.driver?.name || 'Unknown Driver'}
-                        </TableCell>
-                        <TableCell>
-                          <Badge 
-                            variant="outline" 
-                            className={`text-xs ${
-                              booking.driver?.driver_status === 'standby' 
-                                ? 'bg-yellow-100 text-yellow-800' 
-                                : 'bg-green-100 text-green-800'
-                            }`}
-                          >
-                            {booking.driver?.driver_status || 'standby'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {getPaymentStatusBadge(booking.payment_status)}
-                        </TableCell>
-                        <TableCell>
-  {getStatusBadge(
-    booking.status === "confirmed"
-      ? new Date(booking.start_date) > new Date()
-        ? "upcoming" // belum mulai
-        : new Date(booking.end_date) < new Date()
-        ? "late" // sudah lewat tapi belum diselesaikan
-        : "ongoing" // sedang berlangsung
-      : booking.status
-  )}
-</TableCell>
-
-
-                        <TableCell>
-                        <td>
-                        {booking.status === "late" && (
-                      <div className="text-xs text-red-600 mt-1">
-                        ⚠️ Telat {booking.late_days} hari (
-                        Rp {booking.late_fee?.toLocaleString("id-ID")})
-                      </div>
-                    )}
-                  </td>
-                 {/* <td className="p-2">
-                    {booking.start_date} → {booking.end_date}
-                  </td>*/}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-1">
-                         {/*   <Button
-                              variant="outline"
-                              size="sm"
-                              className="flex items-center gap-1"
-                              onClick={() => handleViewDetails(booking)}
-                            >
-                              <Eye className="h-4 w-4" />
-                              Details
-                            </Button>*/}
-
-                           {(
-  // Jika belum dibayar dan booking bukan cancelled → semua role bisa lihat
-  (booking.payment_status !== "paid" && booking.status !== "cancelled") ||
-
-  // Jika booking cancelled → hanya Super Admin & Admin yang bisa lihat
-  (booking.status === "cancelled" && ["Super Admin", "Admin"].includes(userRole))
-) && (
-  <Button
-    variant="outline"
-    size="sm"
-    className="flex items-center gap-1 bg-green-100 hover:bg-green-200 text-green-800 border-green-300"
-    onClick={() => handleOpenPaymentDialog(booking)}
-  >
-    <CreditCard className="h-4 w-4" />
-    Payment
-  </Button>
-)}
-
-
-
-                            {booking.status === "pending" && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="flex items-center gap-1 bg-blue-100 hover:bg-blue-200 text-blue-800 border-blue-300"
-                                onClick={() => handleConfirmBooking(booking)}
-                              >
-                                <CheckCircle className="h-4 w-4" />
-                                Confirm
-                              </Button>
-                            )}
-
-                       {(() => {
-  // 🕒 Gunakan tanggal lokal (Asia/Jakarta)
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const endDate = new Date(booking.end_date);
-  const normalizedEndDate = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
-  const normalizedRole = userRole?.toLowerCase();
-
-  const isEndOrAfter = normalizedEndDate <= today;
-
-  // 🔍 Debug log
-  console.log(
-    "ROLE:", normalizedRole,
-    "| STATUS:", booking.status,
-    "| finish_enabled:", booking.finish_enabled,
-    "| actual_return_date:", booking.actual_return_date,
-    "| isEndOrAfter:", isEndOrAfter
-  );
-
-  // 🧠 Hak akses tombol Finish
-  const canFinish =
-    !booking.actual_return_date && (
-      // 🔹 Super Admin bisa kapan pun
-      normalizedRole === "super admin" ||
-
-      // 🔹 Admin bisa kalau status-nya ongoing / late / confirmed / end_date lewat
-      (normalizedRole === "admin" && (
-        ["confirmed", "ongoing", "late"].includes(booking.status) ||
-        booking.finish_enabled ||
-        isEndOrAfter
-      )) ||
-
-      // 🔹 Staff Admin atau Staff Traffic
-      (["staff admin", "staff traffic"].includes(normalizedRole) && (
-        ["confirmed", "ongoing", "late"].includes(booking.status) ||
-        booking.finish_enabled ||
-        isEndOrAfter
-      ))
-    );
-
-  // 🎨 Render tombol Finish
-  return canFinish ? (
-    <Button
-      variant="outline"
-      size="sm"
-      className={`flex items-center gap-1 ${
-        booking.status === "late"
-          ? "bg-yellow-100 hover:bg-yellow-200 text-yellow-800 border-yellow-300"
-          : "bg-green-100 hover:bg-green-200 text-green-800 border-green-300"
-      }`}
-      onClick={() => handleFinishBooking(booking)}
-    >
-      <CheckCircle className="h-4 w-4" />
-      Finish
-    </Button>
-  ) : null;
-})()}
-
-                         {booking.status === "onride" && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="flex items-center gap-1 bg-orange-100 hover:bg-orange-200 text-orange-800 border-orange-300"
-                                onClick={() => handleProcessReturn(booking)}
-                              >
-                                <Activity className="h-4 w-4" />
-                                Return
-                              </Button>
-                            )}
-
-                            {booking.status !== "cancelled" &&
-  booking.status !== "completed" &&
-  canCancelBooking() &&
-  userRole === "Super Admin" && ( // 👈 hanya Super Admin bisa lihat
-    <Button
-      variant="outline"
-      size="sm"
-      className="flex items-center gap-1 bg-red-100 hover:bg-red-200 text-red-800 border-red-300"
-      onClick={() => handleOpenCancelForm(booking)}
-    >
-      <XCircle className="h-4 w-4" />
-      Cancel
-    </Button>
-  )}
-
-
-                          </div>
-                        </TableCell>
-                      </TableRow>
-
-                      {/* Detail Row - Expandable */}
-                      {expandedRows.has(booking.id) && (
-                        <TableRow className="bg-gray-50">
-                          <TableCell colSpan={7}>
-                            <div className="p-4 space-y-4">
-                              <h4 className="font-medium text-gray-900 mb-3">Booking Details</h4>
-                              
-                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                {/* Vehicle Information */}
-                                <div className="bg-white p-3 rounded border">
-                                  <h5 className="font-medium text-gray-700 mb-2">Vehicle Information</h5>
-                                  <div className="space-y-1 text-sm">
-                                    <div className="flex justify-between">
-                                      <span className="text-gray-600">Tipe Kendaraan:</span>
-                                      <span className="font-medium">{booking.vehicle_type || 'MPV'}</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                      <span className="text-gray-600">Model Kendaraan:</span>
-                                      <span className="font-medium">{booking.model || 'N/A'}</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                      <span className="text-gray-600">Plat Kendaraan:</span>
-                                      <span className="font-medium">{booking.vehicle?.license_plate || 'N/A'}</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                      <span className="text-gray-600">Price /day:</span>
-                                      <span className="font-medium">{booking.price || 'N/A'}</span>
-                                    </div>
-                                  </div>
-                                </div>
-
-                                {/* Booking Information */}
-                                <div className="bg-white p-3 rounded border">
-                                  <h5 className="font-medium text-gray-700 mb-2">Booking Information</h5>
-                                  <div className="space-y-1 text-sm">
-                                    <div className="flex justify-between">
-                                      <span className="text-gray-600">Start Date:</span>
-                                      <span className="font-medium">{formatDateDDMMYYYY(booking.start_date)}</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                      <span className="text-gray-600">End Date:</span>
-                                      <span className="font-medium">{formatDateDDMMYYYY(booking.end_date)}</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                      <span className="text-gray-600">Amount:</span>
-                                      <span className="font-medium text-green-600">{formatCurrency(booking.total_amount)}</span>
-                                    </div>
-                                    {(() => {
-  const endDate = new Date(booking.end_date);
-  const returnDate = booking.actual_return_date 
-    ? new Date(booking.actual_return_date)
-    : new Date();
-
-  // Normalisasi jam ke 00:00:00
-  endDate.setHours(0, 0, 0, 0);
-  returnDate.setHours(0, 0, 0, 0);
-
-  // Hitung selisih hari
-  const diffDays = Math.floor(
-    (returnDate.getTime() - endDate.getTime()) / (1000 * 60 * 60 * 24)
-  );
-
-  const overDays = Math.max(0, diffDays);
-
-  return (
-    <>
-      <div className="flex justify-between">
-        <span className="text-gray-600">Over day:</span>
-        <span className={`font-medium ${overDays > 0 ? 'text-red-600' : 'text-gray-900'}`}>
-          {overDays} hari
-        </span>
-      </div>
-
-      {booking.actual_return_date && (
-        <div className="flex justify-between">
-          <span className="text-gray-600">Return date:</span>
-          <span className="font-medium">{formatDateDDMMYYYY(booking.actual_return_date)}</span>
-        </div>
-      )}
-    </>
-  );
-})()}
-
-                                    {booking.pickup_time && (
-                                      <div className="flex justify-between">
-                                        <span className="text-gray-600">Pickup Time:</span>
-                                        <span className="font-medium">{formatTimeTo12Hour(booking.pickup_time)}</span>
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-
-                                {/* Payment Methode */}
-                                <div className="bg-white p-3 rounded border">
-                                  <h5 className="font-medium text-gray-700 mb-2">Payment Information</h5>
-                                  <div className="space-y-1 text-sm">
-                                    <div className="flex justify-between">
-                                      <span className="text-gray-600">Payment Methode:</span>
-                                      <span className="font-medium">{booking.payment_method || 'N/A'}</span>
-                                    </div>
-                                  </div>
-                                  <div className="space-y-1 text-sm">
-                                    <div className="flex justify-between">
-                                      <span className="text-gray-600">Admin Notes:</span>
-                                      <span className="font-medium">{booking.notes_admin || 'N/A'}</span>
-                                    </div>
-                                  </div>
-                                  <div className="space-y-1 text-sm">
-                                    <div className="flex justify-between">
-                                      <span className="text-gray-600">Driver Notes:</span>
-                                      <span className="font-medium">{booking.notes_driver || 'N/A'}</span>
-                                    </div>
-                                  </div>
-                                  <div className="space-y-1 text-sm">
-                                    <div className="flex justify-between">
-                                      <span className="text-gray-600">Keterangan:</span>
-                                      <span className="font-medium">{booking.keterangan || 'N/A'}</span>
-                                    </div>
-                                  </div>
-                                </div>
-
-                                {/* Cancellation Information */}
-                                {booking.status === 'cancelled' && (
-  <div className="bg-red-50 p-3 rounded border border-red-200">
-    <h5 className="font-medium text-red-700 mb-2">Cancellation Information</h5>
-    <div className="space-y-1 text-sm">
-      <div className="flex justify-between">
-        <span className="text-red-600">Cancelled By:</span>
-        {/* ✅ Gunakan cancel_by_driver_name, fallback ke "System" */}
-        <span className="font-medium text-red-800">
-          {booking.cancel_by_driver_name || 'System'}
-        </span>
-      </div>
-
-      {/* ✅ Tetap tampilkan alasan refund jika ada */}
-      {booking.refund_reason && (
-        <div className="mt-2">
-          <span className="text-red-600">Reason:</span>
-          <p className="text-red-800 mt-1 text-xs">{booking.refund_reason}</p>
-        </div>
-      )}
-    </div>
-  </div>
-)}
-
-                              </div>
-                            </div>
-                          </TableCell>
-                        </TableRow>
+      ) : (
+        <div className="overflow-x-auto">
+          <Table>
+            <TableCaption>
+              Driver Bookings ({filteredBookings.length} total)
+            </TableCaption>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Booking Code</TableHead>
+                <TableHead>Driver</TableHead>
+                <TableHead>Vehicle</TableHead>
+                <TableHead>License Plate</TableHead>
+                <TableHead>Start Date</TableHead>
+                <TableHead>End Date</TableHead>
+                <TableHead>Rental Days</TableHead>
+                <TableHead>Total Amount</TableHead>
+                <TableHead>Payment Status</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {currentBookings.map((booking) => (
+                <TableRow key={booking.id || booking.booking_reference}>
+                  <TableCell>{booking.code_booking || booking.id}</TableCell>
+                  <TableCell>{booking.driver?.name || "-"}</TableCell>
+                  <TableCell>
+                    {booking.vehicle
+                      ? `${booking.vehicle.make} ${booking.vehicle.model}`
+                      : "-"}
+                  </TableCell>
+                  <TableCell>
+                    {booking.vehicle?.license_plate || booking.license_plate || "-"}
+                  </TableCell>
+                  <TableCell>{formatDateDDMMYYYY(booking.start_date)}</TableCell>
+                  <TableCell>{formatDateDDMMYYYY(booking.end_date)}</TableCell>
+                  <TableCell>
+                    {calculateRentalDays(booking.start_date, booking.end_date)} hari
+                  </TableCell>
+                  <TableCell>{formatCurrency(booking.total_amount)}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      {getPaymentStatusBadge(booking.payment_status)}
+                      {booking.payment_status === "unpaid" && (
+                        <Button
+                          size="sm"
+                          variant="default"
+                          className="h-7 px-3 bg-green-600 hover:bg-green-700"
+                          onClick={() => handleMarkAsPaid(booking)}
+                          title="Upload Payment Proof"
+                        >
+                          <Upload className="h-4 w-4 mr-1" />
+                          Upload
+                        </Button>
                       )}
-                    </React.Fragment>
-                  ))}
-                </TableBody>
-              </Table>
+                    </div>
+                  </TableCell>
+                  <TableCell>{getStatusBadge(booking.status)}</TableCell>
+                  <TableCell>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleViewDetails(booking)}
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                      {booking.status === "pending" && (
+                        <Button
+                          size="sm"
+                          variant="default"
+                          onClick={() => handleConfirmBooking(booking)}
+                        >
+                          <CheckCircle className="h-4 w-4" />
+                        </Button>
+                      )}
+                      {booking.status === "confirmed" && (
+                        <Button
+                          size="sm"
+                          variant="default"
+                          onClick={() => handlePickupVehicle(booking)}
+                        >
+                          <Car className="h-4 w-4" />
+                        </Button>
+                      )}
+                      {(booking.status === "ongoing" || booking.status === "onride") && (
+                        <Button
+                          size="sm"
+                          variant="default"
+                          className="bg-blue-500 hover:bg-blue-600"
+                          onClick={() => handleFinishBooking(booking)}
+                          title="Mark as Completed"
+                        >
+                          <CheckCircle className="h-4 w-4 mr-1" />
+                          Finish
+                        </Button>
+                      )}
+                      {canCancelBooking() && booking.status !== "cancelled" && booking.status !== "completed" && (
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => handleOpenCancelForm(booking)}
+                        >
+                          <XCircle className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+
+      {/* Pagination */}
+      <div className="flex justify-between items-center mt-4">
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-gray-600">Rows per page:</span>
+          <select
+            value={rowsPerPage}
+            onChange={(e) => handleRowsPerPageChange(Number(e.target.value))}
+            className="border rounded px-2 py-1"
+          >
+            <option value={10}>10</option>
+            <option value={25}>25</option>
+            <option value={50}>50</option>
+            <option value={100}>100</option>
+          </select>
+        </div>
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => handlePageChange(currentPage - 1)}
+            disabled={currentPage === 1}
+          >
+            Previous
+          </Button>
+          <span className="px-4 py-2 text-sm">
+            Page {currentPage} of {totalPages}
+          </span>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => handlePageChange(currentPage + 1)}
+            disabled={currentPage === totalPages}
+          >
+            Next
+          </Button>
+        </div>
+      </div>
+
+      {/* Payment Proof Upload Dialog */}
+      <Dialog open={isPaymentProofOpen} onOpenChange={setIsPaymentProofOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Upload Payment Proof</DialogTitle>
+            <DialogDescription>
+              Upload proof of payment to mark this booking as paid
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {currentBooking && (
+              <div className="bg-gray-50 p-4 rounded-md">
+                <p className="text-sm text-gray-600">Booking Code</p>
+                <p className="font-semibold">{currentBooking.code_booking || currentBooking.id}</p>
+                <p className="text-sm text-gray-600 mt-2">Amount</p>
+                <p className="font-semibold">{formatCurrency(currentBooking.total_amount)}</p>
+              </div>
+            )}
+            <div>
+              <Label htmlFor="payment-proof">Payment Proof *</Label>
+              <Input
+                id="payment-proof"
+                type="file"
+                accept="image/*,.pdf"
+                onChange={(e) => setPaymentProofFile(e.target.files?.[0] || null)}
+                className="mt-1"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Accepted formats: Images (JPG, PNG) or PDF
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setIsPaymentProofOpen(false);
+                setPaymentProofFile(null);
+                setCurrentBooking(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleUploadPaymentProof}
+              disabled={isUploadingProof || !paymentProofFile}
+            >
+              {isUploadingProof ? "Uploading..." : "Upload & Mark as Paid"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialogs */}
+      <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Booking Details</DialogTitle>
+          </DialogHeader>
+          {currentBooking && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Booking Code</Label>
+                  <p>{currentBooking.code_booking || currentBooking.id}</p>
+                </div>
+                <div>
+                  <Label>Driver</Label>
+                  <p>{currentBooking.driver?.name || "-"}</p>
+                </div>
+                <div>
+                  <Label>Vehicle</Label>
+                  <p>
+                    {currentBooking.vehicle
+                      ? `${currentBooking.vehicle.make} ${currentBooking.vehicle.model}`
+                      : "-"}
+                  </p>
+                </div>
+                <div>
+                  <Label>Total Amount</Label>
+                  <p>{formatCurrency(currentBooking.total_amount)}</p>
+                </div>
+              </div>
+              <div>
+                <Label>Payments</Label>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Amount</TableHead>
+                      <TableHead>Method</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {payments.map((payment) => (
+                      <TableRow key={payment.id}>
+                        <TableCell>{formatDateDDMMYYYY(payment.created_at)}</TableCell>
+                        <TableCell>{formatCurrency(payment.amount)}</TableCell>
+                        <TableCell>{payment.payment_method}</TableCell>
+                        <TableCell>{getPaymentStatusBadge(payment.status)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
 
-          {/* Pagination */}
-          <div className="mt-6 flex items-center justify-between">
-            <div className="text-sm text-gray-600">
-              Showing {startIndex + 1} to {Math.min(endIndex, filteredBookings.length)} of {filteredBookings.length} entries
-            </div>
-            
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handlePageChange(currentPage - 1)}
-                disabled={currentPage === 1}
-              >
-                Previous
-              </Button>
-              
-              {/* Page numbers */}
-              <div className="flex gap-1">
-                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                  const pageNum = Math.max(1, currentPage - 2) + i;
-                  if (pageNum > totalPages) return null;
-                  
-                  return (
-                    <Button
-                      key={pageNum}
-                      variant={currentPage === pageNum ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => handlePageChange(pageNum)}
-                      className="w-8 h-8 p-0"
-                    >
-                      {pageNum}
-                    </Button>
-                  );
-                })}
-              </div>
-              
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handlePageChange(currentPage + 1)}
-                disabled={currentPage === totalPages}
-              >
-                Next
-              </Button>
+      <Dialog open={showNotesForm} onOpenChange={setShowNotesForm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Booking</DialogTitle>
+            <DialogDescription>
+              Add notes for this booking confirmation (optional)
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="admin-notes">Admin Notes</Label>
+              <Textarea
+                id="admin-notes"
+                value={adminNotes}
+                onChange={(e) => setAdminNotes(e.target.value)}
+                placeholder="Enter any notes about this booking..."
+                rows={4}
+              />
             </div>
           </div>
-        </div>
-      )}
+          <DialogFooter>
+            <Button variant="outline" onClick={handleCloseNotesForm}>
+              Cancel
+            </Button>
+            <Button onClick={handleSubmitConfirmation}>
+              Confirm Booking
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-      {/* Keep existing dialogs */}
-      {/* ... other dialogs ... */}
+      <Dialog open={showCancelForm} onOpenChange={setShowCancelForm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cancel Booking</DialogTitle>
+            <DialogDescription>
+              Please provide a reason for cancelling this booking
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="cancel-reason">Cancellation Reason *</Label>
+              <Textarea
+                id="cancel-reason"
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                placeholder="Enter reason for cancellation..."
+                rows={4}
+                required
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={handleCloseCancelForm}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleCancelBooking}
+              disabled={isCancelling || !cancelReason.trim()}
+            >
+              {isCancelling ? "Cancelling..." : "Confirm Cancellation"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isPickupProcessOpen} onOpenChange={setIsPickupProcessOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Vehicle Pickup Process</DialogTitle>
+          </DialogHeader>
+          {currentBooking && (
+            <PickupCustomer
+              booking={currentBooking}
+              onClose={() => {
+                setIsPickupProcessOpen(false);
+                fetchBookings();
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isReturnProcessOpen} onOpenChange={setIsReturnProcessOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Vehicle Return Process</DialogTitle>
+          </DialogHeader>
+          {currentBooking && (
+            <PostRentalInspectionForm
+              booking={currentBooking}
+              onClose={() => {
+                setIsReturnProcessOpen(false);
+                fetchBookings();
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showBookingForm} onOpenChange={setShowBookingForm}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Create New Booking</DialogTitle>
+          </DialogHeader>
+          <BookingFormDriver
+            onClose={() => {
+              setShowBookingForm(false);
+              fetchBookings();
+            }}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

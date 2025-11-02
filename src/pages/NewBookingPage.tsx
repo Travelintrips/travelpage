@@ -8,10 +8,24 @@ import PassengerHandlingForm from "@/components/booking/PassengerHandlingForm";
 import CarRentalForm from "@/components/booking/CarRentalForm";
 import ShoppingCart from "@/components/booking/ShoppingCart";
 import { useShoppingCart } from "@/hooks/useShoppingCart";
+import { useAuth } from "@/contexts/AuthContext";
 
 const NewBookingPage = () => {
   const [activeTab, setActiveTab] = useState("flight");
   const { cartItems, totalAmount } = useShoppingCart();
+  const { userRole } = useAuth();
+
+  // Check if user role is allowed to create bookings
+  const allowedRoles = ["Driver", "Admin", "Super Admin", "Staff"];
+  
+  if (!allowedRoles.includes(userRole)) {
+    return (
+      <div className="container mx-auto py-8 px-4 text-center">
+        <h1 className="text-2xl font-bold text-red-500">Access Denied</h1>
+        <p className="mt-4">You don't have permission to create bookings.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto py-8 px-4">

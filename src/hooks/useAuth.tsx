@@ -4,5 +4,6 @@
 
 import { useAuth } from "@/contexts/AuthContext";
 
-// Export useAuth as default for backward compatibility
+// Export useAuth as both named and default for backward compatibility
+export { useAuth };
 export default useAuth;

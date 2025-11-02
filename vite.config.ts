@@ -9,9 +9,10 @@ export default defineConfig({
   optimizeDeps: {
     entries: ["src/main.tsx", "src/tempobook/**/*"],
     force: true,
-    exclude: [
-      "react-hook-form",
-      "framer-motion",
+    include: [
+      "react",
+      "react-dom",
+      "react/jsx-runtime",
       "@radix-ui/react-select",
       "@radix-ui/react-alert-dialog",
       "@radix-ui/react-switch",
@@ -26,7 +27,6 @@ export default defineConfig({
     preserveSymlinks: true,
     alias: {
       "@": path.resolve(__dirname, "./src"),
-      // Fix for React DOM import issues with Radix UI
       "react-dom": "react-dom",
     },
   },

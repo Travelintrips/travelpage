@@ -55,6 +55,8 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { cn, formatDate, toISOString } from "@/lib/utils";
+import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/components/ui/use-toast";
 
 const formSchema = z.object({
   startDate: z.date({
@@ -90,10 +92,22 @@ interface BookingFormProps {
   onBookingComplete?: (bookingData: any) => void;
 }
 
-const BookingForm: React.FC<BookingFormProps> = ({
-  selectedVehicle = null,
-  onBookingComplete = () => {},
-}) => {
+export default function BookingForm({ onClose }: BookingFormProps) {
+  const { user, userRole } = useAuth();
+  const { toast } = useToast();
+  
+  // Check if user role is allowed to create bookings
+  const allowedRoles = ["Driver", "Admin", "Super Admin", "Staff"];
+  
+  if (!allowedRoles.includes(userRole)) {
+    toast({
+      title: "Access Denied",
+      description: "You don't have permission to create bookings.",
+      variant: "destructive",
+    });
+    return null;
+  }
+
   const navigate = useNavigate();
   const { addToCart } = useShoppingCart();
   const [step, setStep] = useState(1);
@@ -954,6 +968,4 @@ const BookingForm: React.FC<BookingFormProps> = ({
       </CardContent>
     </Card>
   );
-};
-
-export default BookingForm;
+}
