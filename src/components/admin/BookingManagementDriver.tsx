@@ -18,6 +18,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { useRef } from "react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
 import { Input } from "@/components/ui/input";
@@ -35,6 +36,7 @@ import {
   CheckCircle,
   XCircle,
   Upload,
+  Edit,
 } from "lucide-react";
 import PostRentalInspectionForm from "@/components/booking/PostRentalInspectionForm";
 import PickupCustomer from "@/components/booking/PickupCustomer";
@@ -101,7 +103,6 @@ export default function BookingManagementDriver() {
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [isReturnProcessOpen, setIsReturnProcessOpen] = useState(false);
-  const [isPickupProcessOpen, setIsPickupProcessOpen] = useState(false);
   const [isPreInspectionOpen, setIsPreInspectionOpen] = useState(false);
   const [showCancelForm, setShowCancelForm] = useState(false);
   const [showNotesForm, setShowNotesForm] = useState(false);
@@ -117,6 +118,17 @@ export default function BookingManagementDriver() {
   const [isPaymentProofOpen, setIsPaymentProofOpen] = useState(false);
   const [paymentProofFile, setPaymentProofFile] = useState<File | null>(null);
   const [isUploadingProof, setIsUploadingProof] = useState(false);
+  const [showBackdateForm, setShowBackdateForm] = useState(false);
+  const [backdateEndDate, setBackdateEndDate] = useState<string>("");
+  const [backdateActualReturnDate, setBackdateActualReturnDate] = useState<string>("");
+  const [showBackdateEditForm, setShowBackdateEditForm] = useState(false);
+  const [backdateEditEndDate, setBackdateEditEndDate] = useState<string>("");
+  const [backdateEditNote, setBackdateEditNote] = useState<string>("");
+  const [previousActualReturnDate, setPreviousActualReturnDate] = useState<string>("");
+  const dateInputRef = useRef<HTMLInputElement | null>(null);
+  const dateReturnRef = useRef<HTMLInputElement | null>(null);
+
+
   
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
@@ -308,11 +320,6 @@ export default function BookingManagementDriver() {
     }
   };
 
-  const handlePickupVehicle = async (booking: Booking) => {
-    setCurrentBooking(booking);
-    setIsPickupProcessOpen(true);
-  };
-
   const handleMarkAsPaid = (booking: Booking) => {
     setCurrentBooking(booking);
     setPaymentProofFile(null);
@@ -381,6 +388,52 @@ export default function BookingManagementDriver() {
     }
   };
 
+  const handleEditBackdateBooking = (booking: Booking) => {
+    setCurrentBooking(booking);
+    setBackdateEditEndDate(booking.end_date);
+    setBackdateEditNote("");
+    setPreviousActualReturnDate(booking.actual_return_date || "");
+    setShowBackdateEditForm(true);
+  };
+
+  const handleSaveBackdateEdit = async () => {
+    if (!currentBooking || !user) return;
+
+    try {
+      // Ambil nama lengkap user yang sedang login
+      const adminName = user.user_metadata?.name || user.full_name || user.email || "Unknown Admin";
+
+      const { error } = await supabase
+        .from("bookings")
+        .update({
+          actual_return_date: backdateEditEndDate,
+          notes_admin_edit_return: backdateEditNote.trim() || null,
+          update_actual_return_date_by_admin: adminName,
+        })
+        .eq("id", currentBooking.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "✅ Booking Updated",
+        description: "Actual return date has been updated successfully.",
+      });
+
+      setShowBackdateEditForm(false);
+      setCurrentBooking(null);
+      setBackdateEditNote("");
+      setPreviousActualReturnDate("");
+      fetchBookings();
+    } catch (error: any) {
+      console.error("Error updating booking:", error);
+      toast({
+        variant: "destructive",
+        title: "Update Failed",
+        description: error.message || "Failed to update booking",
+      });
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status.toLowerCase()) {
       case "confirmed":
@@ -415,16 +468,13 @@ export default function BookingManagementDriver() {
   };
 
   const formatDateDDMMYYYY = (dateString: string) => {
-    try {
-      const date = new Date(dateString);
-      const day = date.getDate().toString().padStart(2, "0");
-      const month = (date.getMonth() + 1).toString().padStart(2, "0");
-      const year = date.getFullYear();
-      return `${day}/${month}/${year}`;
-    } catch (e) {
-      return dateString;
-    }
-  };
+  if (!dateString) return "";
+  const date = new Date(dateString);
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = date.getFullYear();
+  return `${day}/${month}/${year}`;
+};
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("id-ID", {
@@ -521,125 +571,150 @@ export default function BookingManagementDriver() {
   };
 
   const handleFinishBooking = async (booking: Booking) => {
-  try {
-    // 0️⃣ Ambil data admin login (Supabase Auth)
-    const { data: { user } } = await supabase.auth.getUser();
-    const adminId = user?.id || null;
-    const adminName = user?.user_metadata?.name || user?.email || "Unknown Admin";
-
-    // 🛑 Cegah pemrosesan booking backdate
+    // ✅ Jika booking adalah backdate, tampilkan form dulu
     if (booking.is_backdated) {
-      toast({
-        variant: "default",
-        title: "ℹ️ Booking backdate",
-        description: "Booking ini adalah backdate, tidak ada potongan saldo.",
-      });
-      // Tapi tetap boleh menandai sebagai completed
+      setCurrentBooking(booking);
+      setBackdateEndDate(booking.end_date);
+      setBackdateActualReturnDate(booking.end_date); // Default sama dengan end_date
+      setShowBackdateForm(true);
+      return;
     }
 
-    // 1️⃣ Update booking → completed + actual_return_date
-const actualReturnDate =
-  booking.status === "confirmed" && booking.finish_enabled
-    ? booking.end_date // jika finish di hari end_date (upcoming case)
-    : new Date().toISOString().split("T")[0]; // default: hari ini (ongoing/late/backdate)
+    // ✅ Jika bukan backdate, langsung proses finish
+    await processFinishBooking(booking);
+  };
 
-const { error: bookingError } = await supabase
-  .from("bookings")
-  .update({
-    status: "completed",
-    actual_return_date: actualReturnDate,
-    finish_enabled: false, // reset agar tidak bisa di-finish ulang
-  })
-  .eq("id", booking.id);
+  const processFinishBooking = async (booking: Booking, customActualReturnDate?: string) => {
+    try {
+      // 0️⃣ Ambil data admin login (Supabase Auth)
+      const { data: { user } } = await supabase.auth.getUser();
+      const adminId = user?.id || null;
+      const adminName = user?.user_metadata?.name || user?.email || "Unknown Admin";
 
-if (bookingError) throw bookingError;
-
-
-    // 2️⃣ Ambil data kendaraan untuk menghitung denda (jika telat)
-    const { data: vehicleData, error: vehicleFetchError } = await supabase
-      .from("vehicles")
-      .select("price")
-      .eq("id", booking.vehicle_id)
-      .single();
-
-    if (vehicleFetchError) throw vehicleFetchError;
-
-    // 3️⃣ Hitung keterlambatan
-    const today = new Date();
-    const endDate = new Date(booking.end_date);
-    const lateDays = Math.max(
-      0,
-      Math.ceil((today.getTime() - endDate.getTime()) / (1000 * 60 * 60 * 24))
-    );
-    const lateFee = lateDays * (vehicleData?.price || 0);
-
-    // 4️⃣ Update late_days & late_fee di booking
-    await supabase
-      .from("bookings")
-      .update({
-        late_days: lateDays,
-        late_fee: lateFee,
-      })
-      .eq("id", booking.id);
-
-    // 5️⃣ Ubah status kendaraan jadi available
-    const { error: vehicleUpdateError } = await supabase
-      .from("vehicles")
-      .update({ status: "available" })
-      .eq("id", booking.vehicle_id);
-
-    if (vehicleUpdateError) throw vehicleUpdateError;
-
-    // 6️⃣ Jalankan potongan saldo (hanya jika bukan backdate)
-    if (!booking.is_backdated) {
-      const { error: rpcError } = await supabase.rpc("process_payment_late_fee", {
-        p_driver_id: booking.driver_id,
-        p_booking_id: booking.id,
-        p_admin_id: adminId,
-        p_admin_name: adminName,
-      });
-
-      if (rpcError) {
-        console.warn("⚠️ RPC process_payment_late_fee warning:", rpcError.message);
-        // tidak fatal, lanjutkan saja
+      // 🛑 Cegah pemrosesan booking backdate
+      if (booking.is_backdated) {
+        toast({
+          variant: "default",
+          title: "ℹ️ Booking backdate",
+          description: "Booking ini adalah backdate, tidak ada potongan saldo.",
+        });
+        // Tapi tetap boleh menandai sebagai completed
       }
+
+      // 1️⃣ Update booking → completed + actual_return_date
+      const actualReturnDate = booking.is_backdated && customActualReturnDate
+        ? customActualReturnDate // ✅ Gunakan tanggal dari form backdate
+        : booking.status === "confirmed" && booking.finish_enabled
+        ? booking.end_date
+        : new Date().toISOString().split("T")[0];
+
+      const { error: bookingError } = await supabase
+        .from("bookings")
+        .update({
+          status: "completed",
+          actual_return_date: actualReturnDate,
+          finish_enabled: false,
+        })
+        .eq("id", booking.id);
+
+      if (bookingError) throw bookingError;
+
+      // 2️⃣ Ambil data kendaraan untuk menghitung denda (jika telat)
+      const { data: vehicleData, error: vehicleFetchError } = await supabase
+        .from("vehicles")
+        .select("price")
+        .eq("id", booking.vehicle_id)
+        .single();
+
+      if (vehicleFetchError) throw vehicleFetchError;
+
+      // 3️⃣ Hitung keterlambatan
+      const today = new Date();
+      const endDate = new Date(booking.end_date);
+      const lateDays = Math.max(
+        0,
+        Math.ceil((today.getTime() - endDate.getTime()) / (1000 * 60 * 60 * 24))
+      );
+      const lateFee = lateDays * (vehicleData?.price || 0);
+
+      // 4️⃣ Update late_days & late_fee di booking
+      await supabase
+        .from("bookings")
+        .update({
+          late_days: lateDays,
+          late_fee: lateFee,
+        })
+        .eq("id", booking.id);
+
+      // 5️⃣ Ubah status kendaraan jadi available
+      const { error: vehicleUpdateError } = await supabase
+        .from("vehicles")
+        .update({ status: "available" })
+        .eq("id", booking.vehicle_id);
+
+      if (vehicleUpdateError) throw vehicleUpdateError;
+
+      // 6️⃣ Jalankan potongan saldo (hanya jika bukan backdate)
+      if (!booking.is_backdated) {
+        const { error: rpcError } = await supabase.rpc("process_payment_late_fee", {
+          p_driver_id: booking.driver_id,
+          p_booking_id: booking.id,
+          p_admin_id: adminId,
+          p_admin_name: adminName,
+        });
+
+        if (rpcError) {
+          console.warn("⚠️ RPC process_payment_late_fee warning:", rpcError.message);
+        }
+      }
+
+      // 7️⃣ Tampilkan notifikasi sukses
+      let toastDescription = "";
+
+      if (booking.is_backdated) {
+        toastDescription = "Booking backdate telah diselesaikan tanpa potongan saldo.";
+      } else if (lateDays > 0) {
+        toastDescription = `Kendaraan sudah dikembalikan (${lateDays} hari telat, denda Rp ${lateFee.toLocaleString(
+          "id-ID"
+        )}).`;
+      } else {
+        toastDescription = "Kendaraan sudah dikembalikan tepat waktu.";
+      }
+
+      toast({
+        title: "✅ Booking selesai",
+        description: toastDescription,
+      });
+
+      fetchBookings();
+
+    } catch (error: any) {
+      console.error("❌ Error finishing booking:", error);
+      toast({
+        variant: "destructive",
+        title: "Gagal menyelesaikan booking",
+        description: error.message || "Terjadi kesalahan saat menyelesaikan booking",
+      });
     }
+  };
 
-    // 7️⃣ Tampilkan notifikasi sukses
-let toastDescription = "";
-
-if (booking.is_backdated) {
-  // Case 1️⃣ — Booking dibuat mundur (tidak ada potongan saldo)
-  toastDescription = "Booking backdate telah diselesaikan tanpa potongan saldo.";
-} else if (lateDays > 0) {
-  // Case 2️⃣ — Booking real, telat mengembalikan kendaraan
-  toastDescription = `Kendaraan sudah dikembalikan (${lateDays} hari telat, denda Rp ${lateFee.toLocaleString(
-    "id-ID"
-  )}).`;
-} else {
-  // Case 3️⃣ — Booking normal, tepat waktu
-  toastDescription = "Kendaraan sudah dikembalikan tepat waktu.";
-}
-
-toast({
-  title: "✅ Booking selesai",
-  description: toastDescription,
-});
-
-
-    // 8️⃣ Refresh data tabel
-    fetchBookings();
-
-  } catch (error: any) {
-    console.error("❌ Error finishing booking:", error);
-    toast({
-      variant: "destructive",
-      title: "Gagal menyelesaikan booking",
-      description: error.message || "Terjadi kesalahan saat menyelesaikan booking",
-    });
-  }
-};
-
+  const handleSubmitBackdateFinish = async () => {
+    if (!currentBooking) return;
+    
+    // ✅ Validasi: actual_return_date harus sama dengan end_date
+    if (backdateActualReturnDate !== backdateEndDate) {
+      toast({
+        variant: "destructive",
+        title: "Tanggal tidak valid",
+        description: "Tanggal pengembalian harus sama dengan End Date untuk booking backdate.",
+      });
+      return;
+    }
+    
+    setShowBackdateForm(false);
+    await processFinishBooking(currentBooking, backdateActualReturnDate);
+    setCurrentBooking(null);
+  };
 
   const handleConfirmBooking = async (booking: Booking) => {
     setCurrentBooking(booking);
@@ -702,7 +777,7 @@ toast({
     const allowedRoles = ['Super Admin', 'Admin', 'Staff Admin', 'Staff Traffic'];
     
     if (!allowedRoles.includes(userRole)) {
-      toast.error("You don't have permission to create bookings.");
+      toast.error("You don't have permission to Cancel bookings.");
       return;
     }
   };
@@ -770,7 +845,21 @@ toast({
   }
 };
 
+  const canEditBackdateBooking = (booking: Booking) => {
+    // ❌ Tidak bisa edit jika status cancelled
+    if (booking.status === "cancelled") {
+      return false;
+    }
 
+    // ✅ Jika actual_return_date belum sama dengan end_date, semua bisa edit
+    if (booking.actual_return_date !== booking.end_date) {
+      return true;
+    }
+
+    // ✅ Jika actual_return_date sudah sama dengan end_date, hanya Super Admin dan Admin yang bisa edit
+    const allowedRoles = ['Super Admin', 'Admin'];
+    return allowedRoles.includes(userRole);
+  };
 
   return (
     <div className="bg-white min-h-screen p-6">
@@ -865,7 +954,7 @@ toast({
                   <TableCell>
                     <div className="flex items-center gap-2">
                       {getPaymentStatusBadge(booking.payment_status)}
-                      {booking.payment_status === "unpaid" && (
+                      {booking.payment_status === "unpaid" && booking.status !== "cancelled" && (
                         <Button
                           size="sm"
                           variant="default"
@@ -898,16 +987,7 @@ toast({
                           <CheckCircle className="h-4 w-4" />
                         </Button>
                       )}
-                      {booking.status === "confirmed" && (
-                        <Button
-                          size="sm"
-                          variant="default"
-                          onClick={() => handlePickupVehicle(booking)}
-                        >
-                          <Car className="h-4 w-4" />
-                        </Button>
-                      )}
-                      {(booking.status === "ongoing" || booking.status === "onride") && (
+                      {(booking.status === "ongoing" || booking.status === "onride" || booking.status === "confirmed") && (
                         <Button
                           size="sm"
                           variant="default"
@@ -917,6 +997,17 @@ toast({
                         >
                           <CheckCircle className="h-4 w-4 mr-1" />
                           Finish
+                        </Button>
+                      )}
+                      {booking.is_backdated && canEditBackdateBooking(booking) && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="border-orange-500 text-orange-500 hover:bg-orange-50"
+                          onClick={() => handleEditBackdateBooking(booking)}
+                          title="Edit Backdate Booking"
+                        >
+                          <Edit className="h-4 w-4" />
                         </Button>
                       )}
                       {canCancelBooking() && booking.status !== "cancelled" && booking.status !== "completed" && (
@@ -976,115 +1067,78 @@ toast({
       </div>
 
       {/* Payment Proof Upload Dialog */}
-      <Dialog open={isPaymentProofOpen} onOpenChange={setIsPaymentProofOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Upload Payment Proof</DialogTitle>
-            <DialogDescription>
-              Upload proof of payment to mark this booking as paid
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            {currentBooking && (
-              <div className="bg-gray-50 p-4 rounded-md">
-                <p className="text-sm text-gray-600">Booking Code</p>
-                <p className="font-semibold">{currentBooking.code_booking || currentBooking.id}</p>
-                <p className="text-sm text-gray-600 mt-2">Amount</p>
-                <p className="font-semibold">{formatCurrency(currentBooking.total_amount)}</p>
-              </div>
-            )}
-            <div>
-              <Label htmlFor="payment-proof">Payment Proof *</Label>
-              <Input
-                id="payment-proof"
-                type="file"
-                accept="image/*,.pdf"
-                onChange={(e) => setPaymentProofFile(e.target.files?.[0] || null)}
-                className="mt-1"
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                Accepted formats: Images (JPG, PNG) or PDF
+      <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
+  <DialogContent className="max-w-3xl">
+    <DialogHeader>
+      <DialogTitle>Booking Details</DialogTitle>
+    </DialogHeader>
+    {currentBooking && (
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <Label>Code Booking</Label>
+            <p>{currentBooking.code_booking || currentBooking.id}</p>
+          </div>
+          <div>
+            <Label>Driver</Label>
+            <p>{currentBooking.driver?.name || "-"}</p>
+          </div>
+          <div>
+            <Label>Vehicle</Label>
+            <p>
+              {currentBooking.vehicle
+                ? `${currentBooking.vehicle.make} ${currentBooking.vehicle.model}`
+                : "-"}
+            </p>
+          </div>
+          <div>
+            <Label>Total Amount</Label>
+            <p>{formatCurrency(currentBooking.total_amount)}</p>
+          </div>
+        </div>
+
+        {/* ✅ Notes Driver hanya muncul jika status Cancelled */}
+        {currentBooking.status === "cancelled" && (
+          <div>
+            <Label>Other Information</Label>
+            <div className="mt-1">
+              <p className="text-sm font-medium text-gray-800">Notes Driver</p>
+              <p className="text-sm text-gray-700 bg-gray-50 p-3 rounded-md min-h-[60px]">
+                {currentBooking.notes_driver || "-"}
               </p>
             </div>
           </div>
-          <DialogFooter>
-            <Button 
-              variant="outline" 
-              onClick={() => {
-                setIsPaymentProofOpen(false);
-                setPaymentProofFile(null);
-                setCurrentBooking(null);
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleUploadPaymentProof}
-              disabled={isUploadingProof || !paymentProofFile}
-            >
-              {isUploadingProof ? "Uploading..." : "Upload & Mark as Paid"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        )}
 
-      {/* Dialogs */}
-      <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>Booking Details</DialogTitle>
-          </DialogHeader>
-          {currentBooking && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Booking Code</Label>
-                  <p>{currentBooking.code_booking || currentBooking.id}</p>
-                </div>
-                <div>
-                  <Label>Driver</Label>
-                  <p>{currentBooking.driver?.name || "-"}</p>
-                </div>
-                <div>
-                  <Label>Vehicle</Label>
-                  <p>
-                    {currentBooking.vehicle
-                      ? `${currentBooking.vehicle.make} ${currentBooking.vehicle.model}`
-                      : "-"}
-                  </p>
-                </div>
-                <div>
-                  <Label>Total Amount</Label>
-                  <p>{formatCurrency(currentBooking.total_amount)}</p>
-                </div>
-              </div>
-              <div>
-                <Label>Payments</Label>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Amount</TableHead>
-                      <TableHead>Method</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {payments.map((payment) => (
-                      <TableRow key={payment.id}>
-                        <TableCell>{formatDateDDMMYYYY(payment.created_at)}</TableCell>
-                        <TableCell>{formatCurrency(payment.amount)}</TableCell>
-                        <TableCell>{payment.payment_method}</TableCell>
-                        <TableCell>{getPaymentStatusBadge(payment.status)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+        {/* ✅ Bagian Payments */}
+        <div>
+          <Label>Payments</Label>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Date</TableHead>
+                <TableHead>Amount</TableHead>
+                <TableHead>Method</TableHead>
+                <TableHead>Status</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {payments.map((payment) => (
+                <TableRow key={payment.id}>
+                  <TableCell>{formatDateDDMMYYYY(payment.created_at)}</TableCell>
+                  <TableCell>{formatCurrency(payment.amount)}</TableCell>
+                  <TableCell>{payment.payment_method}</TableCell>
+                  <TableCell>{getPaymentStatusBadge(payment.status)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+    )}
+  </DialogContent>
+</Dialog>
+
 
       <Dialog open={showNotesForm} onOpenChange={setShowNotesForm}>
         <DialogContent>
@@ -1153,23 +1207,6 @@ toast({
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isPickupProcessOpen} onOpenChange={setIsPickupProcessOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Vehicle Pickup Process</DialogTitle>
-          </DialogHeader>
-          {currentBooking && (
-            <PickupCustomer
-              booking={currentBooking}
-              onClose={() => {
-                setIsPickupProcessOpen(false);
-                fetchBookings();
-              }}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
-
       <Dialog open={isReturnProcessOpen} onOpenChange={setIsReturnProcessOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -1198,6 +1235,186 @@ toast({
               fetchBookings();
             }}
           />
+        </DialogContent>
+      </Dialog>
+
+      {/* ✅ Backdate Finish Dialog */}
+      <Dialog open={showBackdateForm} onOpenChange={setShowBackdateForm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Booking Backdate</DialogTitle>
+            <DialogDescription>
+              Booking ini adalah backdate. Konfirmasi tanggal selesai booking.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+  <Label>End Date (Tanggal Selesai)</Label>
+  <Input
+    type="text"
+    value={
+      backdateEndDate
+        ? new Date(backdateEndDate)
+            .toLocaleDateString("id-ID")
+            .replaceAll("/", "-") // ubah format dari 15/10/2025 → 15-10-2025
+        : ""
+    }
+    disabled
+    className="bg-gray-100"
+  />
+</div>
+
+            <div className="relative">
+  <Label>Actual Return Date (Tanggal Pengembalian Aktual)</Label>
+
+  {/* Tampilan format lokal (DD-MM-YYYY) */}
+  <Input
+    type="text"
+    readOnly
+    value={
+      backdateActualReturnDate
+        ? new Date(backdateActualReturnDate)
+            .toLocaleDateString("id-ID")
+            .replaceAll("/", "-") // ubah dari 15/10/2025 → 15-10-2025
+        : ""
+    }
+    onClick={() => dateReturnRef.current?.showPicker()} // klik untuk buka datepicker
+    className="mt-1 cursor-pointer bg-white"
+  />
+
+  {/* Input datepicker asli (disembunyikan tapi tetap aktif) */}
+  <input
+    ref={dateReturnRef}
+    type="date"
+    value={backdateActualReturnDate}
+    min={backdateEndDate}
+    max={backdateEndDate}
+    onChange={(e) => setBackdateActualReturnDate(e.target.value)}
+    style={{
+      position: "absolute",
+      top: 0,
+      left: 0,
+      width: "100%",
+      height: "100%",
+      visibility: "hidden", // bukan opacity-0, agar tetap bisa dibuka dengan showPicker()
+      pointerEvents: "none",
+    }}
+  />
+
+  <p className="text-xs text-gray-500 mt-1">
+    Tanggal harus sama dengan End Date
+  </p>
+</div>
+            <p className="text-sm text-gray-600">
+              Booking ini tidak akan memotong saldo driver karena merupakan booking backdate.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowBackdateForm(false)}>
+              Batal
+            </Button>
+            <Button onClick={handleSubmitBackdateFinish}>
+              Selesai
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ✅ Backdate Edit Dialog */}
+      <Dialog open={showBackdateEditForm} onOpenChange={setShowBackdateEditForm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Booking Backdate</DialogTitle>
+            <DialogDescription>
+              Edit tanggal pengembalian aktual untuk booking backdate ini.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {previousActualReturnDate && (
+              <div className="bg-blue-50 p-3 rounded-md">
+                <Label className="text-sm font-medium text-blue-800">
+                  Previous Actual Return Date
+                </Label>
+                <p className="text-sm text-blue-700 mt-1">
+                  {formatDateDDMMYYYY(previousActualReturnDate)}
+                </p>
+              </div>
+            )}
+            {currentBooking && (
+              <div className="bg-blue-50 p-3 rounded-md">
+                <Label className="text-sm font-medium text-blue-800">
+                  End Date Booking
+                </Label>
+                <p className="text-sm text-blue-700 mt-1">
+                  {formatDateDDMMYYYY(currentBooking.end_date)}
+                </p>
+              </div>
+            )}
+           
+
+<div className="relative">
+  <Label>End Date (Tanggal Selesai)</Label>
+
+  {/* Tampilan format DD/MM/YYYY */}
+  <Input
+    type="text"
+    value={
+      backdateEditEndDate
+        ? new Date(backdateEditEndDate).toLocaleDateString("id-ID")
+        : ""
+    }
+    readOnly
+    onClick={() => dateInputRef.current?.showPicker()} // 👈 panggil datepicker manual
+    className="mt-1 bg-white cursor-pointer"
+  />
+
+  {/* Input datepicker asli (disembunyikan tapi tetap aktif) */}
+  <input
+    ref={dateInputRef}
+    type="date"
+    value={backdateEditEndDate}
+    onChange={(e) => setBackdateEditEndDate(e.target.value)}
+    style={{
+      position: "absolute",
+      top: 0,
+      left: 0,
+      width: "100%",
+      height: "100%",
+      visibility: "hidden", // 👈 bukan opacity
+      pointerEvents: "none",
+    }}
+  />
+
+  <p className="text-xs text-gray-500 mt-1">
+    Tanggal ini akan disimpan ke kolom actual_return_date
+  </p>
+</div>
+
+            <div>
+              <Label>Notes (Catatan Admin)</Label>
+              <Textarea
+                value={backdateEditNote}
+                onChange={(e) => setBackdateEditNote(e.target.value)}
+                placeholder="Masukkan catatan untuk perubahan ini..."
+                rows={3}
+                className="mt-1"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Catatan ini harus di isi
+              </p>
+            </div>
+            <p className="text-sm text-gray-600">
+              Booking ini adalah backdate. Anda dapat mengubah tanggal pengembalian aktual.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowBackdateEditForm(false)}>
+              Batal
+            </Button>
+            <Button onClick={handleSaveBackdateEdit}>
+              Save
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

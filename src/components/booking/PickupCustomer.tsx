@@ -19,6 +19,7 @@ import { toast } from "@/components/ui/use-toast";
 
 interface PickupCustomerProps {
   bookingId: string;
+  codeBooking: string;
   vehicleId: string;
   customerName?: string;
   vehicleDetails?: any;
@@ -29,6 +30,7 @@ interface PickupCustomerProps {
 
 const PickupCustomer: React.FC<PickupCustomerProps> = ({
   bookingId,
+  codeBooking,
   vehicleId,
   customerName = "Customer",
   vehicleDetails = null,
@@ -102,6 +104,7 @@ const PickupCustomer: React.FC<PickupCustomerProps> = ({
       if (onComplete) {
         onComplete({
           bookingId,
+          codeBooking,
           vehicleId,
           status: "onride",
           pickupConfirmed: true,
@@ -189,7 +192,7 @@ const PickupCustomer: React.FC<PickupCustomerProps> = ({
       <CardHeader className="bg-primary-tosca/10">
         <CardTitle className="text-2xl font-bold flex items-center">
           <Car className="mr-2 h-6 w-6" />
-          Customer Pickup
+          Customer Pickup1
         </CardTitle>
         <CardDescription>
           Confirm the customer pickup for booking #{bookingId}

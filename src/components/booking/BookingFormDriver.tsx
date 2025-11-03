@@ -27,12 +27,18 @@ interface PaymentMethod {
   bank_name?: string;
 }
 
-export default function BookingFormDriver({ onClose }: BookingFormDriverProps) {
+interface BookingFormDriverProps {
+  onClose: () => void;
+  onSuccess?: () => void;
+}
+
+export default function BookingFormDriver({ onClose, onSuccess }: BookingFormDriverProps) {
   const { user, userRole } = useAuth();
-  
-  // Allow roles: 1 (Super Admin), 5 (Admin), 6 (Staff Admin), 13 (Staff Traffic), 99 (Staff Trips)
-  const canCreateBooking = user?.role_id && [1, 5, 6, 13, 99].includes(user.role_id);
-  
+
+  // ✅ Check permission using userRole from AuthContext
+  const allowedRoles = ["Super Admin", "Admin", "Staff Admin", "Staff Traffic"];
+  const canCreateBooking = userRole && allowedRoles.includes(userRole);
+
   const { toast } = useToast();
   
   // State untuk data dari database
@@ -49,6 +55,7 @@ export default function BookingFormDriver({ onClose }: BookingFormDriverProps) {
   const [paymentMethodType, setPaymentMethodType] = useState("GoPay");
   const [selectedBankId, setSelectedBankId] = useState("");
   const [paidAmount, setPaidAmount] = useState(0);
+  const [notesDriver, setNotesDriver] = useState("");
   
   // State untuk kalkulasi
   const [pricePerDay, setPricePerDay] = useState(0);
@@ -214,7 +221,7 @@ export default function BookingFormDriver({ onClose }: BookingFormDriverProps) {
     try {
       setIsSubmitting(true);
 
-      // Get current user
+      // Get current user (staff/admin yang membuat booking)
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("User not authenticated");
 
@@ -231,23 +238,24 @@ export default function BookingFormDriver({ onClose }: BookingFormDriverProps) {
         ? paymentMethods.find(pm => pm.id === selectedBankId)?.bank_name || ""
         : "";
 
-      // Create booking with all required fields
+      // ✅ Create booking with user_id (staff yang login) dan driver_id (driver yang dipilih)
       const { data: bookingData, error: bookingError } = await supabase
         .from("bookings")
         .insert({
-          user_id: user.id,
-          driver_id: selectedDriverId,
+          user_id: user.id, // ✅ Staff/admin yang membuat booking
+          driver_id: selectedDriverId, // ✅ Driver yang dipilih (UUID dari tabel drivers)
           vehicle_id: selectedVehicleId,
           start_date: startDate,
           end_date: endDate,
-          total_amount: totalAmount, // ✅ Added missing total_amount field
+          total_amount: totalAmount,
           price: pricePerDay,
           payment_type: paymentMethodType,
           paid_amount: paidAmount,
           remaining_payment: remainingPayment,
           bank_name: bankName,
-          payment_status: paymentStatus, // ✅ Changed from 'status' to 'payment_status'
-          status: "pending", // ✅ Set booking status to pending
+          payment_status: paymentStatus,
+          status: "pending",
+          notes_driver: notesDriver || null,
           created_by_role: "Driver Perusahaan",
         })
         .select()
@@ -301,6 +309,7 @@ export default function BookingFormDriver({ onClose }: BookingFormDriverProps) {
       setDuration(0);
       setTotalAmount(0);
       setRemainingPayment(0);
+      setNotesDriver("");
 
       // Refresh data
       fetchDrivers();
@@ -324,7 +333,7 @@ export default function BookingFormDriver({ onClose }: BookingFormDriverProps) {
   if (!canCreateBooking) {
     return (
       <div className="p-6 text-center">
-        <p className="text-red-500">You don't have permission to create bookings.</p>
+        <p className="text-red-500">You don't have permission to create bookings1.</p>
         <Button onClick={onClose} className="mt-4">Close</Button>
       </div>
     );
