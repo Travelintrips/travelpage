@@ -1386,7 +1386,7 @@ export default function BookingManagementDriver() {
   />
 
   <p className="text-xs text-gray-500 mt-1">
-    Tanggal ini akan disimpan ke kolom actual_return_date
+    Tanggal ini akan disimpan untuk perubahan Return date
   </p>
 </div>
 
