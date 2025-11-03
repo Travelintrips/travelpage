@@ -846,20 +846,23 @@ export default function BookingManagementDriver() {
 };
 
   const canEditBackdateBooking = (booking: Booking) => {
-    // ❌ Tidak bisa edit jika status cancelled
-    if (booking.status === "cancelled") {
-      return false;
-    }
+  // ❌ Tidak bisa edit jika status termasuk cancelled, confirmed, atau pending
+  const blockedStatuses = ["cancelled", "confirmed", "pending"];
+  if (blockedStatuses.includes(booking.status)) {
+    return false;
+  }
 
-    // ✅ Jika actual_return_date belum sama dengan end_date, semua bisa edit
-    if (booking.actual_return_date !== booking.end_date) {
-      return true;
-    }
+  // ✅ Jika actual_return_date belum sama dengan end_date, siapa pun bisa edit
+  if (booking.actual_return_date !== booking.end_date) {
+    return true;
+  }
 
-    // ✅ Jika actual_return_date sudah sama dengan end_date, hanya Super Admin dan Admin yang bisa edit
-    const allowedRoles = ['Super Admin', 'Admin'];
-    return allowedRoles.includes(userRole);
-  };
+  // ✅ Jika actual_return_date sudah sama dengan end_date,
+  // hanya Super Admin dan Admin yang boleh edit
+  const allowedRoles = ["Super Admin", "Admin"];
+  return allowedRoles.includes(userRole);
+};
+
 
   return (
     <div className="bg-white min-h-screen p-6">
