@@ -883,6 +883,7 @@ export type Database = {
           code_booking: string | null
           created_at: string | null
           created_at_tz: string
+          created_by_admin_name: string | null
           created_by_role: string | null
           customer_id: string | null
           DATE_PART: number | null
@@ -905,6 +906,7 @@ export type Database = {
           model: string | null
           notes: string | null
           notes_admin: string | null
+          notes_admin_edit_return: string | null
           notes_driver: string | null
           overday_notified: boolean | null
           overdue: number | null
@@ -937,6 +939,7 @@ export type Database = {
           status: string | null
           total_amount: number
           transaction_id: string | null
+          update_actual_return_date_by_admin: string | null
           updated_at: string | null
           user_id: string | null
           vehicle_id: string | null
@@ -956,6 +959,7 @@ export type Database = {
           code_booking?: string | null
           created_at?: string | null
           created_at_tz?: string
+          created_by_admin_name?: string | null
           created_by_role?: string | null
           customer_id?: string | null
           DATE_PART?: number | null
@@ -978,6 +982,7 @@ export type Database = {
           model?: string | null
           notes?: string | null
           notes_admin?: string | null
+          notes_admin_edit_return?: string | null
           notes_driver?: string | null
           overday_notified?: boolean | null
           overdue?: number | null
@@ -1010,6 +1015,7 @@ export type Database = {
           status?: string | null
           total_amount: number
           transaction_id?: string | null
+          update_actual_return_date_by_admin?: string | null
           updated_at?: string | null
           user_id?: string | null
           vehicle_id?: string | null
@@ -1029,6 +1035,7 @@ export type Database = {
           code_booking?: string | null
           created_at?: string | null
           created_at_tz?: string
+          created_by_admin_name?: string | null
           created_by_role?: string | null
           customer_id?: string | null
           DATE_PART?: number | null
@@ -1051,6 +1058,7 @@ export type Database = {
           model?: string | null
           notes?: string | null
           notes_admin?: string | null
+          notes_admin_edit_return?: string | null
           notes_driver?: string | null
           overday_notified?: boolean | null
           overdue?: number | null
@@ -1083,6 +1091,7 @@ export type Database = {
           status?: string | null
           total_amount?: number
           transaction_id?: string | null
+          update_actual_return_date_by_admin?: string | null
           updated_at?: string | null
           user_id?: string | null
           vehicle_id?: string | null
@@ -7501,6 +7510,14 @@ export type Database = {
           description?: string | null
           name?: string | null
           payment_method?: string | null
+        }
+        Relationships: []
+      }
+      vw_pos_dashboard_metrics: {
+        Row: {
+          active_customers: number | null
+          pending_orders: number | null
+          today_sales: number | null
         }
         Relationships: []
       }

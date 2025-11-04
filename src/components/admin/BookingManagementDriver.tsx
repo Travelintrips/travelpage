@@ -949,10 +949,12 @@ export default function BookingManagementDriver() {
                     {booking.vehicle?.license_plate || booking.license_plate || "-"}
                   </TableCell>
                   <TableCell>{formatDateDDMMYYYY(booking.start_date)}</TableCell>
-                  <TableCell>{formatDateDDMMYYYY(booking.end_date)}</TableCell>
-                  <TableCell>
-                    {calculateRentalDays(booking.start_date, booking.end_date)} hari
-                  </TableCell>
+<TableCell>{formatDateDDMMYYYY(booking.end_date)}</TableCell>
+<TableCell>
+  {(booking.rental_days && booking.rental_days > 0 ? booking.rental_days : 1)} hari
+</TableCell>
+
+
                   <TableCell>{formatCurrency(booking.total_amount)}</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">

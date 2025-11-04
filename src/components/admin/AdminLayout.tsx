@@ -541,18 +541,18 @@ const AdminLayout = () => {
           {/* Purchase Requests — semua role boleh */}
           <Link
             to="/admin/purchase-requests"
-            className={`flex items-center gap-3 rounded-lg px-3 py-2 transition-all hover:bg-accent ${
+            className={`flex items-center gap-3 rounded-lg px-3 py-2 transition-colors duration-200 hover:bg-white/20 ${
               location.pathname === "/admin/purchase-requests"
-                ? "bg-accent text-accent-foreground"
-                : "text-muted-foreground"
+                ? "bg-white/20 font-medium text-white"
+                : "text-white/70"
             }`}
           >
-            <ShoppingCart className="h-4 w-4" />
+            <ShoppingCart className="h-4 w-4 text-white" />
             Purchase Requests
           </Link>
 
           {/* Reports — hanya untuk selain Staff Admin */}
-          {userRole !== "Staff Admin" && (
+      {userRole !== "" && (
             <Link
               to="/admin/reports"
               className={`flex items-center p-3 rounded-lg hover:bg-white/20 transition-colors duration-200 ${
@@ -564,7 +564,7 @@ const AdminLayout = () => {
               <Paper className="h-4 w-4 text-white" />
               {sidebarOpen && <span className="ml-3">Reports</span>}
             </Link>
-          )}
+        )}
         </div>
       )}
     </div>

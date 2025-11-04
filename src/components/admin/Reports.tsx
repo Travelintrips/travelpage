@@ -1389,6 +1389,9 @@ const Reports = () => {
                                 </div>
                               </th>
                               <th className="px-4 py-3 text-left font-medium text-gray-900">
+                                License Plate
+                              </th>
+                              <th className="px-4 py-3 text-left font-medium text-gray-900">
                                 Description
                               </th>
                               <th 
@@ -1462,9 +1465,6 @@ const Reports = () => {
                               <th className="px-4 py-3 text-left font-medium text-gray-900">
                                 Vehicle Type
                               </th>
-                              <th className="px-4 py-3 text-left font-medium text-gray-900">
-                                License Plate
-                              </th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-gray-200">
@@ -1492,6 +1492,9 @@ const Reports = () => {
                                   <td className="px-4 py-3 font-medium text-gray-900">
                                     {entry.nama || '-'}
                                   </td>
+                                  <td className="px-4 py-3 text-gray-600 font-mono text-sm">
+                                    {entry.license_plate || '-'}
+                                  </td>
                                   <td className="px-4 py-3 text-gray-600 max-w-xs truncate">
                                     {entry.description || '-'}
                                   </td>
@@ -1518,9 +1521,6 @@ const Reports = () => {
                                   <td className="px-4 py-3 text-gray-600">
                                     {entry.vehicle_type || '-'}
                                   </td>
-                                  <td className="px-4 py-3 text-gray-600 font-mono text-sm">
-                                    {entry.license_plate || '-'}
-                                  </td>
                                 </tr>
                               ))
                             )}
@@ -1529,9 +1529,11 @@ const Reports = () => {
                           {!loading && !loadingJournal && journalEntries.length > 0 && (
                             <tfoot className="bg-gray-100 border-t-2 border-gray-300">
                               <tr>
-                                <td colSpan={4} className="px-4 py-3 text-right font-bold text-gray-900">
+                                <td colSpan={3} className="px-4 py-3 text-right font-bold text-gray-900">
                                   TOTAL:
                                 </td>
+                                <td className="px-4 py-3"></td>
+                                <td className="px-4 py-3"></td>
                                 <td className="px-4 py-3 text-right font-bold text-green-700 text-base">
                                   {formatCurrency(
                                     (journalEntries || []).reduce((a, r) => a + Number(r.total_debit || 0), 0)
@@ -1542,7 +1544,7 @@ const Reports = () => {
                                     (journalEntries || []).reduce((a, r) => a + Number(r.total_credit || 0), 0)
                                   )}
                                 </td>
-                                <td colSpan={5}></td>
+                                <td colSpan={4}></td>
                               </tr>
                             </tfoot>
                           )}
