@@ -172,10 +172,16 @@ export default function BookingManagementDriver() {
     try {
       setIsLoading(true);
       const { data, error } = await supabase
-        .from("bookings")
-        .select("*")
-        .in("created_by_role", ["Driver Perusahaan", "Driver Mitra"])
-        .order("created_at", { ascending: false });
+  .from("bookings")
+  .select(`
+  id, code_booking, start_date, end_date, status, finish_enabled,
+  created_at, created_by_role,
+  user_id, driver_id, vehicle_id,total_amount,rental_days,payment_status,make,model
+`)
+  .in("created_by_role", ["Driver Perusahaan", "Driver Mitra"])
+  .order("created_at", { ascending: false });
+
+
 
       if (error) throw error;
 
@@ -208,16 +214,16 @@ export default function BookingManagementDriver() {
             .single();
 
           return {
-            ...booking,
-            user: userData,
-            driver: driverData,
-            vehicle: vehicleData,
-            vehicle_type: vehicleData?.type || booking.vehicle_type || "MPV",
-            license_plate:
-              vehicleData?.license_plate ||
-              booking.license_plate ||
-              "B 1234 ABC",
-          };
+  ...booking,
+  user_info: userData,
+  driver_info: driverData,
+  vehicle_info: vehicleData,
+  vehicle_type: vehicleData?.type || booking.vehicle_type || "MPV",
+  license_plate:
+    vehicleData?.license_plate || booking.license_plate || "B 1234 ABC",
+};
+
+
         }),
       );
 
@@ -939,10 +945,10 @@ export default function BookingManagementDriver() {
               {currentBookings.map((booking) => (
                 <TableRow key={booking.id || booking.booking_reference}>
                   <TableCell>{booking.code_booking || booking.id}</TableCell>
-                  <TableCell>{booking.driver?.name || "-"}</TableCell>
+                  <TableCell>{booking.driver_info?.name || "-"}</TableCell>
                   <TableCell>
-                    {booking.vehicle
-                      ? `${booking.vehicle.make} ${booking.vehicle.model}`
+                    {booking.vehicle_info
+                      ? `${booking.vehicle_info.make} ${booking.vehicle_info.model}`
                       : "-"}
                   </TableCell>
                   <TableCell>
@@ -992,18 +998,48 @@ export default function BookingManagementDriver() {
                           <CheckCircle className="h-4 w-4" />
                         </Button>
                       )}
-                      {(booking.status === "ongoing" || booking.status === "onride" || booking.status === "confirmed") && (
-                        <Button
-                          size="sm"
-                          variant="default"
-                          className="bg-blue-500 hover:bg-blue-600"
-                          onClick={() => handleFinishBooking(booking)}
-                          title="Mark as Completed"
-                        >
-                          <CheckCircle className="h-4 w-4 mr-1" />
-                          Finish
-                        </Button>
-                      )}
+                      {(
+  booking.status === "ongoing" ||
+  booking.status === "confirmed" ||
+  booking.status === "late" ||
+  booking.status === "upcoming"
+) && (
+  <Button
+    size="sm"
+    variant="default"
+    className={`${
+      booking.finish_enabled || ["Admin", "Super Admin"].includes(userRole)
+        ? "bg-blue-500 hover:bg-blue-600"
+        : "bg-gray-400 cursor-not-allowed"
+    }`}
+    disabled={
+      !booking.finish_enabled &&
+      !["Admin", "Super Admin"].includes(userRole)
+    }
+    onClick={() => {
+      if (booking.finish_enabled || ["Admin", "Super Admin"].includes(userRole)) {
+        handleFinishBooking(booking);
+      } else {
+        toast({
+          title: "Tidak dapat menyelesaikan booking",
+          description: "Hanya dapat menyelesaikan setelah end date.",
+          variant: "destructive",
+        });
+      }
+    }}
+    title={
+      booking.finish_enabled || ["Admin", "Super Admin"].includes(userRole)
+        ? "Mark as Completed"
+        : "Menunggu waktu End Date"
+    }
+  >
+    <CheckCircle className="h-4 w-4 mr-1" />
+    Finish
+  </Button>
+)}
+
+
+
                       {booking.is_backdated && canEditBackdateBooking(booking) && (
                         <Button
                           size="sm"
@@ -1086,13 +1122,13 @@ export default function BookingManagementDriver() {
           </div>
           <div>
             <Label>Driver</Label>
-            <p>{currentBooking.driver?.name || "-"}</p>
+            <p>{currentBooking.driver_info?.name || "-"}</p>
           </div>
           <div>
             <Label>Vehicle</Label>
             <p>
-              {currentBooking.vehicle
-                ? `${currentBooking.vehicle.make} ${currentBooking.vehicle.model}`
+              {currentBooking.vehicle_info
+                ? `${currentBooking.vehicle_info.make} ${currentBooking.vehicle_info.model}`
                 : "-"}
             </p>
           </div>
