@@ -127,6 +127,7 @@ export default function BookingManagementDriver() {
   const [previousActualReturnDate, setPreviousActualReturnDate] = useState<string>("");
   const dateInputRef = useRef<HTMLInputElement | null>(null);
   const dateReturnRef = useRef<HTMLInputElement | null>(null);
+  
 
 
   
@@ -176,7 +177,7 @@ export default function BookingManagementDriver() {
   .select(`
   id, code_booking, start_date, end_date, status, finish_enabled,
   created_at, created_by_role,
-  user_id, driver_id, vehicle_id,total_amount,rental_days,payment_status,make,model
+  user_id, driver_id, vehicle_id,total_amount,rental_days,payment_status,make,model,is_backdated,actual_return_date
 `)
   .in("created_by_role", ["Driver Perusahaan", "Driver Mitra"])
   .order("created_at", { ascending: false });
@@ -395,6 +396,18 @@ export default function BookingManagementDriver() {
   };
 
   const handleEditBackdateBooking = (booking: Booking) => {
+    // ✅ Jika end_date dan actual_return_date sudah sama, tampilkan konfirmasi
+    if (booking.actual_return_date && booking.actual_return_date === booking.end_date) {
+      const confirmEdit = window.confirm(
+        "Booking ini, End Date dan Actual Return Date sudah sesuai, apakah ingin tetap melanjutkan?"
+      );
+      
+      if (!confirmEdit) {
+        return; // ❌ User membatalkan
+      }
+    }
+
+    // ✅ Lanjutkan proses edit
     setCurrentBooking(booking);
     setBackdateEditEndDate(booking.end_date);
     setBackdateEditNote("");
@@ -591,136 +604,151 @@ export default function BookingManagementDriver() {
   };
 
   const processFinishBooking = async (booking: Booking, customActualReturnDate?: string) => {
-    try {
-      // 0️⃣ Ambil data admin login (Supabase Auth)
-      const { data: { user } } = await supabase.auth.getUser();
-      const adminId = user?.id || null;
-      const adminName = user?.user_metadata?.name || user?.email || "Unknown Admin";
+  try {
+    // 0️⃣ Ambil data admin login (Supabase Auth)
+    const { data: { user } } = await supabase.auth.getUser();
+    const adminId = user?.id || null;
+    const adminName = user?.user_metadata?.name || user?.email || "Unknown Admin";
 
-      // 🛑 Cegah pemrosesan booking backdate
-      if (booking.is_backdated) {
-        toast({
-          variant: "default",
-          title: "ℹ️ Booking backdate",
-          description: "Booking ini adalah backdate, tidak ada potongan saldo.",
-        });
-        // Tapi tetap boleh menandai sebagai completed
-      }
+    // 1️⃣ Tentukan actual_return_date
+    const todayJakarta = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta" });
+    const actualReturnDate =
+      booking.is_backdated && customActualReturnDate
+        ? customActualReturnDate
+        : todayJakarta;
 
-      // 1️⃣ Update booking → completed + actual_return_date
-      const actualReturnDate = booking.is_backdated && customActualReturnDate
-        ? customActualReturnDate // ✅ Gunakan tanggal dari form backdate
-        : booking.status === "confirmed" && booking.finish_enabled
-        ? booking.end_date
-        : new Date().toISOString().split("T")[0];
+    // 2️⃣ Update booking jadi completed
+    const { error: bookingError } = await supabase
+      .from("bookings")
+      .update({
+        status: "completed",
+        actual_return_date: actualReturnDate,
+        finish_enabled: false,
+      })
+      .eq("id", booking.id);
 
-      const { error: bookingError } = await supabase
-        .from("bookings")
-        .update({
-          status: "completed",
-          actual_return_date: actualReturnDate,
-          finish_enabled: false,
-        })
-        .eq("id", booking.id);
+    if (bookingError) throw bookingError;
 
-      if (bookingError) throw bookingError;
+    // 3️⃣ Ambil harga kendaraan
+    const { data: vehicleData, error: vehicleFetchError } = await supabase
+      .from("vehicles")
+      .select("price")
+      .eq("id", booking.vehicle_id)
+      .single();
 
-      // 2️⃣ Ambil data kendaraan untuk menghitung denda (jika telat)
-      const { data: vehicleData, error: vehicleFetchError } = await supabase
-        .from("vehicles")
-        .select("price")
-        .eq("id", booking.vehicle_id)
-        .single();
+    if (vehicleFetchError) throw vehicleFetchError;
 
-      if (vehicleFetchError) throw vehicleFetchError;
+    // 4️⃣ Jika bukan backdate → hitung keterlambatan
+    let lateDays = 0;
+    let lateFee = 0;
 
-      // 3️⃣ Hitung keterlambatan
+    if (!booking.is_backdated) {
       const today = new Date();
       const endDate = new Date(booking.end_date);
-      const lateDays = Math.max(
-        0,
-        Math.ceil((today.getTime() - endDate.getTime()) / (1000 * 60 * 60 * 24))
-      );
-      const lateFee = lateDays * (vehicleData?.price || 0);
+      today.setHours(0, 0, 0, 0);
+      endDate.setHours(0, 0, 0, 0);
 
-      // 4️⃣ Update late_days & late_fee di booking
+      const diffDays = Math.floor((today - endDate) / (1000 * 60 * 60 * 24));
+      lateDays = diffDays > 0 ? diffDays : 0;
+      lateFee = lateDays * (vehicleData?.price || 0);
+
       await supabase
         .from("bookings")
-        .update({
-          late_days: lateDays,
-          late_fee: lateFee,
-        })
+        .update({ late_days: lateDays, late_fee: lateFee })
         .eq("id", booking.id);
-
-      // 5️⃣ Ubah status kendaraan jadi available
-      const { error: vehicleUpdateError } = await supabase
-        .from("vehicles")
-        .update({ status: "available" })
-        .eq("id", booking.vehicle_id);
-
-      if (vehicleUpdateError) throw vehicleUpdateError;
-
-      // 6️⃣ Jalankan potongan saldo (hanya jika bukan backdate)
-      if (!booking.is_backdated) {
-        const { error: rpcError } = await supabase.rpc("process_payment_late_fee", {
-          p_driver_id: booking.driver_id,
-          p_booking_id: booking.id,
-          p_admin_id: adminId,
-          p_admin_name: adminName,
-        });
-
-        if (rpcError) {
-          console.warn("⚠️ RPC process_payment_late_fee warning:", rpcError.message);
-        }
-      }
-
-      // 7️⃣ Tampilkan notifikasi sukses
-      let toastDescription = "";
-
-      if (booking.is_backdated) {
-        toastDescription = "Booking backdate telah diselesaikan tanpa potongan saldo.";
-      } else if (lateDays > 0) {
-        toastDescription = `Kendaraan sudah dikembalikan (${lateDays} hari telat, denda Rp ${lateFee.toLocaleString(
-          "id-ID"
-        )}).`;
-      } else {
-        toastDescription = "Kendaraan sudah dikembalikan tepat waktu.";
-      }
-
-      toast({
-        title: "✅ Booking selesai",
-        description: toastDescription,
-      });
-
-      fetchBookings();
-
-    } catch (error: any) {
-      console.error("❌ Error finishing booking:", error);
-      toast({
-        variant: "destructive",
-        title: "Gagal menyelesaikan booking",
-        description: error.message || "Terjadi kesalahan saat menyelesaikan booking",
-      });
     }
-  };
+
+    // 5️⃣ Ubah kendaraan jadi available
+    await supabase
+      .from("vehicles")
+      .update({ status: "available" })
+      .eq("id", booking.vehicle_id);
+
+    // 6️⃣ Jalankan RPC penalty jika ada keterlambatan
+    if (!booking.is_backdated && lateDays > 0) {
+      const { error: rpcError } = await supabase.rpc("process_payment_late_fee", {
+        p_driver_id: booking.driver_id,
+        p_booking_id: booking.id,
+        p_admin_id: adminId,
+        p_admin_name: adminName,
+      });
+      if (rpcError) console.warn("⚠️ RPC warning:", rpcError.message);
+    }
+
+    // 7️⃣ Notifikasi hasil
+    let toastDescription = "";
+    if (booking.is_backdated) {
+      toastDescription = "Booking backdate diselesaikan tanpa potongan saldo.";
+    } else if (lateDays > 0) {
+      toastDescription = `Kendaraan dikembalikan ${lateDays} hari terlambat (denda Rp ${lateFee.toLocaleString("id-ID")}).`;
+    } else {
+      toastDescription = "Kendaraan sudah dikembalikan tepat waktu.";
+    }
+
+    toast({
+      title: "✅ Booking selesai",
+      description: toastDescription,
+    });
+
+    fetchBookings();
+  } catch (error: any) {
+    console.error("❌ Error finishing booking:", error);
+    toast({
+      variant: "destructive",
+      title: "Gagal menyelesaikan booking",
+      description: error.message || "Terjadi kesalahan saat menyelesaikan booking",
+    });
+  }
+};
+
 
   const handleSubmitBackdateFinish = async () => {
-    if (!currentBooking) return;
-    
-    // ✅ Validasi: actual_return_date harus sama dengan end_date
-    if (backdateActualReturnDate !== backdateEndDate) {
-      toast({
-        variant: "destructive",
-        title: "Tanggal tidak valid",
-        description: "Tanggal pengembalian harus sama dengan End Date untuk booking backdate.",
-      });
-      return;
-    }
-    
-    setShowBackdateForm(false);
-    await processFinishBooking(currentBooking, backdateActualReturnDate);
-    setCurrentBooking(null);
-  };
+  if (!currentBooking) return;
+
+  // 🧩 Pastikan tanggal sudah diisi
+  if (!backdateActualReturnDate || !backdateEndDate) {
+    toast({
+      variant: "destructive",
+      title: "Tanggal belum diisi",
+      description: "Silakan isi tanggal pengembalian dan pastikan End Date tersedia.",
+    });
+    return;
+  }
+
+  // 🧩 Buat objek date dari input
+  const actualReturn = new Date(backdateActualReturnDate);
+  const endReturn = new Date(backdateEndDate);
+
+  // 🧩 Validasi tanggal valid
+  if (isNaN(actualReturn.getTime()) || isNaN(endReturn.getTime())) {
+    toast({
+      variant: "destructive",
+      title: "Format tanggal tidak valid",
+      description: "Pastikan format tanggal sesuai (YYYY-MM-DD).",
+    });
+    return;
+  }
+
+  // 🧩 Konversi aman ke YYYY-MM-DD
+  const actualDate = actualReturn.toISOString().split("T")[0];
+  const endDate = endReturn.toISOString().split("T")[0];
+
+  // 🧩 Validasi tanggal sama
+  if (actualDate !== endDate) {
+    toast({
+      variant: "destructive",
+      title: "Tanggal tidak valid",
+      description: "Tanggal pengembalian harus sama dengan End Date untuk booking backdate.",
+    });
+    return;
+  }
+
+  // ✅ Jika lolos semua validasi
+  setShowBackdateForm(false);
+  await processFinishBooking(currentBooking, actualDate);
+  setCurrentBooking(null);
+};
+
 
   const handleConfirmBooking = async (booking: Booking) => {
     setCurrentBooking(booking);
@@ -852,23 +880,26 @@ export default function BookingManagementDriver() {
 };
 
   const canEditBackdateBooking = (booking: Booking) => {
-  // ❌ Tidak bisa edit jika status termasuk cancelled, confirmed, atau pending
-  const blockedStatuses = ["cancelled", "confirmed", "pending"];
+  // ✅ Super Admin dan Admin selalu bisa edit (termasuk yang completed)
+  const allowedRoles = ["Super Admin", "Admin"];
+  if (allowedRoles.includes(userRole)) {
+    return true;
+  }
+
+  // ❌ Untuk role lain, tidak bisa edit jika status termasuk cancelled, confirmed, pending, atau completed
+  const blockedStatuses = ["cancelled", "confirmed", "pending", "completed"];
   if (blockedStatuses.includes(booking.status)) {
     return false;
   }
 
-  // ✅ Jika actual_return_date belum sama dengan end_date, siapa pun bisa edit
-  if (booking.actual_return_date !== booking.end_date) {
-    return true;
+  // ✅ Untuk role lain, hanya bisa edit jika actual_return_date belum sama dengan end_date
+  if (booking.actual_return_date && booking.actual_return_date === booking.end_date) {
+    return false;
   }
 
-  // ✅ Jika actual_return_date sudah sama dengan end_date,
-  // hanya Super Admin dan Admin yang boleh edit
-  const allowedRoles = ["Super Admin", "Admin"];
-  return allowedRoles.includes(userRole);
+  // ✅ Jika actual_return_date belum diisi atau belum sama dengan end_date, tampilkan tombol
+  return true;
 };
-
 
   return (
     <div className="bg-white min-h-screen p-6">
@@ -1008,16 +1039,23 @@ export default function BookingManagementDriver() {
     size="sm"
     variant="default"
     className={`${
-      booking.finish_enabled || ["Admin", "Super Admin"].includes(userRole)
+      booking.is_backdated || 
+      booking.finish_enabled || 
+      ["Admin", "Super Admin"].includes(userRole)
         ? "bg-blue-500 hover:bg-blue-600"
         : "bg-gray-400 cursor-not-allowed"
     }`}
     disabled={
+      !booking.is_backdated &&
       !booking.finish_enabled &&
       !["Admin", "Super Admin"].includes(userRole)
     }
     onClick={() => {
-      if (booking.finish_enabled || ["Admin", "Super Admin"].includes(userRole)) {
+      if (
+        booking.is_backdated || 
+        booking.finish_enabled || 
+        ["Admin", "Super Admin"].includes(userRole)
+      ) {
         handleFinishBooking(booking);
       } else {
         toast({
@@ -1028,7 +1066,9 @@ export default function BookingManagementDriver() {
       }
     }}
     title={
-      booking.finish_enabled || ["Admin", "Super Admin"].includes(userRole)
+      booking.is_backdated
+        ? "Finish Backdate Booking"
+        : booking.finish_enabled || ["Admin", "Super Admin"].includes(userRole)
         ? "Mark as Completed"
         : "Menunggu waktu End Date"
     }
@@ -1044,9 +1084,17 @@ export default function BookingManagementDriver() {
                         <Button
                           size="sm"
                           variant="outline"
-                          className="border-orange-500 text-orange-500 hover:bg-orange-50"
+                          className={`border-orange-500 hover:bg-orange-50 ${
+                            booking.actual_return_date === booking.end_date
+                              ? "text-blue-500 border-blue-500"
+                              : "text-orange-500"
+                          }`}
                           onClick={() => handleEditBackdateBooking(booking)}
-                          title="Edit Backdate Booking"
+                          title={
+                            booking.actual_return_date === booking.end_date
+                              ? "Edit Backdate Booking (Already Edited)"
+                              : "Edit Backdate Booking"
+                          }
                         >
                           <Edit className="h-4 w-4" />
                         </Button>
@@ -1136,7 +1184,54 @@ export default function BookingManagementDriver() {
             <Label>Total Amount</Label>
             <p>{formatCurrency(currentBooking.total_amount)}</p>
           </div>
+           <div>
+            <Label>Star Date</Label>
+            <p>{currentBooking.start_date || startDate}</p>
+          </div>
+          <div>
+            <Label>End Date</Label>
+            <p>{currentBooking.end_date || endDate}</p>
+          </div>
         </div>
+
+       <div>
+  <Label>Actual Return Date</Label>
+  <p>
+    {(currentBooking.actual_return_date ||
+      backdateActualReturnDate ||
+      previousActualReturnDate)
+      ? new Date(
+          currentBooking.actual_return_date ||
+          backdateActualReturnDate ||
+          previousActualReturnDate
+        ).toLocaleDateString("id-ID", {
+          timeZone: "Asia/Jakarta",
+          day: "2-digit",
+          month: "long",
+          year: "numeric",
+        })
+      : "-"}
+  </p>
+</div>
+
+       
+
+        <div>
+  <Label>Pesanan Dibuat</Label>
+  <p>
+    {currentBooking.created_at
+      ? new Date(currentBooking.created_at).toLocaleString("id-ID", {
+          timeZone: "Asia/Jakarta",
+          day: "2-digit",
+          month: "long",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        }) + " WIB"
+      : "-"}
+  </p>
+</div>
+
 
         {/* ✅ Notes Driver hanya muncul jika status Cancelled */}
         {currentBooking.status === "cancelled" && (

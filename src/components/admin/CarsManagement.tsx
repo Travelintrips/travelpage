@@ -433,9 +433,9 @@ const CarsManagement = () => {
         
         // Rented
         supabase
-          .from('vehicles')
-          .select('*', { count: 'exact', head: true })
-          .eq('status', 'rented'),
+    .from('vehicles')
+    .select('*', { count: 'exact', head: true })
+    .or('status.eq.rented,status.eq.in_use'),
         
         // Maintenance
         supabase
@@ -1163,16 +1163,25 @@ const CarsManagement = () => {
 
   // ✅ FIXED: Function to get filter display name
   const getFilterDisplayName = (filterType: string) => {
-    switch (filterType) {
-      case "available": return "Available Cars";
-      case "rented": return "Rented Cars";
-      case "maintenance": return "Maintenance Cars";
-      case "inactive": return "Inactive Cars";
-      case "stnk_expired": return "STNK Expired";
-      case "tax_expired": return "Tax Expired";
-      default: return filterType;
-    }
-  };
+  switch (filterType) {
+    case "available":
+      return "Available Cars";
+    case "rented":
+    case "in_use": // ✅ alias untuk status lama
+      return "Rented Cars";
+    case "maintenance":
+      return "Maintenance Cars";
+    case "inactive":
+      return "Inactive Cars";
+    case "stnk_expired":
+      return "STNK Expired";
+    case "tax_expired":
+      return "Tax Expired";
+    default:
+      return filterType;
+  }
+};
+
 
   // ✅ FIXED: Improved function to handle card click and filter vehicles
   const handleCardClick = async (filterType: string) => {
@@ -1194,8 +1203,9 @@ const CarsManagement = () => {
           query = query.eq("status", "available").eq("is_active", true);
           break;
         case "rented":
-          query = query.eq("status", "rented");
-          break;
+        // ✅ Termasuk "rented" dan "in_use"
+        query = query.or("status.eq.rented,status.eq.in_use");
+        break;
         case "maintenance":
           query = query.eq("status", "maintenance");
           break;

@@ -49,6 +49,7 @@ export default function BookingFormDriver({ onClose, onSuccess }: BookingFormDri
   // State untuk form
   const [selectedDriverId, setSelectedDriverId] = useState("");
   const [selectedModel, setSelectedModel] = useState("");
+  const [selectedMake, setSelectedMake] = useState("");
   const [selectedVehicleId, setSelectedVehicleId] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -91,7 +92,7 @@ export default function BookingFormDriver({ onClose, onSuccess }: BookingFormDri
     try {
       const { data, error } = await supabase
         .from("vehicles")
-        .select("id, model, license_plate, price, status")
+        .select("id, model, license_plate, price, status, make,type")
         .eq("status", "available")
         .order("model");
 
@@ -116,20 +117,61 @@ export default function BookingFormDriver({ onClose, onSuccess }: BookingFormDri
     }
   };
 
-  // Get unique models
-  const uniqueModels = Array.from(new Set(vehicles.map(v => v.model)));
+  // ✅ Generate code_booking dengan format SKD-${dateTime}-${random}-S
+  const generateCodeBooking = () => {
+    const now = new Date();
+    const dateTime = now.toISOString()
+      .replace(/[-:T]/g, '')
+      .slice(0, 14); // Format: YYYYMMDDHHmmss
+    
+    const random = Math.random().toString(36).substring(2, 8).toUpperCase();
+    
+    // ✅ Penambahan huruf "S" menandakan booking dibuat oleh admin
+    return `SKD-${dateTime}-${random}-S`;
+  };
 
-  // Filter vehicles by selected model
-  const filteredVehicles = selectedModel
-    ? vehicles.filter(v => v.model === selectedModel)
+  // Get unique models
+  // 1️⃣ Ambil daftar unik merek (make)
+const uniqueMake = Array.from(new Set(vehicles.map(v => v.make)));
+
+// 2️⃣ Ambil daftar model berdasarkan make yang dipilih
+const filteredModels =
+  selectedMake && vehicles.length > 0
+    ? vehicles
+        .filter(v => v.make === selectedMake)
+        .map(v => v.model)
+        .filter((model, index, self) => self.indexOf(model) === index) // hapus duplikat
     : [];
 
-  // Handle model selection
-  const handleModelChange = (model: string) => {
-    setSelectedModel(model);
-    setSelectedVehicleId("");
-    setPricePerDay(0);
-  };
+// 3️⃣ Ambil daftar kendaraan spesifik berdasarkan make & model
+const filteredVehicles =
+  selectedMake && selectedModel
+    ? vehicles.filter(
+        v => v.make === selectedMake && v.model === selectedModel
+      )
+    : [];
+
+// 4️⃣ Saat make dipilih
+const handleMakeChange = (make: string) => {
+  setSelectedMake(make);
+  setSelectedModel(""); // reset model
+  setSelectedVehicleId("");
+  setPricePerDay(0);
+};
+
+// 5️⃣ Saat model dipilih
+const handleModelChange = (model: string) => {
+  setSelectedModel(model);
+
+  const selectedVehicle = vehicles.find(
+    v => v.make === selectedMake && v.model === model
+  );
+
+  setSelectedVehicleId(selectedVehicle ? selectedVehicle.id : "");
+  setPricePerDay(selectedVehicle ? selectedVehicle.price_per_day || 0 : 0);
+};
+
+
 
   // Handle vehicle selection - Harga otomatis berdasarkan plat nomor kendaraan
   const handleVehicleChange = (vehicleId: string) => {
@@ -225,6 +267,25 @@ export default function BookingFormDriver({ onClose, onSuccess }: BookingFormDri
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("User not authenticated");
 
+      // ✅ Get admin name from users table
+      const { data: userData, error: userError } = await supabase
+        .from("users")
+        .select("full_name")
+        .eq("id", user.id)
+        .single();
+
+      if (userError) throw userError;
+      const adminName = userData?.name || "Unknown Admin";
+
+      // ✅ Get driver data untuk histori transaksi
+      const { data: driverData, error: driverError } = await supabase
+        .from("drivers")
+        .select("user_id, name")
+        .eq("id", selectedDriverId)
+        .single();
+
+      if (driverError) throw driverError;
+
       // Determine payment status: Paid / Partial / Pending
       let paymentStatus = "pending";
       if (paidAmount >= totalAmount) {
@@ -238,10 +299,14 @@ export default function BookingFormDriver({ onClose, onSuccess }: BookingFormDri
         ? paymentMethods.find(pm => pm.id === selectedBankId)?.bank_name || ""
         : "";
 
-      // ✅ Create booking with user_id (staff yang login) dan driver_id (driver yang dipilih)
+      // ✅ Generate code_booking dengan penanda "S"
+      const codeBooking = generateCodeBooking();
+
+      // ✅ Create booking dengan code_booking dan created_by_admin_name
       const { data: bookingData, error: bookingError } = await supabase
         .from("bookings")
         .insert({
+          code_booking: codeBooking, // ✅ Code booking dengan penanda "S"
           user_id: user.id, // ✅ Staff/admin yang membuat booking
           driver_id: selectedDriverId, // ✅ Driver yang dipilih (UUID dari tabel drivers)
           vehicle_id: selectedVehicleId,
@@ -249,7 +314,7 @@ export default function BookingFormDriver({ onClose, onSuccess }: BookingFormDri
           end_date: endDate,
           total_amount: totalAmount,
           price: pricePerDay,
-          payment_type: paymentMethodType,
+          payment_method: paymentMethodType,
           paid_amount: paidAmount,
           remaining_payment: remainingPayment,
           bank_name: bankName,
@@ -257,11 +322,57 @@ export default function BookingFormDriver({ onClose, onSuccess }: BookingFormDri
           status: "pending",
           notes_driver: notesDriver || null,
           created_by_role: "Driver Perusahaan",
+          created_by_admin_name: adminName, // ✅ Nama admin yang membuat booking
         })
         .select()
         .single();
 
       if (bookingError) throw bookingError;
+
+      // ✅ Insert ke histori_transaksi jika ada pembayaran
+      if (paidAmount > 0) {
+        // Get driver's current saldo
+        const { data: driverSaldo, error: saldoError } = await supabase
+          .from("drivers")
+          .select("saldo")
+          .eq("id", selectedDriverId)
+          .single();
+
+        if (saldoError) throw saldoError;
+
+        const saldoAwal = driverSaldo?.saldo || 0;
+        const saldoAkhir = saldoAwal - paidAmount;
+
+        // Insert histori transaksi
+        const { error: historiError } = await supabase
+          .from("histori_transaksi")
+          .insert({
+            user_id: driverData.user_id, // ✅ user_id dari driver
+            code_booking: codeBooking,
+            nominal: paidAmount,
+            saldo_awal: saldoAwal,
+            saldo_akhir: saldoAkhir,
+            keterangan: `Pembayaran Sewa Kendaraan - ${paymentMethodType}`,
+            jenis_transaksi: "Sewa Kendaraan Driver",
+            status: "completed",
+            payment_method: paymentMethodType.toLowerCase(),
+            bank_name: bankName || null,
+            admin_id: user.id,
+            admin_name: adminName,
+            name: driverData.name, // ✅ Nama driver
+            trans_date: new Date().toISOString(),
+          });
+
+        if (historiError) throw historiError;
+
+        // Update driver saldo
+        const { error: updateSaldoError } = await supabase
+          .from("drivers")
+          .update({ saldo: saldoAkhir })
+          .eq("id", selectedDriverId);
+
+        if (updateSaldoError) throw updateSaldoError;
+      }
 
       // Create payment record if payment amount > 0
       if (paidAmount > 0) {
@@ -274,8 +385,8 @@ export default function BookingFormDriver({ onClose, onSuccess }: BookingFormDri
           .insert({
             booking_id: bookingData.id,
             payment_date: new Date().toISOString(),
-            payment_type: paymentMethodType,
-            payment_amount: paidAmount,
+            payment_method: paymentMethodType,
+            total_amount: paidAmount,
             bank_name: bankName,
             status: "completed",
           });
@@ -293,7 +404,7 @@ export default function BookingFormDriver({ onClose, onSuccess }: BookingFormDri
 
       toast({
         title: "✅ Booking dan pembayaran berhasil disimpan!",
-        description: "Booking kendaraan berhasil dibuat",
+        description: `Code Booking: ${codeBooking}`,
       });
 
       // Reset form
@@ -360,39 +471,69 @@ export default function BookingFormDriver({ onClose, onSuccess }: BookingFormDri
 
       {/* Pilih Model & Plat Nomor */}
       <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-2">
-          <Label>Pilih Model</Label>
-          <select
-            className="w-full border rounded px-3 py-2 h-12"
-            value={selectedModel}
-            onChange={(e) => handleModelChange(e.target.value)}
-          >
-            <option value="">Select Model</option>
-            {uniqueModels.map((model) => (
-              <option key={model} value={model}>
-                {model}
-              </option>
-            ))}
-          </select>
-        </div>
-        
-        <div className="space-y-2">
-          <Label>Plat Nomor</Label>
-          <select
-            className="w-full border rounded px-3 py-2 h-12"
-            value={selectedVehicleId}
-            onChange={(e) => handleVehicleChange(e.target.value)}
-            disabled={!selectedModel}
-          >
-            <option value="">Select Plat Nomor</option>
-            {filteredVehicles.map((vehicle) => (
-              <option key={vehicle.id} value={vehicle.id}>
-                {vehicle.license_plate}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
+  {/* Pilih Merk */}
+  <div className="space-y-2">
+    <Label>Pilih Merk</Label>
+    <select
+      className="w-full border rounded px-3 py-2 h-12"
+      value={selectedMake}
+      onChange={(e) => handleMakeChange(e.target.value)}
+    >
+      <option value="">Select Merk</option>
+      {uniqueMake.map((make) => (
+        <option key={make} value={make}>
+          {make}
+        </option>
+      ))}
+    </select>
+  </div>
+
+  {/* Pilih Model */}
+  <div className="space-y-2">
+    <Label>Pilih Model</Label>
+    <select
+      className="w-full border rounded px-3 py-2 h-12"
+      value={selectedModel}
+      onChange={(e) => handleModelChange(e.target.value)}
+    >
+      <option value="">Select Model</option>
+      {filteredModels.map((model) => (
+        <option key={model} value={model}>
+          {model}
+        </option>
+      ))}
+    </select>
+  </div>
+
+  {/* Pilih Plat Nomor */}
+  <div className="space-y-2">
+    <Label>Plat Nomor</Label>
+    <select
+      className="w-full border rounded px-3 py-2 h-12"
+      value={selectedVehicleId}
+      onChange={(e) => handleVehicleChange(e.target.value)}
+      disabled={!selectedModel}
+    >
+      <option value="">Select Plat Nomor</option>
+      {filteredVehicles.map((vehicle) => (
+        <option key={vehicle.id} value={vehicle.id}>
+          {vehicle.license_plate}
+        </option>
+      ))}
+    </select>
+  </div>
+
+  {/* Tipe Kendaraan - langsung muncul */}
+  <div className="space-y-2">
+    <Label>Tipe Kendaraan</Label>
+    <div className="w-full border rounded px-3 py-2 h-12 flex items-center bg-gray-50">
+      {selectedVehicleId
+        ? filteredVehicles.find((v) => v.id === selectedVehicleId)?.type || "-"
+        : "-"}
+    </div>
+  </div>
+</div>
+
 
       {/* Tanggal Pengambilan & Pengembalian */}
       <div className="grid grid-cols-2 gap-3">
