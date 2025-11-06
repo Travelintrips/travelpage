@@ -179,7 +179,7 @@ export default function BookingManagementDriver() {
   created_at, created_by_role,
   user_id, driver_id, vehicle_id,total_amount,rental_days,payment_status,make,model,is_backdated,actual_return_date
 `)
-  .in("created_by_role", ["Driver Perusahaan", "Driver Mitra"])
+  .in("created_by_role", ["Driver Perusahaan", "Driver Mitra", "Admin"])
   .order("created_at", { ascending: false });
 
 
@@ -905,13 +905,14 @@ export default function BookingManagementDriver() {
     <div className="bg-white min-h-screen p-6">
       {/* Header Section */}
       <div className="mb-6">
+      {(userRole === "Super Admin" || userRole === "Admin" )&& (
         <div className="flex justify-between items-center mb-4">
           <h1 className="text-2xl font-bold">Driver Booking Management</h1>
           <Button onClick={() => setShowBookingForm(true)}>
             + New Booking
           </Button>
         </div>
-
+      )}
         {/* Search and Filter */}
         <div className="flex gap-4 mb-4">
           <div className="relative flex-1">

@@ -168,10 +168,8 @@ const handleModelChange = (model: string) => {
   );
 
   setSelectedVehicleId(selectedVehicle ? selectedVehicle.id : "");
-  setPricePerDay(selectedVehicle ? selectedVehicle.price_per_day || 0 : 0);
+  setPricePerDay(selectedVehicle ? selectedVehicle.price || 0 : 0); // ✅ Gunakan price, bukan price_per_day
 };
-
-
 
   // Handle vehicle selection - Harga otomatis berdasarkan plat nomor kendaraan
   const handleVehicleChange = (vehicleId: string) => {
@@ -275,16 +273,25 @@ const handleModelChange = (model: string) => {
         .single();
 
       if (userError) throw userError;
-      const adminName = userData?.name || "Unknown Admin";
+      const adminName = userData?.full_name || "Unknown Admin";
 
       // ✅ Get driver data untuk histori transaksi
       const { data: driverData, error: driverError } = await supabase
         .from("drivers")
-        .select("user_id, name")
+        .select("user_id, name, role_name")
         .eq("id", selectedDriverId)
         .single();
 
       if (driverError) throw driverError;
+
+      // ✅ Get vehicle data untuk booking
+      const { data: vehicleData, error: vehicleError } = await supabase
+        .from("vehicles")
+        .select("license_plate, make, model, type")
+        .eq("id", selectedVehicleId)
+        .single();
+
+      if (vehicleError) throw vehicleError;
 
       // Determine payment status: Paid / Partial / Pending
       let paymentStatus = "pending";
@@ -302,16 +309,30 @@ const handleModelChange = (model: string) => {
       // ✅ Generate code_booking dengan penanda "S"
       const codeBooking = generateCodeBooking();
 
-      // ✅ Create booking dengan code_booking dan created_by_admin_name
+      // ✅ Extract time from datetime-local
+      const startDateTime = new Date(startDate);
+      const endDateTime = new Date(endDate);
+      const startTime = startDateTime.toTimeString().slice(0, 5); // HH:mm
+      const endTime = endDateTime.toTimeString().slice(0, 5); // HH:mm
+
+      // ✅ Create booking dengan data yang diperbaiki
       const { data: bookingData, error: bookingError } = await supabase
         .from("bookings")
         .insert({
-          code_booking: codeBooking, // ✅ Code booking dengan penanda "S"
+          code_booking: codeBooking, // ✅ Auto generate code booking
+          // ✅ booking_id akan di-generate otomatis oleh database (UUID)
           user_id: user.id, // ✅ Staff/admin yang membuat booking
           driver_id: selectedDriverId, // ✅ Driver yang dipilih (UUID dari tabel drivers)
           vehicle_id: selectedVehicleId,
+          booking_date: startDate, // ✅ Sama dengan start_date
           start_date: startDate,
           end_date: endDate,
+          start_time: startTime, // ✅ Ambil dari form Tanggal Pengambilan
+          end_time: endTime, // ✅ Ambil dari form Tanggal Pengembalian
+          vehicle_type: vehicleData.type, // ✅ Dari tabel vehicles
+          license_plate: vehicleData.license_plate, // ✅ Dari tabel vehicles
+          make: vehicleData.make, // ✅ Dari tabel vehicles
+          model: vehicleData.model, // ✅ Dari tabel vehicles
           total_amount: totalAmount,
           price: pricePerDay,
           payment_method: paymentMethodType,
@@ -321,7 +342,7 @@ const handleModelChange = (model: string) => {
           payment_status: paymentStatus,
           status: "pending",
           notes_driver: notesDriver || null,
-          created_by_role: "Driver Perusahaan",
+          created_by_role: driverData.role || "Driver Perusahaan", // ✅ Detect dari drivers.role
           created_by_admin_name: adminName, // ✅ Nama admin yang membuat booking
         })
         .select()
@@ -343,11 +364,11 @@ const handleModelChange = (model: string) => {
         const saldoAwal = driverSaldo?.saldo || 0;
         const saldoAkhir = saldoAwal - paidAmount;
 
-        // Insert histori transaksi
+        // Insert histori transaksi dengan data yang diperbaiki
         const { error: historiError } = await supabase
           .from("histori_transaksi")
           .insert({
-            user_id: driverData.user_id, // ✅ user_id dari driver
+            user_id: driverData.user_id, // ✅ UUID dari drivers yang dipilih
             code_booking: codeBooking,
             nominal: paidAmount,
             saldo_awal: saldoAwal,
@@ -358,8 +379,9 @@ const handleModelChange = (model: string) => {
             payment_method: paymentMethodType.toLowerCase(),
             bank_name: bankName || null,
             admin_id: user.id,
-            admin_name: adminName,
+            admin_name: adminName, // ✅ Nama user yang sign in
             name: driverData.name, // ✅ Nama driver
+            created_at: new Date().toISOString(), // ✅ Timestamp saat ini
             trans_date: new Date().toISOString(),
           });
 
@@ -395,12 +417,12 @@ const handleModelChange = (model: string) => {
       }
 
       // Update vehicle status
-      const { error: vehicleError } = await supabase
+      const { error: updateVehicleError } = await supabase
         .from("vehicles")
         .update({ status: "booked" })
         .eq("id", selectedVehicleId);
 
-      if (vehicleError) throw vehicleError;
+      if (updateVehicleError) throw updateVehicleError;
 
       toast({
         title: "✅ Booking dan pembayaran berhasil disimpan!",
@@ -645,7 +667,7 @@ const handleModelChange = (model: string) => {
         onClick={handleSubmit}
         disabled={isSubmitting}
       >
-        {isSubmitting ? "Processing..." : "✓ Selesaikan Booking"}
+        {isSubmitting ? "Processing..." : "✓ Buat Pesanan"}
       </Button>
     </div>
   );
