@@ -87,6 +87,7 @@ export default function DriverDetailPage() {
   // Histori Transaksi filters and pagination
   const [transaksiSearchTerm, setTransaksiSearchTerm] = useState("");
   const [transaksiStatusFilter, setTransaksiStatusFilter] = useState("all");
+  const [transaksiTypeFilter, setTransaksiTypeFilter] = useState("all"); // ✅ Filter jenis transaksi
   const [transaksiPage, setTransaksiPage] = useState(1);
   const [transaksiRowsPerPage, setTransaksiRowsPerPage] = useState(10);
 
@@ -202,8 +203,22 @@ export default function DriverDetailPage() {
       );
     }
 
+    // ✅ Type filter (Top Up / Sewa Kendaraan)
+    if (transaksiTypeFilter !== "all") {
+      if (transaksiTypeFilter === "topup") {
+        filtered = filtered.filter((transaksi) => 
+          (transaksi.jenis_transaksi || "").toLowerCase().includes("top") ||
+          (transaksi.jenis_transaksi || "").toLowerCase().includes("topup")
+        );
+      } else if (transaksiTypeFilter === "sewa") {
+        filtered = filtered.filter((transaksi) => 
+          (transaksi.jenis_transaksi || "").toLowerCase().includes("sewa")
+        );
+      }
+    }
+
     return filtered;
-  }, [historiTransaksi, transaksiSearchTerm, transaksiStatusFilter]);
+  }, [historiTransaksi, transaksiSearchTerm, transaksiStatusFilter, transaksiTypeFilter]);
 
   const paginatedTransaksi = useMemo(() => {
     const startIndex = (transaksiPage - 1) * transaksiRowsPerPage;
@@ -489,7 +504,7 @@ export default function DriverDetailPage() {
               </div>
             </div>
             <div>
-              <label className="text-sm font-medium text-gray-500">Balance</label>
+              <label className="text-sm font-medium text-gray-500">Saldo/Balance</label>
               <p className={`text-lg font-semibold ${(driver.saldo || 0) < 0 ? 'text-red-600' : 'text-green-600'}`}>
                 {formatCurrency(driver.saldo || 0)}
               </p>
@@ -609,6 +624,22 @@ export default function DriverDetailPage() {
                     className="pl-10"
                   />
                 </div>
+                
+                {/* ✅ Filter Jenis Transaksi */}
+                <Select value={transaksiTypeFilter} onValueChange={(value) => {
+                  setTransaksiTypeFilter(value);
+                  setTransaksiPage(1);
+                }}>
+                  <SelectTrigger className="w-[200px]">
+                    <SelectValue placeholder="Filter by type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Transaction Type</SelectItem>
+                    <SelectItem value="topup">Top Up</SelectItem>
+                    <SelectItem value="sewa">Sewa Kendaraan</SelectItem>
+                  </SelectContent>
+                </Select>
+
                 <Select value={transaksiStatusFilter} onValueChange={(value) => {
                   setTransaksiStatusFilter(value);
                   setTransaksiPage(1);
@@ -617,7 +648,7 @@ export default function DriverDetailPage() {
                     <SelectValue placeholder="Filter by status" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="all">All Booking Status</SelectItem>
                     <SelectItem value="completed">Completed</SelectItem>
                     <SelectItem value="verified">Verified</SelectItem>
                     <SelectItem value="pending">Pending</SelectItem>

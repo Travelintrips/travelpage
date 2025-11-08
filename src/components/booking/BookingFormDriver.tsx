@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
-import { Car } from "lucide-react";
+import { Car, Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface Driver {
@@ -127,7 +127,7 @@ export default function BookingFormDriver({ onClose, onSuccess }: BookingFormDri
     const random = Math.random().toString(36).substring(2, 8).toUpperCase();
     
     // ✅ Penambahan huruf "S" menandakan booking dibuat oleh admin
-    return `SKD-${dateTime}-${random}-S`;
+    return `SKD-${dateTime}-${random}-ADM`;
   };
 
   // Get unique models
@@ -190,7 +190,7 @@ const handleModelChange = (model: string) => {
       const start = new Date(startDate);
       const end = new Date(endDate);
       const diffTime = Math.abs(end.getTime() - start.getTime());
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
       setDuration(diffDays);
       
       // Total biaya = price_per_day × jumlah_hari
@@ -278,7 +278,7 @@ const handleModelChange = (model: string) => {
       // ✅ Get driver data untuk histori transaksi
       const { data: driverData, error: driverError } = await supabase
         .from("drivers")
-        .select("user_id, name, role_name")
+        .select("id, user_id, name, role_name, saldo")
         .eq("id", selectedDriverId)
         .single();
 
@@ -342,6 +342,8 @@ const handleModelChange = (model: string) => {
           payment_status: paymentStatus,
           status: "pending",
           notes_driver: notesDriver || null,
+          saldo_awal: driverData.saldo || 0, // ✅ Saldo awal driver
+          saldo_akhir: (driverData.saldo || 0) - paidAmount, // ✅ Saldo akhir driver
           created_by_role: driverData.role || "Driver Perusahaan", // ✅ Detect dari drivers.role
           created_by_admin_name: adminName, // ✅ Nama admin yang membuat booking
         })
@@ -352,30 +354,21 @@ const handleModelChange = (model: string) => {
 
       // ✅ Insert ke histori_transaksi jika ada pembayaran
       if (paidAmount > 0) {
-        // Get driver's current saldo
-        const { data: driverSaldo, error: saldoError } = await supabase
-          .from("drivers")
-          .select("saldo")
-          .eq("id", selectedDriverId)
-          .single();
-
-        if (saldoError) throw saldoError;
-
-        const saldoAwal = driverSaldo?.saldo || 0;
+        const saldoAwal = driverData.saldo || 0;
         const saldoAkhir = saldoAwal - paidAmount;
 
         // Insert histori transaksi dengan data yang diperbaiki
         const { error: historiError } = await supabase
           .from("histori_transaksi")
           .insert({
-            user_id: driverData.user_id, // ✅ UUID dari drivers yang dipilih
+            user_id: driverData.id, // ✅ ID dari drivers yang dipilih
             code_booking: codeBooking,
             nominal: paidAmount,
             saldo_awal: saldoAwal,
             saldo_akhir: saldoAkhir,
             keterangan: `Pembayaran Sewa Kendaraan - ${paymentMethodType}`,
             jenis_transaksi: "Sewa Kendaraan Driver",
-            status: "completed",
+            status: "pending",
             payment_method: paymentMethodType.toLowerCase(),
             bank_name: bankName || null,
             admin_id: user.id,
@@ -405,12 +398,18 @@ const handleModelChange = (model: string) => {
         const { error: paymentError } = await supabase
           .from("payments")
           .insert({
-            booking_id: bookingData.id,
+            booking_id: bookingData.booking_id,
+            user_id: driverData.id,
             payment_date: new Date().toISOString(),
             payment_method: paymentMethodType,
             total_amount: paidAmount,
             bank_name: bankName,
-            status: "completed",
+            code_booking: codeBooking,
+            license_plate: vehicleData.license_plate,
+            make: vehicleData.make,
+            model: vehicleData.model,
+            created_at: new Date().toISOString(),
+            status: "paid",
           });
 
         if (paymentError) throw paymentError;
@@ -419,10 +418,66 @@ const handleModelChange = (model: string) => {
       // Update vehicle status
       const { error: updateVehicleError } = await supabase
         .from("vehicles")
-        .update({ status: "booked" })
+        .update({ status: "Rented" })
         .eq("id", selectedVehicleId);
 
       if (updateVehicleError) throw updateVehicleError;
+
+      // ✅ Send WhatsApp notification setelah booking berhasil
+      try {
+        // Normalize phone number
+        function normalizePhone(phone: string | undefined) {
+          if (!phone) return "";
+          phone = phone.replace(/\D/g, "").trim();
+          if (phone.startsWith("0")) return "62" + phone.substring(1);
+          if (phone.startsWith("62")) return phone;
+          return phone;
+        }
+
+        const targetPhone = normalizePhone(driverData.phone_number);
+        
+        // Gabungkan grup + driver
+        const targets = [
+          "120363403813189599@g.us", // grup WA
+          targetPhone,
+        ].filter(Boolean);
+
+        if (targets.length > 0) {
+          const bookingDetails = `Booking berhasil dibuat!
+
+Detail Booking:
+- Type Kendaraan: ${vehicleData.type}
+- Merk/Model: ${vehicleData.make} ${vehicleData.model}
+- Plat Nomor: ${vehicleData.license_plate}
+- Tanggal: ${new Date(startDate).toLocaleDateString("id-ID")}
+- Waktu: ${startTime}
+- Total: Rp ${totalAmount.toLocaleString("id-ID")}
+- Status: ${paymentStatus === "paid" ? "Pembayaran Berhasil" : paymentStatus === "partial" ? "Pembayaran Sebagian" : "Belum Bayar"}
+- Driver: ${driverData.name}${targetPhone ? ` (${targetPhone})` : ""}
+- Booking ID: ${codeBooking}`;
+
+          const { data: result, error: fnError } = await supabase.functions.invoke(
+            "supabase-functions-send-whatsapp",
+            {
+              body: {
+                target: targets,
+                message: bookingDetails,
+              },
+            }
+          );
+
+          if (fnError) {
+            console.error("❌ Edge Function error:", fnError);
+          } else if (!result?.success) {
+            console.error("❌ Fonnte API error:", result?.error || result?.data);
+          } else {
+            console.log("✅ WhatsApp notification sent successfully:", result.data);
+          }
+        }
+      } catch (notificationError) {
+        console.error("Error sending WhatsApp notification:", notificationError);
+        // Don't fail the booking if notification fails
+      }
 
       toast({
         title: "✅ Booking dan pembayaran berhasil disimpan!",
@@ -449,6 +504,11 @@ const handleModelChange = (model: string) => {
       fetchVehicles();
 
       if (onSuccess) onSuccess();
+      
+      // ✅ Auto close form setelah 1 detik
+      setTimeout(() => {
+        onClose();
+      }, 1000);
 
     } catch (error: any) {
       console.error("Error creating booking:", error);
@@ -667,7 +727,14 @@ const handleModelChange = (model: string) => {
         onClick={handleSubmit}
         disabled={isSubmitting}
       >
-        {isSubmitting ? "Processing..." : "✓ Buat Pesanan"}
+        {isSubmitting ? (
+          <div className="flex items-center gap-2">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            <span>Processing Booking...</span>
+          </div>
+        ) : (
+          "✓ Buat Pesanan"
+        )}
       </Button>
     </div>
   );

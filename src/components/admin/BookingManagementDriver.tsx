@@ -36,6 +36,7 @@ import {
   CheckCircle,
   XCircle,
   Upload,
+  Loader2,
   Edit,
 } from "lucide-react";
 import PostRentalInspectionForm from "@/components/booking/PostRentalInspectionForm";
@@ -84,10 +85,11 @@ interface Booking {
 interface Payment {
   id: string;
   booking_id: string;
-  amount: number;
+  paid_amount: number;
   payment_method: string;
   status: string;
   created_at: string;
+  payment_date: string;
   damage_payment?: {
     damage_description: string;
   };
@@ -127,10 +129,14 @@ export default function BookingManagementDriver() {
   const [previousActualReturnDate, setPreviousActualReturnDate] = useState<string>("");
   const dateInputRef = useRef<HTMLInputElement | null>(null);
   const dateReturnRef = useRef<HTMLInputElement | null>(null);
+  const [isConfirming, setIsConfirming] = useState(false);
+  const [isFinishing, setIsFinishing] = useState(false); // ✅ State untuk loading finish
+  const lowercasedSearch = searchTerm.trim().toLowerCase();
   
 
 
-  
+  //const [bookings, setBookings] = useState([]);
+  const [loading, setLoading] = useState(false);
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -177,7 +183,7 @@ export default function BookingManagementDriver() {
   .select(`
   id, code_booking, start_date, end_date, status, finish_enabled,
   created_at, created_by_role,
-  user_id, driver_id, vehicle_id,total_amount,rental_days,payment_status,make,model,is_backdated,actual_return_date
+  user_id, driver_id, vehicle_id,total_amount,rental_days,payment_status,make,model,is_backdated,actual_return_date,booking_id
 `)
   .in("created_by_role", ["Driver Perusahaan", "Driver Mitra", "Admin"])
   .order("created_at", { ascending: false });
@@ -242,39 +248,86 @@ export default function BookingManagementDriver() {
     }
   };
 
-  const fetchPayments = async (bookingId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from("payments")
-        .select("*")
-        .eq("booking_id", bookingId)
-        .order("created_at", { ascending: false });
+  useEffect(() => {
+    fetchBookings(); // pertama kali load
 
-      if (error) throw error;
-      setPayments(data || []);
-    } catch (error) {
-      console.error("Error fetching payments:", error);
-      toast({
-        variant: "destructive",
-        title: "Error fetching payments",
-        description: error.message,
-      });
-    }
-  };
+    const channel = supabase
+      .channel("bookings-realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "bookings" },
+        async (payload) => {
+          console.log("Realtime event:", payload.eventType, payload.new || payload.old);
 
-  const handleViewDetails = async (booking: Booking) => {
-    setCurrentBooking(booking);
-    await fetchPayments(booking.id);
-    setIsDetailsOpen(true);
-    setPaymentAmount(booking.total_amount);
-  };
+          // Ambil ulang data supaya join users/drivers/vehicles tetap sinkron
+          await fetchBookings();
 
-  const handleOpenPaymentDialog = (booking: Booking) => {
-    setCurrentBooking(booking);
-    setPaymentAmount(booking.total_amount);
-    setPaymentMethod("Cash");
-    setIsPaymentOpen(true);
-  };
+          // Opsional: notifikasi perubahan
+          if (payload.eventType === "INSERT") {
+            toast({
+              title: "New Booking Added",
+              description: `Kode: ${payload.new.code_booking}`,
+            });
+          } else if (payload.eventType === "UPDATE") {
+            toast({
+              title: "Booking Updated",
+              description: `Kode: ${payload.new.code_booking}`,
+            });
+          } /*else if (payload.eventType === "DELETE") {
+            toast({
+              title: "Booking Updated",
+              description: `Kode: ${payload.old.code_booking}`,
+            });
+          }*/
+        }
+      )
+      .subscribe();
+
+    // Cleanup saat komponen unmount
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  const fetchPayments = async (bookingId?: string) => {
+  if (!bookingId) {
+    console.warn("⚠️ bookingId is missing!");
+    return;
+  }
+  try {
+    const { data, error } = await supabase
+      .from("payments")
+      .select("*")
+      .eq("booking_id", bookingId)
+      .order("created_at", { ascending: false });
+
+    if (error) throw error;
+    setPayments(data || []);
+  } catch (error: any) {
+    console.error("Error fetching payments:", error);
+    toast({
+      variant: "destructive",
+      title: "Error fetching payments",
+      description: error.message || String(error),
+    });
+  }
+};
+
+const handleViewDetails = async (booking: Booking) => {
+  console.log("Viewing details for booking:", booking.booking_id);
+  setCurrentBooking(booking);
+  await fetchPayments(booking.booking_id);
+  setIsDetailsOpen(true);
+  setPaymentAmount(booking.paid_amount);
+};
+
+const handleOpenPaymentDialog = (booking: Booking) => {
+  setCurrentBooking(booking);
+  setPaymentAmount(booking.paid_amount);
+  setPaymentMethod("Cash");
+  setIsPaymentOpen(true);
+};
+
 
   const handleProcessReturn = (booking: Booking) => {
     setCurrentBooking(booking);
@@ -535,15 +588,46 @@ export default function BookingManagementDriver() {
 
     // Apply search filter
     if (searchTerm.trim() !== "") {
-      const lowercasedSearch = searchTerm.toLowerCase();
-      filtered = filtered.filter(
-        (booking) =>
-          booking.driver?.name?.toLowerCase().includes(lowercasedSearch) ||
+      const lowercasedSearch = searchTerm.trim().toLowerCase();
+
+      filtered = filtered.filter((booking) => {
+        const driverName = [
+          booking.driver_name,
+          booking.driver?.name,
+          booking.driver?.full_name,
+          booking.driver_info?.name,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+
+        const vehicleInfo = [
+          booking.vehicle_info?.make,
+          booking.vehicle_info?.model,
+          booking.vehicle?.make,
+          booking.vehicle?.model,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+
+        const licensePlate = (
+          booking.vehicle_info?.license_plate ||
+          booking.vehicle?.license_plate ||
+          booking.license_plate ||
+          ""
+        ).toLowerCase();
+
+        return (
+          driverName.includes(lowercasedSearch) ||
+          vehicleInfo.includes(lowercasedSearch) ||
+          licensePlate.includes(lowercasedSearch) ||
           booking.code_booking?.toLowerCase().includes(lowercasedSearch) ||
-          booking.id.toString().includes(lowercasedSearch) ||
           booking.status?.toLowerCase().includes(lowercasedSearch) ||
-          booking.payment_status?.toLowerCase().includes(lowercasedSearch),
-      );
+          booking.payment_status?.toLowerCase().includes(lowercasedSearch) ||
+          booking.id?.toString().toLowerCase().includes(lowercasedSearch)
+        );
+      });
     }
 
     // Apply over day filter
@@ -605,6 +689,8 @@ export default function BookingManagementDriver() {
 
   const processFinishBooking = async (booking: Booking, customActualReturnDate?: string) => {
   try {
+    setIsFinishing(true); // ✅ Aktifkan loading
+
     // 0️⃣ Ambil data admin login (Supabase Auth)
     const { data: { user } } = await supabase.auth.getUser();
     const adminId = user?.id || null;
@@ -698,6 +784,8 @@ export default function BookingManagementDriver() {
       title: "Gagal menyelesaikan booking",
       description: error.message || "Terjadi kesalahan saat menyelesaikan booking",
     });
+  } finally {
+    setIsFinishing(false); // ✅ Matikan loading
   }
 };
 
@@ -760,6 +848,7 @@ export default function BookingManagementDriver() {
   if (!currentBooking) return;
 
   try {
+    setIsConfirming(true);
     const today = new Date();
     const startDate = new Date(currentBooking.start_date);
     const endDate = new Date(currentBooking.end_date);
@@ -797,6 +886,8 @@ export default function BookingManagementDriver() {
       title: "Error confirming booking",
       description: error.message || "Failed to confirm booking",
     });
+ } finally {
+    setIsConfirming(false); // ✅ matikan loading
   }
 };
 
@@ -901,18 +992,77 @@ export default function BookingManagementDriver() {
   return true;
 };
 
+
+useEffect(() => {
+  fetchBookings();
+}, []);
+
   return (
     <div className="bg-white min-h-screen p-6">
       {/* Header Section */}
+      
       <div className="mb-6">
-      {(userRole === "Super Admin" || userRole === "Admin" )&& (
+      
         <div className="flex justify-between items-center mb-4">
           <h1 className="text-2xl font-bold">Driver Booking Management</h1>
-          <Button onClick={() => setShowBookingForm(true)}>
-            + New Booking
-          </Button>
-        </div>
+          <div className="flex gap-2">
+    <Button
+      variant="outline"
+      onClick={fetchBookings}
+      disabled={loading}
+      className="flex items-center gap-2"
+    >
+      {loading ? (
+        <>
+          <svg
+            className="animate-spin h-4 w-4 text-gray-600"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+          >
+            <circle
+              className="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              strokeWidth="4"
+            ></circle>
+            <path
+              className="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8v8H4z"
+            ></path>
+          </svg>
+          Refreshing...
+        </>
+      ) : (
+        <>
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="h-4 w-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              d="M4 4v6h6M20 20v-6h-6M4 20l6-6m10-10l-6 6"
+            />
+          </svg>
+          Refresh
+        </>
       )}
+    </Button>
+
+    <Button onClick={() => setShowBookingForm(true)} className="bg-green-600 hover:bg-green-700">
+      + New Booking
+    </Button>
+  </div>
+  </div>
+      
         {/* Search and Filter */}
         <div className="flex gap-4 mb-4">
           <div className="relative flex-1">
@@ -1047,9 +1197,10 @@ export default function BookingManagementDriver() {
         : "bg-gray-400 cursor-not-allowed"
     }`}
     disabled={
-      !booking.is_backdated &&
+      isFinishing ||
+      (!booking.is_backdated &&
       !booking.finish_enabled &&
-      !["Admin", "Super Admin"].includes(userRole)
+      !["Admin", "Super Admin"].includes(userRole))
     }
     onClick={() => {
       if (
@@ -1074,8 +1225,17 @@ export default function BookingManagementDriver() {
         : "Menunggu waktu End Date"
     }
   >
-    <CheckCircle className="h-4 w-4 mr-1" />
-    Finish
+    {isFinishing ? (
+      <div className="flex items-center gap-1">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        <span className="text-xs">Finishing...</span>
+      </div>
+    ) : (
+      <>
+        <CheckCircle className="h-4 w-4 mr-1" />
+        Finish
+      </>
+    )}
   </Button>
 )}
 
@@ -1249,7 +1409,7 @@ export default function BookingManagementDriver() {
 
         {/* ✅ Bagian Payments */}
         <div>
-          <Label>Payments</Label>
+          <Label>Payments1</Label>
           <Table>
             <TableHeader>
               <TableRow>
@@ -1262,8 +1422,8 @@ export default function BookingManagementDriver() {
             <TableBody>
               {payments.map((payment) => (
                 <TableRow key={payment.id}>
-                  <TableCell>{formatDateDDMMYYYY(payment.created_at)}</TableCell>
-                  <TableCell>{formatCurrency(payment.amount)}</TableCell>
+                  <TableCell>{formatDateDDMMYYYY(payment.payment_date)}</TableCell>
+                  <TableCell>{formatCurrency(payment.paid_amount)}</TableCell>
                   <TableCell>{payment.payment_method}</TableCell>
                   <TableCell>{getPaymentStatusBadge(payment.status)}</TableCell>
                 </TableRow>
@@ -1301,9 +1461,21 @@ export default function BookingManagementDriver() {
             <Button variant="outline" onClick={handleCloseNotesForm}>
               Cancel
             </Button>
-            <Button onClick={handleSubmitConfirmation}>
-              Confirm Booking
-            </Button>
+            <Button
+  onClick={handleSubmitConfirmation}
+  disabled={isConfirming} // ✅ disable saat proses berlangsung
+  className="bg-green-500 hover:bg-green-700 text-white px-6 h-8 text-lg rounded-lg shadow-md"
+>
+  {isConfirming ? (
+    <div className="flex items-center gap-2">
+      <Loader2 className="h-5 w-5 animate-spin" />
+      <span>Confirming...</span>
+    </div>
+  ) : (
+    "Confirm Booking"
+  )}
+</Button>
+
           </DialogFooter>
         </DialogContent>
       </Dialog>
