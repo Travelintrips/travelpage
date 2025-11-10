@@ -4,8 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
-import { Car, Loader2 } from "lucide-react";
+import { Car, Loader2, AlertCircle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+
 
 interface Driver {
   id: string;
@@ -57,6 +61,8 @@ export default function BookingFormDriver({ onClose, onSuccess }: BookingFormDri
   const [selectedBankId, setSelectedBankId] = useState("");
   const [paidAmount, setPaidAmount] = useState(0);
   const [notesDriver, setNotesDriver] = useState("");
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+
   
   // State untuk kalkulasi
   const [pricePerDay, setPricePerDay] = useState(0);
@@ -66,12 +72,72 @@ export default function BookingFormDriver({ onClose, onSuccess }: BookingFormDri
   
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // ✅ State untuk Saldo Driver
+  const [driverSaldo, setDriverSaldo] = useState<number | null>(null);
+  const [showMinusWarning, setShowMinusWarning] = useState(false);
+
   // Fetch data dari database
   useEffect(() => {
     fetchDrivers();
     fetchVehicles();
     fetchPaymentMethods();
   }, []);
+
+  // ✅ Realtime subscription untuk saldo driver
+  useEffect(() => {
+    if (!selectedDriverId) {
+      setDriverSaldo(null);
+      return;
+    }
+
+    // Fetch initial saldo
+    const fetchDriverSaldo = async () => {
+      const { data, error } = await supabase
+        .from("drivers")
+        .select("saldo")
+        .eq("id", selectedDriverId)
+        .single();
+
+      if (!error && data) {
+        setDriverSaldo(data.saldo || 0);
+      }
+    };
+
+    fetchDriverSaldo();
+
+    // ✅ Subscribe to realtime changes
+    const channel = supabase
+      .channel(`driver-saldo-${selectedDriverId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "drivers",
+          filter: `id=eq.${selectedDriverId}`,
+        },
+        (payload) => {
+          if (payload.new && "saldo" in payload.new) {
+            setDriverSaldo(payload.new.saldo || 0);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [selectedDriverId]);
+
+  // ✅ Check if saldo will be minus
+  useEffect(() => {
+    if (driverSaldo !== null && paymentMethodType === "Saldo" && paidAmount > 0) {
+      const sisaSaldoDriver = driverSaldo - paidAmount;
+      setShowMinusWarning(sisaSaldoDriver < 0);
+    } else {
+      setShowMinusWarning(false);
+    }
+  }, [driverSaldo, paidAmount, paymentMethodType]);
 
   const fetchDrivers = async () => {
     try {
@@ -221,6 +287,18 @@ const handleModelChange = (model: string) => {
 
   // Handle form submission
   const handleSubmit = async () => {
+    // ✅ Check if saldo will be minus and show confirmation dialog
+    if (showMinusWarning) {
+      setShowConfirmDialog(true);
+      return;
+    }
+
+    // Continue with booking submission
+    await handleSubmitBooking();
+  };
+
+  // ✅ Actual booking submission function
+  const handleSubmitBooking = async () => {
     // Validation
     if (!selectedDriverId) {
       toast({
@@ -551,6 +629,18 @@ Detail Booking:
         </select>
       </div>
 
+      {/* ✅ Saldo Driver - Muncul setelah driver dipilih */}
+      {selectedDriverId && driverSaldo !== null && (
+        <div className="space-y-2">
+          <Label>Saldo Driver</Label>
+          <div className="flex items-center gap-2">
+            <Badge variant="default" className="bg-blue-500 text-white text-base px-4 py-2">
+              {formatCurrency(driverSaldo)}
+            </Badge>
+          </div>
+        </div>
+      )}
+
       {/* Pilih Model & Plat Nomor */}
       <div className="grid grid-cols-2 gap-3">
   {/* Pilih Merk */}
@@ -655,7 +745,83 @@ Detail Booking:
           <span>Sisa Pembayaran:</span>
           <span>{formatCurrency(remainingPayment)}</span>
         </div>
+        
+        {/* ✅ Sisa Saldo Driver - Muncul setelah driver dipilih dan ada pembayaran */}
+        {selectedDriverId && driverSaldo !== null && paidAmount > 0 && (
+          <div className={`flex justify-between font-bold ${
+            driverSaldo - paidAmount < 0 ? "text-red-600" : "text-green-600"
+          }`}>
+            <span>Sisa Saldo Driver:</span>
+            <span>{formatCurrency(driverSaldo - paidAmount)}</span>
+          </div>
+        )}
       </div>
+
+      {/* ✅ Dialog Konfirmasi Saldo Minus */}
+      <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-xl text-center flex items-center justify-center gap-2">
+              ⚠️ Peringatan Saldo
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <p className="text-center font-semibold">
+              Saldo Driver akan minus setelah transaksi ini!
+            </p>
+            
+            <div className="bg-gray-50 p-4 rounded-lg space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-gray-600">Saldo Saat Ini:</span>
+                <strong className="text-blue-600 text-lg">
+                  {formatCurrency(driverSaldo || 0)}
+                </strong>
+              </div>
+              
+              <div className="flex justify-between items-center">
+                <span className="text-gray-600">Nominal Pembayaran:</span>
+                <strong className="text-red-600 text-lg">
+                  {formatCurrency(paidAmount)}
+                </strong>
+              </div>
+              
+              <div className="border-t pt-3 mt-3">
+                <div className="flex justify-between items-center">
+                  <span className="font-bold">Sisa Saldo Driver:</span>
+                  <strong className="text-red-600 text-xl">
+                    {formatCurrency((driverSaldo || 0) - paidAmount)}
+                  </strong>
+                </div>
+              </div>
+            </div>
+            
+            <p className="text-center text-sm text-gray-600">
+              Apakah Anda yakin ingin melanjutkan transaksi ini?
+            </p>
+          </div>
+          
+          <DialogFooter className="flex gap-3 sm:justify-center">
+            <Button
+              className="bg-green-600 hover:bg-green-700 text-white px-8 py-2 text-base font-bold"
+              onClick={() => {
+                handleSubmitBooking();
+                setShowConfirmDialog(false);
+              }}
+            >
+              ✅ Lanjutkan
+            </Button>
+            <Button 
+              variant="destructive"
+              className="px-8 py-2 text-base font-bold"
+              onClick={() => setShowConfirmDialog(false)}
+            >
+              ❌ Batal
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
 
       {/* Payment Methods */}
       <div className="space-y-2">
