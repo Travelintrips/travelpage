@@ -32,13 +32,21 @@ const AuthRequiredModal: React.FC<AuthRequiredModalProps> = ({
   };
 
   const handleCancel = () => {
-    onClose();
-    navigate(-1); // Go back to previous page
-  };
+  onClose();     // tutup modal
+  navigate(-1);  // pindah halaman
+};
+
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md">
+    <Dialog
+  open={isOpen}
+  onOpenChange={(open) => {
+    if (!open) {
+      onClose(); // hanya dismiss modal
+    }
+  }}
+>
+      <DialogContent className="sm:max-w-md" hideCloseButton>
         <DialogHeader className="text-center">
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-100">
             <Shield className="h-6 w-6 text-blue-600" />

@@ -16,6 +16,7 @@ export interface CartItem {
   status?: string;
   booking_id?: string; // UUID field for booking ID (used for baggage_booking_id in payments)
   code_booking?: string; // Text field for booking code
+  booking_type?: string;
 }
 
 interface ShoppingCartContextType {

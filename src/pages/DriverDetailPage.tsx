@@ -90,6 +90,8 @@ export default function DriverDetailPage() {
   const [transaksiTypeFilter, setTransaksiTypeFilter] = useState("all"); // ✅ Filter jenis transaksi
   const [transaksiPage, setTransaksiPage] = useState(1);
   const [transaksiRowsPerPage, setTransaksiRowsPerPage] = useState(10);
+  const [driverHistories, setDriverHistories] = useState([]);
+
 
   useEffect(() => {
     fetchDriverData();
@@ -119,6 +121,7 @@ export default function DriverDetailPage() {
           actual_return_date,
           total_amount,
           status,
+          rental_days,
           vehicle:vehicles!bookings_vehicle_id_fkey (
             id,
             make,
@@ -154,6 +157,30 @@ export default function DriverDetailPage() {
       setIsLoading(false);
     }
   };
+
+  const fetchDriverHistories = async () => {
+  if (!driver?.id) return;
+  
+  const { data, error } = await supabase
+    .from("histori_transaksi")
+    .select("*")
+    .eq("user_id", driver.id)
+    .order("trans_date", { ascending: false });
+
+  if (error) {
+    console.error("Error fetching history:", error);
+    return;
+  }
+
+  setDriverHistories(data || []);
+};
+
+useEffect(() => {
+  if (driver?.id) {
+    fetchDriverHistories();
+  }
+}, [driver]);
+
 
   // Filter and paginate booking history
   const filteredBookings = useMemo(() => {
@@ -470,6 +497,24 @@ export default function DriverDetailPage() {
     );
   }
 
+  const totalPembayaranSewa =
+  driverHistories
+    ?.filter(h => h.jenis_transaksi === "Sewa Kendaraan Driver")
+    ?.reduce((sum, h) => sum + (h.nominal || 0), 0) || 0;
+
+const totalTopup =
+  driverHistories
+    ?.filter(h =>
+      [
+        "Topup Bank Transfer Driver",
+        "Topup Manual Driver",
+        "Topup Driver Request"
+      ].includes(h.jenis_transaksi)
+    )
+    ?.reduce((sum, h) => sum + Number(h.nominal || 0), 0) || 0;
+
+
+
   return (
     <div className="p-6 bg-white min-h-screen">
       {/* Header dengan tombol back */}
@@ -512,6 +557,40 @@ export default function DriverDetailPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* New Summary Card */}
+<Card className="mb-6">
+  <CardHeader>
+    <CardTitle>Driver Financial Summary</CardTitle>
+  </CardHeader>
+
+  <CardContent>
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+      {/* Total Pembayaran Sewa */}
+      <div className="p-4 border rounded-lg shadow-sm bg-white">
+        <label className="text-sm font-medium text-gray-500">
+          Total Pembayaran Sewa Kendaraan
+        </label>
+        <p className="text-2xl font-bold text-blue-600 mt-1">
+          {formatCurrency(totalPembayaranSewa || 0)}
+        </p>
+      </div>
+
+      {/* Total Topup */}
+      <div className="p-4 border rounded-lg shadow-sm bg-white">
+        <label className="text-sm font-medium text-gray-500">
+          Total Topup
+        </label>
+        <p className="text-2xl font-bold text-green-600 mt-1">
+          {formatCurrency(totalTopup || 0)}
+        </p>
+      </div>
+
+    </div>
+  </CardContent>
+</Card>
+
 
       {/* Tabs untuk Booking History dan Histori Transaksi */}
       <Card>
@@ -563,6 +642,7 @@ export default function DriverDetailPage() {
                     <TableHead>Kode Booking</TableHead>
                     <TableHead>Tanggal Booking</TableHead>
                     <TableHead>Kendaraan</TableHead>
+                    <TableHead>Durasi Sewa</TableHead>
                     <TableHead>Amount</TableHead>
                     <TableHead>Status</TableHead>
                   </TableRow>
@@ -588,6 +668,7 @@ export default function DriverDetailPage() {
                             ? `${booking.vehicle.make} ${booking.vehicle.model} (${booking.vehicle.license_plate})`
                             : "N/A"}
                         </TableCell>
+                        <TableCell>{booking.rental_days} Hari</TableCell>
                         <TableCell>{formatCurrency(booking.total_amount)}</TableCell>
                         <TableCell>{getStatusBadge(booking.status)}</TableCell>
                       </TableRow>

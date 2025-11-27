@@ -174,6 +174,24 @@ const HistoriTransaksi = () => {
 
   const totalPages = Math.ceil(totalCount / pageSize);
 
+  const formatPaymentMethod = (method) => {
+  if (!method) return "-";
+
+  switch (method.toLowerCase()) {
+    case "bank_transfer":
+      return "Bank Transfer";
+    case "ewallet":
+      return "Ewallet/Saldo";
+    case "cash":
+      return "Cash";
+    case "credit_card":
+      return "Credit Card";
+    default:
+      return method;
+  }
+};
+
+
   return (
     <div className="space-y-6 p-6 bg-background">
       <div className="flex justify-between items-center">
@@ -413,7 +431,10 @@ const HistoriTransaksi = () => {
                         {formatCurrency(row.saldo_akhir)}
                       </TableCell>
                       <TableCell>{row.jenis_transaksi || "-"}</TableCell>
-                      <TableCell>{row.payment_method || "-"}</TableCell>
+                      <TableCell>
+                            {formatPaymentMethod(row.payment_method)}
+                      </TableCell>
+
                       <TableCell>
                         <span
                           className={cn(

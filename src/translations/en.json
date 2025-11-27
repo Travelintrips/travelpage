@@ -34,11 +34,15 @@
     "activities": "Activities"
   },
   "hero": {
-    "title": "Premium Car Rental Service",
+    "title": "Premium Car Rental1 Service",
     "description": "Experience the freedom of the road with our extensive fleet of vehicles. Book your perfect ride today and enjoy hassle-free travel.",
     "browseCars": "Browse Cars",
     "bookNow": "Book Now",
     "airportTransfer": "Airport Transfer"
+  },
+  "main_hero" : {
+    "title": "Premium Car Rental2 Service",
+    "description": "Experience the freedom of the road with our extensive fleet of vehicles. Book your perfect ride today and enjoy hassle-free travel."
   },
   "auth": {
     "readyToBook": "Ready to Book Your Ride?",
@@ -144,6 +148,7 @@
     "priceRange": "Price Range (Rp)",
     "vehicleType": "Vehicle Type",
     "allTypes": "All Types",
+    "mpv": "MPV",
     "sedan": "Sedan",
     "suv": "SUV",
     "luxury": "Luxury",

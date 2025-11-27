@@ -186,46 +186,109 @@ const CustomerManagement = () => {
 
   // FIXED: Modified fetchCustomers with proper loading state management
   const fetchCustomers = async (isBackgroundRefresh = false) => {
-    // Don't fetch if not authenticated
-    if (!isAuthenticated || !isSessionReady || authLoading) {
-      console.log('[CustomerManagement] Skipping fetch - auth not ready');
-      return;
+  if (!isAuthenticated || !isSessionReady || authLoading) {
+    console.log('[CustomerManagement] Skipping fetch - auth not ready');
+    return;
+  }
+
+  try {
+    if (!isBackgroundRefresh && customers.length === 0) {
+      setLoading(true);
+    } else if (isBackgroundRefresh) {
+      setBackgroundRefreshing(true);
     }
 
-    try {
-      // Only show loading spinner for initial load, not background refresh
-      if (!isBackgroundRefresh && customers.length === 0) {
-        setLoading(true);
-      } else if (isBackgroundRefresh) {
-        setBackgroundRefreshing(true);
-      }
+    console.log('[CustomerManagement] Starting customer data fetch...');
 
-      console.log('[CustomerManagement] Starting customer data fetch...');
+    /* -----------------------------
+       1. FETCH FROM customers table
+    ------------------------------ */
+    const { data: customerTableData, error: customerError } = await supabase
+      .from("customers")
+      .select("*")
+      .order("created_at", { ascending: false });
 
-      const { data, error } = await supabase
-        .from("customers")
-        .select("*")
-        .order("created_at", { ascending: false });
+    if (customerError) throw customerError;
 
-      if (error) throw error;
 
-      setCustomers(data || []);
-      
-      // Cache the data for future use
-      sessionStorage.setItem('customerManagement_cachedData', JSON.stringify(data || []));
-      
-      console.log('[CustomerManagement] Customer data fetch completed successfully');
-    } catch (error) {
-      console.error("[CustomerManagement] Error fetching customers:", error);
-      
-      // Don't reset data to empty on error, just log the error
-      console.warn("[CustomerManagement] Keeping existing data due to fetch error");
-    } finally {
-      // CRITICAL: Always reset loading states
-      setLoading(false);
-      setBackgroundRefreshing(false);
-    }
-  };
+    /* -----------------------------
+       2. FETCH FROM users table (role Customer)
+    ------------------------------ */
+    const { data: usersData, error: usersError } = await supabase
+      .from("users")
+      .select("*")
+      .eq("role", "Customer")
+      .order("created_at", { ascending: false });
+
+    if (usersError) throw usersError;
+
+
+    /* -----------------------------
+       NORMALIZE CUSTOMERS
+    ------------------------------ */
+    const normalizedCustomers = (customerTableData || []).map(c => ({
+      id: c.id,
+      source: "customers",
+
+      full_name: c.name,
+      email: null,
+      phone_number: c.contact,
+      address: c.address,
+
+      customer_code: c.customer_code,
+
+      selfie_url: null,
+      ktp_paspor_url: null,
+
+      created_at: c.created_at
+    }));
+
+
+    /* -----------------------------
+       NORMALIZE USERS
+    ------------------------------ */
+    const normalizedUsers = (usersData || []).map(u => ({
+      id: u.id,
+      source: "users",
+
+      full_name: u.full_name,
+      email: u.email,
+      phone_number: u.phone_number,
+      address: u.address || null,
+
+      customer_code: null,
+
+      selfie_url: u.selfie_url || null,
+      ktp_paspor_url: u.ktp_paspor_url || null,
+
+      created_at: u.created_at
+    }));
+
+
+    /* -----------------------------
+       3. Combine into one unified list
+    ------------------------------ */
+    const combinedData = [...normalizedCustomers, ...normalizedUsers];
+
+    setCustomers(combinedData);
+
+    sessionStorage.setItem(
+      "customerManagement_cachedData",
+      JSON.stringify(combinedData)
+    );
+
+    console.log('[CustomerManagement] Combined customer data loaded.');
+
+  } catch (error) {
+    console.error("[CustomerManagement] Fetch error:", error);
+    console.warn("[CustomerManagement] Keeping existing data.");
+  } finally {
+    setLoading(false);
+    setBackgroundRefreshing(false);
+  }
+};
+
+
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -466,6 +529,7 @@ const CustomerManagement = () => {
                   <TableHead>Phone</TableHead>
                   <TableHead>Address</TableHead>
                   <TableHead>Documents</TableHead>
+                  <TableHead>Customer Code</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -517,6 +581,7 @@ const CustomerManagement = () => {
                           )}
                         </div>
                       </TableCell>
+                      <TableCell>{customer.customer_code}</TableCell>
                       <TableCell className="text-right">
                         {userRole !== "Staff" && userRole !== "Staff Traffic" && (
                           <div className="flex justify-end gap-2">

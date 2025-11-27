@@ -126,3 +126,13 @@
   width: 100%;
   overflow-x: hidden;
 }
+
+.hero-3d-title {
+  text-shadow:
+    2px 2px 0 #000,
+    4px 4px 0 rgba(0,0,0,0.8),
+    6px 6px 4px rgba(0,0,0,0.5),
+    8px 8px 8px rgba(0,0,0,0.3);
+}
+
+

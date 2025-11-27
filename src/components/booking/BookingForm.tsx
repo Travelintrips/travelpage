@@ -17,6 +17,7 @@ import {
   Check,
   ChevronRight,
   ArrowLeft,
+  ShoppingCart,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -51,11 +52,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { cn, formatDate, toISOString } from "@/lib/utils";
-import { useAuth } from "@/hooks/useAuth";
+import { cn, formatDate, toISOString, formatCurrency } from "@/lib/utils";
+//import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/components/ui/use-toast";
 
 const formSchema = z.object({
@@ -71,6 +81,7 @@ const formSchema = z.object({
     required_error: "Please select a driver option",
   }),
   driverId: z.string().optional().nullable(),
+  bookingType: z.string().default("rental"),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -92,22 +103,9 @@ interface BookingFormProps {
   onBookingComplete?: (bookingData: any) => void;
 }
 
-export default function BookingForm({ onClose }: BookingFormProps) {
+export default function BookingForm({ selectedVehicle: selectedVehicleProp, onClose }: BookingFormProps) {
   const { user, userRole } = useAuth();
   const { toast } = useToast();
-  
-  // Check if user role is allowed to create bookings
-  const allowedRoles = ["Driver", "Admin", "Super Admin", "Staff"];
-  
-  if (!allowedRoles.includes(userRole)) {
-    toast({
-      title: "Access Denied",
-      description: "You don't have permission to create bookings.",
-      variant: "destructive",
-    });
-    return null;
-  }
-
   const navigate = useNavigate();
   const { addToCart } = useShoppingCart();
   const [step, setStep] = useState(1);
@@ -118,224 +116,100 @@ export default function BookingForm({ onClose }: BookingFormProps) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [availableDrivers, setAvailableDrivers] = useState([]);
   const [isLoadingDrivers, setIsLoadingDrivers] = useState(false);
-
   const [vehicles, setVehicles] = useState<BookingVehicle[]>([]);
   const [isLoadingVehicles, setIsLoadingVehicles] = useState(false);
+  const [selectedVehicle, setSelectedVehicle] = useState<BookingVehicle | null>(selectedVehicleProp || null);
 
-  // Default vehicle if none is selected
-  const defaultVehicle: BookingVehicle = {
-    id: "1",
-    name: "Toyota Avanza",
-    type: "sedan",
-    make: "Toyota",
-    model: "Avanza",
-    year: 2022,
-    price: 350000,
-    category: "MPV",
-    image:
-      "https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?w=800&q=80",
-    license_plate: "B 1234 ABC",
-    seats: 7,
-    transmission: "automatic",
-    fuelType: "petrol",
-    available: true,
-    features: ["AC", "Power Steering"],
-    isWithDriver: false,
-    assignedDriver: undefined,
-  };
+  // Use selected vehicle from state or props
+  const vehicleToUse = selectedVehicle || vehicles.find((v) => v.id === selectedVehicleProp?.id);
 
-  // Use selected vehicle or default
-  const vehicleToUse =
-    vehicles.find((v) => v.id === selectedVehicle?.id) ||
-    selectedVehicle ||
-    defaultVehicle;
-
-  // Format currency to IDR
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("id-ID", {
-      style: "currency",
-      currency: "IDR",
-      minimumFractionDigits: 0,
-    }).format(amount);
-  };
-
+  // Debug logging
   useEffect(() => {
-    if (vehicleToUse?.isWithDriver) {
-      form.setValue("driverOption", "provided");
-      if (vehicleToUse.assignedDriver?.id) {
-        form.setValue("driverId", vehicleToUse.assignedDriver.id);
-        form.trigger("driverId"); // ✅ Pastikan form aware terhadap value ini
-      }
-      console.log("🚗 Selected Vehicle Details:", vehicleToUse);
-    }
-  }, [vehicleToUse]);
+    console.log("🚗 BookingForm Debug:", {
+      selectedVehicleProp,
+      selectedVehicle,
+      vehicleToUse,
+      vehiclesCount: vehicles.length
+    });
+  }, [selectedVehicleProp, selectedVehicle, vehicleToUse, vehicles]);
 
+  // Check authentication status
   useEffect(() => {
-    // Fetch vehicles from Supabase
-    const fetchVehicles = async () => {
-      setIsLoadingVehicles(true);
+    const checkAuth = async () => {
       try {
-        // Use default vehicle instead of trying to fetch from Supabase
-        // This is a temporary solution until Supabase connection is fixed
-        console.log(
-          "Using default vehicle data instead of fetching from Supabase",
-        );
-
-        // Create an array of sample vehicles
-        const sampleVehicles: BookingVehicle[] = [
-          defaultVehicle,
-          {
-            id: "2",
-            name: "Honda CR-V",
-            type: "suv",
-            make: "Honda",
-            model: "CR-V",
-            year: 2023,
-            price: 450000,
-            category: "SUV",
-            image:
-              "https://images.unsplash.com/photo-1568844293986-ca9c5c1bc2e8?w=800&q=80",
-            license_plate: "B 5678 DEF",
-            seats: 5,
-            transmission: "automatic",
-            fuelType: "petrol",
-            available: true,
-            features: ["AC", "Power Steering", "ABS"],
-            isWithDriver: false,
-            assignedDriver: undefined,
-          },
-          {
-            id: "3",
-            name: "Mitsubishi Xpander",
-            type: "sedan",
-            make: "Mitsubishi",
-            model: "Xpander",
-            year: 2022,
-            price: 380000,
-            category: "MPV",
-            image:
-              "https://images.unsplash.com/photo-1619767886558-efdc259cde1a?w=800&q=80",
-            license_plate: "B 9012 GHI",
-            seats: 7,
-            transmission: "manual",
-            fuelType: "petrol",
-            available: true,
-            features: ["AC", "Power Steering"],
-            isWithDriver: false,
-            assignedDriver: undefined,
-          },
-        ];
-
-        setVehicles(sampleVehicles);
+        const { data: { session } } = await supabase.auth.getSession();
+        const userId = localStorage.getItem("userId");
+        const authUser = localStorage.getItem("auth_user");
+        
+        const isLoggedIn = !!(session?.user || userId || authUser);
+        setIsAuthenticated(isLoggedIn);
+        
+        console.log("🔐 Auth Check:", {
+          hasSession: !!session?.user,
+          hasUserId: !!userId,
+          hasAuthUser: !!authUser,
+          isAuthenticated: isLoggedIn
+        });
       } catch (error) {
-        console.error("Error setting up vehicles:", error);
-        // Use default vehicle on error
-        setVehicles([defaultVehicle]);
-      } finally {
-        setIsLoadingVehicles(false);
+        console.error("Error checking auth:", error);
+        setIsAuthenticated(false);
       }
     };
 
-    // Fetch available drivers
+    checkAuth();
+  }, []);
+
+  // Fetch available drivers
+  useEffect(() => {
     const fetchDrivers = async () => {
       setIsLoadingDrivers(true);
       try {
         const { data, error } = await supabase
-          .from("drivers")
-          .select("id, name, status")
-          .eq("status", "active");
+  .from("drivers")
+  .select("id, name, phone_number, is_online, driver_status")
+  .or("is_online.eq.true,driver_status.eq.standby")
+  .order("name");
 
-        if (error) throw error;
-
-        if (data && data.length > 0) {
-          setAvailableDrivers(data);
-        } else {
-          // Sample drivers if no data from Supabase
-          setAvailableDrivers([
-            { id: "d1", name: "John Driver", status: "active" },
-            { id: "d2", name: "Maria Driver", status: "active" },
-            { id: "d3", name: "Alex Driver", status: "active" },
-          ]);
+        if (error) {
+          console.error("Error fetching drivers:", error);
+          toast({
+            title: "Error",
+            description: "Failed to load drivers",
+            variant: "destructive",
+          });
+          return;
         }
+
+        console.log("✅ Drivers loaded:", data);
+        setAvailableDrivers(data || []);
       } catch (error) {
         console.error("Error fetching drivers:", error);
-        // Use sample drivers on error
-        setAvailableDrivers([
-          { id: "d1", name: "John Driver", status: "active" },
-          { id: "d2", name: "Maria Driver", status: "active" },
-          { id: "d3", name: "Alex Driver", status: "active" },
-        ]);
       } finally {
         setIsLoadingDrivers(false);
       }
     };
 
-    // Fetch full details if selectedVehicle is missing fields
-    const fetchSelectedVehicleDetails = async () => {
-      if (
-        selectedVehicle?.id &&
-        (!selectedVehicle.make ||
-          !selectedVehicle.model ||
-          !selectedVehicle.category)
-      ) {
-        const { data, error } = await supabase
-          .from("vehicles")
-          .select(
-            `
-    make,
-    model,
-    category,
-    price,
-    year,
-    image,
-    license_plate,
-    is_with_driver,
-    driver_id,
-    assignedDriver:driver_id (
-      id,
-      name
-    )
-  `,
-          )
-          .eq("id", selectedVehicle.id)
-          .single();
-
-        if (error) {
-          console.error("Failed to fetch full vehicle data:", error);
-          return;
-        }
-
-        // Merge detail data ke selectedVehicle
-        setVehicles((prev) => [
-          ...prev.filter((v) => v.id !== selectedVehicle.id),
-          { ...selectedVehicle, ...data },
-        ]);
-      }
-    };
-
-    fetchVehicles();
     fetchDrivers();
-    fetchSelectedVehicleDetails();
+  }, [toast]);
 
-    // Check authentication status
-    const checkAuth = async () => {
-      const { data } = await supabase.auth.getSession();
-      setIsAuthenticated(!!data.session);
-    };
+  
+  // Check if user role is allowed to create bookings
+  const allowedRoles = ["Customer", "Admin", "Super Admin", "Staff", "user"];
 
-    checkAuth();
-
-    // Listen for auth changes
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setIsAuthenticated(!!session);
-      },
-    );
-
-    return () => {
-      authListener.subscription.unsubscribe();
-    };
-  }, []);
+  
+  useEffect(() => {
+    if (!allowedRoles.includes(userRole)) {
+      toast({
+        title: "Access Denied",
+        description: "You don't have permission to create bookings.",
+        variant: "destructive",
+      });
+    }
+  }, [userRole, toast]);
+  
+  if (!allowedRoles.includes(userRole)) {
+    return null;
+  }
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -346,6 +220,7 @@ export default function BookingForm({ onClose }: BookingFormProps) {
       returnTime: "10:00",
       driverOption: "self",
       driverId: null,
+      bookingType: "rental",
     },
   });
 
@@ -360,8 +235,9 @@ export default function BookingForm({ onClose }: BookingFormProps) {
   };
 
   const calculateTotal = () => {
+    if (!vehicleToUse) return 0;
     const days = calculateTotalDays();
-    const basePrice = vehicleToUse.price * days;
+    const basePrice = (vehicleToUse.daily_rate || vehicleToUse.price || 0) * days;
     const driverFee =
       form.watch("driverOption") === "provided" ? 150000 * days : 0;
     return basePrice + driverFee;
@@ -379,27 +255,63 @@ export default function BookingForm({ onClose }: BookingFormProps) {
   }
 
   const onSubmit = async (data: FormValues) => {
-    if (isSubmitting) return; // Mencegah double submit
+    // Form submission is now handled by individual buttons
+    // This function can be left empty or removed
+  };
+
+  function generateBookingCode() {
+  const now = new Date();
+
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+
+  const randomDigits = Math.floor(10000 + Math.random() * 90000); // 5 digit
+
+  return `RC-${year}${month}${day}-${randomDigits}`;
+}
+
+
+  const handleAddToCart = async () => {
+    const data = form.getValues();
+    if (!data || isSubmitting) return;
+    if (!vehicleToUse) {
+      alert("Please select a vehicle first");
+      return;
+    }
     setIsSubmitting(true);
 
     try {
-      // Build service name for cart
-      const serviceName = `${vehicleToUse.make} ${vehicleToUse.model} ${vehicleToUse.year ? `(${vehicleToUse.year})` : ""} - ${calculateTotalDays()} day(s)`;
+      // Build service name for cart with vehicle details
+      const serviceName = `${vehicleToUse.make} ${vehicleToUse.model} ${
+  vehicleToUse.year ? `(${vehicleToUse.year})` : ""
+} - ${vehicleToUse.license_plate}`;
+
+
+      // Get driver info if driver is selected
+      const selectedDriver = data.driverOption === "provided" && data.driverId
+        ? availableDrivers.find(d => d.id === data.driverId)
+        : null;
 
       // Build cart item details
       const cartItemDetails = {
         vehicleId: vehicleToUse.id,
+        code_booking: generateBookingCode(),
         make: vehicleToUse.make,
         model: vehicleToUse.model,
         year: vehicleToUse.year,
+        licensePlate: vehicleToUse.license_plate,
         startDate: format(data.startDate, "yyyy-MM-dd"),
         endDate: format(data.endDate, "yyyy-MM-dd"),
         pickupTime: data.pickupTime,
         returnTime: data.returnTime,
+        bookingType: data.bookingType,
         driverOption: data.driverOption,
         driverId: data.driverId,
+        driverName: selectedDriver?.name,
+        driverPhone: selectedDriver?.phone_number,
         totalDays: calculateTotalDays(),
-        basePrice: vehicleToUse.price * calculateTotalDays(),
+        basePrice: (vehicleToUse.daily_rate || vehicleToUse.price || 0) * calculateTotalDays(),
         driverFee:
           data.driverOption === "provided" ? 150000 * calculateTotalDays() : 0,
       };
@@ -412,6 +324,8 @@ export default function BookingForm({ onClose }: BookingFormProps) {
         price: calculateTotal(),
         quantity: 1,
         details: cartItemDetails,
+        booking_type: "rental",
+        code_booking: generateBookingCode(),
       });
 
       console.log("✅ Car rental added to cart");
@@ -426,6 +340,29 @@ export default function BookingForm({ onClose }: BookingFormProps) {
       );
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleContinueBooking = () => {
+    const data = form.getValues();
+    // Navigate to payment page with booking data
+    if (data && vehicleToUse) {
+      const bookingData = {
+        vehicleId: vehicleToUse.id,
+        make: vehicleToUse.make,
+        model: vehicleToUse.model,
+        year: vehicleToUse.year,
+        startDate: format(data.startDate, "yyyy-MM-dd"),
+        endDate: format(data.endDate, "yyyy-MM-dd"),
+        pickupTime: data.pickupTime,
+        returnTime: data.returnTime,
+        bookingType: data.bookingType,
+        driverOption: data.driverOption,
+        driverId: data.driverId,
+        totalDays: calculateTotalDays(),
+        totalAmount: calculateTotal(),
+      };
+      navigate("/payments", { state: { bookingData, vehicleData: vehicleToUse } });
     }
   };
 
@@ -501,7 +438,7 @@ export default function BookingForm({ onClose }: BookingFormProps) {
         <CardContent>
           <div className="space-y-4">
             <div className="p-4 bg-muted rounded-lg">
-              <h3 className="font-medium mb-2">Booking Details</h3>
+              <h3 className="font-medium mb-2">Booking Details1</h3>
               <p>
                 <strong>Booking ID:</strong> {bookingId}
               </p>
@@ -560,7 +497,17 @@ export default function BookingForm({ onClose }: BookingFormProps) {
       </CardHeader>
 
       <CardContent>
-        {selectedVehicle && (
+        {isLoadingVehicles ? (
+          <div className="flex justify-center items-center py-8">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+          </div>
+        ) : !vehicleToUse ? (
+          <div className="text-center py-8">
+            <p className="text-muted-foreground">No vehicle selected. Please select a vehicle from the list.</p>
+          </div>
+        ) : (
+          <>
+            {selectedVehicle && (
           <div className="mb-6 p-4 bg-muted rounded-lg flex flex-col sm:flex-row items-center gap-4">
             <div className="w-20 h-20 overflow-hidden rounded-md">
               <img
@@ -585,7 +532,7 @@ export default function BookingForm({ onClose }: BookingFormProps) {
               </p>
               {vehicleToUse.license_plate && (
                 <p className="text-sm text-gray-700">
-                  <strong>Plate:</strong> {vehicleToUse.license_plate}
+                  <strong>License Plate:</strong> {vehicleToUse.license_plate}
                 </p>
               )}
               {vehicleToUse.category && (
@@ -594,7 +541,7 @@ export default function BookingForm({ onClose }: BookingFormProps) {
                 </p>
               )}
               <p className="text-sm text-gray-800 font-semibold">
-                {formatCurrency(vehicleToUse.price || 0)}/day
+                {formatCurrency(vehicleToUse.daily_rate || vehicleToUse.price || 0)}/day
               </p>
             </div>
           </div>
@@ -880,7 +827,7 @@ export default function BookingForm({ onClose }: BookingFormProps) {
                   vehicleModel={vehicleToUse.model}
                   vehicleYear={vehicleToUse.year}
                   totalDays={calculateTotalDays()}
-                  basePrice={vehicleToUse.price * calculateTotalDays()}
+                  basePrice={(vehicleToUse.daily_rate || vehicleToUse.price || 0) * calculateTotalDays()}
                   driverFee={
                     form.watch("driverOption") === "provided"
                       ? 150000 * calculateTotalDays()
@@ -889,54 +836,52 @@ export default function BookingForm({ onClose }: BookingFormProps) {
                   totalAmount={calculateTotal()}
                   depositAmount={calculateDeposit()}
                   isPartialPayment={false}
-                />
-
-                <BookingSummary
-                  vehicleMake={vehicleToUse.make}
-                  vehicleModel={vehicleToUse.model}
-                  vehicleYear={vehicleToUse.year}
-                  totalDays={calculateTotalDays()}
-                  basePrice={vehicleToUse.price * calculateTotalDays()}
-                  driverFee={
-                    form.watch("driverOption") === "provided"
-                      ? 150000 * calculateTotalDays()
-                      : 0
+                  startDate={form.watch("startDate") ? form.watch("startDate").toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" }) : undefined}
+                  endDate={form.watch("endDate") ? form.watch("endDate").toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" }) : undefined}
+                  pickupTime={form.watch("pickupTime")}
+                  returnTime={form.watch("returnTime")}
+                  driverName={
+                    form.watch("driverOption") === "provided" && form.watch("driverId")
+                      ? availableDrivers.find(d => d.id === form.watch("driverId"))?.name
+                      : undefined
                   }
-                  totalAmount={calculateTotal()}
-                  depositAmount={calculateDeposit()}
-                  isPartialPayment={false}
+                  driverPhone={
+                    form.watch("driverOption") === "provided" && form.watch("driverId")
+                      ? availableDrivers.find(d => d.id === form.watch("driverId"))?.phone_number
+                      : undefined
+                  }
                 />
               </div>
             )}
 
             <div className="flex flex-col sm:flex-row justify-between gap-3 sm:gap-0 mt-6">
               {step === 1 ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    console.log("Navigating back to vehicle selection");
-                    navigate(-1);
-                  }}
-                  className="flex items-center justify-center gap-1 w-full sm:w-auto"
-                >
-                  <ArrowLeft className="h-4 w-4" /> Back
-                </Button>
-              ) : (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={prevStep}
-                  className="w-full sm:w-auto"
-                >
-                  Back
-                </Button>
-              )}
+  <Button
+    type="button"
+    variant="outline"
+    onClick={() => {
+      navigate(-1);
+    }}
+    className="flex items-center justify-center gap-1 w-full sm:w-auto"
+  >
+    <ArrowLeft className="h-4 w-4" /> Back
+  </Button>
+) : (
+  <Button
+    type="button"
+    variant="outline"
+    onClick={prevStep}
+    className="w-full sm:w-auto"
+  >
+    Back
+  </Button>
+)}
+
 
               {step === 1 ? (
                 isAuthenticated ? (
                   <Button type="button" onClick={nextStep}>
-                    Next
+                    Next1
                   </Button>
                 ) : (
                   <Button
@@ -953,18 +898,33 @@ export default function BookingForm({ onClose }: BookingFormProps) {
                   </Button>
                 )
               ) : (
-                <Button
-                  type="submit"
-                  className="w-full sm:w-auto sm:ml-auto"
-                  disabled={isSubmitting}
-                >
-                  {isSubmitting ? "Adding to Cart..." : "Add to Cart"}
-                  {!isSubmitting && <Check className="ml-2 h-4 w-4" />}
-                </Button>
+                <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto sm:ml-auto">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="flex-1 sm:flex-none flex items-center justify-center gap-2"
+                    onClick={handleAddToCart}
+                    disabled={isSubmitting || !form.formState.isValid}
+                  >
+                    <ShoppingCart className="h-4 w-4" />
+                    {isSubmitting ? "Adding..." : "Add to Cart"}
+                  </Button>
+                  <Button
+                    type="button"
+                    className="flex-1 sm:flex-none flex items-center justify-center gap-2"
+                    onClick={handleContinueBooking}
+                    disabled={!form.formState.isValid}
+                  >
+                    <CreditCard className="h-4 w-4" />
+                    Continue Booking
+                  </Button>
+                </div>
               )}
             </div>
           </form>
         </Form>
+        </>
+        )}
       </CardContent>
     </Card>
   );

@@ -42,6 +42,10 @@
     "bookNow": "Pesan Sekarang",
     "airportTransfer": "Transfer Bandara"
   },
+  "main_hero" : {
+    "title": "Layanan Rental Mobil Premium",
+    "description": "Rasakan kebebasan di jalan dengan armada kendaraan kami yang luas. Pesan kendaraan sempurna Anda hari ini dan nikmati perjalanan tanpa hambatan."
+  },
   "auth": {
     "readyToBook": "Siap Memesan Kendaraan Anda?",
     "signInDescription": "Masuk atau buat akun untuk mulai memesan kendaraan sempurna Anda. Nikmati manfaat eksklusif, checkout lebih cepat, dan rekomendasi yang dipersonalisasi."

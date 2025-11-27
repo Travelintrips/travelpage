@@ -135,14 +135,14 @@ const CarModelCard: React.FC<CarModelCardProps> = ({
             variant="default"
             disabled={availableCount === 0}
           >
-            {availableCount > 0 ? "View Details" : "Not Available"}
+            {availableCount > 0 ? "View More" : "Not Available"}
           </Button>
         </CardFooter>
       </Card>
 
       {/* Authentication Modal */}
       <Dialog open={showAuthModal} onOpenChange={setShowAuthModal}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md" hideCloseButton>
           <DialogHeader className="text-center mb-4">
             <div className="flex items-center justify-center mb-2">
               <AlertCircle className="h-8 w-8 text-primary mr-2" />
@@ -154,6 +154,24 @@ const CarModelCard: React.FC<CarModelCardProps> = ({
               You need to Sign in or Register to continue
             </DialogDescription>
           </DialogHeader>
+          <div className="flex gap-3 mt-4">
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={() => setShowAuthModal(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              className="flex-1"
+              onClick={() => {
+                setShowAuthModal(false);
+                navigate("/", { state: { showAuth: true, authType: "login" } });
+              }}
+            >
+              Sign In
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </>

@@ -1409,7 +1409,7 @@ useEffect(() => {
 
         {/* ✅ Bagian Payments */}
         <div>
-          <Label>Payments1</Label>
+          <Label>Payments</Label>
           <Table>
             <TableHeader>
               <TableRow>

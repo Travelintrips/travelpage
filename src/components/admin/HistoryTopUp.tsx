@@ -57,18 +57,23 @@ import { useToast } from "@/components/ui/use-toast";
 interface TopUpTransaction {
   id: string;
   user_id: string;
+  code?: string;
   reference_no: string | null;
   amount: number;
   method: string;
+  payment_method?: string;
   status: string;
   created_at: string | null;
   verified_at: string | null;
+  verified_by?: string | null;
+  verified_by_name?: string;
   note: string | null;
   bank_name?: string | null;
   destination_account?: string | null;
   sender_account?: string | null;
   sender_bank?: string | null;
   sender_name?: string | null;
+  proof_url?: string | null;
   agent_name?: string;
   agent_email?: string;
   agent_phone?: string;
@@ -211,9 +216,9 @@ const HistoryTopUp = () => {
         console.log('[HistoryTopUp] Background refresh, no loading spinner');
       }
 
-      // Fetch top-up requests without foreign key joins
+      // ✅ Fetch top-up requests with verified_by admin info
       const { data: topupData, error: topupError } = await supabase
-        .from("v_topup_requests")
+        .from("topup_requests")
         .select("*, bank_name, sender_account, sender_name")
         .order("created_at", { ascending: false });
 
@@ -230,9 +235,12 @@ const HistoryTopUp = () => {
         return;
       }
 
-      // Get unique user IDs from top-up requests
+      // Get unique user IDs from top-up requests (both user_id and verified_by)
       const userIds = [
-        ...new Set(topupData.map((t) => t.user_id).filter(Boolean)),
+        ...new Set([
+          ...topupData.map((t) => t.user_id).filter(Boolean),
+          ...topupData.map((t) => t.verified_by).filter(Boolean),
+        ])
       ];
 
       console.log("User IDs from topup_requests:", userIds);
@@ -292,16 +300,19 @@ const HistoryTopUp = () => {
 
       console.log("User map with roles:", Array.from(userMap.entries()));
 
-      // Combine the data and filter for agents
+      // ✅ Combine the data and add verified_by admin name
       const transactionData = topupData
         .map((transaction: any) => {
           const user = userMap.get(transaction.user_id);
+          const verifiedByUser = userMap.get(transaction.verified_by);
+          
           return {
             ...transaction,
             agent_name: user?.full_name || "Unknown Agent",
             agent_email: user?.email || "Unknown",
             agent_phone: user?.phone_number || "-",
             user_role: user?.role_name || user?.role || null,
+            verified_by_name: verifiedByUser?.full_name || "System Admin", // ✅ Add admin name
           };
         })
         .filter((transaction: any) => {
@@ -872,20 +883,22 @@ const HistoryTopUp = () => {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Code</TableHead>
-                    <TableHead>Agent</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Amount</TableHead>
+                    <TableHead>Topup Code2</TableHead>
+                    <TableHead>Driver Name</TableHead>
+                    <TableHead>Nominal</TableHead>
                     <TableHead>Method</TableHead>
-                    <TableHead>Note</TableHead>
-                    <TableHead>Date</TableHead>
+                    <TableHead>Bukti Transfer</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Approved/Rejected By</TableHead>
+                    <TableHead>Decision Date</TableHead>
+                    <TableHead>Note/Reason</TableHead>
                     <TableHead className="text-center">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredTransactions.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center py-8">
+                      <TableCell colSpan={10} className="text-center py-8">
                         {loading
                           ? "Loading..."
                           : searchTerm ||
@@ -900,7 +913,7 @@ const HistoryTopUp = () => {
                     filteredTransactions.map((transaction) => (
                       <TableRow key={transaction.id}>
                         <TableCell className="font-mono text-sm">
-                          {transaction.reference_no || "-"}
+                          {transaction.code || transaction.reference_no || "-"}
                         </TableCell>
                         <TableCell>
                           <div className="flex flex-col">
@@ -913,17 +926,48 @@ const HistoryTopUp = () => {
                           </div>
                         </TableCell>
                         <TableCell>
-                          {getStatusBadge(transaction.status)}
-                        </TableCell>
-                        <TableCell>
                           <span className="font-medium text-green-600">
                             Rp {transaction.amount.toLocaleString()}
                           </span>
                         </TableCell>
                         <TableCell className="font-medium">
-                        <span>{transaction.payment_method? transaction.payment_method.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()): "N/A"}</span>
-                        <span>{transaction.bank_name || "N/A"}</span>
-                        <span>{transaction.account_number}</span>
+                          <div className="flex flex-col">
+                            <span>{transaction.payment_method ? transaction.payment_method.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()) : "N/A"}</span>
+                            <span className="text-sm text-gray-500">{transaction.bank_name || ""}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {transaction.proof_url ? (
+                            <a 
+                              href={transaction.proof_url} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="text-blue-600 hover:underline text-sm"
+                            >
+                              View Proof
+                            </a>
+                          ) : (
+                            <span className="text-gray-400 text-sm">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {getStatusBadge(transaction.status)}
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-sm font-medium">
+                            {transaction.verified_by_name || "-"}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          {transaction.verified_at
+                            ? new Date(transaction.verified_at).toLocaleDateString("id-ID", {
+                                year: "numeric",
+                                month: "short",
+                                day: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })
+                            : "-"}
                         </TableCell>
                         <TableCell className="max-w-xs">
                           <div
@@ -932,19 +976,6 @@ const HistoryTopUp = () => {
                           >
                             {transaction.note || "-"}
                           </div>
-                        </TableCell>
-                        <TableCell>
-                          {transaction.created_at
-                            ? new Date(
-                                transaction.created_at,
-                              ).toLocaleDateString("id-ID", {
-                                year: "numeric",
-                                month: "short",
-                                day: "numeric",
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })
-                            : "-"}
                         </TableCell>
                         <TableCell className="text-center">
                           <Button

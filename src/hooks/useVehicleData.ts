@@ -6,6 +6,7 @@ export interface Vehicle {
   name: string;
   type: "sedan" | "suv" | "truck" | "luxury";
   price: number;
+  daily_rate?: number;
   image: string;
   seats: number;
   transmission: "automatic" | "manual";
@@ -112,6 +113,7 @@ export function useVehicleData(modelNameParam?: string) {
             modelName: modelKey,
             availableCount: 0,
             imageUrl:
+              vehicle.image_url ||
               vehicle.image ||
               `/images/cover/${modelKey.toLowerCase().replace(/\s+/g, "-")}.jpg`,
             vehicles: [],
@@ -122,14 +124,15 @@ export function useVehicleData(modelNameParam?: string) {
           id: vehicle.id.toString(),
           name: modelKey || "Unknown Vehicle",
           type: vehicle.type || "sedan",
-          price: vehicle.price || 0,
+          price: Number(vehicle.daily_rate) || Number(vehicle.price) || 0, // ✅ Convert to number
+          daily_rate: Number(vehicle.daily_rate) || Number(vehicle.price) || 0, // ✅ Convert to number
           image:
-            vehicle.image ||
+            vehicle.image_url || vehicle.image ||
             "https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?w=800&q=80",
           seats: vehicle.seats || 4,
           transmission: vehicle.transmission || "automatic",
           fuelType: vehicle.fuel_type || "petrol",
-          available: vehicle.available !== false,
+          available: vehicle.available !== false, // ✅ Gunakan available
           features: vehicle.features
             ? typeof vehicle.features === "string"
               ? JSON.parse(vehicle.features)
@@ -139,8 +142,8 @@ export function useVehicleData(modelNameParam?: string) {
             : ["AC"],
           vehicle_type_id: vehicle.vehicle_type_id,
           vehicle_type_name: vehicle.vehicle_type_name,
-          make: vehicle.make,
-          model: vehicle.model,
+          make: vehicle.make || "Unknown",
+          model: vehicle.model || "Unknown",
           year: vehicle.year,
           color: vehicle.color,
           license_plate: vehicle.license_plate,
@@ -259,7 +262,6 @@ export function useVehicleData(modelNameParam?: string) {
     shouldRefetch,
     fetchAttempted,
     hasInitialLoad,
-    isLoadingModels,
   ]);
 
   // Enhanced visibility change listener with better retry logic

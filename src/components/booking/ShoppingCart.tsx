@@ -28,6 +28,7 @@ import {
   MapPin,
   Compass,
   HandHeart,
+  Ticket,
 } from "lucide-react";
 import { useShoppingCart } from "@/hooks/useShoppingCart";
 import { formatCurrency } from "@/lib/utils";
@@ -154,7 +155,12 @@ const ShoppingCart: React.FC<ShoppingCartProps> = () => {
 
           if (!existingItem) {
             const vehicleInfo = booking.vehicles as any;
-            const serviceName = `${vehicleInfo?.make || "Unknown"} ${vehicleInfo?.model || "Vehicle"} ${vehicleInfo?.year ? `(${vehicleInfo.year})` : ""}`;
+            const serviceName = `${vehicleInfo?.make || "Unknown"} ${
+  vehicleInfo?.model || "Vehicle"
+} ${vehicleInfo?.year ? `(${vehicleInfo.year})` : ""} ${
+  vehicleInfo?.license_plate ? `• ${vehicleInfo.license_plate}` : ""
+}`;
+
 
             await addToCart({
               item_type: "car",
@@ -581,6 +587,22 @@ const ShoppingCart: React.FC<ShoppingCartProps> = () => {
                               </div>
                               <h3 className="font-medium text-lg">
                                 {(() => {
+                                  // For car rental, show vehicle details from parsed details if available
+                                  if (item.item_type === "car" && item.details) {
+                                    let parsedDetails = item.details;
+                                    if (typeof item.details === "string") {
+                                      try {
+                                        parsedDetails = JSON.parse(item.details);
+                                      } catch (error) {
+                                        console.error("Error parsing car details:", error);
+                                      }
+                                    }
+                                    
+                                    if (parsedDetails.make && parsedDetails.model) {
+                                      return `${parsedDetails.make} ${parsedDetails.model} ${parsedDetails.year ? `(${parsedDetails.year})` : ""}`;
+                                    }
+                                  }
+
                                   // Create display names mapping
                                   const displayNames: Record<string, string> = {
                                     small: "Small",
@@ -613,6 +635,33 @@ const ShoppingCart: React.FC<ShoppingCartProps> = () => {
                                   return item.service_name;
                                 })()}
                               </h3>
+
+                              {/* License Plate Badge for Car Rental */}
+                              {item.item_type === "car" && item.details && (() => {
+                                let parsedDetails = item.details;
+                                if (typeof item.details === "string") {
+                                  try {
+                                    parsedDetails = JSON.parse(item.details);
+                                  } catch (error) {
+                                    console.error("Error parsing car details:", error);
+                                  }
+                                }
+                                
+                                if (parsedDetails.licensePlate || parsedDetails.license_plate) {
+                                  return (
+                                    <Badge
+                                      variant="secondary"
+                                        className="mt-1 text-base px-4 py-1.2 rounded-sm 
+                                          bg-white text-black 
+                                          border-2 border-black 
+                                            shadow-md font-semibold"
+                                      >
+                                      {parsedDetails.licensePlate || parsedDetails.license_plate}
+                                        </Badge>
+                                  );
+                                }
+                                return null;
+                              })()}
 
                               {/* Baggage Details Information - Enhanced display */}
                               {item.item_type === "baggage" &&
@@ -854,7 +903,7 @@ const ShoppingCart: React.FC<ShoppingCartProps> = () => {
                                     parsedDetails.bookingType === "scheduled";
 
                                   return (
-                                    <div className="mt-3 space-y-1">
+                                    <div className="mt-3 space-y-2">
                                       {/* Booking Code */}
                                       {parsedDetails.codeBooking && (
                                         <p className="text-sm text-gray-600">
@@ -1204,14 +1253,22 @@ const ShoppingCart: React.FC<ShoppingCartProps> = () => {
                                   }
 
                                   return (
-                                    <div className="mt-3 space-y-1">
-                                      {parsedDetails.start_date && (
+                                    <div className="mt-2 space-y-1">
+                                    <Badge
+                                        variant="outline"
+                    className="text-sm px-3 py-1 rounded-lg border-blue-500 text-blue-600 bg-blue-50 gap-1"
+                    >
+                    <Ticket size={14} />
+                        <span className="font-semibold">Code Booking :</span> {item.code_booking}
+                                  </Badge>
+
+                                      {(parsedDetails.start_date || parsedDetails.startDate) && (
                                         <p className="text-sm text-gray-600">
                                           <span className="font-medium">
                                             Pickup Date:
                                           </span>{" "}
                                           {new Date(
-                                            parsedDetails.start_date,
+                                            parsedDetails.start_date || parsedDetails.startDate,
                                           ).toLocaleDateString("en-US", {
                                             weekday: "short",
                                             year: "numeric",
@@ -1220,13 +1277,13 @@ const ShoppingCart: React.FC<ShoppingCartProps> = () => {
                                           })}
                                         </p>
                                       )}
-                                      {parsedDetails.end_date && (
+                                      {(parsedDetails.end_date || parsedDetails.endDate) && (
                                         <p className="text-sm text-gray-600">
                                           <span className="font-medium">
                                             Return Date:
                                           </span>{" "}
                                           {new Date(
-                                            parsedDetails.end_date,
+                                            parsedDetails.end_date || parsedDetails.endDate,
                                           ).toLocaleDateString("en-US", {
                                             weekday: "short",
                                             year: "numeric",
@@ -1235,31 +1292,76 @@ const ShoppingCart: React.FC<ShoppingCartProps> = () => {
                                           })}
                                         </p>
                                       )}
-                                      {parsedDetails.pickup_time && (
+                                      {(parsedDetails.pickup_time || parsedDetails.pickupTime) && (
                                         <p className="text-sm text-gray-600">
                                           <span className="font-medium">
                                             Pickup Time:
                                           </span>{" "}
-                                          {parsedDetails.pickup_time}
+                                          {parsedDetails.pickup_time || parsedDetails.pickupTime}
                                         </p>
                                       )}
-                                      {parsedDetails.driver_option && (
+                                      {parsedDetails.returnTime && (
+                                        <p className="text-sm text-gray-600">
+                                          <span className="font-medium">
+                                            Return Time:
+                                          </span>{" "}
+                                          {parsedDetails.returnTime}
+                                        </p>
+                                      )}
+                                      {parsedDetails.totalDays && (
+                                        <p className="text-sm text-gray-600">
+                                          <span className="font-medium">
+                                            Duration:
+                                          </span>{" "}
+                                          {parsedDetails.totalDays} day(s)
+                                        </p>
+                                      )}
+                                      {parsedDetails.basePrice && (
+                                        <p className="text-sm text-gray-600">
+                                          <span className="font-medium">
+                                            Base Price:
+                                          </span>{" "}
+                                          {formatCurrency(parsedDetails.basePrice)}
+                                        </p>
+                                      )}
+                                      {(parsedDetails.driver_option || parsedDetails.driverOption) && (
                                         <p className="text-sm text-gray-600">
                                           <span className="font-medium">
                                             Driver Option:
                                           </span>{" "}
-                                          {parsedDetails.driver_option ===
+                                          {(parsedDetails.driver_option || parsedDetails.driverOption) ===
                                           "self"
                                             ? "Self-drive"
                                             : "With Driver"}
                                         </p>
                                       )}
-                                      <Badge
-                                        variant="outline"
-                                        className="text-xs"
-                                      >
-                                        Booking ID: {item.item_id}
-                                      </Badge>
+                                      {parsedDetails.driverFee > 0 && (
+                                        <>
+                                          {parsedDetails.driverName && (
+                                            <p className="text-sm text-gray-600">
+                                              <span className="font-medium">
+                                                Driver Name:
+                                              </span>{" "}
+                                              {parsedDetails.driverName}
+                                            </p>
+                                          )}
+                                          {parsedDetails.driverPhone && (
+                                            <p className="text-sm text-gray-600">
+                                              <span className="font-medium">
+                                                Driver Phone:
+                                              </span>{" "}
+                                              {parsedDetails.driverPhone}
+                                            </p>
+                                          )}
+                                          <p className="text-sm text-gray-600">
+                                            <span className="font-medium">
+                                              Driver Fee:
+                                            </span>{" "}
+                                            {formatCurrency(parsedDetails.driverFee)}
+                                          </p>
+                                        </>
+                                      )}
+                                      
                                     </div>
                                   );
                                 })()}

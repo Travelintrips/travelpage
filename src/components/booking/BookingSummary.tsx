@@ -13,6 +13,12 @@ interface BookingSummaryProps {
   isPartialPayment: boolean;
   itemName?: string;
   baggageSize?: string;
+  driverName?: string;
+  driverPhone?: string;
+  startDate?: string;
+  endDate?: string;
+  pickupTime?: string;
+  returnTime?: string;
 }
 
 const BookingSummary: React.FC<BookingSummaryProps> = ({
@@ -27,6 +33,12 @@ const BookingSummary: React.FC<BookingSummaryProps> = ({
   isPartialPayment,
   itemName,
   baggageSize,
+  driverName,
+  driverPhone,
+  startDate,
+  endDate,
+  pickupTime,
+  returnTime,
 }) => {
   // Format currency to IDR
   const formatCurrency = (amount: number) => {
@@ -47,6 +59,30 @@ const BookingSummary: React.FC<BookingSummaryProps> = ({
             {vehicleMake} {vehicleModel} {vehicleYear && `(${vehicleYear})`}
           </span>
         </div>
+        {startDate && (
+          <div className="flex justify-between">
+            <span>Pickup Date:</span>
+            <span className="font-medium">{startDate}</span>
+          </div>
+        )}
+        {endDate && (
+          <div className="flex justify-between">
+            <span>Return Date:</span>
+            <span className="font-medium">{endDate}</span>
+          </div>
+        )}
+        {pickupTime && (
+          <div className="flex justify-between">
+            <span>Pickup Time:</span>
+            <span className="font-medium">{pickupTime}</span>
+          </div>
+        )}
+        {returnTime && (
+          <div className="flex justify-between">
+            <span>Return Time:</span>
+            <span className="font-medium">{returnTime}</span>
+          </div>
+        )}
         <div className="flex justify-between">
           <span>Duration:</span>
           <span className="font-medium">{totalDays} day(s)</span>
@@ -61,11 +97,27 @@ const BookingSummary: React.FC<BookingSummaryProps> = ({
           <span>Base Price:</span>
           <span className="font-medium">{formatCurrency(basePrice)}</span>
         </div>
-        {driverFee > 0 && (
-          <div className="flex justify-between">
-            <span>Driver Fee:</span>
-            <span className="font-medium">{formatCurrency(driverFee)}</span>
-          </div>
+        {driverFee > 0 && driverName && (
+          <>
+            <Separator />
+            <div className="flex justify-between">
+              <span className="font-semibold">Driver Selected:</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Driver Name:</span>
+              <span className="font-medium">{driverName}</span>
+            </div>
+            {driverPhone && (
+              <div className="flex justify-between">
+                <span>Driver Phone:</span>
+                <span className="font-medium">{driverPhone}</span>
+              </div>
+            )}
+            <div className="flex justify-between">
+              <span>Driver Fee:</span>
+              <span className="font-medium">{formatCurrency(driverFee)}</span>
+            </div>
+          </>
         )}
         <Separator />
         <div className="flex justify-between font-bold">

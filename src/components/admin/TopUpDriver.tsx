@@ -35,6 +35,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Command,
   CommandEmpty,
@@ -148,6 +149,13 @@ export default function TopUpDriver({
   const [manualTopupNote, setManualTopupNote] = useState("");
   const [driverSearchOpen, setDriverSearchOpen] = useState(false);
   const [driverSearchValue, setDriverSearchValue] = useState("");
+  const [topupType, setTopupType] = useState<"manual" | "bank_transfer">("manual");
+  const [selectedBankAccount, setSelectedBankAccount] = useState("");
+  const [proofFile, setProofFile] = useState<File | null>(null);
+  const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
+  const [isTopupProcessing, setIsTopupProcessing] = useState(false);
+  //const [requests, setRequests] = useState<any[]>([]);
+
   
   const [currentPageHistory, setCurrentPageHistory] = useState(1);
   const [currentPageAdmin, setCurrentPageAdmin] = useState(1);
@@ -162,7 +170,24 @@ export default function TopUpDriver({
 
   useEffect(() => {
     fetchData();
+    fetchPaymentMethods();
   }, []);
+  
+  const fetchPaymentMethods = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("payment_methods")
+        .select("*")
+        .eq("is_active", true)
+        .eq("provider", "bank_transfer")
+        .order("bank_name", { ascending: true });
+
+      if (error) throw error;
+      setPaymentMethods(data || []);
+    } catch (error) {
+      console.error("Error fetching payment methods:", error);
+    }
+  };
 
   // Save active tab to localStorage whenever it changes
   const handleTabChange = (value: string) => {
@@ -290,18 +315,17 @@ export default function TopUpDriver({
   }
 };
 
-
-
   const fetchHistoryRequests = async () => {
   try {
     console.log("[TopUpDriver] Fetching history requests...");
 
-    // 1️�� Ambil data dari view
-    let query = supabase
-      .from("v_topup_requests")
+    // 1️⃣ Ambil data utama
+    const { data: requests, error } = await supabase
+      .from("topup_requests")
       .select(`
         id,
         user_id,
+        name,
         amount,
         payment_method,
         bank_name,
@@ -317,18 +341,12 @@ export default function TopUpDriver({
         request_by_role,
         account_holder_received,
         sender_account,
-        sender_name,
-        user_email,
-        user_full_name,
-        admin_email,
-        admin_full_name
+        sender_name
       `)
       .in("status", ["verified", "rejected"])
       .order("created_at", { ascending: false });
 
-    const { data: requests, error } = await query;
     if (error) throw error;
-
     console.log("[TopUpDriver] Raw history data:", requests);
 
     // 2️⃣ Ambil user & driver data
@@ -338,8 +356,14 @@ export default function TopUpDriver({
 
     if (userIds.length > 0) {
       const [{ data: drivers }, { data: users }] = await Promise.all([
-        supabase.from("drivers").select("user_id, full_name, email, phone_number").in("user_id", userIds),
-        supabase.from("users").select("id, full_name, email, phone_number, role").in("id", userIds),
+        supabase
+          .from("drivers")
+          .select("user_id, full_name, email, phone_number")
+          .in("user_id", userIds),
+        supabase
+          .from("users")
+          .select("id, full_name, email, phone_number, role")
+          .in("id", userIds),
       ]);
 
       driversMap = (drivers || []).reduce((acc, d) => {
@@ -352,23 +376,43 @@ export default function TopUpDriver({
       }, {});
     }
 
-    // 3️⃣ Ambil admin info
-    const adminIds = requests?.map((r) => r.admin_id).filter(Boolean) || [];
+    // 3️⃣ ✅ Ambil admin info dari verified_by (tabel users, bukan auth.users)
+    const adminIds = requests?.map((r) => r.verified_by).filter(Boolean) || [];
     let adminMap: Record<string, any> = {};
+
     if (adminIds.length > 0) {
-      const { data: admins } = await supabase
+      const { data: admins, error: adminError } = await supabase
         .from("users")
-        .select("id, full_name, email")
+        .select("id, full_name, email, phone_number, role")
         .in("id", adminIds);
+
+      if (adminError) console.error("Error fetching admin info:", adminError);
+
       adminMap = (admins || []).reduce((acc, a) => {
-        acc[a.id] = a;
+        acc[a.id] = {
+          id: a.id,
+          email: a.email,
+          full_name: a.full_name || "Admin",
+          role: a.role || "Staff Admin",
+          phone: a.phone_number || "-",
+        };
         return acc;
       }, {});
     }
 
-    // 4️⃣ Filter fleksibel (jika request_by_role kosong tetap tampil)
+  //  console.log("[TopUpDriver] Admin map:", adminMap);
+
+    // 4️⃣ Gabungkan semua hasil (driver, user, admin)
+    const mergedRequests = (requests || []).map((r) => ({
+      ...r,
+      driver_info: driversMap[r.user_id],
+      user_info: usersMap[r.user_id],
+      admin_info: adminMap[r.verified_by],
+    }));
+
+    // 5️⃣ Filter fleksibel
     const filteredHistory =
-      requests
+      mergedRequests
         ?.filter((req) => {
           const user = usersMap[req.user_id];
           const driver = driversMap[req.user_id];
@@ -381,7 +425,6 @@ export default function TopUpDriver({
             );
           }
 
-          // ✅ tampilkan meskipun request_by_role kosong
           if (!role && (user || driver)) return true;
 
           return /(driver|mitra|perusahaan|admin)/i.test(role);
@@ -389,9 +432,8 @@ export default function TopUpDriver({
         .map((req) => {
           const driver = driversMap[req.user_id] || {};
           const user = usersMap[req.user_id] || {};
-          const admin = adminMap[req.admin_id] || {};
+          const admin = adminMap[req.verified_by] || {};
 
-          // ✅ Fallback prioritas nama
           const driverName =
             driver.full_name || user.full_name || req.user_full_name || "Unknown Driver";
           const driverEmail =
@@ -399,8 +441,8 @@ export default function TopUpDriver({
           const driverPhone =
             driver.phone_number || user.phone_number || "-";
 
-          const adminName = admin.full_name || req.admin_full_name || "System Admin";
-          const adminEmail = admin.email || req.admin_email || "-";
+          const adminName = admin.full_name || "System";
+          const adminEmail = admin.email || "-";
 
           return {
             ...req,
@@ -412,15 +454,18 @@ export default function TopUpDriver({
           };
         }) || [];
 
-    console.table(
+  /*  console.table(
       filteredHistory.map((r) => ({
         id: r.id,
         driver_name: r.driver_name,
+        admin_name: r.admin_name,
+        admin_email: r.admin_email,
+        verified_by: r.verified_by,
         role: r.request_by_role,
-        source: r.request_by_role ? "role" : "fallback (user_id)",
       }))
-    );
+    );*/
 
+    // ✅ Simpan hasil akhir ke state
     setHistoryRequests(filteredHistory);
   } catch (error) {
     console.error("❌ Error fetching history requests:", error);
@@ -431,6 +476,7 @@ export default function TopUpDriver({
     });
   }
 };
+
 
   const fetchAdminTopupHistory = async () => {
     try {
@@ -730,6 +776,26 @@ export default function TopUpDriver({
     return;
   }
 
+  // ✅ Validasi untuk Bank Transfer
+  if (topupType === "bank_transfer") {
+    if (!selectedBankAccount) {
+      toast({
+        title: "Error",
+        description: "Please select a bank account",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!proofFile) {
+      toast({
+        title: "Error",
+        description: "Please upload proof of transfer",
+        variant: "destructive",
+      });
+      return;
+    }
+  }
+
   const amount = parseFloat(manualTopupAmount);
   if (isNaN(amount) || amount <= 0) {
     toast({
@@ -741,9 +807,9 @@ export default function TopUpDriver({
   }
 
   try {
-    setProcessing(true);
+    setIsTopupProcessing(true);
 
-    console.log("[TopUpDriver] Creating manual topup for driver:", selectedDriverId);
+    console.log("[TopUpDriver] Creating topup for driver:", selectedDriverId);
 
     // Generate booking code
     const bookingCode = generateBookingCode();
@@ -752,7 +818,7 @@ export default function TopUpDriver({
     // 1. Get current driver saldo and admin info
     const { data: currentDriver, error: fetchDriverError } = await supabase
       .from("drivers")
-      .select("saldo, full_name")
+      .select("saldo, full_name, user_id, role_name")
       .eq("id", selectedDriverId)
       .single();
 
@@ -761,83 +827,175 @@ export default function TopUpDriver({
     }
 
     // 2. Get admin info
-    const { data: adminData, error: fetchAdminError } = await supabase
+    const adminResult = await supabase
       .from("users")
       .select("full_name")
       .eq("id", userId)
       .single();
 
-    if (fetchAdminError) {
-      console.error("Error fetching admin data:", fetchAdminError);
+    if (adminResult.error) {
+      console.error("Error fetching admin data:", adminResult.error);
     }
 
     const currentSaldo = currentDriver.saldo || 0;
     const newSaldo = currentSaldo + amount;
-    const adminName = adminData?.full_name || "Admin";
+    const adminName = adminResult.data?.full_name || "Admin";
+    
+    // ✅ Ambil role_name dari tabel drivers
+    const driverRole = currentDriver.role_name || "Driver";
 
     console.log("[TopUpDriver] Saldo calculation:", {
       currentSaldo,
       amount,
-      newSaldo
+      newSaldo,
+      driverRole
     });
 
-    // 3. Insert into topup_requests table with booking code
+    let proofUrl = null;
+
+    // ✅ Upload proof jika Bank Transfer
+    if (topupType === "bank_transfer" && proofFile) {
+      const fileExt = proofFile.name.split('.').pop();
+      const fileName = `${bookingCode}_${Date.now()}.${fileExt}`;
+      const filePath = `topup-proofs/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("transfer-proofs")
+        .upload(filePath, proofFile);
+
+      if (uploadError) {
+        console.error("Error uploading proof:", uploadError);
+        throw uploadError;
+      }
+
+      const { data: urlData } = supabase.storage
+        .from("transfer-proofs")
+        .getPublicUrl(filePath);
+
+      proofUrl = urlData.publicUrl;
+    }
+
+    // 3. Insert into topup_requests table
+    const topupRequestData: any = {
+      user_id: selectedDriverId,
+      reference_no: bookingCode,
+      amount: amount,
+      payment_method: topupType === "manual" ? "Manual Admin Topup" : "Bank Transfer",
+      status: topupType === "manual" ? "verified" : "pending",
+      note: manualTopupNote || null,
+      request_by_role: driverRole,
+      created_at: new Date().toISOString()
+    };
+
+    if (topupType === "manual") {
+      topupRequestData.verified_by = userId;
+      topupRequestData.verified_at = new Date().toISOString();
+    }
+
+    if (topupType === "bank_transfer") {
+      const selectedBank = paymentMethods.find(pm => pm.account_number === selectedBankAccount);
+      topupRequestData.bank_name = selectedBank?.bank_name || "";
+      topupRequestData.destination_account = selectedBankAccount;
+      topupRequestData.proof_url = proofUrl;
+      topupRequestData.account_holder_received = selectedBank?.account_holder || "";
+    }
+
     const { error: insertTopupError } = await supabase
       .from("topup_requests")
-      .insert({
-        user_id: selectedDriverId,
-        reference_no: bookingCode,
-        amount: amount,
-        payment_method: "Manual Admin Topup",
-        status: "verified",
-        verified_by: userId,
-        verified_at: new Date().toISOString(),
-        note: `Manual Top-up by Admin: ${manualTopupNote}`,
-        request_by_role: "Admin Manual",
-        created_at: new Date().toISOString()
-      });
+      .insert(topupRequestData);
 
     if (insertTopupError) {
       console.error("Error inserting to topup_requests:", insertTopupError);
       throw insertTopupError;
     }
 
-    // 4. ✅ Insert into histori_transaksi table WITH saldo_awal
+    // 4. ✅ Insert ke histori_transaksi untuk Manual dan Bank Transfer
+    const historiTransaksiData: any = {
+      user_id: selectedDriverId,
+      code_booking: bookingCode,
+      nominal: amount,
+      saldo_awal: currentSaldo,
+      saldo_akhir: newSaldo,
+      keterangan: topupType === "manual" 
+        ? `Topup by Admin (${adminName})` 
+        : `Bank Transfer by Admin (${adminName})`,
+      jenis_transaksi: topupType === "manual" ? 'Topup Manual Driver' : 'Topup Bank Transfer Driver',
+      status: topupType === "manual" ? "verified" : "pending",
+      admin_name: adminName,
+      admin_id: userId,
+      trans_date: new Date().toISOString(),
+      request_by_role: driverRole
+    };
+
+    if (topupType === "bank_transfer") {
+      const selectedBank = paymentMethods.find(pm => pm.account_number === selectedBankAccount);
+      historiTransaksiData.proof_url = proofUrl;
+      historiTransaksiData.payment_method = "Bank Transfer";
+      historiTransaksiData.bank_name = selectedBank?.bank_name || "";
+      historiTransaksiData.account_holder_received = selectedBank?.account_holder || "";
+      historiTransaksiData.account_number = selectedBankAccount;
+    }
+
     const { error: insertError } = await supabase
       .from("histori_transaksi")
-      .insert({
-        user_id: selectedDriverId,
-        code_booking: bookingCode,
-        nominal: amount,
-        saldo_awal: currentSaldo,  // ✅ Tambahkan saldo_awal
-        saldo_akhir: newSaldo,
-        keterangan: `Topup Manual Driver by Admin (${bookingCode})`,
-        jenis_transaksi: 'Topup Manual Driver',
-        admin_name: adminName,
-        trans_date: new Date().toISOString()
-      });
+      .insert(historiTransaksiData);
 
     if (insertError) {
       console.error("Error inserting to histori_transaksi:", insertError);
       throw insertError;
     }
 
-    // 5. Update driver saldo
-    const { error: updateError } = await supabase
-      .from("drivers")
-      .update({ saldo: newSaldo })
-      .eq("id", selectedDriverId);
+    // 5. Update driver saldo hanya untuk Manual
+    if (topupType === "manual") {
+      const { error: updateError } = await supabase
+        .from("drivers")
+        .update({ saldo: newSaldo })
+        .eq("id", selectedDriverId);
 
-    if (updateError) {
-      console.error("Error updating driver saldo:", updateError);
-      throw updateError;
+      if (updateError) {
+        console.error("Error updating driver saldo:", updateError);
+        throw updateError;
+      }
+
+      // ✅ 6. Insert ke wallet_ledger untuk Manual Topup
+      const { data: topupRequestData, error: fetchTopupError } = await supabase
+        .from("topup_requests")
+        .select("id")
+        .eq("reference_no", bookingCode)
+        .single();
+
+      if (fetchTopupError) {
+        console.error("Error fetching topup_request id:", fetchTopupError);
+      } else if (topupRequestData) {
+        const walletLedgerData = {
+          user_id: selectedDriverId,
+          ref_table: "topup_requests",
+          ref_id: topupRequestData.id,
+          entry_type: "topup",
+          amount: amount,
+          direction: "credit",
+          balance_after: newSaldo,
+          created_at: new Date().toISOString()
+        };
+
+        const { error: walletLedgerError } = await supabase
+          .from("wallet_ledger")
+          .insert(walletLedgerData);
+
+        if (walletLedgerError) {
+          console.error("Error inserting to wallet_ledger:", walletLedgerError);
+          // Don't throw error, just log it
+        }
+      }
     }
 
-    // Success toast with booking code
+    // Success toast
     const selectedDriver = drivers.find(d => d.id === selectedDriverId);
     toast({
       title: "Success",
-      description: `Manual top-up of Rp ${amount.toLocaleString()} for ${selectedDriver?.full_name || 'driver'} has been processed. Booking Code: ${bookingCode}`,
+      description: topupType === "manual" 
+        ? `Manual top-up of Rp ${amount.toLocaleString()} for ${selectedDriver?.full_name || 'driver'} has been processed. Booking Code: ${bookingCode}`
+        : `Bank transfer request of Rp ${amount.toLocaleString()} for ${selectedDriver?.full_name || 'driver'} has been submitted. Booking Code: ${bookingCode}`,
     });
 
     // Reset form & close modal
@@ -847,21 +1005,23 @@ export default function TopUpDriver({
     setManualTopupNote("");
     setDriverSearchOpen(false);
     setDriverSearchValue("");
+    setTopupType("manual");
+    setSelectedBankAccount("");
+    setProofFile(null);
 
     // Refresh data
     await fetchData();
   } catch (error) {
-    console.error("Error processing manual topup:", error);
+    console.error("Error processing topup:", error);
     toast({
       title: "Error",
-      description: "Failed to process manual top-up",
+      description: "Failed to process top-up",
       variant: "destructive",
     });
   } finally {
-    setProcessing(false);
+    setIsTopupProcessing(false);
   }
 };
-
 
   const openManualTopupModal = () => {
     setSelectedDriverId("");
@@ -869,6 +1029,9 @@ export default function TopUpDriver({
     setManualTopupNote("");
     setDriverSearchOpen(false);
     setDriverSearchValue("");
+    setTopupType("manual");
+    setSelectedBankAccount("");
+    setProofFile(null);
     setIsManualTopupModalOpen(true);
   };
 
@@ -1377,7 +1540,7 @@ export default function TopUpDriver({
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Topup Code</TableHead>
+                        <TableHead>Topup Code1</TableHead>
                         <TableHead>Driver Name</TableHead>
                         <TableHead>Nominal</TableHead>
                         <TableHead>Method</TableHead>
@@ -1408,7 +1571,7 @@ export default function TopUpDriver({
                             </TableCell>
                             <TableCell>
   <div className="flex flex-col">
-    <span className="font-medium">{request.user_full_name}</span>
+    <span className="font-medium">{request.name}</span>
     <span className="text-sm text-gray-500">{request.user_email}</span>
   </div>
 </TableCell>
@@ -1452,11 +1615,18 @@ export default function TopUpDriver({
                             </TableCell>
                             <TableCell>
   <div className="flex flex-col">
-    <span className="font-medium">
-      {request.admin_full_name || "Unknown Admin"}
-    </span>
+    {request.admin_name ? (
+      <>
+        <span className="font-medium text-gray-900">{request.admin_name}</span>
+        <span className="text-sm text-gray-500">{request.admin_email}</span>
+      </>
+    ) : (
+      <span className="text-gray-400 italic">Unknown Admin</span>
+    )}
   </div>
 </TableCell>
+
+
 
 
                             <TableCell>
@@ -1753,7 +1923,7 @@ export default function TopUpDriver({
                 <div>
                   <Label className="text-sm font-medium">Driver Name</Label>
                   <p className="text-sm text-gray-600">
-                    {selectedRequest.user_full_name}
+                    {selectedRequest.name}
                   </p>
                 </div>
                 <div>
@@ -1765,7 +1935,7 @@ export default function TopUpDriver({
                 <div>
                   <Label className="text-sm font-medium">Driver Email</Label>
                   <p className="text-sm text-gray-600">
-                    {selectedRequest.user_email}
+                    {selectedRequest.driver_email}
                   </p>
                 </div>
                {/* <div>
@@ -2015,7 +2185,7 @@ export default function TopUpDriver({
 
       {/* Manual Topup Modal */}
       <Dialog open={isManualTopupModalOpen} onOpenChange={setIsManualTopupModalOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[720px] w-full max-h-[90vh] overflow-y-auto px-6 py-4 rounded-2xl shadow-lg">
           <DialogHeader>
             <DialogTitle>Manual Top-Up Driver</DialogTitle>
             <DialogDescription>
@@ -2023,13 +2193,37 @@ export default function TopUpDriver({
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            {/* ✅ Type Topup Selection */}
             <div className="grid gap-2">
-              <Label htmlFor="driverSelect">Select Driver</Label>
+              <Label>Type Topup *</Label>
+              <RadioGroup
+                value={topupType}
+                onValueChange={(value: "manual" | "bank_transfer") => setTopupType(value)}
+                className="flex gap-4"
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="manual" id="type-manual" />
+                  <Label htmlFor="type-manual" className="cursor-pointer font-normal">
+                    Manual
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="bank_transfer" id="type-bank" />
+                  <Label htmlFor="type-bank" className="cursor-pointer font-normal">
+                    Bank Transfer
+                  </Label>
+                </div>
+              </RadioGroup>
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="driverSelect">Select Driver *</Label>
               <div className="relative">
                 <Button
                   variant="outline"
                   onClick={() => setDriverSearchOpen(!driverSearchOpen)}
                   className="w-full justify-between"
+                  disabled={isTopupProcessing}
                 >
                   {selectedDriverId
                     ? (() => {
@@ -2114,7 +2308,7 @@ export default function TopUpDriver({
             </div>
             
             <div className="grid gap-2">
-              <Label htmlFor="amount">Top-up Amount (Rp)</Label>
+              <Label htmlFor="amount">Top-up Amount (Rp) *</Label>
               <Input
                 id="amount"
                 type="number"
@@ -2122,17 +2316,79 @@ export default function TopUpDriver({
                 value={manualTopupAmount}
                 onChange={(e) => setManualTopupAmount(e.target.value)}
                 min="1"
+                disabled={isTopupProcessing}
               />
             </div>
+
+            {/* ✅ Bank Transfer Fields */}
+            {topupType === "bank_transfer" && (
+              <>
+                <div className="grid gap-2">
+                  <Label>Bank Penerima *</Label>
+                  <RadioGroup
+                    value={selectedBankAccount}
+                    onValueChange={(value) => setSelectedBankAccount(value)}
+                    className="space-y-3"
+                    disabled={isTopupProcessing}
+                  >
+                    {paymentMethods.map((payment_method, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-muted/50 transition-colors"
+                      >
+                        <RadioGroupItem
+                          value={payment_method.account_number}
+                          id={`bank-${index}`}
+                        />
+                        <Label
+                          htmlFor={`bank-${index}`}
+                          className="flex-1 cursor-pointer font-normal"
+                        >
+                          <div className="font-medium">
+                            {payment_method.bank_name}
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            {payment_method.account_number} -{" "}
+                            {payment_method.account_holder}
+                          </div>
+                        </Label>
+                      </div>
+                    ))}
+                  </RadioGroup>
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="proofFile">Bukti Transfer *</Label>
+                  <Input
+                    id="proofFile"
+                    type="file"
+                    accept="image/*,.pdf"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        setProofFile(file);
+                      }
+                    }}
+                    disabled={isTopupProcessing}
+                  />
+                  {proofFile && (
+                    <p className="text-sm text-gray-600">
+                      Selected: {proofFile.name}
+                    </p>
+                  )}
+                </div>
+              </>
+            )}
             
             <div className="grid gap-2">
-              <Label htmlFor="note">Description</Label>
+              <Label htmlFor="note">Description *</Label>
               <Textarea
                 id="note"
-                placeholder="Enter reason for manual top-up..."
+                placeholder="Enter reason for top-up..."
                 value={manualTopupNote}
                 onChange={(e) => setManualTopupNote(e.target.value)}
                 rows={3}
+                disabled={isTopupProcessing}
               />
             </div>
           </div>
@@ -2146,16 +2402,26 @@ export default function TopUpDriver({
                 setManualTopupNote("");
                 setDriverSearchOpen(false);
                 setDriverSearchValue("");
+                setTopupType("manual");
+                setSelectedBankAccount("");
+                setProofFile(null);
               }}
+              disabled={isTopupProcessing}
             >
               Cancel
             </Button>
             <Button
               onClick={handleManualTopup}
-              disabled={processing || !selectedDriverId || !manualTopupAmount || !manualTopupNote.trim()}
+              disabled={
+                isTopupProcessing || 
+                !selectedDriverId || 
+                !manualTopupAmount || 
+                !manualTopupNote.trim() ||
+                (topupType === "bank_transfer" && (!selectedBankAccount || !proofFile))
+              }
               className="bg-green-600 hover:bg-green-700"
             >
-              {processing ? (
+              {isTopupProcessing ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   Processing...

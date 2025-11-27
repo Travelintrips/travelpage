@@ -295,11 +295,7 @@ const RentCar = () => {
 
   // Handle booking completion
   const handleBookingComplete = (data: any) => {
-    // Check if user is authenticated before proceeding
-    if (!isAuthenticated) {
-      setShowAuthModal(true);
-      return;
-    }
+    // Authentication check removed - now handled in VehicleSelector
     setBookingData(data);
     setShowInspection(true);
     setActiveTab("inspection");
@@ -315,7 +311,7 @@ const RentCar = () => {
     // Calculate total amount based on booking data
     if (selectedVehicle && bookingData) {
       const days = bookingData.days || 1;
-      const amount = selectedVehicle.price * days;
+      const amount = selectedVehicle.daily_rate * days;
       setTotalAmount(amount);
       // Set default partial amount to 30% of total
       setPartialAmount(Math.round(amount * 0.3));
@@ -698,7 +694,7 @@ const RentCar = () => {
                             style: "currency",
                             currency: "IDR",
                             minimumFractionDigits: 0,
-                          }).format(vehicle.price)}
+                          }).format(vehicle.daily_rate)}
                           /day
                         </span>
                       </div>
@@ -819,7 +815,7 @@ const RentCar = () => {
                 onValueChange={setActiveTab}
                 className="w-full"
               >
-                <TabsList className="grid w-full max-w-md mx-auto grid-cols-4">
+           {/*     <TabsList className="grid w-full max-w-md mx-auto grid-cols-4">
                   <TabsTrigger value="vehicles">
                     {t("booking.selectVehicle")}
                   </TabsTrigger>
@@ -832,7 +828,7 @@ const RentCar = () => {
                   <TabsTrigger value="payment" disabled={!showPayment}>
                     {t("booking.payment")}
                   </TabsTrigger>
-                </TabsList>
+                </TabsList>*/}
                 <TabsContent value="vehicles" className="mt-6">
                   <VehicleSelector onSelectVehicle={handleSelectVehicle} />
                 </TabsContent>

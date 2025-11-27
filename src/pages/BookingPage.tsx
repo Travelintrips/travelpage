@@ -30,31 +30,6 @@ export default function BookingPage() {
     }
   }, [isAuthenticated, userId, isSessionReady]);
 
-  // ✅ Sambil tunggu session siap (supabase.auth.getSession selesai)
-  if (!isSessionReady) {
-    return (
-      <div className="container mx-auto py-8 px-4 text-center">
-        <div className="text-lg font-semibold">Checking session...</div>
-      </div>
-    );
-  }
-
-  // ✅ Tampilkan modal auth jika belum login
-  if (isSessionReady && (!isAuthenticated || !userId)) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center animate-pulse">
-          <div className="h-8 bg-gray-200 rounded w-48 mx-auto mb-4"></div>
-          <div className="h-4 bg-gray-200 rounded w-32 mx-auto"></div>
-        </div>
-        <AuthRequiredModal
-          isOpen={showAuthModal}
-          onClose={() => setShowAuthModal(false)}
-        />
-      </div>
-    );
-  }
-
   // ✅ Fetch vehicle jika tidak dikirim via state
   useEffect(() => {
     const fetchVehicle = async () => {
@@ -91,6 +66,31 @@ export default function BookingPage() {
 
     fetchVehicle();
   }, [params.vehicle_id, params.model_name, selectedVehicle]);
+
+  // ✅ Sambil tunggu session siap (supabase.auth.getSession selesai)
+  if (!isSessionReady) {
+    return (
+      <div className="container mx-auto py-8 px-4 text-center">
+        <div className="text-lg font-semibold">Checking session...</div>
+      </div>
+    );
+  }
+
+  // ✅ Tampilkan modal auth jika belum login
+  if (isSessionReady && (!isAuthenticated || !userId)) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center animate-pulse">
+          <div className="h-8 bg-gray-200 rounded w-48 mx-auto mb-4"></div>
+          <div className="h-4 bg-gray-200 rounded w-32 mx-auto"></div>
+        </div>
+        <AuthRequiredModal
+          isOpen={showAuthModal}
+          onClose={() => setShowAuthModal(false)}
+        />
+      </div>
+    );
+  }
 
   // ✅ Loading state
   if (isLoading) {

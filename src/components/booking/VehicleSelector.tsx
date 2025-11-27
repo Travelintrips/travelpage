@@ -20,6 +20,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Search,
   Filter,
   Car,
@@ -30,10 +38,12 @@ import {
   Calendar,
   Loader2,
   Tag,
+  AlertCircle,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useTranslation } from "react-i18next";
 import { Vehicle } from "@/hooks/useVehicleData";
+import { useNavigate } from "react-router-dom";
 
 interface VehicleType {
   id: number;
@@ -51,6 +61,7 @@ const VehicleSelector: React.FC<VehicleSelectorProps> = ({
   availableVehicles = [],
 }) => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState("");
   const [priceRange, setPriceRange] = useState([0, 2000000]);
   const [selectedType, setSelectedType] = useState<string>("all");
@@ -61,13 +72,40 @@ const VehicleSelector: React.FC<VehicleSelectorProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [vehicleTypes, setVehicleTypes] = useState<VehicleType[]>([]);
-  const [isLoadingVehicleTypes, setIsLoadingVehicleTypes] = useState(false);
+  // untuk daftar kategori unik (Electric, MPV, Premium, dll)
+const [vehicleCategories, setVehicleCategories] = useState<string[]>([]);
 
-  // Fetch vehicle types from Supabase
+// untuk kategori yang sedang dipilih
+const [selectedCategory, setSelectedCategory] = useState("all");
+
+  const [isLoadingVehicleTypes, setIsLoadingVehicleTypes] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  // Check authentication status
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const userId = localStorage.getItem("userId");
+        const authUser = localStorage.getItem("auth_user");
+        
+        const isLoggedIn = !!(session?.user || userId || authUser);
+        setIsAuthenticated(isLoggedIn);
+      } catch (error) {
+        console.error("Error checking auth:", error);
+        setIsAuthenticated(false);
+      }
+    };
+
+    checkAuth();
+  }, []);
+
+  // Fetch vehicle types from database
   useEffect(() => {
     const fetchVehicleTypes = async () => {
+      setIsLoadingVehicleTypes(true);
       try {
-        setIsLoadingVehicleTypes(true);
         const { data, error } = await supabase
           .from("vehicle_types")
           .select("*")
@@ -79,8 +117,8 @@ const VehicleSelector: React.FC<VehicleSelectorProps> = ({
         }
 
         setVehicleTypes(data || []);
-      } catch (error) {
-        console.error("Error processing vehicle types data:", error);
+      } catch (err) {
+        console.error("Error fetching vehicle types:", err);
       } finally {
         setIsLoadingVehicleTypes(false);
       }
@@ -88,6 +126,51 @@ const VehicleSelector: React.FC<VehicleSelectorProps> = ({
 
     fetchVehicleTypes();
   }, []);
+
+  const getVehicleTypeIdByName = (name: string) => {
+  const found = vehicleTypes.find((v) => v.name === name);
+  return found ? found.id : null;
+};
+
+  const fetchVehicleCategories = async (selectedType: string) => {
+  try {
+    const typeId = getVehicleTypeIdByName(selectedType);
+
+    if (!typeId) {
+      setVehicleCategories([]);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("vehicles")
+      .select("category")
+      .eq("vehicle_type_id", typeId);
+
+    if (error) {
+      console.error("Error fetching categories:", error);
+      return;
+    }
+
+    const uniqueCategories = [
+      ...new Set(data.map((item) => item.category).filter(Boolean)),
+    ];
+
+    setVehicleCategories(uniqueCategories);
+  } catch (err) {
+    console.error(err);
+  }
+};
+
+useEffect(() => {
+  if (selectedType === "all") {
+    setVehicleCategories([]);
+    return;
+  }
+
+  fetchVehicleCategories(selectedType);
+}, [selectedType]);
+
+
 
   // Fetch vehicles from Supabase if no vehicles are provided
   useEffect(() => {
@@ -108,12 +191,12 @@ const VehicleSelector: React.FC<VehicleSelectorProps> = ({
           .from("vehicles")
           .select(
             `
-    id, make, model, type, price, image, seats, transmission, fuel_type, available, features, license_plate, vehicle_type_id, is_with_driver,
+    id, make, category, model, type, vehicle_type_id, daily_rate, image, seats, transmission, fuel_type, available, features, license_plate, is_with_driver,
     vehicle_types(id, name)
   `,
           )
 
-          .limit(10);
+        //  .limit(10);
 
         if (error) {
           console.error("Error fetching vehicles:", error);
@@ -142,8 +225,9 @@ const VehicleSelector: React.FC<VehicleSelectorProps> = ({
             name:
               `${car.make || ""} ${car.model || ""}`.trim() ||
               "Unknown Vehicle",
-            type: (car.type as any) || "sedan",
-            price: car.price || 0,
+              category: car.category || null,
+            type: (car.type as any),
+            daily_rate: car.daily_rate || 0,
             image:
               car.image ||
               "https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?w=800&q=80",
@@ -182,35 +266,52 @@ const VehicleSelector: React.FC<VehicleSelectorProps> = ({
 
   // Filter vehicles based on search, price range, type, and vehicle type ID
   const filterVehicles = React.useCallback(() => {
-    let filtered = [...vehicles];
+  let filtered = [...vehicles];
 
-    // Filter by search term
-    if (searchTerm) {
-      filtered = filtered.filter((vehicle) =>
-        vehicle.name.toLowerCase().includes(searchTerm.toLowerCase()),
-      );
-    }
-
-    // Filter by price range
-    filtered = filtered.filter(
-      (vehicle) =>
-        vehicle.price >= priceRange[0] && vehicle.price <= priceRange[1],
+  // Filter search
+  if (searchTerm) {
+    filtered = filtered.filter((vehicle) =>
+      vehicle.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
+  }
 
-    // Filter by vehicle type
-    if (selectedType !== "all") {
-      filtered = filtered.filter((vehicle) => vehicle.type === selectedType);
-    }
+  // Filter harga
+  filtered = filtered.filter(
+    (vehicle) =>
+      vehicle.daily_rate >= priceRange[0] &&
+      vehicle.daily_rate <= priceRange[1]
+  );
 
-    // Filter by vehicle type ID
-    if (selectedVehicleTypeId !== null) {
-      filtered = filtered.filter(
-        (vehicle) => vehicle.vehicle_type_id === selectedVehicleTypeId,
-      );
-    }
+  // Filter vehicle_type_id (replaces old type filter)
+  if (selectedVehicleTypeId !== null) {
+    filtered = filtered.filter(
+      (vehicle) => vehicle.vehicle_type_id === selectedVehicleTypeId
+    );
+  }
 
-    setFilteredVehicles(filtered);
-  }, [vehicles, searchTerm, priceRange, selectedType, selectedVehicleTypeId]);
+  // ✅ FILTER CATEGORY
+  if (selectedCategory !== "all") {
+    filtered = filtered.filter(
+      (vehicle) => vehicle.category === selectedCategory
+    );
+  }
+
+  setFilteredVehicles(filtered);
+}, [
+  vehicles,
+  searchTerm,
+  priceRange,
+  selectedType,
+  selectedVehicleTypeId,
+  selectedCategory
+]);
+
+useEffect(() => {
+  filterVehicles();
+}, [filterVehicles]);
+
+
+
 
   // Handle search input change
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -225,6 +326,14 @@ const VehicleSelector: React.FC<VehicleSelectorProps> = ({
   // Handle vehicle type selection
   const handleTypeChange = (value: string) => {
     setSelectedType(value);
+    
+    // Also set the vehicle_type_id based on the selected type name
+    if (value === "all") {
+      setSelectedVehicleTypeId(null);
+    } else {
+      const typeId = getVehicleTypeIdByName(value);
+      setSelectedVehicleTypeId(typeId);
+    }
   };
 
   // Handle vehicle type ID selection
@@ -251,7 +360,7 @@ const VehicleSelector: React.FC<VehicleSelectorProps> = ({
   // Get vehicle type icon
   const getVehicleTypeIcon = (type: string) => {
     switch (type) {
-      case "sedan":
+      case "Sedan":
         return <Car className="h-5 w-5" />;
       case "suv":
         return <Car className="h-5 w-5" />;
@@ -264,10 +373,42 @@ const VehicleSelector: React.FC<VehicleSelectorProps> = ({
     }
   };
 
+  const getBadgeStyle = (type) => {
+  switch (type?.toLowerCase()) {
+    case "electric":
+      return "bg-blue-600 text-white";
+    case "mpv":
+      return "bg-gray-200 text-gray-900";
+    case "sedan":
+      return "bg-gray-100 text-gray-800";
+    case "suv":
+      return "bg-gray-300 text-gray-900";
+    case "convertible":
+      return "bg-purple-200 text-purple-800";
+    default:
+      return "bg-gray-200 text-gray-900";
+  }
+};
+
+
+const getCategoryStyle = (category) => {
+  if (!category) return "";
+
+  if (category.toLowerCase().includes("premium"))
+    return "bg-purple-100 text-purple-800 border-purple-300";
+
+  if (category.toLowerCase().includes("ev"))
+    return "bg-green-100 text-green-700 border-green-300";
+
+  return "bg-white text-gray-900 border-gray-400";
+};
+
+
+
   // Get fuel type icon
   const getFuelTypeIcon = (fuelType: string) => {
     switch (fuelType) {
-      case "electric":
+      case "Electric":
         return <Zap className="h-4 w-4" />;
       default:
         return <Fuel className="h-4 w-4" />;
@@ -323,15 +464,21 @@ const VehicleSelector: React.FC<VehicleSelectorProps> = ({
                   <TabsTrigger value="all" className="text-xs py-1.5">
                     {t("vehicleSelector.allTypes")}
                   </TabsTrigger>
-                  <TabsTrigger value="sedan" className="text-xs py-1.5">
-                    {t("vehicleSelector.sedan")}
-                  </TabsTrigger>
-                  <TabsTrigger value="suv" className="text-xs py-1.5">
-                    {t("vehicleSelector.suv")}
-                  </TabsTrigger>
-                  <TabsTrigger value="luxury" className="text-xs py-1.5">
-                    {t("vehicleSelector.luxury")}
-                  </TabsTrigger>
+                  {isLoadingVehicleTypes ? (
+                    <TabsTrigger value="loading" disabled className="text-xs py-1.5">
+                      Loading...
+                    </TabsTrigger>
+                  ) : (
+                    vehicleTypes.map((type) => (
+                      <TabsTrigger 
+                        key={type.id} 
+                        value={type.name} 
+                        className="text-xs py-1.5"
+                      >
+                        {type.name}
+                      </TabsTrigger>
+                    ))
+                  )}
                 </TabsList>
               </Tabs>
             </div>
@@ -341,33 +488,22 @@ const VehicleSelector: React.FC<VehicleSelectorProps> = ({
                 <Tag className="h-4 w-4 mr-1" />
                 {t("vehicleSelector.vehicleTypeCategory", "Vehicle Category")}
               </label>
-              <Select
-                value={
-                  selectedVehicleTypeId === null
-                    ? "all"
-                    : selectedVehicleTypeId.toString()
-                }
-                onValueChange={handleVehicleTypeChange}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue
-                    placeholder={t(
-                      "vehicleSelector.selectVehicleType",
-                      "Select vehicle category",
-                    )}
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">
-                    {t("vehicleSelector.allCategories", "All Categories")}
-                  </SelectItem>
-                  {vehicleTypes.map((type) => (
-                    <SelectItem key={type.id} value={type.id.toString()}>
-                      {type.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+  <SelectTrigger className="w-full">
+    <SelectValue placeholder="Select vehicle category" />
+  </SelectTrigger>
+
+  <SelectContent>
+    <SelectItem value="all">All Categories</SelectItem>
+
+    {vehicleCategories.map((category) => (
+      <SelectItem key={category} value={category}>
+        {category}
+      </SelectItem>
+    ))}
+  </SelectContent>
+</Select>
+
             </div>
           </div>
         </div>
@@ -414,17 +550,35 @@ const VehicleSelector: React.FC<VehicleSelectorProps> = ({
                           </div>
                         )}
 
-                        <div className="flex items-center mt-1">
-                          {getVehicleTypeIcon(vehicle.type)}
-                          <span className="text-xs text-muted-foreground ml-1 capitalize">
-                            {vehicle.type}
-                          </span>
-                          {vehicle.vehicle_type_name && (
-                            <Badge variant="outline" className="ml-2 text-xs">
-                              {vehicle.vehicle_type_name}
-                            </Badge>
-                          )}
-                        </div>
+                        <div className="flex items-center mt-1 gap-2">
+  {/* Ikon Mobil */}
+  <Car className="w-4 h-4 text-gray-700" />
+
+  {/* Badge TYPE */}
+  <Badge
+    variant="secondary"
+    className={
+      "text-xs px-3 py-0.5 rounded-md font-medium " +
+      getBadgeStyle(vehicle.vehicle_type_name || vehicle.type)
+    }
+  >
+    {vehicle.vehicle_type_name || vehicle.type}
+  </Badge>
+
+  {/* Badge CATEGORY (jika ada) */}
+  {vehicle.category && (
+    <Badge
+      variant="outline"
+      className={
+        "text-xs px-2 py-0.5 rounded-md border " +
+        getCategoryStyle(vehicle.category)
+      }
+    >
+      {vehicle.category}
+    </Badge>
+  )}
+</div>
+
                       </div>
                       <Badge
                         variant={vehicle.available ? "default" : "outline"}
@@ -478,14 +632,23 @@ const VehicleSelector: React.FC<VehicleSelectorProps> = ({
                   <CardFooter className="p-4 flex justify-between items-center">
                     <div>
                       <p className="font-medium text-lg">
-                        {formatPrice(vehicle.price)}
+                        {formatPrice(vehicle.daily_rate)}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {t("vehicleSelector.perDay")}
                       </p>
                     </div>
                     <Button
-                      onClick={() => onSelectVehicle(vehicle)}
+                      onClick={() => {
+                        if (!isAuthenticated) {
+                          setShowAuthModal(true);
+                        } else {
+                          // Navigate to booking page with vehicle data
+                          navigate(`/booking/${vehicle.id}`, {
+                            state: { vehicle }
+                          });
+                        }
+                      }}
                       disabled={!vehicle.available}
                     >
                       {vehicle.available
@@ -499,6 +662,41 @@ const VehicleSelector: React.FC<VehicleSelectorProps> = ({
           )}
         </div>
       </div>
+
+      {/* Authentication Modal */}
+      <Dialog open={showAuthModal} onOpenChange={setShowAuthModal}>
+        <DialogContent className="max-w-md" hideCloseButton>
+          <DialogHeader className="text-center mb-4">
+            <div className="flex items-center justify-center mb-2">
+              <AlertCircle className="h-8 w-8 text-primary mr-2" />
+            </div>
+            <DialogTitle className="text-2xl font-bold text-primary">
+              Authentication Required
+            </DialogTitle>
+            <DialogDescription className="text-lg text-muted-foreground">
+              You need to Sign in or Register to continue
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex gap-3 mt-4">
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={() => setShowAuthModal(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              className="flex-1"
+              onClick={() => {
+                setShowAuthModal(false);
+                navigate("/", { state: { showAuth: true, authType: "login" } });
+              }}
+            >
+              Sign In
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

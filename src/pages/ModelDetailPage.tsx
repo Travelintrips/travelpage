@@ -11,8 +11,8 @@ import AuthRequiredModal from "@/components/auth/AuthRequiredModal";
 interface Vehicle {
   id: string;
   name: string;
-  type: "sedan" | "suv" | "truck" | "luxury";
-  price: number;
+  type: "mpv" | "sedan" | "suv" | "truck" | "luxury";
+  daily_rate: number;
   image: string;
   seats: number;
   transmission: "automatic" | "manual";
@@ -31,17 +31,18 @@ interface Vehicle {
 const ModelDetailPage = () => {
   const { modelName } = useParams<{ modelName: string }>();
   const navigate = useNavigate();
-  const { isAuthenticated, userId } = useAuth();
+  const { isAuthenticated, userId, isSessionReady } = useAuth();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
 
   useEffect(() => {
-    if (!isAuthenticated || !userId) {
+    // ✅ Hanya tampilkan modal setelah session selesai di-check
+    if (isSessionReady && (!isAuthenticated || !userId)) {
       setShowAuthModal(true);
     }
-  }, [isAuthenticated, userId]);
+  }, [isAuthenticated, userId, isSessionReady]);
 
   useEffect(() => {
     const fetchVehicles = async () => {
@@ -91,7 +92,7 @@ const ModelDetailPage = () => {
             `${vehicle.make || ""} ${vehicle.model || ""}`.trim() ||
             "Unknown Vehicle",
           type: vehicle.type || "sedan",
-          price: vehicle.price || 0,
+          daily_rate: vehicle.daily_rate || 0,
           image:
             vehicle.image ||
             "https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?w=800&q=80",
@@ -145,6 +146,16 @@ const ModelDetailPage = () => {
       navigate("/booking", { state: { selectedVehicle: vehicle } });
     }
   };
+
+  if (!isSessionReady) {
+    return (
+      <div className="container mx-auto py-8 px-4 text-center">
+        <div className="flex justify-center items-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+        </div>
+      </div>
+    );
+  }
 
   if (!isAuthenticated || !userId) {
     return (
@@ -244,7 +255,7 @@ const ModelDetailPage = () => {
                         style: "currency",
                         currency: "IDR",
                         minimumFractionDigits: 0,
-                      }).format(vehicle.price)}
+                      }).format(vehicle.daily_rate)}
                       /day
                     </span>
                   </div>

@@ -1744,13 +1744,13 @@ const TravelPageContent = () => {
                 "url('https://travelintrips.co.id/wp-content/uploads/2025/05/Airport.png')",
             }}
           >
-            <div className="absolute inset-0 bg-black bg-opacity-40"></div>
+          <div className="absolute inset-0 bg-black bg-opacity-40"></div>
           </div>
           <div className="absolute inset-0 flex flex-col items-center justify-center text-white p-4">
-            <h1 className="text-3xl md:text-5xl font-bold text-center mb-4 drop-shadow-lg">
-              {t("hero.title", "Premium Car Rental Service")}
+            <h1 className="hero-3d-title text-3xl md:text-5xl font-bold text-center mb-4">
+              {t("hero.title", "Premium Car Rental1 Service")}
             </h1>
-            <p className="text-center text-white text-lg md:text-xl mb-8 max-w-3xl mx-auto drop-shadow-md">
+            <p className="hero-3d-title text-center text-white text-lg md:text-xl mb-8 max-w-3xl mx-auto drop-shadow-md">
               {t(
                 "hero.description",
                 "Experience the freedom of the road with our extensive fleet of vehicles. Book your perfect ride today and enjoy hassle-free travel.",
@@ -1952,12 +1952,12 @@ const TravelPageContent = () => {
       {/* Main Content Section */}
       <div className="bg-white py-12">
         <div className="container mx-auto px-4">
-          <h2 className="text-2xl md:text-4xl font-bold text-center mb-2">
-            {t("hero.title", "Premium Car Rental Service")}
+          <h2 className="main-hero-3d-title text-2xl md:text-4xl font-bold text-center mb-2">
+            {t("main_hero.title", "Premium Car Rental2 Service")}
           </h2>
-          <p className="text-center text-gray-600 mb-8 max-w-2xl mx-auto">
+          <p className="main-hero-3d text-center text-gray-600 mb-8 max-w-2xl mx-auto">
             {t(
-              "hero.description",
+              "main_hero.description",
               "Experience the freedom of the road with our extensive fleet of vehicles. Book your perfect ride today and enjoy hassle-free travel.",
             )}
           </p>
