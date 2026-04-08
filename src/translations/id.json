@@ -1,7 +1,7 @@
 {
-  "brand": "Journey",
+  "brand": "Travelpage",
   "common": {
-    "travelintrips": "Journey",
+    "travelpage": "Travelpage",
     "forCorporates": "Untuk Korporat",
     "back": "Kembali",
     "search": "Cari",
@@ -12,14 +12,14 @@
   },
   "header":{
     "forCorporates": "Untuk Korporat",
-    "deals": "Penawaran",
+    "export": "Export",
     "support": "Dukungan",
     "partnership": "Kemitraan",
     "cart": "Keranjang"
   },
   "navbar": {
     "forCorporates": "Untuk Korporat",
-    "deals": "Penawaran",
+    "export & import": "Ekspor & Impor",
     "support": "Dukungan", 
     "partnership": "Kemitraan",
     "signIn": "Masuk",
@@ -43,8 +43,8 @@
     "airportTransfer": "Transfer Bandara"
   },
   "main_hero" : {
-    "title": "Layanan Rental Mobil Premium",
-    "description": "Rasakan kebebasan di jalan dengan armada kendaraan kami yang luas. Pesan kendaraan sempurna Anda hari ini dan nikmati perjalanan tanpa hambatan."
+    "title": "Solusi Terpadu untuk Operasi Global",
+    "description": "Menghadirkan layanan end-to-end di sektor logistik, transportasi, dan perjalanan dengan standar tinggi, guna memastikan efisiensi, kepatuhan, dan keandalan layanan secara global."
   },
   "auth": {
     "readyToBook": "Siap Memesan Kendaraan Anda?",
@@ -182,7 +182,7 @@
   "allRightsReserved": "Hak Cipta Dilindungi.",
   "about": {
     "title": "Tentang Kami",
-    "description": "Journey adalah mitra terpercaya Anda untuk semua kebutuhan perjalanan, menyediakan pengalaman pemesanan yang lancar sejak 2020."
+    "description": "Travelpage adalah mitra terpercaya Anda untuk semua kebutuhan perjalanan, menyediakan pengalaman pemesanan yang lancar sejak 2020."
   },
   "services": {
     "title": "Layanan Kami",

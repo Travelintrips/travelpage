@@ -1,5 +1,5 @@
 {
-  "brand": "Journey",
+  "brand": "Travelpage",
   "common": {
     "back": "Back",
     "search": "Search",
@@ -10,14 +10,14 @@
   },
   "header": {
     "forCorporates": "For Corporates",
-    "deals": "Deals",
+    "export & import": "Export & Import",
     "support": "Support",
     "partnership": "Partnership",
     "cart": "Cart"
   },
   "navbar": {
     "forCorporates": "For Corporates",
-    "deals": "Deals",
+    "export & import": "Export & Import",
     "support": "Support",
     "partnership": "Partnership",
     "signIn": "Sign In",
@@ -34,15 +34,15 @@
     "activities": "Activities"
   },
   "hero": {
-    "title": "Premium Car Rental1 Service",
+    "title": "Premium Car Rental Service",
     "description": "Experience the freedom of the road with our extensive fleet of vehicles. Book your perfect ride today and enjoy hassle-free travel.",
     "browseCars": "Browse Cars",
     "bookNow": "Book Now",
     "airportTransfer": "Airport Transfer"
   },
   "main_hero" : {
-    "title": "Premium Car Rental2 Service",
-    "description": "Experience the freedom of the road with our extensive fleet of vehicles. Book your perfect ride today and enjoy hassle-free travel."
+    "title": "Comprehensive Solutions for Global Operations",
+    "description": "We provide end-to-end services across logistics, transportation, and travel industries — ensuring efficiency, compliance, and reliable service delivery worldwide."
   },
   "auth": {
     "readyToBook": "Ready to Book Your Ride?",
@@ -172,7 +172,7 @@
     "securePaymentsDesc": "Multiple payment options with secure processing and transparent pricing."
   },
   "footer": {
-    "allRightsReserved": "All rights reserved-By Journey"
+    "allRightsReserved": "All rights reserved-By Travelpage"
   },
   "language": {
     "select": "Select Language",
@@ -362,7 +362,7 @@
     },
     "cta": {
       "title": "Ready to Travel?",
-      "description": "Book your transportation now and enjoy a comfortable and safe journey",
+      "description": "Book your transportation now and enjoy a comfortable and safe Travelpage",
       "bookAirport": "Book Airport Transfer",
       "rentCar": "Rent a Car"
     }

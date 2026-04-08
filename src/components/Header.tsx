@@ -222,7 +222,7 @@ const Header = () => {
         <div className="container mx-auto flex justify-between items-center px-4">
           <div className="flex items-center space-x-4">
             <Link to="/" className="text-xl font-bold">
-              Journey *
+              Travelpage *
             </Link>
           </div>
           <div className="flex items-center space-x-4">
@@ -253,7 +253,7 @@ const Header = () => {
         <div className="container mx-auto flex justify-between items-center px-4">
           <div className="flex items-center space-x-4">
             <Link to="/" className="text-xl font-bold">
-              Journey *
+              Travelpage *
             </Link>
             <div className="flex items-center space-x-2">
               <span>ID EN</span>
@@ -262,8 +262,8 @@ const Header = () => {
           </div>
 
           <nav className="hidden md:flex items-center space-x-6">
-            <Link to="/deals" className="hover:text-green-200">
-              {t('navbar.deals')}
+            <Link to="/export&import" className="hover:text-green-200">
+              {t('navbar.export&import')}
             </Link>
             <Link to="/support" className="hover:text-green-200">
               {t('navbar.support')}

@@ -738,7 +738,7 @@ const RentCar = () => {
               </h2>
               <p className="text-muted-foreground text-lg mt-4 mb-6">
                 Choose from our wide selection of car models for your next
-                journey
+                Travelpage
               </p>
             </div>
 

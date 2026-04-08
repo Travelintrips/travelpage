@@ -23,7 +23,7 @@ const Home = () => {
 
   // Set document title based on language
   useEffect(() => {
-    document.title = t("brand", "Premium Car Rental Service");
+    document.title = t("brand", "Comprehensive Solutions for Global Operations");
   }, [t, i18n.language]);
 
   const toggleTheme = () => {

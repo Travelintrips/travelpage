@@ -429,7 +429,7 @@ const ShoppingCart: React.FC<ShoppingCartProps> = () => {
       name: "Trains",
       icon: Train,
       route: "/trains",
-      description: "Comfortable train journeys",
+      description: "Comfortable train Travelpage",
     },
     {
       name: "Hotels",
