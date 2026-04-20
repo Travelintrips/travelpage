@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import cstLogo from "/cstlogo.png";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -175,7 +174,7 @@ const DomestikPage = () => {
             onClick={() => navigate("/")}
           >
             <img
-  src={cstLogo}
+  src="/cstlogo.png"
   alt="CST Logistik"
   className="h-12 w-auto object-contain scale-125 origin-left"
 />
