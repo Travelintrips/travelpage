@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import cstLogo from "@/assets/cstlogo.png";
+
 import { supabase } from "@/lib/supabase";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -237,9 +237,10 @@ const Header = () => {
           <div className="flex items-center space-x-4">
             <Link to="/" className="text-xl font-bold flex items-center">
               <img
-                src={cstLogo}
+                src="/cst-logo.webp"
                 alt="CST Logistik"
                 className="h-10 w-auto object-contain"
+                loading="eager"
                 onError={(e) => {
                   const target = e.currentTarget;
                   target.style.display = "none";
@@ -281,9 +282,10 @@ const Header = () => {
           <div className="flex items-center space-x-4">
             <Link to="/" className="text-xl font-bold flex items-center">
               <img
-                src={cstLogo}
+                src="/cst-logo.webp"
                 alt="CST Logistik"
                 className="h-10 w-auto object-contain"
+                loading="eager"
                 onError={(e) => {
                   const target = e.currentTarget;
                   target.style.display = "none";

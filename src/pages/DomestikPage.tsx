@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import cstLogo from "@/assets/cstlogo.webp";
+
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -175,9 +175,9 @@ const DomestikPage = () => {
             onClick={() => navigate("/")}
           >
             <img
-              src={cstLogo}
+              src="/cstlogo.webp"
               alt="CST Logistik"
-              className="h-12 w-auto object-contain scale-125 origin-left"
+              className="h-14 w-auto object-contain scale-125 origin-left"
               onError={(e) => {
                 const target = e.currentTarget;
                 target.style.display = "none";
