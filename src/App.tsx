@@ -69,6 +69,7 @@ import TopUpAgentRequests from "./components/admin/TopUpAgentRequests";
 import HistoryTopUp from "./components/admin/HistoryTopUp";
 import TopUpDriver from "./components/admin/TopUpDriver";
 import TransportasiPage from "./pages/TransportasiPage";
+import DomestikPage from "./pages/DomestikPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import DriverDetailPage from "./pages/DriverDetailPage";
@@ -506,6 +507,7 @@ function AppContent() {
           <Route path="/things-to-do" element={<ActivitiesPage />} />
           <Route path="/handling" element={<HandlingPage />} />
           <Route path="/transportasi" element={<TransportasiPage />} />
+          <Route path="/domestik" element={<DomestikPage />} />
           
           <Route
             path="/new-booking"

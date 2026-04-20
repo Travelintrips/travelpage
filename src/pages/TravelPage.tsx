@@ -214,9 +214,7 @@ const Header = ({
         </div>
 
         <div className="hidden md:flex items-center space-x-6">
-          <Button variant="ghost" className="text-white hover:bg-green-700">
-            {t('navbar.export & import')}
-          </Button>
+          <ServicesDropdown navigate={navigate} />
 
           <Popover>
             <PopoverTrigger asChild>
@@ -1578,6 +1576,54 @@ const Footer = ({ t }) => {
         </div>
       </div>
     </footer>
+  );
+};
+
+// ServicesDropdown: Jasa Transfer toggles "Domestic" below it
+const ServicesDropdown = ({ navigate }: { navigate: (path: string) => void }) => {
+  const { t } = useTranslation();
+  const [jasaOpen, setJasaOpen] = React.useState(false);
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="ghost" className="text-white hover:bg-green-700">
+          {t('navbar.services')} <ChevronDown className="h-4 w-4 ml-1" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-52 p-1">
+        <div className="grid gap-0.5">
+          {/* Jasa Transfer - click toggles Domestic below */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="justify-start text-gray-800 hover:bg-green-50 hover:text-green-700 font-medium"
+            onClick={() => setJasaOpen((v) => !v)}
+          >
+            Jasa Transfer
+          </Button>
+          {jasaOpen && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="justify-start pl-6 text-gray-700 hover:bg-green-50 hover:text-green-700"
+              onClick={() => navigate("/domestik")}
+            >
+              Domestic
+            </Button>
+          )}
+
+          <Button
+            variant="ghost"
+            size="sm"
+            className="justify-start text-gray-800 hover:bg-green-50 hover:text-green-700 font-medium"
+            onClick={() => navigate("/export&import")}
+          >
+            Export Import
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 };
 

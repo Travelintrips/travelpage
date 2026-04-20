@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -7,7 +7,7 @@ import { useTranslation } from "react-i18next";
 import UserDropdown from "./UserDropdown";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
-import { ShoppingCart as CartIcon, Truck, Bell, Mail } from "lucide-react";
+import { ShoppingCart as CartIcon, Truck, Bell, Mail, ChevronDown, ChevronRight } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -46,6 +46,9 @@ const Header = () => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
+  const [servicesOpen, setServicesOpen] = useState(false);
+  const [jasaTransferOpen, setJasaTransferOpen] = useState(false);
+  const servicesRef = useRef<HTMLDivElement>(null);
 
   // Define restricted roles as a constant to avoid dependency issues
   const restrictedRoles = ["Agent", "Driver Perusahaan", "Driver Mitra"];
@@ -139,10 +142,20 @@ const Header = () => {
       }
     };
 
+    // Close services dropdown when clicking outside
+    const handleClickOutside = (e: MouseEvent) => {
+      if (servicesRef.current && !servicesRef.current.contains(e.target as Node)) {
+        setServicesOpen(false);
+        setJasaTransferOpen(false);
+      }
+    };
+
     window.addEventListener("storage", handleStorageChange);
+    document.addEventListener("mousedown", handleClickOutside);
 
     return () => {
       window.removeEventListener("storage", handleStorageChange);
+      document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
 
@@ -262,9 +275,62 @@ const Header = () => {
           </div>
 
           <nav className="hidden md:flex items-center space-x-6">
-            <Link to="/export&import" className="hover:text-green-200">
-              {t('navbar.export&import')}
-            </Link>
+            {/* Services Dropdown */}
+            <div
+              ref={servicesRef}
+              className="relative"
+              onMouseEnter={() => setServicesOpen(true)}
+              onMouseLeave={() => { setServicesOpen(false); setJasaTransferOpen(false); }}
+            >
+              <button
+                className="flex items-center gap-1 hover:text-green-200 font-medium py-1 px-2 rounded transition-colors"
+                onClick={() => { setServicesOpen(!servicesOpen); if (!servicesOpen) setJasaTransferOpen(false); }}
+              >
+                Services
+                <ChevronDown className={`h-4 w-4 transition-transform ${servicesOpen ? "rotate-180" : ""}`} />
+              </button>
+
+              {servicesOpen && (
+                <div className="absolute left-0 top-full mt-1 w-52 bg-white text-gray-800 rounded-lg shadow-xl border border-gray-100 z-50 py-1">
+                  {/* Jasa Transfer with submenu */}
+                  <div
+                    className="relative group"
+                    onMouseEnter={() => setJasaTransferOpen(true)}
+                    onMouseLeave={() => setJasaTransferOpen(false)}
+                  >
+                    <button
+                      className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-green-50 hover:text-green-700 transition-colors text-sm font-medium"
+                      onClick={() => setJasaTransferOpen(!jasaTransferOpen)}
+                    >
+                      <span>Jasa Transfer</span>
+                      <ChevronRight className="h-4 w-4" />
+                    </button>
+
+                    {jasaTransferOpen && (
+                      <div className="absolute left-full top-0 ml-1 w-44 bg-white text-gray-800 rounded-lg shadow-xl border border-gray-100 z-50 py-1">
+                        <Link
+                          to="/transportasi"
+                          className="block px-4 py-2.5 hover:bg-green-50 hover:text-green-700 transition-colors text-sm"
+                          onClick={() => { setServicesOpen(false); setJasaTransferOpen(false); }}
+                        >
+                          Domestic
+                        </Link>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Export Import */}
+                  <Link
+                    to="/export&import"
+                    className="block px-4 py-2.5 hover:bg-green-50 hover:text-green-700 transition-colors text-sm font-medium"
+                    onClick={() => setServicesOpen(false)}
+                  >
+                    Export Import
+                  </Link>
+                </div>
+              )}
+            </div>
+
             <Link to="/support" className="hover:text-green-200">
               {t('navbar.support')}
             </Link>

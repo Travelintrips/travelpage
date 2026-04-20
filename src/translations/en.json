@@ -10,14 +10,14 @@
   },
   "header": {
     "forCorporates": "For Corporates",
-    "export & import": "Export & Import",
+    "Services": "Services",
     "support": "Support",
     "partnership": "Partnership",
     "cart": "Cart"
   },
   "navbar": {
     "forCorporates": "For Corporates",
-    "export & import": "Export & Import",
+    "services": "Services",
     "support": "Support",
     "partnership": "Partnership",
     "signIn": "Sign In",
