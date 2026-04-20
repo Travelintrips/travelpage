@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import cstLogo from "@/assets/cstlogo.webp";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -174,10 +175,22 @@ const DomestikPage = () => {
             onClick={() => navigate("/")}
           >
             <img
-  src="/cstlogo.png"
-  alt="CST Logistik"
-  className="h-12 w-auto object-contain scale-125 origin-left"
-/>
+              src={cstLogo}
+              alt="CST Logistik"
+              className="h-12 w-auto object-contain scale-125 origin-left"
+              onError={(e) => {
+                const target = e.currentTarget;
+                target.style.display = "none";
+                const fallback = target.nextElementSibling as HTMLElement;
+                if (fallback) fallback.style.display = "block";
+              }}
+            />
+            <span
+              style={{ display: "none" }}
+              className="text-white font-bold text-xl"
+            >
+              CST Logistik
+            </span>
             
           </div>
           <nav className="hidden md:flex items-center gap-2">

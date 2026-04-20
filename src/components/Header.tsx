@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import cstLogo from "@/assets/cstlogo.png";
 import { supabase } from "@/lib/supabase";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -234,8 +235,21 @@ const Header = () => {
       <header className="bg-green-800 text-white py-4">
         <div className="container mx-auto flex justify-between items-center px-4">
           <div className="flex items-center space-x-4">
-            <Link to="/" className="text-xl font-bold">
-              Travelpage *
+            <Link to="/" className="text-xl font-bold flex items-center">
+              <img
+                src={cstLogo}
+                alt="CST Logistik"
+                className="h-10 w-auto object-contain"
+                onError={(e) => {
+                  const target = e.currentTarget;
+                  target.style.display = "none";
+                  const fallback = target.nextElementSibling as HTMLElement;
+                  if (fallback) fallback.style.display = "inline";
+                }}
+              />
+              <span style={{ display: "none" }} className="text-white font-bold text-xl">
+                CST Logistik
+              </span>
             </Link>
           </div>
           <div className="flex items-center space-x-4">
@@ -265,8 +279,21 @@ const Header = () => {
       <header className="bg-green-800 text-white py-4">
         <div className="container mx-auto flex justify-between items-center px-4">
           <div className="flex items-center space-x-4">
-            <Link to="/" className="text-xl font-bold">
-              Travelpage *
+            <Link to="/" className="text-xl font-bold flex items-center">
+              <img
+                src={cstLogo}
+                alt="CST Logistik"
+                className="h-10 w-auto object-contain"
+                onError={(e) => {
+                  const target = e.currentTarget;
+                  target.style.display = "none";
+                  const fallback = target.nextElementSibling as HTMLElement;
+                  if (fallback) fallback.style.display = "inline";
+                }}
+              />
+              <span style={{ display: "none" }} className="text-white font-bold text-xl">
+                CST Logistik
+              </span>
             </Link>
             <div className="flex items-center space-x-2">
               <span>ID EN</span>
