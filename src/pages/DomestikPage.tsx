@@ -175,16 +175,13 @@ const DomestikPage = () => {
             onClick={() => navigate("/")}
           >
             <img
-              src="/logo-cst.webp"
-              alt="CST Logistik"
-              className="h-14 w-auto object-contain scale-125 origin-left"
-              onError={(e) => {
-                const target = e.currentTarget;
-                target.style.display = "none";
-                const fallback = target.nextElementSibling as HTMLElement;
-                if (fallback) fallback.style.display = "block";
-              }}
-            />
+  src="/logo-cst.webp"
+  alt="CST Logistik"
+  className="h-10 w-auto object-contain"
+  onError={(e) => {
+    console.error("Logo gagal dimuat:", e.currentTarget.src);
+  }}
+/>
             <span
               style={{ display: "none" }}
               className="text-white font-bold text-xl"
