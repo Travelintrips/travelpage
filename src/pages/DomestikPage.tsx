@@ -175,7 +175,7 @@ const DomestikPage = () => {
             onClick={() => navigate("/")}
           >
             <img
-  src="src/assets/cst-logo.png"
+  src="/cst-logo.png"
   alt="CST Logistik"
   className="h-16 w-620 object-contain"
   onError={(e) => {
