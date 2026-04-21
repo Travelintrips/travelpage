@@ -1600,7 +1600,7 @@ const ServicesDropdown = ({ navigate }: { navigate: (path: string) => void }) =>
             className="justify-start text-gray-800 hover:bg-green-50 hover:text-green-700 font-medium"
             onClick={() => setJasaOpen((v) => !v)}
           >
-            Jasa Transfer
+            Cargo Udara
           </Button>
           {jasaOpen && (
             <Button
