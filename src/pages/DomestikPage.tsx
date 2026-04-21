@@ -175,9 +175,9 @@ const DomestikPage = () => {
             onClick={() => navigate("/")}
           >
             <img
-  src="/logo-cst.webp"
+  src="/cst-logo.png"
   alt="CST Logistik"
-  className="h-10 w-auto object-contain"
+  className="h-14 w-auto object-contain"
   onError={(e) => {
     console.error("Logo gagal dimuat:", e.currentTarget.src);
   }}
