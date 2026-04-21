@@ -175,7 +175,7 @@ const DomestikPage = () => {
             onClick={() => navigate("/")}
           >
             <img
-              src="/cst-logo.webp"
+              src="/logo-cst.webp"
               alt="CST Logistik"
               className="h-14 w-auto object-contain scale-125 origin-left"
               onError={(e) => {
