@@ -175,7 +175,7 @@ const DomestikPage = () => {
             onClick={() => navigate("/")}
           >
             <img
-              src="/cstlogo.webp"
+              src="/cst-logo.webp"
               alt="CST Logistik"
               className="h-14 w-auto object-contain scale-125 origin-left"
               onError={(e) => {
@@ -198,9 +198,6 @@ const DomestikPage = () => {
             <Button variant="ghost" className="text-white hover:bg-green-600 bg-green-600" onClick={() => navigate("/domestik")}>Domestik</Button>
             
           </nav>
-          <Button variant="outline" className="border-white text-white hover:bg-white hover:text-green-700" onClick={() => navigate("/")}>
-            Hubungi Kami
-          </Button>
         </div>
       </header>
 
@@ -398,39 +395,6 @@ const DomestikPage = () => {
         </div>
       </section>
 
-      {/* Popular Destinations */}
-      <section className="py-16 bg-white">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="flex items-center justify-between mb-10">
-            <div>
-              <h2 className="text-3xl font-bold text-gray-900 mb-2">Destinasi Populer</h2>
-              <p className="text-gray-500">Rute pengiriman paling banyak diminati</p>
-            </div>
-            <Button variant="outline" className="border-green-600 text-green-600 hover:bg-green-50">
-              Lihat Semua <ArrowRight className="h-4 w-4 ml-1" />
-            </Button>
-          </div>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-            {destinations.map((d) => (
-              <div
-                key={d.city}
-                className="relative rounded-2xl overflow-hidden h-52 group cursor-pointer shadow-md hover:shadow-xl transition-shadow"
-              >
-                <img
-                  src={d.img}
-                  alt={d.city}
-                  className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
-                <div className="absolute bottom-4 left-4 text-white">
-                  <div className="font-bold text-xl">{d.city}</div>
-                  <div className="text-sm text-gray-300">{d.count}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
 
       {/* Why Choose Us */}
       <section className="py-16 bg-green-700 text-white">
@@ -529,10 +493,10 @@ const DomestikPage = () => {
       <footer className="bg-gray-900 text-gray-400 py-8">
         <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <span className="text-white font-bold text-lg">TravelIn</span>
-            <span className="text-gray-500">— Jasa Pengiriman Domestik</span>
+            <span className="text-white font-bold text-lg"></span>
+            <span className="text-gray-500">Jasa Pengiriman Domestik</span>
           </div>
-          <p className="text-sm">© {new Date().getFullYear()} TravelIn. All rights reserved.</p>
+          <p className="text-sm">© {new Date().getFullYear()} Cahaya Sejati Teknologi. All rights reserved.</p>
         </div>
       </footer>
     </div>
