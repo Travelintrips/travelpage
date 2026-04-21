@@ -1,16 +1,7 @@
 # Dependencies
 node_modules/
 
-# Large image files
-*.jpg
-*.jpeg
-*.png
-*.gif
-*.bmp
-*.tiff
-*.webp
-
-# Screenshots and temporary images
+# Screenshots and temporary images (only specific temporary files, NOT all images)
 Screenshot_*.jpg
 Screenshot_*.png
 screenshot*.jpg
@@ -40,9 +31,9 @@ yarn-error.log*
 .cache/
 .parcel-cache/
 
-# Build outputs
-dist/
-build/
+# Build outputs (Vercel builds its own, so these are safe to ignore)
+# dist/ - DO NOT ignore, Vite output needed if pre-built
+# build/
 
 # Temporary folders
 tmp/

@@ -237,11 +237,12 @@ const Header = () => {
           <div className="flex items-center space-x-4">
             <Link to="/" className="text-xl font-bold flex items-center">
               <img
-                src="/cst-logo.webp"
+                src="/cst-logo.png"
                 alt="CST Logistik"
-                className="h-10 w-auto object-contain"
+                className="h-12 w-auto object-contain"
                 loading="eager"
                 onError={(e) => {
+                  console.error("Logo gagal dimuat:", e.currentTarget.src);
                   const target = e.currentTarget;
                   target.style.display = "none";
                   const fallback = target.nextElementSibling as HTMLElement;
@@ -282,11 +283,12 @@ const Header = () => {
           <div className="flex items-center space-x-4">
             <Link to="/" className="text-xl font-bold flex items-center">
               <img
-                src="/cst-logo.webp"
+                src="/cst-logo.png"
                 alt="CST Logistik"
-                className="h-10 w-auto object-contain"
+                className="h-12 w-auto object-contain"
                 loading="eager"
                 onError={(e) => {
+                  console.error("Logo gagal dimuat:", e.currentTarget.src);
                   const target = e.currentTarget;
                   target.style.display = "none";
                   const fallback = target.nextElementSibling as HTMLElement;
