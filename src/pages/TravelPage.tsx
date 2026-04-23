@@ -1649,18 +1649,20 @@ const TravelPageContent = () => {
 
   const heroSlides = [
     {
-      image: "https://travelintrips.co.id/wp-content/uploads/2025/05/Airport.png",
-      title: "Premium Car Rental Service",
-      description: "Experience the freedom 1 of the road with our extensive fleet of vehicles. Book your perfect ride today and enjoy hassle-free travel.",
-      btnPrimary: { label: "Book Now", action: "Car Rental" },
-      btnSecondary: { label: "Browse Cars", action: "Car Rental" },
+      image: "/images/new-hero.png",
+      title: "Your Journey, Our Priority",
+      description: "Cargo, transportation, and travel solutions designed for a seamless experience worldwide.",
+      btnPrimary: { label: "Explore Services", action: null },
+      btnSecondary: { label: "Get a Quote", action: null },
+      services: ["Cargo", "Airport Transfer", "Car Rental", "Handling", "And More"],
     },
     {
       image: "https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=1600&q=80",
-      title: "TPS – Customs Temporary Storage Facility",
+      title: "TPS – Customs Temporary Storage",
       description: "Secure, compliant, and efficient cargo handling integrated with customs systems.",
       btnPrimary: { label: "Get Quote", action: null },
       btnSecondary: { label: "Learn More", action: null },
+      services: null,
     },
     {
       image: "https://images.unsplash.com/photo-1494412574643-ff11b0a5c1c3?w=1600&q=80",
@@ -1668,6 +1670,7 @@ const TravelPageContent = () => {
       description: "Fast, secure, and affordable freight forwarding services across land, sea, and air. Connecting your business to the world.",
       btnPrimary: { label: "Ship Now", action: null },
       btnSecondary: { label: "View Rates", action: null },
+      services: null,
     },
   ];
 
@@ -1814,43 +1817,90 @@ const TravelPageContent = () => {
       /> */}
 
       {/* Hero Image Slider Section */}
+      {/* Hero Image Slider Section - Redesigned */}
       <div className="relative overflow-hidden">
-        {/* Hero Slider */}
-        <div className="relative w-full h-[500px] md:h-[600px]">
+        <div className="relative w-full h-[520px] md:h-[640px]">
           {/* Slides */}
           {heroSlides.map((slide, index) => (
             <div
               key={index}
               className={`absolute inset-0 transition-opacity duration-700 ease-in-out ${index === heroSlide ? "opacity-100 z-10" : "opacity-0 z-0"}`}
             >
+              {/* Background Image */}
               <div
                 className="absolute inset-0 bg-cover bg-center"
                 style={{ backgroundImage: `url('${slide.image}')` }}
-              >
-                <div className="absolute inset-0 bg-black bg-opacity-50"></div>
-              </div>
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-white p-4">
-                <h1 className="hero-3d-title text-3xl md:text-5xl font-bold text-center mb-4 drop-shadow-lg">
-                  {slide.title}
-                </h1>
-                <p className="hero-3d-title text-center text-white text-lg md:text-xl mb-8 max-w-3xl mx-auto drop-shadow-md">
-                  {slide.description}
-                </p>
-                <div className="flex flex-wrap gap-4 justify-center mb-8">
-                  <Button
-                    size="lg"
-                    className="bg-white/10 backdrop-blur-sm border border-white text-white hover:bg-white/20 hover:text-white px-8 py-6 text-lg"
-                    onClick={() => slide.btnPrimary.action ? handleTravelOptionClick(slide.btnPrimary.action) : undefined}
-                  >
-                    {slide.btnPrimary.label}
-                  </Button>
-                  <Button
-                    size="lg"
-                    className="bg-white/10 backdrop-blur-sm border border-white text-white hover:bg-white/20 hover:text-white px-8 py-6 text-lg"
-                    onClick={() => slide.btnSecondary.action ? handleTravelOptionClick(slide.btnSecondary.action) : undefined}
-                  >
-                    {slide.btnSecondary.label}
-                  </Button>
+              />
+              {/* Gradient overlay — lighter on right to show image, stronger on left for text */}
+              <div className="absolute inset-0 bg-gradient-to-r from-white/80 via-white/40 to-transparent" />
+
+              {/* Content */}
+              <div className="absolute inset-0 flex items-center">
+                <div className="container mx-auto px-6 md:px-12">
+                  <div className="max-w-lg">
+                    {/* Brand */}
+                    <div className="flex items-center gap-2 mb-4">
+                      <img src="/logotravelin.svg" alt="Travelpage" className="h-8" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                      <span className="text-[#0d6e57] font-bold text-2xl">Travelpage</span>
+                      <span className="text-yellow-400 text-xl">★</span>
+                    </div>
+
+                    {/* Title */}
+                    <h1 className="text-4xl md:text-5xl font-extrabold text-gray-900 leading-tight mb-4">
+                      {slide.title.includes("Your Journey") ? (
+                        <>
+                          Your Journey,<br />
+                          <span className="text-[#0d6e57]">Our Priority</span>
+                        </>
+                      ) : (
+                        slide.title
+                      )}
+                    </h1>
+
+                    {/* Description */}
+                    <p className="text-gray-600 text-base md:text-lg mb-6 leading-relaxed max-w-md">
+                      {slide.description}
+                    </p>
+
+                    {/* Service Icons (first slide only) */}
+                    {slide.services && (
+                      <div className="flex flex-wrap gap-5 mb-7">
+                        {[
+                          { label: "Cargo", icon: <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg> },
+                          { label: "Airport Transfer", icon: <Plane className="w-5 h-5" /> },
+                          { label: "Car Rental", icon: <Car className="w-5 h-5" /> },
+                          { label: "Handling", icon: <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> },
+                          { label: "And More", icon: <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg> },
+                        ].map((svc) => (
+                          <div key={svc.label} className="flex flex-col items-center gap-1">
+                            <div className="w-12 h-12 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center text-gray-600 hover:border-[#0d6e57] hover:text-[#0d6e57] transition-colors cursor-pointer">
+                              {svc.icon}
+                            </div>
+                            <span className="text-xs text-gray-600 font-medium">{svc.label}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* CTA Buttons */}
+                    <div className="flex flex-wrap gap-3">
+                      <Button
+                        size="lg"
+                        className="bg-[#0d6e57] hover:bg-[#0a5a48] text-white px-7 py-3 rounded-full font-semibold shadow-md"
+                        onClick={() => slide.btnPrimary.action ? handleTravelOptionClick(slide.btnPrimary.action) : navigate("/")}
+                      >
+                        {slide.btnPrimary.label}
+                      </Button>
+                      <Button
+                        size="lg"
+                        variant="outline"
+                        className="border-[#0d6e57] text-[#0d6e57] hover:bg-[#0d6e57]/10 px-7 py-3 rounded-full font-semibold"
+                        onClick={() => slide.btnSecondary.action ? handleTravelOptionClick(slide.btnSecondary.action) : undefined}
+                      >
+                        {slide.btnSecondary.label}
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1858,14 +1908,14 @@ const TravelPageContent = () => {
 
           {/* Prev / Next arrows */}
           <button
-            className="absolute left-4 top-1/2 -translate-y-1/2 z-20 bg-black/40 hover:bg-black/60 text-white rounded-full w-10 h-10 flex items-center justify-center transition-colors"
+            className="absolute left-4 top-1/2 -translate-y-1/2 z-20 bg-white/80 hover:bg-white text-gray-700 rounded-full w-10 h-10 flex items-center justify-center shadow-md transition-all text-xl font-bold"
             onClick={() => setHeroSlide((prev) => (prev - 1 + heroSlides.length) % heroSlides.length)}
             aria-label="Previous slide"
           >
             ‹
           </button>
           <button
-            className="absolute right-4 top-1/2 -translate-y-1/2 z-20 bg-black/40 hover:bg-black/60 text-white rounded-full w-10 h-10 flex items-center justify-center transition-colors"
+            className="absolute right-4 top-1/2 -translate-y-1/2 z-20 bg-white/80 hover:bg-white text-gray-700 rounded-full w-10 h-10 flex items-center justify-center shadow-md transition-all text-xl font-bold"
             onClick={() => setHeroSlide((prev) => (prev + 1) % heroSlides.length)}
             aria-label="Next slide"
           >
@@ -1873,11 +1923,11 @@ const TravelPageContent = () => {
           </button>
 
           {/* Dot indicators */}
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex gap-2">
+          <div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-20 flex gap-2">
             {heroSlides.map((_, index) => (
               <button
                 key={index}
-                className={`w-2.5 h-2.5 rounded-full transition-all ${index === heroSlide ? "bg-white scale-125" : "bg-white/50"}`}
+                className={`h-2.5 rounded-full transition-all ${index === heroSlide ? "bg-[#0d6e57] w-6" : "bg-gray-400/60 w-2.5"}`}
                 onClick={() => setHeroSlide(index)}
                 aria-label={`Go to slide ${index + 1}`}
               />
@@ -1885,6 +1935,27 @@ const TravelPageContent = () => {
           </div>
         </div>
 
+        {/* Trust Bar below hero */}
+        <div className="bg-[#0d5c47] text-white">
+          <div className="container mx-auto px-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-white/20">
+              {[
+                { icon: <Globe className="w-5 h-5" />, title: "Global Network", desc: "Trusted partners in 100+ countries" },
+                { icon: <Shield className="w-5 h-5" />, title: "Reliable & Secure", desc: "Your cargo and data are safe with us" },
+                { icon: <CreditCard className="w-5 h-5" />, title: "Best Price Guarantee", desc: "Competitive rates for all services" },
+                { icon: <Headphones className="w-5 h-5" />, title: "24/7 Customer Support", desc: "We're here whenever you need us" },
+              ].map((item) => (
+                <div key={item.title} className="flex items-center gap-3 px-5 py-4">
+                  <div className="flex-shrink-0 opacity-80">{item.icon}</div>
+                  <div>
+                    <p className="font-semibold text-sm leading-tight">{item.title}</p>
+                    <p className="text-white/70 text-xs mt-0.5 leading-snug">{item.desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Navigation Tabs - Desktop version positioned below hero */}

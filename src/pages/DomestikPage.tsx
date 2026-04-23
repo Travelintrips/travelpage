@@ -29,8 +29,12 @@ import {
   AlertCircle,
   Loader2,
   X,
+  ShoppingCart,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import DomestikOrderForm from "@/components/booking/DomestikOrderForm";
+import { useAuth } from "@/contexts/AuthContext";
+import AuthRequiredModal from "@/components/auth/AuthRequiredModal";
 
 interface TarifRow {
   id: string;
@@ -61,7 +65,9 @@ const waMessage = encodeURIComponent(
 
 const DomestikPage = () => {
   const navigate = useNavigate();
+  const { isAuthenticated, isSessionReady } = useAuth();
   const [showWaModal, setShowWaModal] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
   const [origin, setOrigin] = useState("");
   const [destination, setDestination] = useState("");
   const [weight, setWeight] = useState("");
@@ -71,6 +77,7 @@ const DomestikPage = () => {
   const [loadingCek, setLoadingCek] = useState(false);
   const [tarifResult, setTarifResult] = useState<TarifResult | null>(null);
   const [tarifError, setTarifError] = useState<string | null>(null);
+  const [showOrderForm, setShowOrderForm] = useState(false);
 
   useEffect(() => {
     const fetchKota = async () => {
@@ -358,18 +365,64 @@ const DomestikPage = () => {
                 </div>
                 <div className="text-right">
                   <div className="text-xs text-gray-500 mb-1">Estimasi Total</div>
-                  <div className="text-3xl font-extrabold text-green-700">
-                    {formatRupiah(tarifResult.total_harga)}
+                  {/* Breakdown */}
+                  <div className="text-xs text-gray-500 mt-1 space-y-0.5 text-right">
+                    <div className="flex justify-end gap-6">
+                      <span>Subtotal ({tarifResult.berat_dihitung} kg × {formatRupiah(tarifResult.harga_per_kg)})</span>
+                      <span className="font-medium text-gray-700">{formatRupiah(tarifResult.total_harga)}</span>
+                    </div>
+                    <div className="flex justify-end gap-6">
+                      <span>Biaya Admin</span>
+                      <span className="font-medium text-gray-700">Rp 20.000</span>
+                    </div>
+                    <div className="flex justify-end gap-6">
+                      <span>PPN 1,1%</span>
+                      <span className="font-medium text-gray-700">{formatRupiah(Math.round((tarifResult.total_harga + 20000) * 0.011))}</span>
+                    </div>
                   </div>
-                  <div className="text-xs text-gray-400 mt-1">
-                    {tarifResult.berat_dihitung} kg × {formatRupiah(tarifResult.harga_per_kg)}
+                  <div className="border-t border-green-200 mt-2 pt-2">
+                    <div className="text-3xl font-extrabold text-green-700">
+                      {formatRupiah(Math.round((tarifResult.total_harga + 20000) * 1.011))}
+                    </div>
+                    <div className="text-xs text-green-600 font-medium mt-0.5">Sudah berikut PPN 1,1%</div>
+                    <div className="text-xs text-green-600 mt-0.5">Harga sudah termasuk RA, WH dan Handling</div>
                   </div>
                 </div>
+              </div>
+              {/* Disclaimer */}
+              <div className="mt-4 pt-3 border-t border-green-200 flex items-start gap-2 text-xs text-amber-600">
+                <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                <span>Harga dapat berubah sewaktu-waktu. Belum termasuk biaya packing, asuransi dan penarikan.</span>
+              </div>
+              {/* CTA Pesan Sekarang */}
+              <div className="mt-4 flex justify-end">
+                <Button
+                  className="bg-green-600 hover:bg-green-700 text-white px-8 py-5 rounded-xl text-base font-semibold gap-2 shadow-md"
+                  onClick={() => {
+                    if (!isAuthenticated) {
+                      setShowAuthModal(true);
+                      return;
+                    }
+                    setShowOrderForm(true);
+                  }}
+                >
+                  <ShoppingCart className="h-5 w-5" />
+                  Pesan Sekarang
+                </Button>
               </div>
             </div>
           )}
         </div>
       </section>
+
+      {/* Order Form Modal */}
+      {tarifResult && showOrderForm && (
+        <DomestikOrderForm
+          open={showOrderForm}
+          onClose={() => setShowOrderForm(false)}
+          tarifResult={tarifResult}
+        />
+      )}
 
       {/* Services Section */}
       <section className="py-16 bg-gray-50">
@@ -503,6 +556,13 @@ const DomestikPage = () => {
           <p className="text-sm">© {new Date().getFullYear()} Cahaya Sejati Teknologi. All rights reserved.</p>
         </div>
       </footer>
+
+      {/* Auth Required Modal */}
+      <AuthRequiredModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        message="Silakan login atau daftar terlebih dahulu untuk membuat pesanan kargo domestik."
+      />
 
       {/* WhatsApp Modal */}
       {showWaModal && (

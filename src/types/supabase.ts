@@ -5325,6 +5325,189 @@ export type Database = {
           },
         ]
       }
+      order_domestik_kargo: {
+        Row: {
+          alamat_penerima: string | null
+          alamat_pengirim: string | null
+          asal: string | null
+          berat_aktual: number | null
+          berat_chargeable: number | null
+          berat_volume: number | null
+          biaya_admin: number | null
+          cart_id: string | null
+          catatan: string | null
+          created_at: string | null
+          declared_value: number | null
+          deskripsi_barang: string | null
+          dg_declaration: boolean | null
+          dg_msds: string | null
+          dg_packing_instruction: string | null
+          dg_un_number: string | null
+          email_penerima: string | null
+          email_pengirim: string | null
+          id: string
+          insurance_required: boolean | null
+          is_dangerous_goods: boolean | null
+          is_live_animals: boolean | null
+          is_marine_products: boolean | null
+          jenis_kargo: string | null
+          jumlah_koli: number | null
+          kode_order: string | null
+          la_feeding_instruction: string | null
+          la_jenis_hewan: string | null
+          la_jumlah: number | null
+          la_ventilasi: string | null
+          lebar: number | null
+          mp_ice_gel_pack: boolean | null
+          mp_jenis_kemasan: string | null
+          mp_kondisi: string | null
+          mp_suhu: string | null
+          nama_penerima: string | null
+          nama_pengirim: string | null
+          packing_required: boolean | null
+          panjang: number | null
+          perusahaan_penerima: string | null
+          perusahaan_pengirim: string | null
+          pickup_address: string | null
+          pickup_date: string | null
+          pickup_required: boolean | null
+          pickup_time: string | null
+          ppn: number | null
+          special_handling_notes: string | null
+          status: string | null
+          subtotal: number | null
+          tarif_per_kg: number | null
+          telepon_penerima: string | null
+          telepon_pengirim: string | null
+          tinggi: number | null
+          tipe_kargo: string | null
+          total: number | null
+          tujuan: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          alamat_penerima?: string | null
+          alamat_pengirim?: string | null
+          asal?: string | null
+          berat_aktual?: number | null
+          berat_chargeable?: number | null
+          berat_volume?: number | null
+          biaya_admin?: number | null
+          cart_id?: string | null
+          catatan?: string | null
+          created_at?: string | null
+          declared_value?: number | null
+          deskripsi_barang?: string | null
+          dg_declaration?: boolean | null
+          dg_msds?: string | null
+          dg_packing_instruction?: string | null
+          dg_un_number?: string | null
+          email_penerima?: string | null
+          email_pengirim?: string | null
+          id?: string
+          insurance_required?: boolean | null
+          is_dangerous_goods?: boolean | null
+          is_live_animals?: boolean | null
+          is_marine_products?: boolean | null
+          jenis_kargo?: string | null
+          jumlah_koli?: number | null
+          kode_order?: string | null
+          la_feeding_instruction?: string | null
+          la_jenis_hewan?: string | null
+          la_jumlah?: number | null
+          la_ventilasi?: string | null
+          lebar?: number | null
+          mp_ice_gel_pack?: boolean | null
+          mp_jenis_kemasan?: string | null
+          mp_kondisi?: string | null
+          mp_suhu?: string | null
+          nama_penerima?: string | null
+          nama_pengirim?: string | null
+          packing_required?: boolean | null
+          panjang?: number | null
+          perusahaan_penerima?: string | null
+          perusahaan_pengirim?: string | null
+          pickup_address?: string | null
+          pickup_date?: string | null
+          pickup_required?: boolean | null
+          pickup_time?: string | null
+          ppn?: number | null
+          special_handling_notes?: string | null
+          status?: string | null
+          subtotal?: number | null
+          tarif_per_kg?: number | null
+          telepon_penerima?: string | null
+          telepon_pengirim?: string | null
+          tinggi?: number | null
+          tipe_kargo?: string | null
+          total?: number | null
+          tujuan?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          alamat_penerima?: string | null
+          alamat_pengirim?: string | null
+          asal?: string | null
+          berat_aktual?: number | null
+          berat_chargeable?: number | null
+          berat_volume?: number | null
+          biaya_admin?: number | null
+          cart_id?: string | null
+          catatan?: string | null
+          created_at?: string | null
+          declared_value?: number | null
+          deskripsi_barang?: string | null
+          dg_declaration?: boolean | null
+          dg_msds?: string | null
+          dg_packing_instruction?: string | null
+          dg_un_number?: string | null
+          email_penerima?: string | null
+          email_pengirim?: string | null
+          id?: string
+          insurance_required?: boolean | null
+          is_dangerous_goods?: boolean | null
+          is_live_animals?: boolean | null
+          is_marine_products?: boolean | null
+          jenis_kargo?: string | null
+          jumlah_koli?: number | null
+          kode_order?: string | null
+          la_feeding_instruction?: string | null
+          la_jenis_hewan?: string | null
+          la_jumlah?: number | null
+          la_ventilasi?: string | null
+          lebar?: number | null
+          mp_ice_gel_pack?: boolean | null
+          mp_jenis_kemasan?: string | null
+          mp_kondisi?: string | null
+          mp_suhu?: string | null
+          nama_penerima?: string | null
+          nama_pengirim?: string | null
+          packing_required?: boolean | null
+          panjang?: number | null
+          perusahaan_penerima?: string | null
+          perusahaan_pengirim?: string | null
+          pickup_address?: string | null
+          pickup_date?: string | null
+          pickup_required?: boolean | null
+          pickup_time?: string | null
+          ppn?: number | null
+          special_handling_notes?: string | null
+          status?: string | null
+          subtotal?: number | null
+          tarif_per_kg?: number | null
+          telepon_penerima?: string | null
+          telepon_pengirim?: string | null
+          tinggi?: number | null
+          tipe_kargo?: string | null
+          total?: number | null
+          tujuan?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       outbound_manifests: {
         Row: {
           created_at: string | null

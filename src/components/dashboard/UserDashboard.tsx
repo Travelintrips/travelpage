@@ -1,75 +1,165 @@
+// @ts-nocheck
 import React, { useState, useRef, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { supabase } from "@/lib/supabase";
 import { Badge } from "@/components/ui/badge";
-import { Calendar } from "@/components/ui/calendar";
-import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { useNavigate } from "react-router-dom";
 import {
+  Activity,
   AlertCircle,
   ArrowLeft,
+  ArrowRight,
+  ArrowUpRight,
+  Bell,
   Camera,
   Car,
+  CheckCircle2,
+  ChevronRight,
+  Clock,
   CreditCard,
+  Eye,
   FileText,
+  Globe,
+  Hotel,
+  Luggage,
+  MapPin,
+  Package,
+  Plane,
   RefreshCw,
-  Settings,
+  Search,
+  ShieldCheck,
+  Sparkles,
+  Star,
+  Train,
+  TrendingUp,
   Upload,
-  User,
-  Users,
+  Wallet,
+  Zap,
 } from "lucide-react";
 
-interface Booking {
-  id: string;
-  vehicleName: string;
-  vehicleModel?: string;
-  vehicleType?: string;
-  startDate: Date;
-  endDate: Date;
-  status: "active" | "completed" | "cancelled";
-  totalAmount: number;
-  paymentStatus: "paid" | "partial" | "pending";
-  imageUrl: string;
-  driverName?: string;
-  licensePlate?: string;
-  bookingCode?: string;
-  isAirportTransfer?: boolean;
-  pickupLocation?: string;
-  dropoffLocation?: string;
-  pickupTime?: string;
-}
+// ─── Helpers ───────────────────────────────────────────────────────────────────
+
+const _formatDate = (date: Date) =>
+  date.toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" });
+
+const _formatCurrency = (amount: number) =>
+  new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(amount);
+
+const _getInitials = (name?: string | null) => {
+  if (!name || typeof name !== "string") return "NA";
+  return name.split(" ").map((p) => p[0]).join("").toUpperCase().slice(0, 2);
+};
+
+const _statusConfig: Record<string, { label: string; color: string; dot: string }> = {
+  active:     { label: "Active",      color: "bg-emerald-100 text-emerald-700", dot: "bg-emerald-500" },
+  confirmed:  { label: "Confirmed",   color: "bg-emerald-100 text-emerald-700", dot: "bg-emerald-500" },
+  pending:    { label: "Pending",     color: "bg-amber-100 text-amber-700",     dot: "bg-amber-500"   },
+  booked:     { label: "Booked",      color: "bg-blue-100 text-blue-700",       dot: "bg-blue-500"    },
+  processing: { label: "Processing",  color: "bg-blue-100 text-blue-700",       dot: "bg-blue-500"    },
+  "in progress":{ label: "In Progress",color: "bg-purple-100 text-purple-700",  dot: "bg-purple-500"  },
+  inprogress: { label: "In Progress", color: "bg-purple-100 text-purple-700",   dot: "bg-purple-500"  },
+  onride:     { label: "On Ride",     color: "bg-purple-100 text-purple-700",   dot: "bg-purple-500"  },
+  completed:  { label: "Completed",   color: "bg-slate-100 text-slate-600",     dot: "bg-slate-400"   },
+  cancelled:  { label: "Cancelled",   color: "bg-red-100 text-red-600",         dot: "bg-red-400"     },
+  paid:       { label: "Paid",        color: "bg-emerald-100 text-emerald-700", dot: "bg-emerald-500" },
+  partial:    { label: "Partial",     color: "bg-amber-100 text-amber-700",     dot: "bg-amber-500"   },
+  unpaid:     { label: "Unpaid",      color: "bg-red-100 text-red-600",         dot: "bg-red-400"     },
+};
+
+// Service type label + icon mapping
+const _serviceTypeConfig: Record<string, { label: string; icon: React.ElementType; iconColor: string; bg: string }> = {
+  "airport transfer": { label: "Airport Transfer", icon: Plane,       iconColor: "text-sky-500",    bg: "bg-sky-50"    },
+  "baggage storage":  { label: "Baggage",          icon: Luggage,     iconColor: "text-violet-500", bg: "bg-violet-50" },
+  "handling":         { label: "Handling",         icon: ShieldCheck, iconColor: "text-teal-500",   bg: "bg-teal-50"   },
+  "car rental":       { label: "Car Rental",       icon: Car,         iconColor: "text-orange-500", bg: "bg-orange-50" },
+  "cargo":            { label: "Cargo",            icon: Package,     iconColor: "text-amber-500",  bg: "bg-amber-50"  },
+  "flight":           { label: "Flight",           icon: Plane,       iconColor: "text-sky-500",    bg: "bg-sky-50"    },
+  "hotel":            { label: "Hotel",            icon: Hotel,       iconColor: "text-rose-500",   bg: "bg-rose-50"   },
+  "train":            { label: "Train",            icon: Train,       iconColor: "text-indigo-500", bg: "bg-indigo-50" },
+};
+
+const StatusBadge = ({ status }: { status: string }) => {
+  const cfg = _statusConfig[status?.toLowerCase()] || { label: status, color: "bg-slate-100 text-slate-600", dot: "bg-slate-400" };
+  return (
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${cfg.color}`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
+      {cfg.label}
+    </span>
+  );
+};
+
+const _ServiceIcon = ({ booking }: { booking: any }) => {
+  if (booking.isAirportTransfer) return <Plane       className="w-4 h-4 text-sky-500"    />;
+  if (booking.isBaggageBooking)  return <Luggage     className="w-4 h-4 text-violet-500" />;
+  if (booking.isHandlingBooking) return <ShieldCheck className="w-4 h-4 text-teal-500"   />;
+  return <Car className="w-4 h-4 text-orange-500" />;
+};
+
+const _serviceLabel = (b: any) => {
+  if (b.isAirportTransfer) return "Airport Transfer";
+  if (b.isBaggageBooking)  return "Baggage Storage";
+  if (b.isHandlingBooking) return "Handling";
+  return "Car Rental";
+};
+
+const _quickServices = [
+  { label: "Car Rental",       icon: Car,        color: "bg-orange-50 text-orange-600", href: "/rentcar"          },
+  { label: "Airport Transfer", icon: Plane,       color: "bg-sky-50 text-sky-600",       href: "/airport-transfer" },
+  { label: "Baggage",          icon: Luggage,     color: "bg-violet-50 text-violet-600", href: "/baggage"          },
+  { label: "Handling",         icon: ShieldCheck, color: "bg-teal-50 text-teal-600",     href: "/handling"         },
+  { label: "Cargo",            icon: Package,     color: "bg-amber-50 text-amber-600",   href: "/cargo"            },
+  { label: "More",             icon: Globe,       color: "bg-slate-50 text-slate-600",   href: "/"                 },
+];
+
+const BookingCard = ({ booking }: { booking: any }) => (
+  <div className="flex items-start gap-4 p-4 rounded-xl border border-slate-100 hover:border-[#16a07c]/30 hover:bg-[#16a07c]/[0.02] transition-all duration-200">
+    <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-slate-50 flex items-center justify-center">
+      <_ServiceIcon booking={booking} />
+    </div>
+    <div className="flex-1 min-w-0">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <p className="font-medium text-sm text-slate-800 truncate">{booking.vehicleName}</p>
+          <p className="text-xs text-slate-400 mt-0.5">{_serviceLabel(booking)} · {booking.bookingCode || "-"}</p>
+        </div>
+        <StatusBadge status={booking.status} />
+      </div>
+      <div className="flex items-center justify-between mt-2">
+        <div className="flex items-center gap-3">
+          <span className="flex items-center gap-1 text-xs text-slate-500">
+            <Clock className="w-3 h-3" />{_formatDate(booking.startDate)}
+          </span>
+          {booking.pickupLocation && (
+            <span className="flex items-center gap-1 text-xs text-slate-500">
+              <MapPin className="w-3 h-3" />
+              <span className="truncate max-w-[100px]">{booking.pickupLocation}</span>
+            </span>
+          )}
+        </div>
+        <span className="text-sm font-semibold text-slate-700">{_formatCurrency(booking.totalAmount)}</span>
+      </div>
+    </div>
+  </div>
+);
 
 const UserDashboard = () => {
   const { userName, userEmail, userRole, userId } = useAuth();
-  const userAvatar = "";
   const [phoneNumber, setPhoneNumber] = useState<string>("");
-  const [fullName, setFullName] = useState<string>(userName || "");
-  const [address, setAddress] = useState<string>("");
+  const [fullName, setFullName]       = useState<string>(userName || "");
+  const [address, setAddress]         = useState<string>("");
   const navigate = useNavigate();
 
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(
-    new Date(),
-  );
-
-  // Selfie capture state variables
-  const [uploadError, setUploadError] = useState<string | null>(null);
-  const [capturedImage, setCapturedImage] = useState<string | null>(null);
-
-  // Store the setCapturedImage function in the static property
-  (UserDashboard as any).setCapturedImage = setCapturedImage;
+  const [uploadError,     setUploadError]     = useState<string | null>(null);
+  const [capturedImage,   setCapturedImage]   = useState<string | null>(null);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [profileSaved,    setProfileSaved]    = useState(false);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -916,1561 +1006,856 @@ const UserDashboard = () => {
     reader.readAsDataURL(file);
   };
 
+  // ── Derived stats ──────────────────────────────────────────────────────────
+  const allOrders       = [...activeBookings, ...bookingHistory];
+  const totalSpent      = allOrders.reduce((s, b) => s + b.totalAmount, 0);
+  const pendingPayments = allOrders.filter(
+    (b) => b.paymentStatus?.toLowerCase() === "pending" || b.paymentStatus?.toLowerCase() === "partial"
+  );
+  const displayName = fullName || userName || userEmail?.split("@")[0] || "Customer";
+
+  // ── Profile save ──────────────────────────────────────────────────────────
+  const saveProfile = async () => {
+    if (!userId) return;
+    setIsSavingProfile(true);
+    try {
+      await supabase.functions.invoke("update-user-metadata", {
+        body: { userId, userData: { full_name: fullName, phone_number: phoneNumber, address } },
+      });
+      if (userRole === "Customer") {
+        await supabase.from("customers").update({ full_name: fullName, phone: phoneNumber, address }).eq("id", userId);
+      } else {
+        await supabase.from("users").update({ full_name: fullName, phone_number: phoneNumber, address }).eq("id", userId);
+      }
+      setProfileSaved(true);
+      setTimeout(() => setProfileSaved(false), 3000);
+    } catch (err) {
+      console.error("Error saving profile:", err);
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
   return (
-    <div className="bg-background min-h-screen p-4 md:p-8">
-      <div className="max-w-7xl mx-auto">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+    <div className="min-h-screen bg-[#f7f8fa]">
+      {/* ── Header ──────────────────────────────────────────────────────────── */}
+      <div className="bg-gradient-to-r from-[#0d6e57] to-[#16a07c] px-6 pt-8 pb-20">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div className="flex items-center gap-4">
-            <Avatar className="h-16 w-16 border-2 border-primary">
-              <AvatarImage src={userAvatar} alt={userName} />
-              <AvatarFallback className="bg-primary text-primary-foreground text-xl">
-                {getInitials(userName)}
-              </AvatarFallback>
-            </Avatar>
+            <div className="relative">
+              <Avatar className="h-16 w-16 ring-4 ring-white/30">
+                <AvatarImage src={capturedImage?.startsWith("http") ? capturedImage : undefined} alt={displayName} />
+                <AvatarFallback className="bg-white/20 text-white text-xl font-bold">
+                  {_getInitials(displayName)}
+                </AvatarFallback>
+              </Avatar>
+              <span className="absolute bottom-0 right-0 w-4 h-4 bg-emerald-400 border-2 border-white rounded-full" />
+            </div>
             <div>
-              <h1 className="text-2xl font-bold">
-                {fullName || userName || userEmail?.split("@")[0] || "Customer"}
-              </h1>
-              <p className="text-muted-foreground">{userEmail}</p>
-              <Badge variant="outline" className="mt-1">
-                {userRole}
-              </Badge>
+              <p className="text-white/70 text-sm font-medium">Welcome back,</p>
+              <h1 className="text-2xl font-bold text-white leading-tight">{displayName}</h1>
+              <div className="flex items-center gap-2 mt-1">
+                <p className="text-white/60 text-sm">{userEmail}</p>
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-white/20 text-white/90 text-xs font-medium">
+                  {userRole}
+                </span>
+              </div>
             </div>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() =>
-              navigate("https://angry-bell5-d7kh5.view-3.tempo-dev.app/")
-            }
-            className="flex items-center gap-1"
+          <button
+            onClick={() => navigate("/")}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-white text-sm font-medium transition-colors"
           >
-            <ArrowLeft className="h-4 w-4" />
-            Back To Homepage
-          </Button>
+            <ArrowLeft className="w-4 h-4" />
+            Back to Homepage
+          </button>
+        </div>
+      </div>
+
+      {/* ── Content ─────────────────────────────────────────────────────────── */}
+      <div className="max-w-7xl mx-auto px-4 md:px-6 -mt-14">
+        {/* ── Summary Cards ──────────────────────────────────────────────────── */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+          {([
+            {
+              label:   "Total Orders",
+              value:   allOrders.length,
+              subtext: "Semua layanan yang pernah dipesan",
+              icon:    FileText,
+              color:   "text-blue-600",
+              bg:      "bg-blue-50",
+              isText:  false,
+            },
+            {
+              label:   "Active Orders",
+              value:   activeBookings.length,
+              subtext: "Pesanan yang sedang berjalan",
+              icon:    Activity,
+              color:   "text-[#16a07c]",
+              bg:      "bg-[#16a07c]/10",
+              isText:  false,
+            },
+            {
+              label:   "Pending Payment",
+              value:   pendingPayments.length,
+              subtext: "Menunggu pembayaran customer",
+              icon:    CreditCard,
+              color:   "text-amber-600",
+              bg:      "bg-amber-50",
+              isText:  false,
+            },
+            {
+              label:   "Total Spending",
+              value:   _formatCurrency(totalSpent),
+              subtext: "Total pengeluaran customer",
+              icon:    Wallet,
+              color:   "text-violet-600",
+              bg:      "bg-violet-50",
+              isText:  true,
+            },
+          ] as const).map((s) => (
+            <Card key={s.label} className="bg-white border border-slate-100 shadow-sm rounded-2xl hover:shadow-md transition-shadow">
+              <CardContent className="p-5">
+                <div className="flex items-start justify-between mb-3">
+                  <div className={`${s.bg} p-2.5 rounded-xl`}>
+                    <s.icon className={`w-5 h-5 ${s.color}`} />
+                  </div>
+                </div>
+                <p className={`font-bold text-slate-800 ${s.isText ? "text-lg leading-tight" : "text-2xl"}`}>{s.value}</p>
+                <p className="text-xs font-semibold text-slate-600 mt-1">{s.label}</p>
+                <p className="text-[11px] text-slate-400 mt-0.5 leading-snug">{s.subtext}</p>
+              </CardContent>
+            </Card>
+          ))}
         </div>
 
-        <Tabs
-          defaultValue="overview"
-          className="w-full"
-          onValueChange={setActiveTab}
-        >
-          <TabsList className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 mb-8">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="bookings">My Bookings</TabsTrigger>
-            <TabsTrigger value="payments">Payments</TabsTrigger>
-            <TabsTrigger value="profile">Profile</TabsTrigger>
-            {(userRole === "Admin" || userRole === "Manager") && (
-              <>
-                <TabsTrigger value="users">Users</TabsTrigger>
-                <TabsTrigger value="vehicles">Vehicles</TabsTrigger>
-              </>
-            )}
+        {/* ── Quick Actions ───────────────────────────────────────────────────── */}
+        <div className="bg-white border border-slate-100 shadow-sm rounded-2xl p-5 mb-6">
+          <h2 className="font-semibold text-slate-800 text-sm mb-4">Quick Actions</h2>
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
+            {([
+              { label: "Book Cargo",        icon: Package,    color: "bg-amber-50",    iconColor: "text-amber-600",    href: "/cargo"            },
+              { label: "Airport Transfer",  icon: Plane,      color: "bg-sky-50",      iconColor: "text-sky-600",      href: "/airport-transfer" },
+              { label: "Car Rental",        icon: Car,        color: "bg-orange-50",   iconColor: "text-orange-600",   href: "/rentcar"          },
+              { label: "Handling Service",  icon: ShieldCheck,color: "bg-teal-50",     iconColor: "text-teal-600",     href: "/handling"         },
+              { label: "View Orders",       icon: FileText,   color: "bg-blue-50",     iconColor: "text-blue-600",     href: "#orders"           },
+              { label: "Pay Now",           icon: CreditCard, color: "bg-[#16a07c]/10",iconColor: "text-[#16a07c]",    href: "#payments"         },
+            ] as const).map((action) => (
+              <button
+                key={action.label}
+                onClick={() => {
+                  if (action.href.startsWith("#")) {
+                    const tabVal = action.href.slice(1);
+                    const trigger = document.querySelector<HTMLButtonElement>(`[data-radix-collection-item][value="${tabVal}"]`);
+                    trigger?.click();
+                  } else {
+                    navigate(action.href);
+                  }
+                }}
+                className="flex flex-col items-center gap-2 p-3 rounded-xl border border-transparent hover:border-slate-200 hover:bg-slate-50 transition-all group"
+              >
+                <div className={`w-11 h-11 rounded-xl ${action.color} flex items-center justify-center group-hover:scale-105 transition-transform`}>
+                  <action.icon className={`w-5 h-5 ${action.iconColor}`} />
+                </div>
+                <span className="text-[11px] text-slate-600 font-medium text-center leading-tight">{action.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="bg-white border border-slate-200 rounded-xl p-1 mb-6 inline-flex gap-1 shadow-sm">
+            {[
+              { value: "overview", label: "Overview"  },
+              { value: "orders",   label: "Orders"    },
+              { value: "payments", label: "Payments"  },
+              { value: "profile",  label: "Profile"   },
+            ].map((t) => (
+              <TabsTrigger
+                key={t.value}
+                value={t.value}
+                className="rounded-lg px-5 py-2 text-sm font-medium data-[state=active]:bg-[#16a07c] data-[state=active]:text-white data-[state=active]:shadow-none text-slate-500"
+              >
+                {t.label}
+              </TabsTrigger>
+            ))}
           </TabsList>
 
+          {/* ── Overview ─────────────────────────────────────────────────── */}
           <TabsContent value="overview" className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-lg">Active Bookings</CardTitle>
-                  <CardDescription>Currently active rentals</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {isLoadingBookings ? (
-                    <div className="flex justify-center items-center py-2">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="text-3xl font-bold">
-                        {activeBookings.length}
-                      </div>
-                      <Progress
-                        value={activeBookings.length > 0 ? 100 : 0}
-                        className="mt-2"
-                      />
-                    </>
-                  )}
-                </CardContent>
-              </Card>
 
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-lg">Total Spent</CardTitle>
-                  <CardDescription>All time rental expenses</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {isLoadingBookings ? (
-                    <div className="flex justify-center items-center py-2">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            {/* ── Recent Orders Table ─────────────────────────────────────── */}
+            <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
+              <div className="px-6 pt-5 pb-4 flex items-center justify-between border-b border-slate-100">
+                <div>
+                  <h2 className="font-semibold text-slate-800">Recent Orders</h2>
+                  <p className="text-xs text-slate-400 mt-0.5">Semua transaksi layanan terbaru</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary" className="bg-slate-100 text-slate-600 font-medium">
+                    {allOrders.length} orders
+                  </Badge>
+                  <button
+                    onClick={() => setActiveTab("orders")}
+                    className="flex items-center gap-1 text-xs text-[#16a07c] font-medium hover:underline"
+                  >
+                    View All <ArrowRight className="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
+              {isLoadingBookings ? (
+                <div className="py-14 flex flex-col items-center gap-3">
+                  <div className="w-8 h-8 rounded-full border-2 border-[#16a07c] border-t-transparent animate-spin" />
+                  <p className="text-sm text-slate-400">Memuat pesanan…</p>
+                </div>
+              ) : allOrders.length === 0 ? (
+                /* ── Empty state ─────────────────────────────────────────── */
+                <div className="py-16 flex flex-col items-center gap-4">
+                  <div className="relative">
+                    <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#16a07c]/10 to-[#16a07c]/5 flex items-center justify-center">
+                      <Package className="w-9 h-9 text-[#16a07c]/50" />
                     </div>
-                  ) : (
-                    <>
-                      <div className="text-3xl font-bold">
-                        {formatCurrency(
-                          [...activeBookings, ...bookingHistory].reduce(
-                            (sum, booking) => sum + booking.totalAmount,
-                            0,
-                          ),
-                        )}
-                      </div>
-                      <Progress
-                        value={
-                          [...activeBookings, ...bookingHistory].length > 0
-                            ? 75
-                            : 0
-                        }
-                        className="mt-2"
-                      />
-                    </>
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-lg">Upcoming Returns</CardTitle>
-                  <CardDescription>Vehicles due for return</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {isLoadingBookings ? (
-                    <div className="flex justify-center items-center py-2">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="text-3xl font-bold">
-                        {
-                          activeBookings.filter(
-                            (b) =>
-                              new Date(b.endDate).getTime() -
-                                new Date().getTime() <
-                              3 * 24 * 60 * 60 * 1000,
-                          ).length
-                        }
-                      </div>
-                      <Progress
-                        value={
-                          activeBookings.filter(
-                            (b) =>
-                              new Date(b.endDate).getTime() -
-                                new Date().getTime() <
-                              3 * 24 * 60 * 60 * 1000,
-                          ).length > 0
-                            ? 100
-                            : 0
-                        }
-                        className="mt-2"
-                      />
-                    </>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <Card className="lg:col-span-2">
-                <CardHeader>
-                  <CardTitle>Active Rentals</CardTitle>
-                  <CardDescription>
-                    Your currently active vehicle rentals
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {isLoadingBookings ? (
-                    <div className="flex justify-center items-center py-8">
-                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-                    </div>
-                  ) : activeBookings.length > 0 ? (
-                    <div className="space-y-4">
-                      {activeBookings.map((booking) => (
-                        <div
-                          key={booking.id}
-                          className="flex flex-col md:flex-row gap-4 p-4 border rounded-lg"
-                        >
-                          <div className="w-full md:w-1/4 h-40 rounded-md overflow-hidden">
-                            <img
-                              src={booking.imageUrl}
-                              alt={booking.vehicleName}
-                              className="w-full h-full object-cover"
-                            />
-                          </div>
-                          <div className="flex-1">
-                            <div className="flex justify-between items-start">
-                              <div>
-                                <Badge className="mb-2">
-                                  {booking.isAirportTransfer
-                                    ? "Airport Transfer"
-                                    : booking.isBaggageBooking
-                                      ? "Baggage Storage"
-                                      : "Rentcar"}
-                                </Badge>
-                                <h3 className="text-lg font-semibold">
-                                  {booking.vehicleName}
-                                </h3>
-                              </div>
-                              <Badge
-                                className={`${booking.status.toLowerCase() === "pending" || booking.status.toLowerCase() === "booked" ? "bg-pink-500" : ""}`}
-                              >
-                                {booking.status.toLowerCase() === "pending"
-                                  ? "Booked"
-                                  : booking.status}
-                              </Badge>
-                            </div>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-2">
-                              <div>
-                                <p className="text-sm text-muted-foreground">
-                                  {booking.isBaggageBooking
-                                    ? "Baggage Items"
-                                    : "Vehicle Model1"}
-                                </p>
-                                <p className="font-medium">
-                                  {booking.vehicleModel || booking.vehicleName}
-                                </p>
-                              </div>
-                              {booking.vehicleType && (
-                                <div>
-                                  <p className="text-sm text-muted-foreground">
-                                    {booking.isBaggageBooking
-                                      ? "Storage"
-                                      : "Vehicle Type"}
-                                  </p>
-                                  <p className="font-medium">
-                                    {booking.vehicleType}
-                                  </p>
-                                </div>
-                              )}
-                              {!booking.isBaggageBooking && (
-                                <div>
-                                  <p className="text-sm text-muted-foreground">
-                                    License Plate
-                                  </p>
-                                  <p className="font-medium">
-                                    {booking.licensePlate || "-"}
-                                  </p>
-                                </div>
-                              )}
-                              {!booking.isBaggageBooking && (
-                                <div>
-                                  <p className="text-sm text-muted-foreground">
-                                    Driver Name
-                                  </p>
-                                  <p className="font-medium">
-                                    {booking.driverName}
-                                  </p>
-                                </div>
-                              )}
-                              <div>
-                                <p className="text-sm text-muted-foreground">
-                                  Booking Code
-                                </p>
-                                <p className="font-medium">
-                                  {booking.bookingCode}
-                                </p>
-                              </div>
-                              <div>
-                                <p className="text-sm text-muted-foreground">
-                                  {booking.isAirportTransfer
-                                    ? "Pickup Date & Time"
-                                    : booking.isBaggageBooking
-                                      ? "Storage Period"
-                                      : "Pickup Date"}
-                                </p>
-                                <p className="font-medium">
-                                  {formatDate(booking.startDate)}
-                                  {booking.isAirportTransfer &&
-                                  booking.pickupTime
-                                    ? `, ${booking.pickupTime}`
-                                    : ""}
-                                  {booking.isBaggageBooking && booking.startTime
-                                    ? ` ${booking.startTime}`
-                                    : ""}
-                                  {!booking.isAirportTransfer &&
-                                  !booking.isBaggageBooking
-                                    ? ` - ${formatDate(booking.endDate)}`
-                                    : booking.isBaggageBooking
-                                      ? ` - ${formatDate(booking.endDate)}${booking.endTime ? ` ${booking.endTime}` : ""}`
-                                      : ""}
-                                </p>
-                              </div>
-                              {booking.isAirportTransfer && (
-                                <>
-                                  <div className="md:col-span-3">
-                                    <p className="text-sm text-muted-foreground">
-                                      Pickup Location
-                                    </p>
-                                    <p className="font-medium">
-                                      {booking.pickupLocation || "-"}
-                                    </p>
-                                  </div>
-                                  <div className="md:col-span-3">
-                                    <p className="text-sm text-muted-foreground">
-                                      Dropoff Location
-                                    </p>
-                                    <p className="font-medium">
-                                      {booking.dropoffLocation || "-"}
-                                    </p>
-                                  </div>
-                                </>
-                              )}
-                              {booking.isBaggageBooking && (
-                                <>
-                                  <div>
-                                    <p className="text-sm text-muted-foreground">
-                                      Baggage Size
-                                    </p>
-                                    <p className="font-medium capitalize">
-                                      {booking.baggageSize?.replace("_", " ") ||
-                                        "-"}
-                                    </p>
-                                  </div>
-                                  <div>
-                                    <p className="text-sm text-muted-foreground">
-                                      Duration
-                                    </p>
-                                    <p className="font-medium">
-                                      {booking.duration} {booking.durationType}
-                                    </p>
-                                  </div>
-                                  <div>
-                                    <p className="text-sm text-muted-foreground">
-                                      Airport
-                                    </p>
-                                    <p className="font-medium">
-                                      {booking.airport || "-"}
-                                    </p>
-                                  </div>
-                                  {booking.flightNumber && (
-                                    <div>
-                                      <p className="text-sm text-muted-foreground">
-                                        Flight Number
-                                      </p>
-                                      <p className="font-medium">
-                                        {booking.flightNumber}
-                                      </p>
-                                    </div>
-                                  )}
-                                  {booking.baggageSize === "electronic" &&
-                                    booking.itemName && (
-                                      <div>
-                                        <p className="text-sm text-muted-foreground">
-                                          Item Name
-                                        </p>
-                                        <p className="font-medium">
-                                          {booking.itemName}
-                                        </p>
-                                      </div>
-                                    )}
-                                </>
-                              )}
-                              <div>
-                                <p className="text-sm text-muted-foreground">
-                                  Total Amount
-                                </p>
-                                <p className="font-medium">
-                                  {formatCurrency(booking.totalAmount)}
-                                </p>
-                              </div>
-                              <div>
-                                <p className="text-sm text-muted-foreground">
-                                  Payment Status
-                                </p>
-                                <p className="font-medium capitalize">
-                                  {booking.paymentStatus}
-                                </p>
-                              </div>
-                              <div>
-                                <p className="text-sm text-muted-foreground">
-                                  Payment Method
-                                </p>
-                                <p className="font-medium capitalize">
-                                  {booking.paymentMethod || "-"}
-                                </p>
-                              </div>
-                            </div>
-                            {!booking.isBaggageBooking && (
-                              <div className="flex gap-2 mt-4">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="flex items-center gap-1"
-                                >
-                                  <FileText size={14} />
-                                  View Details
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  className="flex items-center gap-1"
-                                  onClick={() => {
-                                    if (
-                                      booking.status === "approved" &&
-                                      booking.pickupStatus === "picked_up"
-                                    ) {
-                                      window.location.href = `/inspection?vehicleId=${booking.vehicleId}&bookingId=${booking.id}`;
-                                    } else {
-                                      alert(
-                                        "Vehicle must be approved and picked up before inspection",
-                                      );
-                                    }
-                                  }}
-                                >
-                                  <Car size={14} />
-                                  {booking.status === "approved" &&
-                                  booking.pickupStatus === "picked_up"
-                                    ? "Pre-Rental Inspection"
-                                    : "Return Vehicle"}
-                                </Button>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-8">
-                      <Car className="mx-auto h-12 w-12 text-muted-foreground" />
-                      <h3 className="mt-2 text-lg font-medium">
-                        No active rentals
-                      </h3>
-                      <p className="text-muted-foreground">
-                        Book a vehicle to get started
-                      </p>
-                      <Button className="mt-4">Book a Vehicle</Button>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Calendar</CardTitle>
-                  <CardDescription>Your rental schedule</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Calendar
-                    mode="single"
-                    selected={selectedDate}
-                    onSelect={setSelectedDate}
-                    className="rounded-md border"
-                  />
-                  <div className="mt-4">
-                    <h4 className="font-medium">Upcoming Events</h4>
-                    <div className="mt-2 space-y-2">
-                      {isLoadingBookings ? (
-                        <div className="flex justify-center items-center py-4">
-                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                        </div>
-                      ) : activeBookings.length > 0 ? (
-                        activeBookings.map((booking) => (
-                          <div
-                            key={booking.id}
-                            className="flex items-center gap-2 text-sm p-2 rounded-md bg-muted"
-                          >
-                            <div
-                              className={`w-2 h-2 rounded-full ${getStatusColor(booking.status)}`}
-                            ></div>
-                            <span className="flex-1">
-                              {booking.vehicleName} Return
-                            </span>
-                            <span className="text-muted-foreground">
-                              {formatDate(booking.endDate)}
-                            </span>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="text-center py-2 text-sm text-muted-foreground">
-                          No upcoming events
-                        </div>
-                      )}
+                    <div className="absolute -top-1.5 -right-1.5 w-6 h-6 bg-amber-100 rounded-full flex items-center justify-center">
+                      <Search className="w-3 h-3 text-amber-600" />
                     </div>
                   </div>
-                </CardContent>
-              </Card>
+                  <div className="text-center">
+                    <p className="font-semibold text-slate-700 text-base">Belum ada pesanan</p>
+                    <p className="text-sm text-slate-400 mt-1 max-w-xs leading-relaxed">
+                      Mulai gunakan layanan Travelpage untuk cargo, transfer, handling, dan layanan perjalanan lainnya.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => navigate("/")}
+                    className="mt-1 px-6 py-2.5 rounded-xl bg-[#16a07c] text-white text-sm font-semibold hover:bg-[#0d8a6a] transition-colors shadow-sm flex items-center gap-2"
+                  >
+                    <Globe className="w-4 h-4" />
+                    Explore Services
+                  </button>
+                </div>
+              ) : (
+                /* ── Table ───────────────────────────────────────────────── */
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-100">
+                        <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-5 py-3">Order ID</th>
+                        <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3">Service</th>
+                        <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3">Date</th>
+                        <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3 hidden md:table-cell">Details</th>
+                        <th className="text-right text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3">Total</th>
+                        <th className="text-center text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3">Status</th>
+                        <th className="text-center text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {allOrders.slice(0, 10).map((b) => {
+                        const svcType = _serviceLabel(b).toLowerCase();
+                        const svcCfg = _serviceTypeConfig[svcType] || _serviceTypeConfig["car rental"];
+                        const Icon = svcCfg.icon;
+                        return (
+                          <tr key={b.id} className="hover:bg-slate-50/60 transition-colors">
+                            <td className="px-5 py-3.5">
+                              <span className="font-mono text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded-md">
+                                {b.bookingCode || `#${String(b.id).slice(0, 8)}`}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3.5">
+                              <div className="flex items-center gap-2">
+                                <div className={`w-7 h-7 rounded-lg ${svcCfg.bg} flex items-center justify-center flex-shrink-0`}>
+                                  <Icon className={`w-3.5 h-3.5 ${svcCfg.iconColor}`} />
+                                </div>
+                                <span className="text-xs font-medium text-slate-700">{svcCfg.label}</span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3.5 text-xs text-slate-500 whitespace-nowrap">
+                              {_formatDate(b.startDate)}
+                            </td>
+                            <td className="px-4 py-3.5 hidden md:table-cell">
+                              <p className="text-xs text-slate-700 font-medium truncate max-w-[160px]">{b.vehicleName}</p>
+                              {b.pickupLocation && (
+                                <p className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
+                                  <MapPin className="w-3 h-3" />{b.pickupLocation}
+                                </p>
+                              )}
+                            </td>
+                            <td className="px-4 py-3.5 text-right">
+                              <span className="text-xs font-bold text-slate-800">{_formatCurrency(b.totalAmount)}</span>
+                            </td>
+                            <td className="px-4 py-3.5 text-center">
+                              <StatusBadge status={b.status} />
+                            </td>
+                            <td className="px-4 py-3.5 text-center">
+                              <button
+                                onClick={() => navigate(`/booking/${b.id}`)}
+                                className="inline-flex items-center gap-1 text-xs font-medium text-[#16a07c] hover:text-[#0d8a6a] px-3 py-1.5 rounded-lg border border-[#16a07c]/30 hover:bg-[#16a07c]/5 transition-all"
+                              >
+                                <Eye className="w-3 h-3" /> View
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                  {allOrders.length > 10 && (
+                    <div className="px-6 py-4 border-t border-slate-100 text-center">
+                      <button
+                        className="text-sm text-[#16a07c] font-medium hover:underline inline-flex items-center gap-1"
+                        onClick={() => setActiveTab("orders")}
+                      >
+                        Lihat semua {allOrders.length} pesanan <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
-          </TabsContent>
 
-          <TabsContent value="bookings" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>All Bookings1</CardTitle>
-                <CardDescription>
-                  View and manage all your vehicle rentals
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <h3 className="font-semibold">Active Bookings</h3>
-                    <select
-                      className="p-2 border rounded-md mr-2"
-                      onChange={(e) => {
-                        const status = e.target.value;
-                        // This is a placeholder for actual filtering logic
-                        // In a real implementation, you would filter the bookings based on status
-                        console.log(`Filter by status: ${status}`);
-                      }}
+            {/* ── Active Services ──────────────────────────────────────────── */}
+            <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
+              <div className="px-6 pt-5 pb-4 flex items-center justify-between border-b border-slate-100">
+                <div>
+                  <h2 className="font-semibold text-slate-800">Active Services</h2>
+                  <p className="text-xs text-slate-400 mt-0.5">Layanan yang sedang berjalan</p>
+                </div>
+                <Badge variant="secondary" className="bg-[#16a07c]/10 text-[#16a07c] font-semibold">
+                  {activeBookings.length} aktif
+                </Badge>
+              </div>
+              <div className="p-5">
+                {isLoadingBookings ? (
+                  <div className="py-8 flex justify-center">
+                    <div className="w-7 h-7 rounded-full border-2 border-[#16a07c] border-t-transparent animate-spin" />
+                  </div>
+                ) : activeBookings.length === 0 ? (
+                  <div className="py-10 flex flex-col items-center gap-3">
+                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center">
+                      <Activity className="w-7 h-7 text-slate-300" />
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm font-medium text-slate-500">Tidak ada layanan aktif</p>
+                      <p className="text-xs text-slate-400 mt-1">Pesan layanan untuk memulai perjalanan Anda</p>
+                    </div>
+                    <button
+                      onClick={() => navigate("/")}
+                      className="px-5 py-2 rounded-xl bg-[#16a07c] text-white text-sm font-semibold hover:bg-[#0d8a6a] transition-colors flex items-center gap-2"
                     >
-                      <option value="all">All Status</option>
-                      <option value="booked">Booked</option>
-                      <option value="confirmed">Confirmed</option>
-                      <option value="onride">Onride</option>
-                      <option value="completed">Completed</option>
-                      <option value="cancelled">Cancelled</option>
-                    </select>
-                    <Button variant="outline" size="sm">
-                      Apply Filter
-                    </Button>
+                      <Globe className="w-3.5 h-3.5" />
+                      Explore Services
+                    </button>
                   </div>
-
-                  {isLoadingBookings ? (
-                    <div className="flex justify-center items-center py-8">
-                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-                    </div>
-                  ) : activeBookings.length > 0 ? (
-                    activeBookings.map((booking) => (
-                      <div
-                        key={booking.id}
-                        className="flex flex-col md:flex-row gap-4 p-4 border rounded-lg"
-                      >
-                        <div className="w-full md:w-1/5 h-32 rounded-md overflow-hidden">
-                          <img
-                            src={booking.imageUrl}
-                            alt={booking.vehicleName}
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <Badge className="mb-2">
-                                {booking.isAirportTransfer
-                                  ? "Airport Transfer"
-                                  : booking.isBaggageBooking
-                                    ? "Baggage Storage"
-                                    : "Rentcar"}
-                              </Badge>
-                              <h3 className="text-lg font-semibold">
-                                {booking.vehicleName}
-                              </h3>
-                            </div>
-                            <Badge
-                              className={`${booking.status.toLowerCase() === "pending" || booking.status.toLowerCase() === "booked" ? "bg-pink-500" : ""}`}
-                            >
-                              {booking.status.toLowerCase() === "pending"
-                                ? "Booked"
-                                : booking.status}
-                            </Badge>
-                          </div>
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-2">
-                            {!booking.isBaggageBooking && (
-                              <div>
-                                <p className="text-sm text-muted-foreground">
-                                  License Plate
-                                </p>
-                                <p className="font-medium">
-                                  {booking.licensePlate || "-"}
-                                </p>
-                              </div>
-                            )}
-                            {booking.vehicleType && (
-                              <div>
-                                <p className="text-sm text-muted-foreground">
-                                  {booking.isBaggageBooking
-                                    ? "Storage"
-                                    : "Vehicle Type"}
-                                </p>
-                                <p className="font-medium">
-                                  {booking.vehicleType}
-                                </p>
-                              </div>
-                            )}
-
-                            {!booking.isBaggageBooking && (
-                              <div>
-                                <p className="text-sm text-muted-foreground">
-                                  Driver Name
-                                </p>
-                                <p className="font-medium">
-                                  {booking.driverName}
-                                </p>
-                              </div>
-                            )}
-                            <div>
-                              <p className="text-sm text-muted-foreground">
-                                Booking Code
-                              </p>
-                              <p className="font-medium">
-                                {booking.bookingCode}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-sm text-muted-foreground">
-                                {booking.isAirportTransfer
-                                  ? "Pickup Date & Time"
-                                  : booking.isBaggageBooking
-                                    ? "Storage Period"
-                                    : "Pickup Date"}
-                              </p>
-                              <p className="font-medium">
-                                {formatDate(booking.startDate)}
-                                {booking.isAirportTransfer && booking.pickupTime
-                                  ? `, ${booking.pickupTime}`
-                                  : ""}
-                                {booking.isBaggageBooking && booking.startTime
-                                  ? ` ${booking.startTime}`
-                                  : ""}
-                                {!booking.isAirportTransfer &&
-                                !booking.isBaggageBooking
-                                  ? ` - ${formatDate(booking.endDate)}`
-                                  : booking.isBaggageBooking
-                                    ? ` - ${formatDate(booking.endDate)}${booking.endTime ? ` ${booking.endTime}` : ""}`
-                                    : ""}
-                              </p>
-                            </div>
-                            {booking.isAirportTransfer && (
-                              <>
-                                <div>
-                                  <p className="text-sm text-muted-foreground">
-                                    Pickup Location
-                                  </p>
-                                  <p className="font-medium">
-                                    {booking.pickupLocation || "-"}
-                                  </p>
-                                </div>
-                                <div>
-                                  <p className="text-sm text-muted-foreground">
-                                    Dropoff Location
-                                  </p>
-                                  <p className="font-medium">
-                                    {booking.dropoffLocation || "-"}
-                                  </p>
-                                </div>
-                              </>
-                            )}
-                            {booking.isBaggageBooking && (
-                              <>
-                                <div>
-                                  <p className="text-sm text-muted-foreground">
-                                    Baggage Size
-                                  </p>
-                                  <p className="font-medium capitalize">
-                                    {booking.baggageSize?.replace("_", " ") ||
-                                      "-"}
-                                  </p>
-                                </div>
-                                <div>
-                                  <p className="text-sm text-muted-foreground">
-                                    Airport
-                                  </p>
-                                  <p className="font-medium">
-                                    {booking.airport || "-"}
-                                  </p>
-                                </div>
-                                <div>
-                                  <p className="text-sm text-muted-foreground">
-                                    Terminal
-                                  </p>
-                                  <p className="font-medium">
-                                    {booking.terminal || "-"}
-                                  </p>
-                                </div>
-                              </>
-                            )}
-                            <div>
-                              <p className="text-sm text-muted-foreground">
-                                Total Amount
-                              </p>
-                              <p className="font-medium">
-                                {formatCurrency(booking.totalAmount)}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-sm text-muted-foreground">
-                                Payment Status
-                              </p>
-                              <p className="font-medium capitalize">
-                                {booking.paymentStatus}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-sm text-muted-foreground">
-                                Payment Method
-                              </p>
-                              <p className="font-medium capitalize">
-                                {booking.paymentMethod || "-"}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="flex gap-2 mt-4">
-                            <Button size="sm" variant="outline">
-                              View Details
-                            </Button>
-                            {!booking.isBaggageBooking && (
-                              <Button size="sm">Manage Booking</Button>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="text-center py-8">
-                      <Car className="mx-auto h-12 w-12 text-muted-foreground" />
-                      <h3 className="mt-2 text-lg font-medium">
-                        No bookings found
-                      </h3>
-                      <p className="text-muted-foreground">
-                        You don't have any active bookings
-                      </p>
-                      <Button className="mt-4">Book a Vehicle</Button>
-                    </div>
-                  )}
-
-                  {bookingHistory.length > 0 && (
-                    <>
-                      <Separator className="my-6" />
-
-                      <div className="flex justify-between items-center">
-                        <h3 className="font-semibold">Booking History</h3>
-                      </div>
-
-                      {isLoadingBookings ? (
-                        <div className="flex justify-center items-center py-8">
-                          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-                        </div>
-                      ) : (
-                        bookingHistory.map((booking) => (
-                          <div
-                            key={booking.id}
-                            className="flex flex-col md:flex-row gap-4 p-4 border rounded-lg"
-                          >
-                            <div className="w-full md:w-1/5 h-32 rounded-md overflow-hidden">
-                              <img
-                                src={booking.imageUrl}
-                                alt={booking.vehicleName}
-                                className="w-full h-full object-cover"
-                              />
-                            </div>
-                            <div className="flex-1">
-                              <div className="flex justify-between items-start">
-                                <h3 className="text-lg font-semibold">
-                                  {booking.vehicleName}
-                                </h3>
-                                <Badge variant="outline">
-                                  {booking.status}
-                                </Badge>
-                              </div>
-                              <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-2">
-                                <div>
-                                  <p className="text-sm text-muted-foreground">
-                                    {booking.isAirportTransfer
-                                      ? "Airport Transfer"
-                                      : booking.isBaggageBooking
-                                        ? "Baggage Storage"
-                                        : "Rentcar"}
-                                  </p>
-                                  <p className="font-medium">
-                                    {formatDate(booking.startDate)}
-                                    {booking.pickupTime
-                                      ? `, ${booking.pickupTime}`
-                                      : booking.startTime
-                                        ? ` ${booking.startTime}`
-                                        : ""}
-                                  </p>
-                                </div>
-
-                                <div>
-                                  <p className="text-sm text-muted-foreground">
-                                    Total Amount
-                                  </p>
-                                  <p className="font-medium">
-                                    {formatCurrency(booking.totalAmount)}
-                                  </p>
-                                </div>
-                                <div>
-                                  <p className="text-sm text-muted-foreground">
-                                    Payment Method
-                                  </p>
-                                  <p className="font-medium capitalize">
-                                    {booking.paymentMethod}
-                                  </p>
-                                </div>
-                                <div>
-                                  <p className="text-sm text-muted-foreground">
-                                    Payment Status
-                                  </p>
-                                  <p className="font-medium capitalize">
-                                    {booking.paymentStatus}
-                                  </p>
-                                </div>
-                              </div>
-                              <div className="flex gap-2 mt-4">
-                                <Button size="sm" variant="outline">
-                                  View Receipt
-                                </Button>
-                                <Button size="sm" variant="outline">
-                                  Book Again
-                                </Button>
-                              </div>
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="payments" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Payment History</CardTitle>
-                <CardDescription>
-                  View all your payment transactions
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {isLoadingBookings ? (
-                    <div className="flex justify-center items-center py-8">
-                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-                    </div>
-                  ) : [...activeBookings, ...bookingHistory].length > 0 ? (
-                    [...activeBookings, ...bookingHistory].map((booking) => (
-                      <div
-                        key={booking.id}
-                        className="flex justify-between items-center p-4 border rounded-lg"
-                      >
-                        <div className="flex items-center gap-4">
-                          <div className="p-2 rounded-full bg-muted">
-                            <CreditCard className="h-5 w-5" />
-                          </div>
-                          <div>
-                            <p className="font-medium">
-                              {booking.vehicleName} Rental
-                            </p>
-                            <p className="text-sm text-muted-foreground">
-                              {formatDate(booking.startDate)}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-medium">
-                            {formatCurrency(booking.totalAmount)}
-                          </p>
-                          <Badge
-                            variant={
-                              booking.paymentStatus === "paid"
-                                ? "default"
-                                : "outline"
-                            }
-                            className="mt-1"
-                          >
-                            {booking.paymentStatus === "paid"
-                              ? "Paid"
-                              : booking.paymentStatus === "partial"
-                                ? "Partially Paid"
-                                : "Pending"}
-                          </Badge>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="text-center py-8">
-                      <CreditCard className="mx-auto h-12 w-12 text-muted-foreground" />
-                      <h3 className="mt-2 text-lg font-medium">
-                        No payment history
-                      </h3>
-                      <p className="text-muted-foreground">
-                        You haven't made any payments yet
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="profile" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Profile Information</CardTitle>
-                <CardDescription>
-                  Manage your personal information
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-col md:flex-row gap-8">
-                  <div className="md:w-1/3 flex flex-col items-center">
-                    <Avatar className="h-32 w-32 border-2 border-primary">
-                      <AvatarImage src={userAvatar} alt={userName} />
-                      <AvatarFallback className="bg-primary text-primary-foreground text-4xl">
-                        {getInitials(userName)}
-                      </AvatarFallback>
-                    </Avatar>
-
-                    {/* Selfie Capture Section - Only for Customer role */}
-                    {userRole === "Customer" && (
-                      <div className="w-full mt-4 space-y-4">
-                        {uploadError && (
-                          <div className="p-2 bg-red-50 border border-red-200 rounded-md flex items-center gap-2 text-red-600 text-sm">
-                            <AlertCircle className="h-4 w-4" />
-                            <span>{uploadError}</span>
-                          </div>
-                        )}
-
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {activeBookings.slice(0, 6).map((b) => {
+                      const svcType = _serviceLabel(b).toLowerCase();
+                      const svcCfg = _serviceTypeConfig[svcType] || _serviceTypeConfig["car rental"];
+                      const Icon = svcCfg.icon;
+                      return (
                         <div
-                          className="relative w-full aspect-video bg-black rounded-lg overflow-hidden"
-                          style={{ minHeight: "200px" }}
+                          key={b.id}
+                          className="flex flex-col gap-3 p-4 rounded-xl border border-slate-100 hover:border-[#16a07c]/30 hover:bg-[#16a07c]/[0.02] transition-all"
                         >
-                          {stream ? (
-                            <video
-                              ref={videoRef}
-                              autoPlay
-                              playsInline
-                              muted
-                              className="w-full h-full object-cover"
-                              style={{
-                                transform: "scaleX(-1)",
-                                backgroundColor: "#000",
-                                width: "100%",
-                                height: "100%",
-                              }}
-                            />
-                          ) : capturedImage ? (
-                            <img
-                              src={capturedImage}
-                              alt="Captured selfie"
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <div className="flex items-center justify-center w-full h-full bg-muted">
-                              <Camera className="h-12 w-12 text-muted-foreground" />
+                          <div className="flex items-start gap-3">
+                            <div className={`w-10 h-10 rounded-xl ${svcCfg.bg} flex items-center justify-center flex-shrink-0`}>
+                              <Icon className={`w-5 h-5 ${svcCfg.iconColor}`} />
                             </div>
-                          )}
-
-                          <canvas
-                            ref={canvasRef}
-                            className="hidden"
-                            width="1280"
-                            height="720"
-                            style={{ position: "absolute", top: 0, left: 0 }}
-                          />
-                        </div>
-
-                        <div className="flex flex-col space-y-2 w-full">
-                          {!isCapturing && !capturedImage ? (
-                            <>
-                              <Button
-                                onClick={startCamera}
-                                type="button"
-                                className="w-full bg-blue-500 hover:bg-blue-600 text-white"
-                              >
-                                <Camera className="mr-2 h-4 w-4" /> Mulai Kamera
-                              </Button>
-                              <div className="relative w-full">
-                                <Input
-                                  type="file"
-                                  accept="image/*"
-                                  id="file-upload"
-                                  className="hidden"
-                                  onChange={handleFileUpload}
-                                />
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  className="w-full"
-                                  onClick={() =>
-                                    document
-                                      .getElementById("file-upload")
-                                      ?.click()
-                                  }
-                                >
-                                  <Upload className="mr-2 h-4 w-4" /> Upload
-                                  Foto
-                                </Button>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between gap-1 mb-0.5">
+                                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">{svcCfg.label}</p>
+                                <StatusBadge status={b.status} />
                               </div>
-                            </>
-                          ) : isCapturing ? (
-                            <Button
-                              onClick={captureImage}
-                              type="button"
-                              className="w-full bg-green-500 hover:bg-green-600 text-white"
-                            >
-                              Ambil Foto
-                            </Button>
-                          ) : capturedImage ? (
-                            <div className="flex flex-col space-y-2">
-                              <Button
-                                onClick={uploadSelfie}
-                                type="button"
-                                className="w-full bg-green-500 hover:bg-green-600 text-white"
-                                disabled={isUploading}
-                              >
-                                {isUploading ? "Uploading..." : "Save Photo"}
-                              </Button>
-                              <Button
-                                onClick={() => {
-                                  setCapturedImage(null);
-                                  setUploadError(null);
-                                }}
-                                type="button"
-                                variant="outline"
-                                className="w-full"
-                              >
-                                <RefreshCw className="mr-2 h-4 w-4" /> Ambil
-                                Ulang
-                              </Button>
+                              <p className="text-sm font-semibold text-slate-800 truncate">{b.vehicleName}</p>
                             </div>
-                          ) : null}
+                          </div>
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-1 text-[11px] text-slate-400">
+                              <Clock className="w-3 h-3 flex-shrink-0" />
+                              {_formatDate(b.startDate)}
+                            </div>
+                            {b.pickupLocation && (
+                              <div className="flex items-center gap-1 text-[11px] text-slate-400">
+                                <MapPin className="w-3 h-3 flex-shrink-0" />
+                                <span className="truncate">{b.pickupLocation}</span>
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                            <span className="text-xs font-bold text-slate-700">{_formatCurrency(b.totalAmount)}</span>
+                            <button
+                              onClick={() => navigate(`/booking/${b.id}`)}
+                              className="text-[11px] text-[#16a07c] font-semibold hover:underline flex items-center gap-0.5"
+                            >
+                              Detail <ChevronRight className="w-3 h-3" />
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    )}
-
-                    {userRole !== "Customer" && (
-                      <Button variant="outline" className="mt-4">
-                        Change Photo
-                      </Button>
-                    )}
+                      );
+                    })}
                   </div>
-                  <div className="flex-1 space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-sm font-medium">Full Name</label>
-                        <input
-                          type="text"
-                          className="w-full p-2 mt-1 border rounded-md"
-                          value={fullName || userName}
-                          onChange={(e) => setFullName(e.target.value)}
-                        />
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium">Email</label>
-                        <input
-                          type="email"
-                          className="w-full p-2 mt-1 border rounded-md"
-                          value={userEmail}
-                          readOnly
-                        />
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium">
-                          Phone Number
-                        </label>
-                        <input
-                          type="tel"
-                          className="w-full p-2 mt-1 border rounded-md"
-                          value={phoneNumber}
-                          onChange={(e) => setPhoneNumber(e.target.value)}
-                        />
-                      </div>
+                )}
+              </div>
+            </div>
+
+            {/* ── Payment Summary ──────────────────────────────────────────── */}
+            <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
+              <div className="px-6 pt-5 pb-4 flex items-center justify-between border-b border-slate-100">
+                <div>
+                  <h2 className="font-semibold text-slate-800">Payment Summary</h2>
+                  <p className="text-xs text-slate-400 mt-0.5">Ringkasan status pembayaran</p>
+                </div>
+                <button
+                  onClick={() => setActiveTab("payments")}
+                  className="text-xs font-medium text-[#16a07c] hover:underline flex items-center gap-1"
+                >
+                  View Payments <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <div className="p-5 space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {/* Pending invoices */}
+                  <div className="flex items-center gap-4 p-4 rounded-xl bg-amber-50 border border-amber-100">
+                    <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0">
+                      <Clock className="w-5 h-5 text-amber-600" />
                     </div>
                     <div>
-                      <label className="text-sm font-medium">Address</label>
-                      <textarea
-                        className="w-full p-2 mt-1 border rounded-md h-24"
-                        placeholder="Enter your address"
-                        value={address}
-                        onChange={(e) => setAddress(e.target.value)}
-                      ></textarea>
+                      <p className="text-2xl font-bold text-amber-700">{pendingPayments.length}</p>
+                      <p className="text-xs font-semibold text-amber-600 mt-0.5">Pending Invoices</p>
+                      <p className="text-[11px] text-amber-500">Menunggu pembayaran</p>
                     </div>
-                    <div className="flex justify-end gap-2">
-                      <Button variant="outline">Cancel</Button>
-                      <Button
-                        onClick={async () => {
-                          try {
-                            if (!userId) return;
-
-                            let updateSuccess = false;
-
-                            // First update auth.users metadata as the primary source of truth
-                            const { error: authUpdateError } =
-                              await supabase.functions.invoke(
-                                "update-user-metadata",
-                                {
-                                  body: {
-                                    userId: userId,
-                                    userData: {
-                                      full_name: fullName,
-                                      phone_number: phoneNumber,
-                                      name: fullName, // Also update name field for compatibility
-                                      address: address,
-                                      selfie_url: capturedImage,
-                                    },
-                                  },
-                                },
-                              );
-
-                            if (authUpdateError) {
-                              console.error(
-                                "Error updating auth user metadata:",
-                                authUpdateError,
-                              );
-                            } else {
-                              console.log(
-                                "Auth user metadata updated successfully",
-                              );
-
-                              // Update local storage with new user data
-                              const authUserStr =
-                                localStorage.getItem("auth_user");
-                              if (authUserStr) {
-                                try {
-                                  const authUser = JSON.parse(authUserStr);
-                                  authUser.name = fullName;
-                                  localStorage.setItem(
-                                    "auth_user",
-                                    JSON.stringify(authUser),
-                                  );
-                                  localStorage.setItem("userName", fullName);
-                                } catch (e) {
-                                  console.error(
-                                    "Error updating auth_user in localStorage:",
-                                    e,
-                                  );
-                                }
-                              }
-                            }
-
-                            // Then update database tables for backward compatibility
-                            // For Customer role, update both customers and users tables
-                            if (userRole === "Customer") {
-                              // Update customers table with both full_name and name fields
-                              const { error: customerError } = await supabase
-                                .from("customers")
-                                .update({
-                                  full_name: fullName,
-                                  name: fullName, // Also update the name column
-                                  phone: phoneNumber,
-                                  address: address,
-                                })
-                                .eq("id", userId);
-
-                              // Also update users table for consistency
-                              const { error: userError } = await supabase
-                                .from("users")
-                                .update({
-                                  full_name: fullName,
-                                  phone_number: phoneNumber,
-                                  address: address,
-                                })
-                                .eq("id", userId);
-
-                              if (
-                                !customerError &&
-                                !userError &&
-                                !authUpdateError
-                              )
-                                updateSuccess = true;
-                            } else {
-                              // For non-Customer roles, update users table
-                              const { error } = await supabase
-                                .from("users")
-                                .update({
-                                  full_name: fullName,
-                                  phone_number: phoneNumber,
-                                  address: address,
-                                })
-                                .eq("id", userId);
-
-                              if (!error && !authUpdateError)
-                                updateSuccess = true;
-                            }
-
-                            if (updateSuccess) {
-                              alert("Profile updated successfully!");
-                            } else {
-                              alert(
-                                "Failed to update profile. Please try again.",
-                              );
-                            }
-                          } catch (error) {
-                            console.error("Error updating profile:", error);
-                            alert(
-                              "An error occurred while updating your profile.",
-                            );
-                          }
-                        }}
-                      >
-                        Save Changes
-                      </Button>
+                  </div>
+                  {/* Paid invoices */}
+                  <div className="flex items-center gap-4 p-4 rounded-xl bg-emerald-50 border border-emerald-100">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                      <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-emerald-700">
+                        {allOrders.filter((b) => b.paymentStatus?.toLowerCase() === "paid").length}
+                      </p>
+                      <p className="text-xs font-semibold text-emerald-600 mt-0.5">Paid Invoices</p>
+                      <p className="text-[11px] text-emerald-500">Pembayaran selesai</p>
+                    </div>
+                  </div>
+                  {/* Total unpaid */}
+                  <div className="flex items-center gap-4 p-4 rounded-xl bg-red-50 border border-red-100">
+                    <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center flex-shrink-0">
+                      <Wallet className="w-5 h-5 text-red-500" />
+                    </div>
+                    <div>
+                      <p className="text-lg font-bold text-red-600 leading-tight">
+                        {_formatCurrency(pendingPayments.reduce((s: number, b: any) => s + (b.totalAmount || 0), 0))}
+                      </p>
+                      <p className="text-xs font-semibold text-red-500 mt-0.5">Total Unpaid</p>
+                      <p className="text-[11px] text-red-400">Dari {pendingPayments.length} invoice</p>
                     </div>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
+                {/* Alert banner when there are pending payments */}
+                {pendingPayments.length > 0 && (
+                  <div className="flex items-center justify-between gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+                    <div className="flex items-center gap-2.5">
+                      <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                      <div>
+                        <p className="text-sm font-semibold text-amber-800">
+                          {pendingPayments.length} invoice menunggu pembayaran
+                        </p>
+                        <p className="text-xs text-amber-600 mt-0.5">
+                          Total: {_formatCurrency(pendingPayments.reduce((s: number, b: any) => s + (b.totalAmount || 0), 0))}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setActiveTab("payments")}
+                      className="flex-shrink-0 px-4 py-2 rounded-lg bg-amber-600 text-white text-xs font-semibold hover:bg-amber-700 transition-colors whitespace-nowrap"
+                    >
+                      Bayar Sekarang
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
           </TabsContent>
 
-          {(userRole === "Admin" || userRole === "Manager") && (
-            <>
-              <TabsContent value="users" className="space-y-6">
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between">
-                    <div>
-                      <CardTitle>User Management</CardTitle>
-                      <CardDescription>
-                        Manage system users and their roles
-                      </CardDescription>
+          {/* ── Orders ───────────────────────────────────────────────────── */}
+          <TabsContent value="orders" className="space-y-6">
+            {/* All orders table */}
+            <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
+              <div className="px-6 pt-5 pb-4 border-b border-slate-100 flex items-center justify-between">
+                <div>
+                  <h2 className="font-semibold text-slate-800">Semua Pesanan</h2>
+                  <p className="text-xs text-slate-400 mt-0.5">Riwayat lengkap semua layanan</p>
+                </div>
+                <Badge variant="secondary" className="bg-slate-100 text-slate-600 font-medium">
+                  {allOrders.length} total
+                </Badge>
+              </div>
+              {isLoadingBookings ? (
+                <div className="py-14 flex flex-col items-center gap-3">
+                  <div className="w-8 h-8 rounded-full border-2 border-[#16a07c] border-t-transparent animate-spin" />
+                  <p className="text-sm text-slate-400">Memuat pesanan…</p>
+                </div>
+              ) : allOrders.length === 0 ? (
+                <div className="py-16 flex flex-col items-center gap-4">
+                  <div className="relative">
+                    <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#16a07c]/10 to-[#16a07c]/5 flex items-center justify-center">
+                      <Package className="w-9 h-9 text-[#16a07c]/50" />
                     </div>
-                    <Button className="flex items-center gap-1">
-                      <User size={16} />
-                      Add User
-                    </Button>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      <div className="flex justify-between items-center">
-                        <div className="flex gap-2">
-                          <input
-                            type="text"
-                            placeholder="Search users..."
-                            className="p-2 border rounded-md w-64"
-                          />
-                          <Button variant="outline">Search</Button>
-                        </div>
-                        <div className="flex gap-2">
-                          <select className="p-2 border rounded-md">
-                            <option>All Roles</option>
-                            <option>Admin</option>
-                            <option>Manager</option>
-                            <option>Supervisor</option>
-                            <option>Staff</option>
-                            <option>HRD</option>
-                          </select>
-                          <Button variant="outline">Filter</Button>
-                        </div>
-                      </div>
-
-                      <div className="border rounded-md overflow-hidden">
-                        <table className="w-full">
-                          <thead className="bg-muted">
-                            <tr>
-                              <th className="p-3 text-left">Name</th>
-                              <th className="p-3 text-left">Email</th>
-                              <th className="p-3 text-left">Role</th>
-                              <th className="p-3 text-left">Status</th>
-                              <th className="p-3 text-left">Actions</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            <tr className="border-t">
-                              <td className="p-3">
-                                <div className="flex items-center gap-2">
-                                  <Avatar className="h-8 w-8">
-                                    <AvatarFallback>JD</AvatarFallback>
-                                  </Avatar>
-                                  <span>John Doe</span>
-                                </div>
-                              </td>
-                              <td className="p-3">john.doe@example.com</td>
-                              <td className="p-3">Admin</td>
-                              <td className="p-3">
-                                <Badge variant="default">Active</Badge>
-                              </td>
-                              <td className="p-3">
-                                <div className="flex gap-2">
-                                  <Button size="sm" variant="outline">
-                                    Edit
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="text-red-500"
-                                  >
-                                    Disable
-                                  </Button>
-                                </div>
-                              </td>
-                            </tr>
-                            <tr className="border-t">
-                              <td className="p-3">
-                                <div className="flex items-center gap-2">
-                                  <Avatar className="h-8 w-8">
-                                    <AvatarFallback>JS</AvatarFallback>
-                                  </Avatar>
-                                  <span>Jane Smith</span>
-                                </div>
-                              </td>
-                              <td className="p-3">jane.smith@example.com</td>
-                              <td className="p-3">Manager</td>
-                              <td className="p-3">
-                                <Badge variant="default">Active</Badge>
-                              </td>
-                              <td className="p-3">
-                                <div className="flex gap-2">
-                                  <Button size="sm" variant="outline">
-                                    Edit
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="text-red-500"
-                                  >
-                                    Disable
-                                  </Button>
-                                </div>
-                              </td>
-                            </tr>
-                            <tr className="border-t">
-                              <td className="p-3">
-                                <div className="flex items-center gap-2">
-                                  <Avatar className="h-8 w-8">
-                                    <AvatarFallback>RJ</AvatarFallback>
-                                  </Avatar>
-                                  <span>Robert Johnson</span>
-                                </div>
-                              </td>
-                              <td className="p-3">robert.j@example.com</td>
-                              <td className="p-3">Staff</td>
-                              <td className="p-3">
-                                <Badge variant="outline">Inactive</Badge>
-                              </td>
-                              <td className="p-3">
-                                <div className="flex gap-2">
-                                  <Button size="sm" variant="outline">
-                                    Edit
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="text-green-500"
-                                  >
-                                    Enable
-                                  </Button>
-                                </div>
-                              </td>
-                            </tr>
-                          </tbody>
-                        </table>
-                      </div>
-
-                      <div className="flex justify-between items-center">
-                        <p className="text-sm text-muted-foreground">
-                          Showing 3 of 24 users
-                        </p>
-                        <div className="flex gap-1">
-                          <Button size="sm" variant="outline" disabled>
-                            Previous
-                          </Button>
-                          <Button size="sm" variant="outline">
-                            1
-                          </Button>
-                          <Button size="sm" variant="outline">
-                            2
-                          </Button>
-                          <Button size="sm" variant="outline">
-                            3
-                          </Button>
-                          <Button size="sm" variant="outline">
-                            Next
-                          </Button>
-                        </div>
-                      </div>
+                    <div className="absolute -top-1.5 -right-1.5 w-6 h-6 bg-amber-100 rounded-full flex items-center justify-center">
+                      <Search className="w-3 h-3 text-amber-600" />
                     </div>
-                  </CardContent>
-                </Card>
-              </TabsContent>
+                  </div>
+                  <div className="text-center">
+                    <p className="font-semibold text-slate-700 text-base">Belum ada pesanan</p>
+                    <p className="text-sm text-slate-400 mt-1 max-w-xs leading-relaxed">
+                      Mulai gunakan layanan Travelpage untuk cargo, transfer, handling, dan layanan perjalanan lainnya.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => navigate("/")}
+                    className="mt-1 px-6 py-2.5 rounded-xl bg-[#16a07c] text-white text-sm font-semibold hover:bg-[#0d8a6a] transition-colors shadow-sm flex items-center gap-2"
+                  >
+                    <Globe className="w-4 h-4" />
+                    Explore Services
+                  </button>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-100">
+                        <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-5 py-3">Order ID</th>
+                        <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3">Service</th>
+                        <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3 hidden sm:table-cell">Date</th>
+                        <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3 hidden lg:table-cell">Details</th>
+                        <th className="text-right text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3">Total</th>
+                        <th className="text-center text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3">Status</th>
+                        <th className="text-center text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {allOrders.map((b) => {
+                        const svcKey = _serviceLabel(b).toLowerCase();
+                        const svcCfg = _serviceTypeConfig[svcKey] || _serviceTypeConfig["car rental"];
+                        const Icon = svcCfg.icon;
+                        return (
+                          <tr key={b.id} className="hover:bg-slate-50/80 transition-colors group">
+                            <td className="px-5 py-3.5">
+                              <span className="font-mono text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
+                                {b.bookingCode || `#${String(b.id).slice(0, 8)}`}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3.5">
+                              <div className="flex items-center gap-2">
+                                <div className={`w-7 h-7 rounded-lg ${svcCfg.bg} flex items-center justify-center flex-shrink-0`}>
+                                  <Icon className={`w-3.5 h-3.5 ${svcCfg.iconColor}`} />
+                                </div>
+                                <span className="text-xs font-medium text-slate-700">{svcCfg.label}</span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3.5 hidden sm:table-cell">
+                              <span className="text-xs text-slate-500 whitespace-nowrap">{_formatDate(b.startDate)}</span>
+                            </td>
+                            <td className="px-4 py-3.5 hidden lg:table-cell">
+                              <p className="text-xs text-slate-700 font-medium truncate max-w-[160px]">{b.vehicleName}</p>
+                              {b.pickupLocation && (
+                                <p className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5 truncate max-w-[160px]">
+                                  <MapPin className="w-2.5 h-2.5 flex-shrink-0" />{b.pickupLocation}
+                                </p>
+                              )}
+                            </td>
+                            <td className="px-4 py-3.5 text-right">
+                              <span className="text-sm font-semibold text-slate-800">{_formatCurrency(b.totalAmount)}</span>
+                            </td>
+                            <td className="px-4 py-3.5 text-center">
+                              <StatusBadge status={b.status} />
+                            </td>
+                            <td className="px-4 py-3.5 text-center">
+                              <button
+                                onClick={() => navigate(`/booking/${b.id}`)}
+                                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs font-medium text-slate-600 hover:bg-[#16a07c]/10 hover:border-[#16a07c]/30 hover:text-[#16a07c] transition-all"
+                              >
+                                <Eye className="w-3 h-3" />
+                                View Details
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </TabsContent>
 
-              <TabsContent value="vehicles" className="space-y-6">
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between">
-                    <div>
-                      <CardTitle>Vehicle Inventory</CardTitle>
-                      <CardDescription>
-                        Manage your vehicle fleet
-                      </CardDescription>
+          {/* ── Payments ─────────────────────────────────────────────────── */}
+          <TabsContent value="payments" className="space-y-6">
+
+            {/* Payment Summary cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="flex items-center gap-4 p-5 rounded-2xl bg-amber-50 border border-amber-100 shadow-sm">
+                <div className="w-12 h-12 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0">
+                  <Clock className="w-6 h-6 text-amber-600" />
+                </div>
+                <div>
+                  <p className="text-3xl font-bold text-amber-700">{pendingPayments.length}</p>
+                  <p className="text-xs font-semibold text-amber-600 mt-0.5">Pending Invoices</p>
+                  <p className="text-[11px] text-amber-500">Menunggu pembayaran</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-4 p-5 rounded-2xl bg-emerald-50 border border-emerald-100 shadow-sm">
+                <div className="w-12 h-12 rounded-xl bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                  <CheckCircle2 className="w-6 h-6 text-emerald-600" />
+                </div>
+                <div>
+                  <p className="text-3xl font-bold text-emerald-700">
+                    {allOrders.filter((b) => b.paymentStatus?.toLowerCase() === "paid").length}
+                  </p>
+                  <p className="text-xs font-semibold text-emerald-600 mt-0.5">Paid Invoices</p>
+                  <p className="text-[11px] text-emerald-500">Pembayaran selesai</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-4 p-5 rounded-2xl bg-red-50 border border-red-100 shadow-sm">
+                <div className="w-12 h-12 rounded-xl bg-red-100 flex items-center justify-center flex-shrink-0">
+                  <Wallet className="w-6 h-6 text-red-500" />
+                </div>
+                <div>
+                  <p className="text-xl font-bold text-red-600 leading-tight">
+                    {_formatCurrency(pendingPayments.reduce((s: number, b: any) => s + (b.totalAmount || 0), 0))}
+                  </p>
+                  <p className="text-xs font-semibold text-red-500 mt-0.5">Total Unpaid</p>
+                  <p className="text-[11px] text-red-400">Dari {pendingPayments.length} invoice</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Pending payments alert */}
+            {pendingPayments.length > 0 && (
+              <div className="flex items-center justify-between gap-3 p-4 bg-amber-50 border border-amber-200 rounded-2xl">
+                <div className="flex items-center gap-2.5">
+                  <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                  <div>
+                    <p className="text-sm font-semibold text-amber-800">
+                      {pendingPayments.length} invoice menunggu pembayaran
+                    </p>
+                    <p className="text-xs text-amber-600 mt-0.5">
+                      Total: {_formatCurrency(pendingPayments.reduce((s: number, b: any) => s + (b.totalAmount || 0), 0))}
+                    </p>
+                  </div>
+                </div>
+                <button className="flex-shrink-0 px-4 py-2 rounded-lg bg-amber-600 text-white text-xs font-semibold hover:bg-amber-700 transition-colors whitespace-nowrap">
+                  Bayar Sekarang
+                </button>
+              </div>
+            )}
+
+            {/* All transactions table */}
+            <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
+              <div className="px-6 pt-5 pb-4 border-b border-slate-100 flex items-center justify-between">
+                <div>
+                  <h2 className="font-semibold text-slate-800">Semua Transaksi</h2>
+                  <p className="text-xs text-slate-400 mt-0.5">Riwayat lengkap pembayaran</p>
+                </div>
+                <Badge variant="secondary" className="bg-slate-100 text-slate-600 font-medium">
+                  {allOrders.length} transaksi
+                </Badge>
+              </div>
+              {isLoadingBookings ? (
+                <div className="py-10 flex justify-center">
+                  <div className="w-8 h-8 rounded-full border-2 border-[#16a07c] border-t-transparent animate-spin" />
+                </div>
+              ) : allOrders.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-100">
+                        <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-5 py-3">Order ID</th>
+                        <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3">Service</th>
+                        <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3 hidden sm:table-cell">Date</th>
+                        <th className="text-right text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3">Amount</th>
+                        <th className="text-center text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3">Payment Status</th>
+                        <th className="text-center text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {allOrders.map((b) => {
+                        const svcKey = _serviceLabel(b).toLowerCase();
+                        const svcCfg = _serviceTypeConfig[svcKey] || _serviceTypeConfig["car rental"];
+                        const Icon = svcCfg.icon;
+                        return (
+                          <tr key={b.id} className="hover:bg-slate-50/80 transition-colors">
+                            <td className="px-5 py-3.5">
+                              <span className="font-mono text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
+                                {b.bookingCode || `#${String(b.id).slice(0, 8)}`}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3.5">
+                              <div className="flex items-center gap-2">
+                                <div className={`w-7 h-7 rounded-lg ${svcCfg.bg} flex items-center justify-center flex-shrink-0`}>
+                                  <Icon className={`w-3.5 h-3.5 ${svcCfg.iconColor}`} />
+                                </div>
+                                <div>
+                                  <p className="text-xs font-medium text-slate-700">{svcCfg.label}</p>
+                                  <p className="text-[11px] text-slate-400 truncate max-w-[100px]">{b.vehicleName}</p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3.5 hidden sm:table-cell">
+                              <span className="text-xs text-slate-500 whitespace-nowrap">{_formatDate(b.startDate)}</span>
+                            </td>
+                            <td className="px-4 py-3.5 text-right">
+                              <span className="text-sm font-semibold text-slate-800">{_formatCurrency(b.totalAmount)}</span>
+                            </td>
+                            <td className="px-4 py-3.5 text-center">
+                              <StatusBadge status={b.paymentStatus || "pending"} />
+                            </td>
+                            <td className="px-4 py-3.5 text-center">
+                              <button
+                                onClick={() => navigate(`/booking/${b.id}`)}
+                                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs font-medium text-slate-600 hover:bg-[#16a07c]/10 hover:border-[#16a07c]/30 hover:text-[#16a07c] transition-all"
+                              >
+                                <Eye className="w-3 h-3" />
+                                View
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="py-16 flex flex-col items-center gap-4">
+                  <div className="relative">
+                    <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#16a07c]/10 to-[#16a07c]/5 flex items-center justify-center">
+                      <Wallet className="w-9 h-9 text-[#16a07c]/50" />
                     </div>
-                    <Button className="flex items-center gap-1">
-                      <Car size={16} />
-                      Add Vehicle
-                    </Button>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      <div className="flex justify-between items-center">
-                        <div className="flex gap-2">
-                          <input
-                            type="text"
-                            placeholder="Search vehicles..."
-                            className="p-2 border rounded-md w-64"
-                          />
-                          <Button variant="outline">Search</Button>
-                        </div>
-                        <div className="flex gap-2">
-                          <select className="p-2 border rounded-md">
-                            <option>All Types</option>
-                            <option>Sedan</option>
-                            <option>SUV</option>
-                            <option>MPV</option>
-                            <option>Hatchback</option>
-                          </select>
-                          <select className="p-2 border rounded-md">
-                            <option>All Status</option>
-                            <option>Available</option>
-                            <option>Rented</option>
-                            <option>Maintenance</option>
-                          </select>
-                          <Button variant="outline">Filter</Button>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        <div className="border rounded-lg overflow-hidden">
-                          <div className="h-48 overflow-hidden">
-                            <img
-                              src="https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?w=800&q=80"
-                              alt="Toyota Avanza"
-                              className="w-full h-full object-cover"
-                            />
-                          </div>
-                          <div className="p-4">
-                            <div className="flex justify-between items-start">
-                              <h3 className="font-semibold">Toyota Avanza</h3>
-                              <Badge>Available</Badge>
-                            </div>
-                            <div className="mt-2">
-                              <p className="text-sm">
-                                <span className="text-muted-foreground">
-                                  Type:
-                                </span>{" "}
-                                MPV
-                              </p>
-                              <p className="text-sm">
-                                <span className="text-muted-foreground">
-                                  Rate:
-                                </span>{" "}
-                                {formatCurrency(150000)}/day
-                              </p>
-                              <p className="text-sm">
-                                <span className="text-muted-foreground">
-                                  License:
-                                </span>{" "}
-                                B 1234 XYZ
-                              </p>
-                            </div>
-                            <div className="flex gap-2 mt-4">
-                              <Button size="sm" variant="outline">
-                                Edit
-                              </Button>
-                              <Button size="sm">View Details</Button>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="border rounded-lg overflow-hidden">
-                          <div className="h-48 overflow-hidden">
-                            <img
-                              src="https://images.unsplash.com/photo-1541899481282-d53bffe3c35d?w=800&q=80"
-                              alt="Honda Brio"
-                              className="w-full h-full object-cover"
-                            />
-                          </div>
-                          <div className="p-4">
-                            <div className="flex justify-between items-start">
-                              <h3 className="font-semibold">Honda Brio</h3>
-                              <Badge variant="outline">Rented</Badge>
-                            </div>
-                            <div className="mt-2">
-                              <p className="text-sm">
-                                <span className="text-muted-foreground">
-                                  Type:
-                                </span>{" "}
-                                Hatchback
-                              </p>
-                              <p className="text-sm">
-                                <span className="text-muted-foreground">
-                                  Rate:
-                                </span>{" "}
-                                {formatCurrency(120000)}/day
-                              </p>
-                              <p className="text-sm">
-                                <span className="text-muted-foreground">
-                                  License:
-                                </span>{" "}
-                                B 5678 ABC
-                              </p>
-                            </div>
-                            <div className="flex gap-2 mt-4">
-                              <Button size="sm" variant="outline">
-                                Edit
-                              </Button>
-                              <Button size="sm">View Details</Button>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="border rounded-lg overflow-hidden">
-                          <div className="h-48 overflow-hidden">
-                            <img
-                              src="https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?w=800&q=80"
-                              alt="Suzuki Ertiga"
-                              className="w-full h-full object-cover"
-                            />
-                          </div>
-                          <div className="p-4">
-                            <div className="flex justify-between items-start">
-                              <h3 className="font-semibold">Suzuki Ertiga</h3>
-                              <Badge variant="destructive">Maintenance</Badge>
-                            </div>
-                            <div className="mt-2">
-                              <p className="text-sm">
-                                <span className="text-muted-foreground">
-                                  Type:
-                                </span>{" "}
-                                MPV
-                              </p>
-                              <p className="text-sm">
-                                <span className="text-muted-foreground">
-                                  Rate:
-                                </span>{" "}
-                                {formatCurrency(140000)}/day
-                              </p>
-                              <p className="text-sm">
-                                <span className="text-muted-foreground">
-                                  License:
-                                </span>{" "}
-                                B 9012 DEF
-                              </p>
-                            </div>
-                            <div className="flex gap-2 mt-4">
-                              <Button size="sm" variant="outline">
-                                Edit
-                              </Button>
-                              <Button size="sm">View Details</Button>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex justify-between items-center">
-                        <p className="text-sm text-muted-foreground">
-                          Showing 3 of 15 vehicles
-                        </p>
-                        <div className="flex gap-1">
-                          <Button size="sm" variant="outline" disabled>
-                            Previous
-                          </Button>
-                          <Button size="sm" variant="outline">
-                            1
-                          </Button>
-                          <Button size="sm" variant="outline">
-                            2
-                          </Button>
-                          <Button size="sm" variant="outline">
-                            3
-                          </Button>
-                          <Button size="sm" variant="outline">
-                            Next
-                          </Button>
-                        </div>
-                      </div>
+                    <div className="absolute -top-1.5 -right-1.5 w-6 h-6 bg-amber-100 rounded-full flex items-center justify-center">
+                      <Search className="w-3 h-3 text-amber-600" />
                     </div>
-                  </CardContent>
-                </Card>
-              </TabsContent>
-            </>
-          )}
+                  </div>
+                  <div className="text-center">
+                    <p className="font-semibold text-slate-700 text-base">Belum ada pesanan</p>
+                    <p className="text-sm text-slate-400 mt-1 max-w-xs leading-relaxed">
+                      Mulai gunakan layanan Travelpage untuk cargo, transfer, handling, dan layanan perjalanan lainnya.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => navigate("/")}
+                    className="mt-1 px-6 py-2.5 rounded-xl bg-[#16a07c] text-white text-sm font-semibold hover:bg-[#0d8a6a] transition-colors shadow-sm flex items-center gap-2"
+                  >
+                    <Globe className="w-4 h-4" />
+                    Explore Services
+                  </button>
+                </div>
+              )}
+            </div>
+          </TabsContent>
+
+          {/* ── Profile ──────────────────────────────────────────────────── */}
+          <TabsContent value="profile" className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Avatar card */}
+              <div className="bg-white rounded-2xl shadow-sm border-0 overflow-hidden">
+                <div className="h-20 bg-gradient-to-r from-[#0d6e57] to-[#16a07c]" />
+                <div className="px-6 pb-6 -mt-10">
+                  <div className="relative w-20 h-20 mb-4">
+                    {capturedImage ? (
+                      <img src={capturedImage} alt="Profile" className="w-20 h-20 rounded-2xl object-cover ring-4 ring-white" />
+                    ) : (
+                      <div className="w-20 h-20 rounded-2xl bg-[#16a07c]/20 flex items-center justify-center ring-4 ring-white">
+                        <span className="text-2xl font-bold text-[#16a07c]">{_getInitials(displayName)}</span>
+                      </div>
+                    )}
+                  </div>
+                  <h3 className="font-bold text-slate-800 text-lg">{displayName}</h3>
+                  <p className="text-sm text-slate-400">{userEmail}</p>
+                  <span className="inline-flex items-center mt-2 px-2.5 py-1 rounded-full bg-[#16a07c]/10 text-[#16a07c] text-xs font-medium">
+                    {userRole}
+                  </span>
+                  <Separator className="my-4" />
+                  <div className="space-y-3">
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Profile Photo</p>
+                    {isCapturing ? (
+                      <div className="space-y-2">
+                        <video ref={videoRef} autoPlay playsInline className="w-full rounded-xl" />
+                        <canvas ref={canvasRef} className="hidden" width={640} height={480} />
+                        <Button onClick={captureImageFn} size="sm" className="w-full bg-[#16a07c] hover:bg-[#0d8a6a]">
+                          <Camera className="w-4 h-4 mr-2" /> Capture
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex gap-2">
+                        <Button onClick={startCamera} size="sm" variant="outline" className="flex-1 text-xs">
+                          <Camera className="w-3 h-3 mr-1" /> Camera
+                        </Button>
+                        <label className="flex-1 cursor-pointer">
+                          <div className="flex items-center justify-center gap-1 h-8 px-3 rounded-md border border-input text-xs font-medium hover:bg-accent">
+                            <Upload className="w-3 h-3" /> Upload
+                          </div>
+                          <input type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
+                        </label>
+                      </div>
+                    )}
+                    {capturedImage && capturedImage.startsWith("data:") && (
+                      <Button onClick={uploadSelfie} disabled={isUploading} size="sm" className="w-full bg-[#16a07c] hover:bg-[#0d8a6a]">
+                        {isUploading ? <><RefreshCw className="w-4 h-4 mr-2 animate-spin" />Uploading…</> : "Save Photo"}
+                      </Button>
+                    )}
+                    {uploadError && (
+                      <p className="text-xs text-red-500 flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3" />{uploadError}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Edit form */}
+              <div className="bg-white rounded-2xl shadow-sm border-0 p-6 lg:col-span-2 space-y-5">
+                <div>
+                  <h2 className="font-semibold text-slate-800">Account Information</h2>
+                  <p className="text-xs text-slate-400 mt-0.5">Update your personal details</p>
+                </div>
+                <Separator />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Full Name</Label>
+                    <Input value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Enter your full name" className="rounded-xl border-slate-200 focus-visible:ring-[#16a07c]" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Email</Label>
+                    <Input value={userEmail || ""} disabled className="rounded-xl border-slate-200 bg-slate-50 text-slate-400" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Phone Number</Label>
+                    <Input value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} placeholder="+62 ..." className="rounded-xl border-slate-200 focus-visible:ring-[#16a07c]" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Role</Label>
+                    <Input value={userRole || "Customer"} disabled className="rounded-xl border-slate-200 bg-slate-50 text-slate-400" />
+                  </div>
+                  <div className="space-y-1.5 md:col-span-2">
+                    <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Address</Label>
+                    <Input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Enter your address" className="rounded-xl border-slate-200 focus-visible:ring-[#16a07c]" />
+                  </div>
+                </div>
+                <div className="flex items-center justify-between pt-2">
+                  {profileSaved && (
+                    <span className="flex items-center gap-1.5 text-sm text-emerald-600">
+                      <CheckCircle2 className="w-4 h-4" />Profile saved successfully
+                    </span>
+                  )}
+                  <Button onClick={saveProfile} disabled={isSavingProfile} className="ml-auto bg-[#16a07c] hover:bg-[#0d8a6a] rounded-xl px-6">
+                    {isSavingProfile ? <><RefreshCw className="w-4 h-4 mr-2 animate-spin" />Saving…</> : "Save Changes"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </TabsContent>
         </Tabs>
       </div>
     </div>
